@@ -314,8 +314,14 @@ class VideoGenerator:
             font = ImageFont.truetype(el.style.font, pixel_size)
             bold_font = ImageFont.truetype(el.style.font, bold_pixel_size)
         except OSError:
-            font = ImageFont.load_default()
-            bold_font = ImageFont.load_default()
+            try:
+                font = ImageFont.load_default(size=pixel_size)
+            except TypeError:
+                font = ImageFont.load_default()
+            try:
+                bold_font = ImageFont.load_default(size=bold_pixel_size)
+            except TypeError:
+                bold_font = ImageFont.load_default()
 
         for team in teams:
             self._draw_team_table(
@@ -642,7 +648,10 @@ class VideoGenerator:
             try:
                 font = ImageFont.truetype(font_file, pixel_size)
             except OSError:
-                font = ImageFont.load_default()
+                try:
+                    font = ImageFont.load_default(size=pixel_size)
+                except TypeError:
+                    font = ImageFont.load_default()
 
             text_color = parse_color_with_alpha(el.style.color, el.alpha)
             bg_color = parse_color_with_alpha(el.style.background_color, el.alpha)

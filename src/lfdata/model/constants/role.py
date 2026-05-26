@@ -12,8 +12,8 @@ class LFRole(enum.Enum):
     COMMANDER = (1, "Commander", 15, 30, 5, 30, 60, 4, 5, 3)
     HEAVY = (2, "Heavy", 10, 20, 5, 20, 40, 3, 5, 3)
     SCOUT = (3, "Scout", 15, 30, 0, 30, 60, 3, 10, 1)
-    MEDIC = (4, "Medic", 20, 15, 0, 20, 20, 0, 5, 2)
-    AMMO = (5, "Ammo", 10, 0, 0, 20, 0, 3, 0, 1)
+    MEDIC = (5, "Medic", 20, 15, 0, 20, 20, 0, 5, 2)
+    AMMO = (4, "Ammo", 10, 0, 0, 20, 0, 3, 0, 1)
 
     def __init__(
         self,

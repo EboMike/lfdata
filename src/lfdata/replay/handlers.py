@@ -1,7 +1,7 @@
 """Mixin containing event handlers for the LF replay system."""
 
 from typing import TYPE_CHECKING
-from lfdata.model import GameEvent
+from lfdata.model import GameEvent, LFRole
 
 if TYPE_CHECKING:
     from lfdata.replay.replay import LFReplaySystem
@@ -35,28 +35,25 @@ class LFReplayHandlersMixin:
             and not target.is_eliminated()
         ):
             if actor.team_index == target.team_index:
-                # Friendly fire: penalize actor, target is unaffected
+                # Friendly fire: penalize actor
                 actor.score -= 100
             else:
                 actor.score += 100
                 actor.special_points += 1
 
-                # Check target state
-                if event.event_type in [
-                    "0205",
-                    "0207",
-                ]:  # DAMAGED_OPPONENT / TEAM
-                    target.hp = max(1, target.hp - 1)
-                elif event.event_type in [
-                    "0206",
-                    "0208",
-                ]:  # DOWNED_OPPONENT / TEAM
+            # Target always loses 20 score (unless already eliminated)
+            target.score -= 20
+
+            # Check if target goes down or resets downtime
+            if event.event_type in ["0206", "0208"]:
+                if actor.team_index != target.team_index:
                     if not target.is_down(event.time):
                         target.lives = max(0, target.lives - 1)
-                        target.score -= 20
-                    target.hp = 0
-                    target.downtime_ends_at = event.time + 8000
-                    target.resettable_starts_at = event.time + 4000
+                target.hp = 0
+                target.downtime_ends_at = event.time + 8000
+                target.resettable_starts_at = event.time + 4000
+            else:
+                target.hp = max(1, target.hp - 1)
 
         return f"{actor_name} zaps {target_name}"
 
@@ -86,19 +83,22 @@ class LFReplayHandlersMixin:
             and not target.is_eliminated()
         ):
             if actor.team_index == target.team_index:
-                # Friendly fire missile: penalize actor, target unaffected
+                # Friendly fire missile: penalize actor
                 actor.score -= 500
             else:
                 actor.score += 500
                 actor.special_points += 2
 
-                # Missile immediately downs target
+            # Target always loses 100 score (unless already eliminated)
+            target.score -= 100
+
+            # Missile immediately downs target or resets downtime
+            if actor.team_index != target.team_index:
                 if not target.is_down(event.time):
                     target.lives = max(0, target.lives - 2)
-                    target.score -= 100
-                target.hp = 0
-                target.downtime_ends_at = event.time + 8000
-                target.resettable_starts_at = event.time + 4000
+            target.hp = 0
+            target.downtime_ends_at = event.time + 8000
+            target.resettable_starts_at = event.time + 4000
 
         return f"{actor_name} missiles {target_name}"
 
@@ -182,20 +182,24 @@ class LFReplayHandlersMixin:
         if actor and actor.is_eliminated():
             return ""
 
-        if event.event_type == "0500":
+        if event.event_type in ("0500", "0502"):
             target = self.game_state.players.get(event.target_entity_id)
             if target and not target.is_eliminated():
-                target.resupply_shots_from_ammo()
+                is_medic = (
+                    actor.role == LFRole.MEDIC if actor else event.event_type == "0502"
+                )
+                if is_medic:
+                    target.resupply_lives_from_medic()
+                else:
+                    target.resupply_shots_from_ammo()
+                target.hp = 0
+                target.downtime_ends_at = event.time + 8000
+                target.resettable_starts_at = event.time + 4000
             return f"{actor_name} resupplies {target_name}"
 
-        if event.event_type == "0502":
-            target = self.game_state.players.get(event.target_entity_id)
-            if target and not target.is_eliminated():
-                target.resupply_lives_from_medic()
-            return f"{actor_name} resupplies {target_name}"
-
-        if event.event_type == "0510":
+        if event.event_type in ("0510", "0512"):
             if actor:
+                is_medic = actor.role == LFRole.MEDIC
                 for player in self.game_state.players.values():
                     if (
                         player.team_index == actor.team_index
@@ -203,19 +207,10 @@ class LFReplayHandlersMixin:
                         and not player.is_eliminated()
                         and not player.is_down(event.time)
                     ):
-                        player.resupply_shots_from_ammo()
-            return f"{actor_name} resupplies team"
-
-        if event.event_type == "0512":
-            if actor:
-                for player in self.game_state.players.values():
-                    if (
-                        player.team_index == actor.team_index
-                        and player.entity_id != actor.entity_id
-                        and not player.is_eliminated()
-                        and not player.is_down(event.time)
-                    ):
-                        player.resupply_lives_from_medic()
+                        if is_medic:
+                            player.resupply_lives_from_medic()
+                        else:
+                            player.resupply_shots_from_ammo()
             return f"{actor_name} resupplies team"
 
         return ""

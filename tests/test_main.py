@@ -52,3 +52,23 @@ def test_main_video_state_at(capsys) -> None:
         captured = capsys.readouterr()
         assert "HUD Elements at 5000 ms:" in captured.out
         assert "Game Type: Space Marines 5 Tournament Edition" in captured.out
+
+
+def test_main_image_at(tmp_path: Path) -> None:
+    real_path = Path(__file__).parent.parent / "assets" / "sm5_sanitized.tdf"
+    with patch.object(
+        sys,
+        "argv",
+        [
+            "lfdata",
+            "--input_tdf",
+            str(real_path),
+            "--image-outdir",
+            str(tmp_path),
+            "--image-at",
+            "5000",
+        ],
+    ):
+        main()
+        expected_file = tmp_path / "image_at_5000.png"
+        assert expected_file.exists()

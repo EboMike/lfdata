@@ -39,6 +39,24 @@ def main() -> None:
         type=int,
         help="All UI elements given at the specific number of milliseconds into the game.",
     )
+    parser.add_argument(
+        "--image-outdir",
+        type=str,
+        default=".",
+        help=(
+            "Folder to place all output images in. "
+            "Defaults to the current directory."
+        ),
+    )
+    parser.add_argument(
+        "--image-at",
+        type=int,
+        help=(
+            "Renders an image to be used at the specific number of "
+            "milliseconds into the game. The image will be saved as "
+            "a PNG file."
+        ),
+    )
 
     args = parser.parse_args()
 
@@ -178,6 +196,24 @@ def main() -> None:
                         f'{tot["special_points"]:>5}'
                     )
                     print(total_row)
+
+    if args.image_at is not None:
+        from pathlib import Path
+        from lfdata.video import VideoGenerator, VisualElementGenerator
+
+        generator = VideoGenerator(game)
+        config = generator._load_config(None)
+        if args.video_player:
+            config["player_name"] = args.video_player
+
+        hud_gen = VisualElementGenerator(game, args.video_player, config)
+        elements = hud_gen.generate_at(args.image_at)
+        img = generator._render_frame(elements, args.image_at, config)
+
+        out_dir = Path(args.image_outdir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_path = out_dir / f"image_at_{args.image_at}.png"
+        img.save(out_path)
 
 
 if __name__ == "__main__":

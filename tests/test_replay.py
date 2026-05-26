@@ -83,7 +83,7 @@ def test_replay_system_rules() -> None:
         desc="Med2",
         team_index=1,
         level=1,
-        category=4,
+        category=5,
         battlesuit="Medic",
     )
     game.entities = [cmd, sct, med]
@@ -295,3 +295,248 @@ def test_replay_missile_decrements_and_penalties() -> None:
     # Total score should be 501.
     assert cmd_state.score == 501
     assert "B1" in cmd_state.captured_bases
+
+
+def test_medic_and_nuke_life_rules() -> None:
+    from datetime import datetime
+    from lfdata.model import LFGame, GameTeam, GameEntity, GameEvent
+
+    game = LFGame(
+        game_id="test_medic_nuke_game",
+        timestamp=datetime.now(),
+        game_type="SM5",
+    )
+
+    t1 = GameTeam(
+        game_id="test_medic_nuke_game",
+        team_index=0,
+        desc="Fire Team",
+        color_enum=11,
+        color_desc="Fire",
+        color_rgb="#FF5000",
+    )
+    t2 = GameTeam(
+        game_id="test_medic_nuke_game",
+        team_index=1,
+        desc="Earth Team",
+        color_enum=13,
+        color_desc="Earth",
+        color_rgb="#00FF00",
+    )
+    game.teams = [t1, t2]
+
+    # Commander on team 0
+    cmd = GameEntity(
+        game_id="test_medic_nuke_game",
+        entity_id="C1",
+        type="player",
+        desc="Cmd1",
+        team_index=0,
+        level=1,
+        category=1,
+        battlesuit="Maverick",
+    )
+    # Medic on team 1
+    med = GameEntity(
+        game_id="test_medic_nuke_game",
+        entity_id="M2",
+        type="player",
+        desc="Med2",
+        team_index=1,
+        level=1,
+        category=5,
+        battlesuit="Medic",
+    )
+    # Scout on team 1
+    sct = GameEntity(
+        game_id="test_medic_nuke_game",
+        entity_id="S2",
+        type="player",
+        desc="Sct2",
+        team_index=1,
+        level=1,
+        category=3,
+        battlesuit="Interceptor",
+    )
+    game.entities = [cmd, med, sct]
+
+    events = [
+        # Mission start
+        GameEvent(
+            game_id="test_medic_nuke_game",
+            time=0,
+            event_type="0100",
+            action="start",
+            raw_message="",
+        ),
+        # Commander zaps Medic (Medic is downed and loses 1 life)
+        GameEvent(
+            game_id="test_medic_nuke_game",
+            time=1000,
+            event_type="0206",
+            actor_entity_id="C1",
+            target_entity_id="M2",
+            action="zaps",
+            raw_message="",
+        ),
+        # Commander missiles Medic at time 10000 (after downtime ends)
+        # Medic is downed by missile and loses 2 lives
+        GameEvent(
+            game_id="test_medic_nuke_game",
+            time=10000,
+            event_type="0306",
+            actor_entity_id="C1",
+            target_entity_id="M2",
+            action="missiled",
+            raw_message="",
+        ),
+        # Commander detonates nuke at time 20000 (after downtime ends)
+        # Scout and Medic are downed and lose 3 lives each
+        GameEvent(
+            game_id="test_medic_nuke_game",
+            time=20000,
+            event_type="0405",
+            actor_entity_id="C1",
+            action="detonates nuke",
+            raw_message="",
+        ),
+    ]
+    game.events = events
+
+    replay = LFReplaySystem(game)
+    replay.run()
+
+    players = replay.game_state.players
+    med_state = players["M2"]
+    sct_state = players["S2"]
+
+    # Medic starts with 20 lives. Zap (-1), missile (-2), nuke (-3) -> 14 lives.
+    assert med_state.lives == 14
+    assert med_state.hp == 0
+    assert med_state.downtime_ends_at == 28000  # 20000 + 8000
+
+    # Scout starts with 15 lives. Detonating nuke at 20000 takes 3 lives.
+    # So Scout should have 12 lives.
+    assert sct_state.lives == 12
+    assert sct_state.hp == 0
+
+
+def test_team_boost_not_down() -> None:
+    from datetime import datetime
+    from lfdata.model import LFGame, GameTeam, GameEntity, GameEvent
+
+    game = LFGame(
+        game_id="test_boost_game",
+        timestamp=datetime.now(),
+        game_type="SM5",
+    )
+
+    t1 = GameTeam(
+        game_id="test_boost_game",
+        team_index=0,
+        desc="Fire Team",
+        color_enum=11,
+        color_desc="Fire",
+        color_rgb="#FF5000",
+    )
+    t2 = GameTeam(
+        game_id="test_boost_game",
+        team_index=1,
+        desc="Earth Team",
+        color_enum=13,
+        color_desc="Earth",
+        color_rgb="#00FF00",
+    )
+    game.teams = [t1, t2]
+
+    # Commander on team 0
+    cmd = GameEntity(
+        game_id="test_boost_game",
+        entity_id="C1",
+        type="player",
+        desc="Cmd1",
+        team_index=0,
+        level=1,
+        category=1,
+        battlesuit="Maverick",
+    )
+    # Medic on team 1
+    med = GameEntity(
+        game_id="test_boost_game",
+        entity_id="M2",
+        type="player",
+        desc="Med2",
+        team_index=1,
+        level=1,
+        category=5,
+        battlesuit="Medic",
+    )
+    # Scout 1 on team 1
+    s1 = GameEntity(
+        game_id="test_boost_game",
+        entity_id="S1",
+        type="player",
+        desc="Sct1",
+        team_index=1,
+        level=1,
+        category=3,
+        battlesuit="Interceptor",
+    )
+    # Scout 2 on team 1
+    s2 = GameEntity(
+        game_id="test_boost_game",
+        entity_id="S2",
+        type="player",
+        desc="Sct2",
+        team_index=1,
+        level=1,
+        category=3,
+        battlesuit="Interceptor",
+    )
+    game.entities = [cmd, med, s1, s2]
+
+    events = [
+        # Mission start
+        GameEvent(
+            game_id="test_boost_game",
+            time=0,
+            event_type="0100",
+            action="start",
+            raw_message="",
+        ),
+        # Commander zaps S2 (S2 is downed)
+        GameEvent(
+            game_id="test_boost_game",
+            time=1000,
+            event_type="0206",
+            actor_entity_id="C1",
+            target_entity_id="S2",
+            action="zaps",
+            raw_message="",
+        ),
+        # Medic resupplies team (life boost) at time 2000
+        # S1 is active, so S1's lives should increase from 15 to 18
+        # S2 is down, so S2's lives should remain 14
+        GameEvent(
+            game_id="test_boost_game",
+            time=2000,
+            event_type="0512",
+            actor_entity_id="M2",
+            action="life_boost",
+            raw_message="",
+        ),
+    ]
+    game.events = events
+
+    replay = LFReplaySystem(game)
+    replay.run()
+
+    players = replay.game_state.players
+    s1_state = players["S1"]
+    s2_state = players["S2"]
+
+    # S1 was active, should receive boost: 15 + 3 = 18 lives
+    assert s1_state.lives == 18
+
+    # S2 was down, should NOT receive boost: 15 - 1 = 14 lives
+    assert s2_state.lives == 14
