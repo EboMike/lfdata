@@ -205,7 +205,14 @@ class LFReplayHandlersMixin:
 
         if event.event_type in ("0510", "0512"):
             if actor:
-                is_medic = actor.role == LFRole.MEDIC
+                is_medic = (
+                    actor.role == LFRole.MEDIC if actor else event.event_type == "0512"
+                )
+                if is_medic:
+                    actor.special_points = max(0, actor.special_points - 15)
+                else:
+                    actor.special_points = max(0, actor.special_points - 10)
+
                 for player in self.game_state.players.values():
                     if (
                         player.team_index == actor.team_index
@@ -217,8 +224,6 @@ class LFReplayHandlersMixin:
                             player.resupply_lives_from_medic()
                         else:
                             player.resupply_shots_from_ammo()
-                        if player.role == LFRole.SCOUT:
-                            player.has_rapid_fire = False
             return f"{actor_name} resupplies team"
 
         return ""

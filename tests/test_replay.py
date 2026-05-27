@@ -1006,3 +1006,195 @@ def test_nuke_cancel_scenarios() -> None:
     assert c2_state.nukes_activated == 1
     assert c2_state.nukes_detonated == 1
     assert c2_state.own_nuke_cancels == 0
+
+
+def test_team_boost_rules() -> None:
+    from datetime import datetime
+    from lfdata.model import LFGame, GameTeam, GameEntity, GameEvent
+
+    game = LFGame(
+        game_id="test_team_boost_rules_game",
+        timestamp=datetime.now(),
+        game_type="SM5",
+    )
+    t1 = GameTeam(
+        game_id="test_team_boost_rules_game",
+        team_index=0,
+        desc="Fire Team",
+        color_enum=11,
+        color_desc="Fire",
+        color_rgb="#FF5000",
+    )
+    t2 = GameTeam(
+        game_id="test_team_boost_rules_game",
+        team_index=1,
+        desc="Earth Team",
+        color_enum=13,
+        color_desc="Earth",
+        color_rgb="#00FF00",
+    )
+    game.teams = [t1, t2]
+
+    # Entities:
+    # Cmd1 on team 0 (enemy target)
+    c1 = GameEntity(
+        game_id="test_team_boost_rules_game",
+        entity_id="C1",
+        type="player",
+        desc="Cmd1",
+        team_index=0,
+        level=1,
+        category=1,
+        battlesuit="Maverick",
+    )
+    # Medic M2 on team 1
+    m2 = GameEntity(
+        game_id="test_team_boost_rules_game",
+        entity_id="M2",
+        type="player",
+        desc="Med2",
+        team_index=1,
+        level=1,
+        category=5,
+        battlesuit="Medic",
+    )
+    # Ammo A2 on team 1
+    a2 = GameEntity(
+        game_id="test_team_boost_rules_game",
+        entity_id="A2",
+        type="player",
+        desc="Ammo2",
+        team_index=1,
+        level=1,
+        category=2,
+        battlesuit="Ammo",
+    )
+    # Scout S2 on team 1
+    s2 = GameEntity(
+        game_id="test_team_boost_rules_game",
+        entity_id="S2",
+        type="player",
+        desc="Sct2",
+        team_index=1,
+        level=1,
+        category=3,
+        battlesuit="Interceptor",
+    )
+    game.entities = [c1, m2, a2, s2]
+
+    # Build events to award SP to M2, A2, and S2
+    events = [
+        GameEvent(
+            game_id="test_team_boost_rules_game",
+            time=0,
+            event_type="0100",
+            action="start",
+            raw_message="",
+        )
+    ]
+
+    # M2 zaps C1 20 times (giving M2 20 SP)
+    # A2 zaps C1 12 times (giving A2 12 SP)
+    # S2 zaps C1 16 times (giving S2 16 SP)
+    t = 1000
+    for _ in range(20):
+        events.append(
+            GameEvent(
+                game_id="test_team_boost_rules_game",
+                time=t,
+                event_type="0205",
+                actor_entity_id="M2",
+                target_entity_id="C1",
+                action="zaps",
+                raw_message="",
+            )
+        )
+        t += 100
+    for _ in range(12):
+        events.append(
+            GameEvent(
+                game_id="test_team_boost_rules_game",
+                time=t,
+                event_type="0205",
+                actor_entity_id="A2",
+                target_entity_id="C1",
+                action="zaps",
+                raw_message="",
+            )
+        )
+        t += 100
+    for _ in range(16):
+        events.append(
+            GameEvent(
+                game_id="test_team_boost_rules_game",
+                time=t,
+                event_type="0205",
+                actor_entity_id="S2",
+                target_entity_id="C1",
+                action="zaps",
+                raw_message="",
+            )
+        )
+        t += 100
+
+    # S2 activates rapid fire (costs 15 SP, has 1 SP left)
+    events.append(
+        GameEvent(
+            game_id="test_team_boost_rules_game",
+            time=t,
+            event_type="0400",
+            actor_entity_id="S2",
+            action="activates rapid fire",
+            raw_message="",
+        )
+    )
+    t += 1000
+
+    # Medic M2 triggers life boost (0512) -> costs 15 SP, S2 receives lives
+    events.append(
+        GameEvent(
+            game_id="test_team_boost_rules_game",
+            time=t,
+            event_type="0512",
+            actor_entity_id="M2",
+            action="life_boost",
+            raw_message="",
+        )
+    )
+    t += 1000
+
+    # Ammo A2 triggers ammo boost (0510) -> costs 10 SP, S2 receives shots
+    events.append(
+        GameEvent(
+            game_id="test_team_boost_rules_game",
+            time=t,
+            event_type="0510",
+            actor_entity_id="A2",
+            action="ammo_boost",
+            raw_message="",
+        )
+    )
+    t += 1000
+
+    game.events = events
+    replay = LFReplaySystem(game)
+    replay.run()
+
+    m2_state = replay.game_state.players["M2"]
+    a2_state = replay.game_state.players["A2"]
+    s2_state = replay.game_state.players["S2"]
+
+    # M2 started with 20 SP, used 15 for boost -> should have 5 SP
+    assert m2_state.special_points == 5
+
+    # A2 started with 12 SP, used 10 for boost -> should have 2 SP
+    assert a2_state.special_points == 2
+
+    # S2 had rapid fire. S2 was boosted but should RETAIN rapid fire!
+    assert s2_state.has_rapid_fire is True
+
+    # S2 received life boost (lives go from 15 to 18)
+    assert s2_state.lives == 18
+
+    # S2 received ammo boost (shots go from 30 - 16 + 10 = 24)
+    assert s2_state.shots == 24
