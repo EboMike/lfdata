@@ -99,3 +99,33 @@ def test_main_video_frame_generation_range() -> None:
             _, kwargs = mock_gen_frames.call_args
             assert kwargs['start_ms'] == 1000
             assert kwargs['end_ms'] == 2000
+
+
+def test_main_video_out() -> None:
+    real_path = Path(__file__).parent.parent / 'assets' / 'sm5_sanitized.tdf'
+    with patch('lfdata.video.VideoGenerator.generate') as mock_generate:
+        with patch.object(
+            sys,
+            'argv',
+            [
+                'lfdata',
+                '--input_tdf',
+                str(real_path),
+                '--video_player',
+                'Cyborg',
+                '--video_start_ms',
+                '1000',
+                '--video_end_ms',
+                '2000',
+                '--video_out',
+                'output.mp4',
+            ],
+        ):
+            main()
+            mock_generate.assert_called_once_with(
+                output_path='output.mp4',
+                config_path=None,
+                video_start_ms=1000,
+                video_end_ms=2000,
+                video_player='Cyborg',
+            )

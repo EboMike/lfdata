@@ -43,5 +43,8 @@ pythonpath = ["src"]
 [tool.ruff]
 line-length = 80
 
+[tool.ruff.lint]
+per-file-ignores = {"src/lfdata/model/**/*.py" = ["F821"]}
+
 [tool.ruff.format]
 quote-style = "single"

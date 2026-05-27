@@ -166,38 +166,27 @@ class LFReplaySystem(LFReplayHandlersMixin):
         Returns:
             str | None: The cancel reason if the event cancels the nuke.
         """
+        et = check_ev.event_type
+        target = check_ev.target_entity_id
+        actor = check_ev.actor_entity_id
+
         # 1. Player is downed
-        if (
-            check_ev.event_type in ('0206', '0208', '0306', '0308')
-            and check_ev.target_entity_id == nuker_id
-        ):
-            actor_id = check_ev.actor_entity_id
-            if actor_id and player_teams.get(actor_id) == player_teams.get(
-                nuker_id
-            ):
+        if et in ('0206', '0208', '0306', '0308') and target == nuker_id:
+            if actor and player_teams.get(actor) == player_teams.get(nuker_id):
                 return 'nuke cancel by friendly fire'
             return 'nuke cancel'
 
         # 2. Cancel by resup
-        if (
-            check_ev.event_type in ('0500', '0502')
-            and check_ev.target_entity_id == nuker_id
-        ):
+        if et in ('0500', '0502') and target == nuker_id:
             return 'nuke cancel by own resup'
 
         # 3. Cancel by enemy nuke
-        if (
-            check_ev.event_type == '0405'
-            and check_ev.actor_entity_id != nuker_id
-        ):
-            actor_id = check_ev.actor_entity_id
-            if actor_id and player_teams.get(actor_id) != player_teams.get(
-                nuker_id
-            ):
+        if et == '0405' and actor != nuker_id:
+            if actor and player_teams.get(actor) != player_teams.get(nuker_id):
                 return 'nuke cancel by enemy nuke'
 
         # 4. Game end
-        if check_ev.event_type == '0101':
+        if et == '0101':
             return 'nuke activated too late'
 
         return None

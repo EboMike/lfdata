@@ -1,10 +1,13 @@
 """Mixin containing event handlers for the LF replay system."""
 
+from __future__ import annotations
+
 from typing import TYPE_CHECKING
 from lfdata.model import GameEvent, LFRole
 
 if TYPE_CHECKING:
     from lfdata.replay.replay import LFReplaySystem
+    from lfdata.replay.state import LFReplayPlayerState
 
 
 class LFReplayHandlersMixin:
@@ -183,6 +186,82 @@ class LFReplayHandlersMixin:
 
         return f'{actor_name} detonates nuke'
 
+    def _process_individual_resupply(
+        self: 'LFReplaySystem',
+        event: GameEvent,
+        actor: 'LFReplayPlayerState' | None,
+        actor_name: str,
+        target_name: str,
+    ) -> str:
+        """Processes an individual resupply event.
+
+        Args:
+            event: The resupply event.
+            actor: The actor player state.
+            actor_name: Display name of the actor.
+            target_name: Display name of the target.
+
+        Returns:
+            str: The event description string.
+        """
+        target = self.game_state.players.get(event.target_entity_id)
+        if target and not target.is_eliminated():
+            is_medic = (
+                actor.role == LFRole.MEDIC
+                if actor
+                else event.event_type == '0502'
+            )
+            if is_medic:
+                target.resupply_lives_from_medic()
+            else:
+                target.resupply_shots_from_ammo()
+            target.hp = 0
+            target.downtime_ends_at_ms = event.time + 8000
+            target.resettable_starts_at_ms = event.time + 4000
+            if target.role == LFRole.SCOUT:
+                target.has_rapid_fire = False
+        return f'{actor_name} resupplies {target_name}'
+
+    def _process_team_resupply(
+        self: 'LFReplaySystem',
+        event: GameEvent,
+        actor: 'LFReplayPlayerState' | None,
+        actor_name: str,
+    ) -> str:
+        """Processes a team resupply event.
+
+        Args:
+            event: The resupply event.
+            actor: The actor player state.
+            actor_name: Display name of the actor.
+
+        Returns:
+            str: The event description string.
+        """
+        if actor:
+            is_medic = (
+                actor.role == LFRole.MEDIC
+                if actor
+                else event.event_type == '0512'
+            )
+            if is_medic:
+                actor.special_points = max(0, actor.special_points - 15)
+            else:
+                actor.special_points = max(0, actor.special_points - 10)
+
+            for player in self.game_state.players.values():
+                if (
+                    player.team_index == actor.team_index
+                    and player.entity_id != actor.entity_id
+                    and not player.is_eliminated()
+                    and not player.is_down(event.time)
+                ):
+                    if is_medic:
+                        player.resupply_lives_from_medic()
+                    else:
+                        player.resupply_shots_from_ammo()
+        return f'{actor_name} resupplies team'
+
     def _process_event_resupply(
         self: 'LFReplaySystem', event: GameEvent
     ) -> str:
@@ -206,50 +285,84 @@ class LFReplayHandlersMixin:
             return ''
 
         if event.event_type in ('0500', '0502'):
-            target = self.game_state.players.get(event.target_entity_id)
-            if target and not target.is_eliminated():
-                is_medic = (
-                    actor.role == LFRole.MEDIC
-                    if actor
-                    else event.event_type == '0502'
-                )
-                if is_medic:
-                    target.resupply_lives_from_medic()
-                else:
-                    target.resupply_shots_from_ammo()
-                target.hp = 0
-                target.downtime_ends_at_ms = event.time + 8000
-                target.resettable_starts_at_ms = event.time + 4000
-                if target.role == LFRole.SCOUT:
-                    target.has_rapid_fire = False
-            return f'{actor_name} resupplies {target_name}'
+            return self._process_individual_resupply(
+                event=event,
+                actor=actor,
+                actor_name=actor_name,
+                target_name=target_name,
+            )
 
         if event.event_type in ('0510', '0512'):
-            if actor:
-                is_medic = (
-                    actor.role == LFRole.MEDIC
-                    if actor
-                    else event.event_type == '0512'
-                )
-                if is_medic:
-                    actor.special_points = max(0, actor.special_points - 15)
-                else:
-                    actor.special_points = max(0, actor.special_points - 10)
-
-                for player in self.game_state.players.values():
-                    if (
-                        player.team_index == actor.team_index
-                        and player.entity_id != actor.entity_id
-                        and not player.is_eliminated()
-                        and not player.is_down(event.time)
-                    ):
-                        if is_medic:
-                            player.resupply_lives_from_medic()
-                        else:
-                            player.resupply_shots_from_ammo()
-            return f'{actor_name} resupplies team'
+            return self._process_team_resupply(
+                event=event, actor=actor, actor_name=actor_name
+            )
 
         return ''
+
+    def _process_misc_mission_events(
+        self: 'LFReplaySystem', event: GameEvent
+    ) -> str | None:
+        """Processes miscellaneous mission start/end and penalty events.
+
+        Args:
+            event: The game event.
+
+        Returns:
+            str | None: The event description or None if not handled.
+        """
+        actor_name = self.entity_names.get(
+            event.actor_entity_id, event.actor_entity_id
+        )
+        if event.event_type == '0100':
+            return '* Mission Start *'
+        if event.event_type == '0101':
+            return '* Mission End *'
+        if event.event_type == '0600':
+            actor = self.game_state.players.get(event.actor_entity_id)
+            if actor and not actor.is_eliminated():
+                gp = self.game.penalty
+                penalty_val = gp if gp is not None else -1000
+                actor.score += penalty_val
+            return f'{actor_name} is penalized'
+        return None
+
+    def _process_misc_action_events(
+        self: 'LFReplaySystem',
+        event: GameEvent,
+        actor_name: str,
+        target_name: str,
+    ) -> str | None:
+        """Processes miscellaneous shot, lock, and missile events.
+
+        Args:
+            event: The game event.
+            actor_name: The actor's display name.
+            target_name: The target's display name.
+
+        Returns:
+            str | None: The event description or None if not handled.
+        """
+        if event.event_type == '0201':
+            self._decrement_shots(event.actor_entity_id)
+            return f'{actor_name} misses'
+        if event.event_type == '0202':
+            self._decrement_shots(event.actor_entity_id)
+            return f'{actor_name} misses base'
+        if event.event_type == '0203':
+            self._decrement_shots(event.actor_entity_id)
+            return f'{actor_name} zaps {target_name}'
+        if event.event_type == '0300':
+            return f'{actor_name} locking {target_name}'
+        if event.event_type == '0301':
+            self._decrement_missiles(event.actor_entity_id)
+            return f'{actor_name} misses base'
+        if event.event_type == '0302':
+            self._decrement_missiles(event.actor_entity_id)
+            return f'{actor_name} zaps {target_name}'
+        if event.event_type == '0304':
+            self._decrement_missiles(event.actor_entity_id)
+            return f'{actor_name} misses'
+        return None
 
     def _process_event_other(self: 'LFReplaySystem', event: GameEvent) -> str:
         """Processes other miscellaneous events.
@@ -267,21 +380,16 @@ class LFReplayHandlersMixin:
             event.target_entity_id, event.target_entity_id
         )
 
-        if event.event_type == '0100':
-            return '* Mission Start *'
-        if event.event_type == '0101':
-            return '* Mission End *'
-        if event.event_type == '0201':
-            self._decrement_shots(event.actor_entity_id)
-            return f'{actor_name} misses'
-        if event.event_type == '0202':
-            self._decrement_shots(event.actor_entity_id)
-            return f'{actor_name} misses base'
-        if event.event_type == '0203':
-            self._decrement_shots(event.actor_entity_id)
-            return f'{actor_name} zaps {target_name}'
-        if event.event_type == '0300':
-            return f'{actor_name} locking {target_name}'
+        res_mission = self._process_misc_mission_events(event)
+        if res_mission is not None:
+            return res_mission
+
+        res_action = self._process_misc_action_events(
+            event, actor_name, target_name
+        )
+        if res_action is not None:
+            return res_action
+
         if event.event_type == '0400':
             actor = self.game_state.players.get(event.actor_entity_id)
             if actor and not actor.is_eliminated():
@@ -294,28 +402,59 @@ class LFReplayHandlersMixin:
                 actor.special_points = max(0, actor.special_points - 20)
                 actor.nukes_activated += 1
             return f'{actor_name} activates nuke'
-        if event.event_type == '0600':
-            actor = self.game_state.players.get(event.actor_entity_id)
-            if actor and not actor.is_eliminated():
-                gp = self.game.penalty
-                penalty_val = gp if gp is not None else -1000
-                actor.score += penalty_val
-            return f'{actor_name} is penalized'
-        if event.event_type == '0301':
-            self._decrement_missiles(event.actor_entity_id)
-            return f'{actor_name} misses base'
-        if event.event_type == '0302':
-            self._decrement_missiles(event.actor_entity_id)
-            return f'{actor_name} zaps {target_name}'
-        if event.event_type == '0304':
-            self._decrement_missiles(event.actor_entity_id)
-            return f'{actor_name} misses'
         if event.event_type == '0900':
             return f'{actor_name} completes an achievement!'
         if event.event_type == '0902':
             return f'{actor_name} earns a reward!'
 
         return event.action
+
+    def _update_nuke_cancel_stats(
+        self: 'LFReplaySystem',
+        event: GameEvent,
+        actor: 'LFReplayPlayerState',
+    ) -> None:
+        """Updates player statistics when a nuke is canceled.
+
+        Args:
+            event: The nuke cancel event.
+            actor: The actor player state.
+        """
+        actor.own_nuke_cancels += 1
+
+        if event.action == 'nuke cancel':
+            # Find the zapping/missiling enemy event at the same time
+            for ev in self.game.events:
+                if (
+                    ev.time == event.time
+                    and ev.target_entity_id == actor.entity_id
+                ):
+                    if ev.event_type in ('0206', '0306'):
+                        enemy = self.game_state.players.get(ev.actor_entity_id)
+                        if enemy and not enemy.is_eliminated():
+                            enemy.nuke_cancels += 1
+                        break
+
+    def _get_nuke_cancel_suffix(self, action: str) -> str:
+        """Determines the nuke cancel suffix based on event action.
+
+        Args:
+            action: The nuke cancel action string.
+
+        Returns:
+            str: The nuke cancel description suffix.
+        """
+        if action == 'nuke cancel':
+            return 'nuke canceled'
+        if action == 'nuke cancel by friendly fire':
+            return 'nuke canceled by friendly fire'
+        if action == 'nuke cancel by own resup':
+            return 'nuke canceled by own resup'
+        if action == 'nuke cancel by enemy nuke':
+            return 'nuke canceled by enemy nuke'
+        if action == 'nuke activated too late':
+            return 'nuke activated too late'
+        return action
 
     def _process_event_nuke_cancel(
         self: 'LFReplaySystem', event: GameEvent
@@ -339,35 +478,7 @@ class LFReplayHandlersMixin:
         )
 
         if actor and not actor.is_eliminated():
-            actor.own_nuke_cancels += 1
+            self._update_nuke_cancel_stats(event=event, actor=actor)
 
-            if event.action == 'nuke cancel':
-                # Find the zapping/missiling enemy event at the same time
-                for ev in self.game.events:
-                    if (
-                        ev.time == event.time
-                        and ev.target_entity_id == actor.entity_id
-                    ):
-                        if ev.event_type in ('0206', '0306'):
-                            enemy = self.game_state.players.get(
-                                ev.actor_entity_id
-                            )
-                            if enemy and not enemy.is_eliminated():
-                                enemy.nuke_cancels += 1
-                            break
-
-        action = event.action
-        if action == 'nuke cancel':
-            suffix = 'nuke canceled'
-        elif action == 'nuke cancel by friendly fire':
-            suffix = 'nuke canceled by friendly fire'
-        elif action == 'nuke cancel by own resup':
-            suffix = 'nuke canceled by own resup'
-        elif action == 'nuke cancel by enemy nuke':
-            suffix = 'nuke canceled by enemy nuke'
-        elif action == 'nuke activated too late':
-            suffix = 'nuke activated too late'
-        else:
-            suffix = action
-
+        suffix = self._get_nuke_cancel_suffix(event.action)
         return f'{actor_name} {suffix}'

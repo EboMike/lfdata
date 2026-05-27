@@ -81,6 +81,14 @@ def main() -> None:
             'frames until 10 seconds after the game is over.'
         ),
     )
+    parser.add_argument(
+        '--video_out',
+        type=str,
+        help=(
+            'Filename of the video to generate from the images '
+            'that were rendered.'
+        ),
+    )
 
     args = parser.parse_args()
 
@@ -244,13 +252,16 @@ def main() -> None:
         out_dir.mkdir(parents=True, exist_ok=True)
         out_path = out_dir / f'image_at_{args.image_at}.png'
         img.save(out_path)
-    elif args.video_player is not None and args.video_state_at is None:
+    elif (
+        args.video_player is not None or args.video_out is not None
+    ) and args.video_state_at is None:
         from pathlib import Path
         from lfdata.video import VideoGenerator, VisualElementGenerator
 
         generator = VideoGenerator(game)
         config = generator._load_config(None)
-        config['player_name'] = args.video_player
+        if args.video_player is not None:
+            config['player_name'] = args.video_player
 
         hud_gen = VisualElementGenerator(game, args.video_player, config)
 
@@ -275,14 +286,23 @@ def main() -> None:
         out_dir = Path(args.image_outdir)
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        generator._generate_frames(
-            temp_path=out_dir,
-            start_ms=start_ms,
-            end_ms=end_ms,
-            fps=fps,
-            config=config,
-            hud_gen=hud_gen,
-        )
+        if args.video_out:
+            generator.generate(
+                output_path=args.video_out,
+                config_path=None,
+                video_start_ms=start_ms,
+                video_end_ms=args.video_end_ms,
+                video_player=args.video_player,
+            )
+        else:
+            generator._generate_frames(
+                temp_path=out_dir,
+                start_ms=start_ms,
+                end_ms=end_ms,
+                fps=fps,
+                config=config,
+                hud_gen=hud_gen,
+            )
 
 
 if __name__ == '__main__':

@@ -31,12 +31,44 @@ class VideoGenerator:
         """
         self.game = game
 
+    def _determine_video_end_ms(
+        self,
+        hud_gen: VisualElementGenerator,
+        config: dict[str, Any],
+        video_end_ms: int | None,
+    ) -> int:
+        """Determines the end timestamp in milliseconds for video generation.
+
+        Args:
+            hud_gen: Precomputed visual element HUD generator.
+            config: Styling and configuration options.
+            video_end_ms: Optional explicit ending timestamp in milliseconds.
+
+        Returns:
+            int: The calculated end timestamp in milliseconds.
+        """
+        if video_end_ms is not None:
+            return video_end_ms
+
+        actual_duration_ms = self.game.duration
+        if hud_gen.game_ended_at_ms is not None:
+            actual_duration_ms = hud_gen.game_ended_at_ms
+        if actual_duration_ms is None:
+            actual_duration_ms = 0
+
+        if not self.game.events:
+            return 0
+
+        extra_footage_ms = config.get('extra_footage_ms', 10000)
+        return actual_duration_ms + extra_footage_ms
+
     def generate(
         self,
         output_path: str | Path,
         config_path: str | Path | None = None,
         video_start_ms: int = 0,
         video_end_ms: int | None = None,
+        video_player: str | None = None,
     ) -> Path:
         """Generates a video file visualizing the game.
 
@@ -49,32 +81,21 @@ class VideoGenerator:
             config_path: The optional configuration file path.
             video_start_ms: The starting millisecond timestamp for the video.
             video_end_ms: The ending millisecond timestamp for the video.
+            video_player: Optional player name to focus on.
 
         Returns:
             Path: The path to the generated video file.
         """
         output_path = Path(output_path)
         config = self._load_config(config_path)
+        if video_player is not None:
+            config['player_name'] = video_player
 
         hud_gen = VisualElementGenerator(
             self.game, config.get('player_name'), config
         )
 
-        actual_duration_ms = self.game.duration
-        if hud_gen.game_ended_at_ms is not None:
-            actual_duration_ms = hud_gen.game_ended_at_ms
-        if actual_duration_ms is None:
-            actual_duration_ms = 0
-
-        if video_end_ms is not None:
-            end_ms = video_end_ms
-        else:
-            if not self.game.events:
-                end_ms = 0
-            else:
-                extra_footage_ms = config.get('extra_footage_ms', 10000)
-                end_ms = actual_duration_ms + extra_footage_ms
-
+        end_ms = self._determine_video_end_ms(hud_gen, config, video_end_ms)
         start_ms = video_start_ms
         fps = config.get('fps', 60)
 
@@ -116,6 +137,27 @@ class VideoGenerator:
             print(f'Warning: failed to load config: {e}')
         return config
 
+    def _render_and_save_frame(
+        self,
+        frame_idx: int,
+        time_ms: int,
+        temp_path: Path,
+        config: dict[str, Any],
+        hud_gen: VisualElementGenerator,
+    ) -> None:
+        """Renders a single frame and saves it as a PNG image.
+
+        Args:
+            frame_idx: The sequential index of the frame.
+            time_ms: The millisecond timestamp.
+            temp_path: The directory path to save frame PNGs.
+            config: The merged video styling options.
+            hud_gen: Precomputed visual element HUD generator.
+        """
+        elements = hud_gen.generate_at(time_ms)
+        img = self._render_frame(elements, time_ms, config)
+        img.save(temp_path / f'frame_{frame_idx:05d}.png')
+
     def _generate_frames(
         self,
         temp_path: Path,
@@ -150,10 +192,19 @@ class VideoGenerator:
         from concurrent.futures import ThreadPoolExecutor
 
         def worker(task: tuple[int, int]) -> None:
+            """Thread worker function to render a single frame task.
+
+            Args:
+                task: A tuple of (frame_index, time_ms).
+            """
             f_idx, t_ms = task
-            elements = hud_gen.generate_at(t_ms)
-            img = self._render_frame(elements, t_ms, config)
-            img.save(temp_path / f'frame_{f_idx:05d}.png')
+            self._render_and_save_frame(
+                frame_idx=f_idx,
+                time_ms=t_ms,
+                temp_path=temp_path,
+                config=config,
+                hud_gen=hud_gen,
+            )
 
         max_workers = min(16, max(1, os.cpu_count() or 4))
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -226,6 +277,63 @@ class VideoGenerator:
         self._draw_text_elements(img, elements, config)
         return img
 
+    def _calculate_team_y_positions(
+        self,
+        teams: list[dict[str, Any]],
+        y_start: int,
+        spacing: int,
+        team_heights: dict[int, int],
+    ) -> None:
+        """Calculates and assigns y_pos to teams based on visual ranks.
+
+        Args:
+            teams: List of team data dicts.
+            y_start: Starting Y position in pixels.
+            spacing: Vertical spacing between teams in pixels.
+            team_heights: Precalculated height mapping for each team.
+        """
+        if len(teams) == 2:
+            t0, t1 = teams[0], teams[1]
+            h0 = team_heights[t0['team_index']]
+            h1 = team_heights[t1['team_index']]
+            t0['y_pos'] = y_start + (t0['visual_rank'] - 1.0) * (h1 + spacing)
+            t1['y_pos'] = y_start + (t1['visual_rank'] - 1.0) * (h0 + spacing)
+        else:
+            curr_y = y_start
+            for t in sorted(teams, key=lambda x: x.get('visual_rank', 1.0)):
+                t['y_pos'] = curr_y
+                curr_y += team_heights[t['team_index']] + spacing
+
+    def _load_scoreboard_fonts(
+        self,
+        font_name: str,
+        pixel_size: int,
+        bold_pixel_size: int,
+    ) -> tuple[ImageFont.ImageFont, ImageFont.ImageFont]:
+        """Loads and returns standard and bold fonts for the scoreboard.
+
+        Args:
+            font_name: Font family/file name.
+            pixel_size: Standard font size.
+            bold_pixel_size: Bold font size.
+
+        Returns:
+            tuple[ImageFont.ImageFont, ImageFont.ImageFont]: The loaded fonts.
+        """
+        try:
+            font = ImageFont.truetype(font_name, pixel_size)
+            bold_font = ImageFont.truetype(font_name, bold_pixel_size)
+        except OSError:
+            try:
+                font = ImageFont.load_default(size=pixel_size)
+            except TypeError:
+                font = ImageFont.load_default()
+            try:
+                bold_font = ImageFont.load_default(size=bold_pixel_size)
+            except TypeError:
+                bold_font = ImageFont.load_default()
+        return font, bold_font
+
     def _draw_scoreboard(
         self,
         image: Image.Image,
@@ -263,34 +371,15 @@ class VideoGenerator:
                 header_h + (p_count * row_h) + totals_h
             )
 
-        if len(teams) == 2:
-            t0, t1 = teams[0], teams[1]
-            h0 = team_heights[t0['team_index']]
-            h1 = team_heights[t1['team_index']]
-            t0['y_pos'] = y_start + (t0['visual_rank'] - 1.0) * (h1 + spacing)
-            t1['y_pos'] = y_start + (t1['visual_rank'] - 1.0) * (h0 + spacing)
-        else:
-            curr_y = y_start
-            for t in sorted(teams, key=lambda x: x.get('visual_rank', 1.0)):
-                t['y_pos'] = curr_y
-                curr_y += team_heights[t['team_index']] + spacing
+        self._calculate_team_y_positions(teams, y_start, spacing, team_heights)
 
         font_size = el.style.size or 20
         pixel_size = max(1, int(height * font_size / 800))
         bold_pixel_size = max(1, int(height * (font_size + 2) / 800))
 
-        try:
-            font = ImageFont.truetype(el.style.font, pixel_size)
-            bold_font = ImageFont.truetype(el.style.font, bold_pixel_size)
-        except OSError:
-            try:
-                font = ImageFont.load_default(size=pixel_size)
-            except TypeError:
-                font = ImageFont.load_default()
-            try:
-                bold_font = ImageFont.load_default(size=bold_pixel_size)
-            except TypeError:
-                bold_font = ImageFont.load_default()
+        font, bold_font = self._load_scoreboard_fonts(
+            el.style.font, pixel_size, bold_pixel_size
+        )
 
         for team in teams:
             self._draw_team_table(
@@ -302,6 +391,193 @@ class VideoGenerator:
                 bold_font,
                 header_h,
                 row_h,
+            )
+
+    def _calculate_team_colors(
+        self, team: dict[str, Any]
+    ) -> tuple[
+        tuple[int, int, int, int],
+        tuple[int, int, int, int],
+        tuple[int, int, int, int],
+        tuple[int, int, int, int],
+    ]:
+        """Calculates color constants for rendering a team table.
+
+        Args:
+            team: The team data dictionary.
+
+        Returns:
+            tuple: bg_fill, text_color, dimmed_color, gray_color.
+        """
+        color_hex = team.get('color_rgb', '#ffffff')
+        r_sat, g_sat, b_sat = hex_to_rgb(color_hex)
+        h, lightness, s = colorsys.rgb_to_hls(
+            r_sat / 255.0, g_sat / 255.0, b_sat / 255.0
+        )
+
+        r_semi, g_semi, b_semi = colorsys.hls_to_rgb(h, lightness, s * 0.5)
+        bg_fill = (int(r_semi * 255), int(g_semi * 255), int(b_semi * 255), 100)
+
+        r_sat_hls, g_sat_hls, b_sat_hls = colorsys.hls_to_rgb(h, lightness, 1.0)
+        text_color = (
+            int(r_sat_hls * 255),
+            int(g_sat_hls * 255),
+            int(b_sat_hls * 255),
+            255,
+        )
+        dimmed_color = (
+            int(r_sat_hls * 255),
+            int(g_sat_hls * 255),
+            int(b_sat_hls * 255),
+            128,
+        )
+        gray_color = (128, 128, 128, 255)
+        return bg_fill, text_color, dimmed_color, gray_color
+
+    def _draw_table_structure(
+        self,
+        draw: ImageDraw.ImageDraw,
+        x_start: int,
+        ty: int,
+        table_width: int,
+        th: int,
+        bg_fill: tuple[int, int, int, int],
+        border_color: tuple[int, int, int, int],
+        columns: list[str],
+        offsets: list[int],
+        bold_font: ImageFont.ImageFont,
+        header_h: int,
+        padding_y: int,
+    ) -> int:
+        """Draws the outer table rectangle and the header columns.
+
+        Args:
+            draw: ImageDraw context.
+            x_start: X start coordinate.
+            ty: Y start coordinate.
+            table_width: Width of the table.
+            th: Total table height.
+            bg_fill: Background fill color.
+            border_color: Border color.
+            columns: List of column names.
+            offsets: X offsets for each column.
+            bold_font: Bold font.
+            header_h: Header height.
+            padding_y: Vertical padding.
+
+        Returns:
+            int: The Y coordinate starting for player rows.
+        """
+        draw.rectangle(
+            [x_start, ty, x_start + table_width, ty + th],
+            fill=bg_fill,
+            outline=border_color,
+            width=2,
+        )
+
+        for col_name, offset in zip(columns, offsets):
+            draw.text(
+                (offset, ty + padding_y),
+                col_name,
+                fill=(255, 255, 255, 255),
+                font=bold_font,
+            )
+
+        sep_y = ty + header_h
+        draw.line(
+            [(x_start, sep_y), (x_start + table_width, sep_y)],
+            fill=border_color,
+            width=2,
+        )
+        return sep_y
+
+    def _draw_player_rows(
+        self,
+        draw: ImageDraw.ImageDraw,
+        players: list[dict[str, Any]],
+        columns: list[str],
+        offsets: list[int],
+        font: ImageFont.ImageFont,
+        text_color: tuple[int, int, int, int],
+        gray_color: tuple[int, int, int, int],
+        dimmed_color: tuple[int, int, int, int],
+        y_row: int,
+        row_h: int,
+        height: int,
+    ) -> int:
+        """Draws individual player rows inside the table.
+
+        Args:
+            draw: ImageDraw context.
+            players: List of player dicts.
+            columns: List of columns.
+            offsets: List of column offsets.
+            font: Standard font.
+            text_color: Active player text color.
+            gray_color: Eliminated player text color.
+            dimmed_color: Down player text color.
+            y_row: Current Y position coordinate.
+            row_h: Row height.
+            height: Image height for scaling padding.
+
+        Returns:
+            int: The Y coordinate ending after player rows.
+        """
+        for p in players:
+            p_color = text_color
+            if p.get('is_eliminated'):
+                p_color = gray_color
+            elif p.get('is_down'):
+                p_color = dimmed_color
+
+            vals = self._compile_player_row_values(p, columns)
+            row_padding = int(2 * height / 1080)
+            for val, offset in zip(vals, offsets):
+                draw.text(
+                    (offset, y_row + row_padding), val, fill=p_color, font=font
+                )
+            y_row += row_h
+        return y_row
+
+    def _draw_totals_row(
+        self,
+        draw: ImageDraw.ImageDraw,
+        totals: dict[str, int],
+        columns: list[str],
+        offsets: list[int],
+        bold_font: ImageFont.ImageFont,
+        border_color: tuple[int, int, int, int],
+        x_start: int,
+        table_width: int,
+        y_row: int,
+        padding_y: int,
+    ) -> None:
+        """Draws the totals row at the bottom of the table.
+
+        Args:
+            draw: ImageDraw context.
+            totals: Dict of totals.
+            columns: List of columns.
+            offsets: List of column offsets.
+            bold_font: Bold font.
+            border_color: Border color.
+            x_start: X start coordinate.
+            table_width: Table width.
+            y_row: Y coordinate starting the totals row.
+            padding_y: Vertical padding.
+        """
+        draw.line(
+            [(x_start, y_row), (x_start + table_width, y_row)],
+            fill=border_color,
+            width=2,
+        )
+        tot_vals = self._compile_totals_row_values(totals, columns)
+        for val, offset in zip(tot_vals, offsets):
+            draw.text(
+                (offset, y_row + padding_y),
+                val,
+                fill=(255, 255, 255, 255),
+                font=bold_font,
             )
 
     def _draw_team_table(
@@ -327,29 +603,9 @@ class VideoGenerator:
             header_h: The scoreboard header height in pixels.
             row_h: The scoreboard player row height in pixels.
         """
-        color_hex = team.get('color_rgb', '#ffffff')
-        r_sat, g_sat, b_sat = hex_to_rgb(color_hex)
-        h, lightness, s = colorsys.rgb_to_hls(
-            r_sat / 255.0, g_sat / 255.0, b_sat / 255.0
+        bg_fill, text_color, dimmed_color, gray_color = (
+            self._calculate_team_colors(team)
         )
-
-        r_semi, g_semi, b_semi = colorsys.hls_to_rgb(h, lightness, s * 0.5)
-        bg_fill = (int(r_semi * 255), int(g_semi * 255), int(b_semi * 255), 100)
-
-        r_sat_hls, g_sat_hls, b_sat_hls = colorsys.hls_to_rgb(h, lightness, 1.0)
-        text_color = (
-            int(r_sat_hls * 255),
-            int(g_sat_hls * 255),
-            int(b_sat_hls * 255),
-            255,
-        )
-        dimmed_color = (
-            int(r_sat_hls * 255),
-            int(g_sat_hls * 255),
-            int(b_sat_hls * 255),
-            128,
-        )
-        gray_color = (128, 128, 128, 255)
         border_color = text_color
 
         overlay = Image.new('RGBA', image.size, (0, 0, 0, 0))
@@ -358,64 +614,52 @@ class VideoGenerator:
         table_width = int(800 * image.width / 1920)
         ty = int(team['y_pos'])
 
-        draw.rectangle(
-            [x_start, ty, x_start + table_width, ty + th],
-            fill=bg_fill,
-            outline=border_color,
-            width=2,
-        )
-
         columns, offsets = self._resolve_scoreboard_columns(
             x_start, table_width
         )
-
         padding_y = int(5 * image.height / 1080)
-        for col_name, offset in zip(columns, offsets):
-            draw.text(
-                (offset, ty + padding_y),
-                col_name,
-                fill=(255, 255, 255, 255),
-                font=bold_font,
-            )
 
-        sep_y = ty + header_h
-        draw.line(
-            [(x_start, sep_y), (x_start + table_width, sep_y)],
-            fill=border_color,
-            width=2,
+        sep_y = self._draw_table_structure(
+            draw=draw,
+            x_start=x_start,
+            ty=ty,
+            table_width=table_width,
+            th=th,
+            bg_fill=bg_fill,
+            border_color=border_color,
+            columns=columns,
+            offsets=offsets,
+            bold_font=bold_font,
+            header_h=header_h,
+            padding_y=padding_y,
         )
 
-        y_row = sep_y
-        for p in team.get('players', []):
-            p_color = text_color
-            if p.get('is_eliminated'):
-                p_color = gray_color
-            elif p.get('is_down'):
-                p_color = dimmed_color
-
-            vals = self._compile_player_row_values(p, columns)
-            row_padding = int(2 * image.height / 1080)
-            for val, offset in zip(vals, offsets):
-                draw.text(
-                    (offset, y_row + row_padding), val, fill=p_color, font=font
-                )
-            y_row += row_h
-
-        draw.line(
-            [(x_start, y_row), (x_start + table_width, y_row)],
-            fill=border_color,
-            width=2,
+        y_row = self._draw_player_rows(
+            draw=draw,
+            players=team.get('players', []),
+            columns=columns,
+            offsets=offsets,
+            font=font,
+            text_color=text_color,
+            gray_color=gray_color,
+            dimmed_color=dimmed_color,
+            y_row=sep_y,
+            row_h=row_h,
+            height=image.height,
         )
-        tot_vals = self._compile_totals_row_values(
-            team.get('totals', {}), columns
+
+        self._draw_totals_row(
+            draw=draw,
+            totals=team.get('totals', {}),
+            columns=columns,
+            offsets=offsets,
+            bold_font=bold_font,
+            border_color=border_color,
+            x_start=x_start,
+            table_width=table_width,
+            y_row=y_row,
+            padding_y=padding_y,
         )
-        for val, offset in zip(tot_vals, offsets):
-            draw.text(
-                (offset, y_row + padding_y),
-                val,
-                fill=(255, 255, 255, 255),
-                font=bold_font,
-            )
 
         image.alpha_composite(overlay)
 
@@ -519,6 +763,50 @@ class VideoGenerator:
                 vals.append(str(totals.get('special_points', 0)))
         return vals
 
+    def _draw_downtime_progress(
+        self,
+        draw: ImageDraw.ImageDraw,
+        inner_x1: int,
+        inner_x2: int,
+        inner_y1: int,
+        inner_y2: int,
+        safe_ms: int,
+        total_remaining_ms: int,
+    ) -> None:
+        """Draws the safe and resettable progress rects inside the downtime bar.
+
+        Args:
+            draw: ImageDraw context.
+            inner_x1: Inner rectangle X1.
+            inner_x2: Inner rectangle X2.
+            inner_y1: Inner rectangle Y1.
+            inner_y2: Inner rectangle Y2.
+            safe_ms: Remaining safe duration in milliseconds.
+            total_remaining_ms: Total remaining downtime in milliseconds.
+        """
+        max_inner_w = inner_x2 - inner_x1
+        rem_width = int(max_inner_w * total_remaining_ms / 8000)
+        rem_width = max(0, min(max_inner_w, rem_width))
+
+        if rem_width > 0:
+            safe_width = int(rem_width * safe_ms / total_remaining_ms)
+
+            if safe_width > 0:
+                draw.rectangle(
+                    [inner_x1, inner_y1, inner_x1 + safe_width, inner_y2],
+                    fill=(255, 0, 0, 255),
+                )
+            if rem_width - safe_width > 0:
+                draw.rectangle(
+                    [
+                        inner_x1 + safe_width,
+                        inner_y1,
+                        inner_x1 + rem_width,
+                        inner_y2,
+                    ],
+                    fill=(255, 255, 0, 255),
+                )
+
     def _draw_downtime_bar(self, image: Image.Image, el: UIElement) -> None:
         """Draws the downtime bar representing safe and resettable time.
 
@@ -552,35 +840,52 @@ class VideoGenerator:
             width=2,
         )
 
-        inner_x1 = x1 + 2
-        inner_x2 = x2 - 2
-        inner_y1 = y1 + 2
-        inner_y2 = y2 - 2
-
-        max_inner_w = inner_x2 - inner_x1
-        rem_width = int(max_inner_w * total_remaining_ms / 8000)
-        rem_width = max(0, min(max_inner_w, rem_width))
-
-        if rem_width > 0:
-            safe_width = int(rem_width * safe_ms / total_remaining_ms)
-
-            if safe_width > 0:
-                draw.rectangle(
-                    [inner_x1, inner_y1, inner_x1 + safe_width, inner_y2],
-                    fill=(255, 0, 0, 255),
-                )
-            if rem_width - safe_width > 0:
-                draw.rectangle(
-                    [
-                        inner_x1 + safe_width,
-                        inner_y1,
-                        inner_x1 + rem_width,
-                        inner_y2,
-                    ],
-                    fill=(255, 255, 0, 255),
-                )
+        self._draw_downtime_progress(
+            draw=draw,
+            inner_x1=x1 + 2,
+            inner_x2=x2 - 2,
+            inner_y1=y1 + 2,
+            inner_y2=y2 - 2,
+            safe_ms=safe_ms,
+            total_remaining_ms=total_remaining_ms,
+        )
 
         image.alpha_composite(overlay)
+
+    def _load_text_font(
+        self,
+        font_file: str,
+        style: str | None,
+        pixel_size: int,
+    ) -> ImageFont.ImageFont:
+        """Resolves font variants and loads font with error fallback.
+
+        Args:
+            font_file: Font family/file name.
+            style: Font style (e.g. bold, italic).
+            pixel_size: Size of font in pixels.
+
+        Returns:
+            ImageFont.ImageFont: The loaded font.
+        """
+        if style == 'bold':
+            if font_file.lower() == 'verdana':
+                font_file = 'verdanab.ttf'
+            elif font_file.lower() == 'arial':
+                font_file = 'arialbd.ttf'
+        elif style == 'italic':
+            if font_file.lower() == 'verdana':
+                font_file = 'verdanai.ttf'
+            elif font_file.lower() == 'arial':
+                font_file = 'ariali.ttf'
+
+        try:
+            return ImageFont.truetype(font_file, pixel_size)
+        except OSError:
+            try:
+                return ImageFont.load_default(size=pixel_size)
+            except TypeError:
+                return ImageFont.load_default()
 
     def _draw_text_elements(
         self,
@@ -608,26 +913,11 @@ class VideoGenerator:
             anchor = anchor_map.get(el.align or 'left', 'la')
 
             pixel_size = max(1, int(height * el.style.size / 800))
-
-            font_file = el.style.font
-            if el.style.style == 'bold':
-                if font_file.lower() == 'verdana':
-                    font_file = 'verdanab.ttf'
-                elif font_file.lower() == 'arial':
-                    font_file = 'arialbd.ttf'
-            elif el.style.style == 'italic':
-                if font_file.lower() == 'verdana':
-                    font_file = 'verdanai.ttf'
-                elif font_file.lower() == 'arial':
-                    font_file = 'ariali.ttf'
-
-            try:
-                font = ImageFont.truetype(font_file, pixel_size)
-            except OSError:
-                try:
-                    font = ImageFont.load_default(size=pixel_size)
-                except TypeError:
-                    font = ImageFont.load_default()
+            font = self._load_text_font(
+                font_file=el.style.font,
+                style=el.style.style,
+                pixel_size=pixel_size,
+            )
 
             text_color = parse_color_with_alpha(el.style.color, el.alpha)
             bg_color = parse_color_with_alpha(
