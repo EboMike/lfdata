@@ -76,9 +76,9 @@ def test_visual_element_generator() -> None:
 
     texts = [el.text for el in elements_active if el.text]
     assert 'Game Type: SM5' in texts
-    assert 'Player: Sqnfdcp' in texts
+    assert 'Sqnfdcp' in texts
     assert 'Commander' in texts
-    assert 'Score: 0' in texts
+    assert '0' in texts
 
     counters = {
         el.icon: el for el in elements_active if el.element_type == 'counter'

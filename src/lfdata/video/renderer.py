@@ -190,7 +190,12 @@ class VideoGenerator:
             if frame_step <= 0:
                 break
 
-        from concurrent.futures import ThreadPoolExecutor
+        from concurrent.futures import (
+            FIRST_COMPLETED,
+            ThreadPoolExecutor,
+            wait,
+        )
+        import time
 
         def worker(task: tuple[int, int]) -> None:
             """Thread worker function to render a single frame task.
@@ -209,7 +214,33 @@ class VideoGenerator:
 
         max_workers = min(16, max(1, os.cpu_count() or 4))
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            executor.map(worker, tasks)
+            futures = [executor.submit(worker, t) for t in tasks]
+            total_frames = len(tasks)
+            pending = set(futures)
+            last_report_time = time.time()
+
+            while pending:
+                _, pending = wait(
+                    pending,
+                    timeout=1.0,
+                    return_when=FIRST_COMPLETED,
+                )
+                current_time = time.time()
+                if current_time - last_report_time >= 10.0:
+                    completed = total_frames - len(pending)
+                    pct = (
+                        (completed / total_frames) * 100.0
+                        if total_frames > 0
+                        else 0.0
+                    )
+                    print(
+                        f'Rendered {completed}/{total_frames} '
+                        f'frames ({pct:.1f}%).'
+                    )
+                    last_report_time = current_time
+
+            for f in futures:
+                f.result()
 
     def _compile_video(
         self, frames_dir: Path, fps: int, output_path: Path
@@ -223,8 +254,26 @@ class VideoGenerator:
         """
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.touch()
+        print(f'Encoding video to {output_path}...')
 
-        cmd = [
+        ext: str = output_path.suffix.lower()
+        codec: str
+        pix_fmt: str
+        extra_args: list[str]
+        if ext == '.webm':
+            codec = 'libvpx-vp9'
+            pix_fmt = 'yuva420p'
+            extra_args = []
+        elif ext == '.mov':
+            codec = 'prores_ks'
+            pix_fmt = 'yuva444p10le'
+            extra_args = ['-profile:v', '4']
+        else:
+            codec = 'libx264'
+            pix_fmt = 'yuv420p'
+            extra_args = []
+
+        cmd: list[str] = [
             'ffmpeg',
             '-y',
             '-framerate',
@@ -232,11 +281,17 @@ class VideoGenerator:
             '-i',
             str(frames_dir / 'frame_%05d.png'),
             '-c:v',
-            'libx264',
-            '-pix_fmt',
-            'yuv420p',
-            str(output_path),
+            codec,
         ]
+        if extra_args:
+            cmd.extend(extra_args)
+        cmd.extend(
+            [
+                '-pix_fmt',
+                pix_fmt,
+                str(output_path),
+            ]
+        )
         try:
             subprocess.run(
                 cmd,

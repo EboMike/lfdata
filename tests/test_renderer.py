@@ -395,3 +395,122 @@ def test_font_resolution_and_defaults() -> None:
             args[0] == 'D Day Stencil' for args, _ in mock_load.call_args_list
         )
         assert any_dday
+
+
+def test_compile_video_extensions() -> None:
+    from pathlib import Path
+    from unittest.mock import patch
+    from lfdata.video.renderer import VideoGenerator
+    from lfdata.model import LFGame
+
+    game: LFGame = LFGame(game_id='test_compile', game_type='SM5')
+    vg: VideoGenerator = VideoGenerator(game)
+
+    with (
+        patch('subprocess.run') as mock_run,
+        patch('builtins.print') as mock_print,
+    ):
+        # 1. Test .mp4 (default H.264 / yuv420p)
+        vg._compile_video(
+            frames_dir=Path('temp'),
+            fps=30,
+            output_path=Path('out.mp4'),
+        )
+        assert mock_run.call_count == 1
+        args, _ = mock_run.call_args
+        cmd: list[str] = args[0]
+        assert '-c:v' in cmd
+        idx_codec: int = cmd.index('-c:v')
+        assert cmd[idx_codec + 1] == 'libx264'
+        assert '-pix_fmt' in cmd
+        idx_pix: int = cmd.index('-pix_fmt')
+        assert cmd[idx_pix + 1] == 'yuv420p'
+        mock_print.assert_any_call('Encoding video to out.mp4...')
+
+        mock_run.reset_mock()
+        mock_print.reset_mock()
+
+        # 2. Test .webm (libvpx-vp9 / yuva420p)
+        vg._compile_video(
+            frames_dir=Path('temp'),
+            fps=30,
+            output_path=Path('out.webm'),
+        )
+        assert mock_run.call_count == 1
+        args, _ = mock_run.call_args
+        cmd = args[0]
+        assert '-c:v' in cmd
+        idx_codec = cmd.index('-c:v')
+        assert cmd[idx_codec + 1] == 'libvpx-vp9'
+        assert '-pix_fmt' in cmd
+        idx_pix = cmd.index('-pix_fmt')
+        assert cmd[idx_pix + 1] == 'yuva420p'
+        mock_print.assert_any_call('Encoding video to out.webm...')
+
+        mock_run.reset_mock()
+        mock_print.reset_mock()
+
+        # 3. Test .mov (prores_ks / yuva444p10le / profile 4)
+        vg._compile_video(
+            frames_dir=Path('temp'),
+            fps=30,
+            output_path=Path('out.mov'),
+        )
+        assert mock_run.call_count == 1
+        args, _ = mock_run.call_args
+        cmd = args[0]
+        assert '-c:v' in cmd
+        idx_codec = cmd.index('-c:v')
+        assert cmd[idx_codec + 1] == 'prores_ks'
+        assert '-profile:v' in cmd
+        idx_prof: int = cmd.index('-profile:v')
+        assert cmd[idx_prof + 1] == '4'
+        assert '-pix_fmt' in cmd
+        idx_pix = cmd.index('-pix_fmt')
+        assert cmd[idx_pix + 1] == 'yuva444p10le'
+        mock_print.assert_any_call('Encoding video to out.mov...')
+
+
+def test_generate_frames_progress() -> None:
+    from pathlib import Path
+    from unittest.mock import patch, MagicMock
+    from lfdata.video.renderer import VideoGenerator
+    from lfdata.model import LFGame
+    from lfdata.video.generator import VisualElementGenerator
+
+    game: LFGame = LFGame(game_id='test_progress', game_type='SM5')
+    vg: VideoGenerator = VideoGenerator(game)
+
+    with (
+        patch.object(vg, '_render_and_save_frame') as mock_render,
+        patch('os.cpu_count', return_value=1),
+        patch('time.time') as mock_time,
+        patch('builtins.print') as mock_print,
+    ):
+        # Let's set up time.time() to trigger the 10-second elapsed print
+        mock_time.side_effect = [
+            100.0,
+            100.0,
+            111.0,
+            111.0,
+            111.0,
+            111.0,
+            111.0,
+            111.0,
+        ]
+
+        hud_gen: VisualElementGenerator = MagicMock(spec=VisualElementGenerator)
+        vg._generate_frames(
+            temp_path=Path('temp'),
+            start_ms=0,
+            end_ms=400,
+            fps=10,
+            config={},
+            hud_gen=hud_gen,
+        )
+
+        any_status: bool = any(
+            'Rendered' in args[0] for args, _ in mock_print.call_args_list
+        )
+        assert any_status
+        assert mock_render.call_count == 5
