@@ -7,7 +7,7 @@ import subprocess
 import tempfile
 from typing import Any
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageChops, ImageDraw, ImageFont
 
 from lfdata.model import LFGame
 from lfdata.video.element import UIElement
@@ -302,6 +302,9 @@ class VideoGenerator:
             )
         except (subprocess.SubprocessError, FileNotFoundError) as e:
             print(f'Warning: ffmpeg video encoding failed/skipped: {e}')
+            if hasattr(e, 'stderr') and e.stderr:
+                err_str = e.stderr.decode('utf-8', errors='replace')
+                print(f'ffmpeg stderr:\n{err_str}')
 
     def _render_frame(
         self,
@@ -1373,6 +1376,18 @@ class VideoGenerator:
                     stroke_fill=stroke_color,
                 )
                 x_cursor += int(draw_temp.textlength(text_part, font=font))
+
+        # Add fade to the top of the event scroller so there is no hard edge.
+        fade_height = int(H * 0.25)
+        if fade_height > 0:
+            gradient = Image.new('L', (1, H), 255)
+            for y in range(fade_height):
+                alpha = int(255 * (y / fade_height))
+                gradient.putpixel((0, y), alpha)
+            gradient = gradient.resize((W, H))
+            r, g, b, a = temp_img.split()
+            new_a = ImageChops.multiply(a, gradient)
+            temp_img = Image.merge('RGBA', (r, g, b, new_a))
 
         el_config = config.get('elements', {}).get('all_game_events', {})
         tilt = el_config.get('tilt', 10.0)

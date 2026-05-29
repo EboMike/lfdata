@@ -1,6 +1,7 @@
 """Visual HUD elements generator for LF video frames."""
 
 import bisect
+import random
 from typing import Any
 
 from lfdata.model import GameEvent, LFGame, LFRole
@@ -58,6 +59,8 @@ class VisualElementGenerator:
         self.game_ended_at_ms: int | None = None
 
         self._precompute_replay()
+        self.camera_shakes: list[dict[str, Any]] = []
+        self._detect_camera_shakes()
 
     def _find_player_entity_id(self) -> str | None:
         """Finds the entity ID matching the player codename.
@@ -148,7 +151,7 @@ class VisualElementGenerator:
                         {
                             'time': event_time_ms,
                             'desc': f'Team {team_name} Eliminated',
-                            'is_important': True,
+                            'is_important': False,
                             'actor_id': None,
                             'target_id': None,
                         }
@@ -280,13 +283,8 @@ class VisualElementGenerator:
             )
 
             is_important = event.event_type in [
-                '0100',
-                '0101',
                 '0404',
                 '0405',
-                '0204',
-                '0303',
-                '0B03',
                 'nuke_cancel',
             ]
             if desc and 'misses' not in desc:
@@ -1118,4 +1116,72 @@ class VisualElementGenerator:
             elements=elements, players=players, teams=teams, time_ms=time_ms
         )
 
+        # Apply camera shake
+        total_strength = 0.0
+        for shake in self.camera_shakes:
+            start = shake['start_ms']
+            duration = shake['duration_ms']
+            if start <= time_ms < start + duration:
+                elapsed = time_ms - start
+                factor = 1.0 - (elapsed / duration)
+                total_strength += shake['strength'] * factor
+
+        if total_strength > 0.0:
+            dx = random.uniform(-total_strength, total_strength)
+            dy = random.uniform(-total_strength, total_strength)
+            for el in elements:
+                if el.x is not None:
+                    el.x += dx
+                if el.y is not None:
+                    el.y += dy
+
         return elements
+
+    def _detect_camera_shakes(self) -> None:
+        """Precomputes camera shakes from the game's event history."""
+        if not self.entity_id:
+            return
+
+        player_entity = next(
+            (e for e in self.game.entities if e.entity_id == self.entity_id),
+            None,
+        )
+        if not player_entity:
+            return
+
+        player_team_idx = player_entity.team_index
+
+        for event in self.game.events:
+            # 1. Player is missiled (0.01 strength, 500 ms duration)
+            if (
+                event.event_type in ('0306', '0308')
+                and event.target_entity_id == self.entity_id
+            ):
+                self.camera_shakes.append(
+                    {
+                        'start_ms': event.time,
+                        'duration_ms': 500,
+                        'strength': 0.01,
+                    }
+                )
+
+            # 2. Enemy commander detonates a nuke (0.03 strength, 1000 ms duration)
+            elif event.event_type == '0405':
+                actor_id = event.actor_entity_id
+                actor_entity = next(
+                    (e for e in self.game.entities if e.entity_id == actor_id),
+                    None,
+                )
+                if (
+                    actor_entity
+                    and actor_entity.type == 'player'
+                    and actor_entity.team_index != player_team_idx
+                    and actor_entity.category == 1  # Commander
+                ):
+                    self.camera_shakes.append(
+                        {
+                            'start_ms': event.time,
+                            'duration_ms': 1000,
+                            'strength': 0.03,
+                        }
+                    )

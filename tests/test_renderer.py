@@ -708,3 +708,55 @@ def test_downtime_bar_cropping() -> None:
         mock_overlay.paste.assert_called_once_with(
             mock_combined, (240, 120), mock_combined
         )
+
+
+def test_event_scroller_fade() -> None:
+    from PIL import Image
+    from lfdata.video.element import UIElement, UIElementStyle
+    from lfdata.video.renderer import VideoGenerator
+
+    game = LFGame(game_id='test_scroller_fade', game_type='SM5')
+    vg = VideoGenerator(game)
+
+    img = Image.new('RGBA', (400, 400), (0, 0, 0, 0))
+    events = [
+        {'time': i * 10, 'desc': f'PlayerOne zaps PlayerTwo {i}'}
+        for i in range(20)
+    ]
+    el = UIElement(
+        element_type='event_scroller',
+        x=0.1,
+        y=0.1,
+        extents=[0.8, 0.8],
+        events_data=events,
+        style=UIElementStyle(size=14, color='#ffffffff'),
+    )
+
+    config = {
+        'animation': 'linear',
+        'elements': {'all_game_events': {'tilt': 0.0}},
+    }
+    vg._draw_event_scroller(img, el, 300, config)
+
+    # Let's inspect the alpha channel of pixels in the scroller area.
+    # W = 320, H = 320.
+    # Area: x from 40 to 360, y from 40 to 360.
+    # The top 25% (fade region) is y from 40 to 120.
+    # The bottom region is y from 120 to 360.
+    top_alphas = []
+    for y in range(40, 56):
+        for x in range(40, 360):
+            top_alphas.append(img.getpixel((x, y))[3])
+
+    bottom_alphas = []
+    for y in range(200, 360):
+        for x in range(40, 360):
+            bottom_alphas.append(img.getpixel((x, y))[3])
+
+    max_top_alpha = max(top_alphas)
+    max_bottom_alpha = max(bottom_alphas)
+
+    # There should be text drawn in both regions
+    assert max_bottom_alpha == 255
+    # The top region should be heavily faded
+    assert max_top_alpha < 100
