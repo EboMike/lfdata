@@ -230,3 +230,75 @@ def test_scoreboard_visual_rank_transition() -> None:
     assert get_visual_rank(0, 3250, trans, 1, 'linear') == 1.75
     # After all transitions
     assert get_visual_rank(0, 5000, trans, 1, 'linear') == 1.0
+
+
+def test_scoreboard_hp_total_filtering() -> None:
+    from lfdata.model import GameTeam, GameEntity, GameEvent
+    from lfdata.video.generator import VisualElementGenerator
+
+    game = LFGame(
+        game_id='test_hp_filter',
+        timestamp=datetime.now(),
+        game_type='SM5',
+        duration=2000,
+    )
+    t1 = GameTeam(
+        game_id='test_hp_filter',
+        team_index=0,
+        desc='Fire Team',
+        color_enum=11,
+        color_desc='Fire',
+        color_rgb='#FF5000',
+    )
+    game.teams = [t1]
+
+    # Commander (max_hp = 3)
+    p1 = GameEntity(
+        game_id='test_hp_filter',
+        entity_id='P1',
+        type='player',
+        desc='Cmdr',
+        team_index=0,
+        level=1,
+        category=1,
+        battlesuit='Maverick',
+    )
+    # Scout (max_hp = 1)
+    p2 = GameEntity(
+        game_id='test_hp_filter',
+        entity_id='P2',
+        type='player',
+        desc='Sct',
+        team_index=0,
+        level=1,
+        category=3,
+        battlesuit='Interceptor',
+    )
+    game.entities = [p1, p2]
+    game.events = [
+        GameEvent(
+            game_id='test_hp_filter',
+            time=0,
+            event_type='0100',
+            action='start',
+            raw_message='',
+        )
+    ]
+
+    hud_gen = VisualElementGenerator(game, 'Cmdr')
+    elements = hud_gen.generate_at(1000)
+    sb_el = next(
+        (el for el in elements if el.element_type == 'scoreboard'), None
+    )
+    assert sb_el is not None
+    teams = sb_el.scoreboard_data['teams']
+    team_data = teams[0]
+
+    # Assert player HP details in data dictionary
+    p1_data = next(d for d in team_data['players'] if d['codename'] == 'Cmdr')
+    p2_data = next(d for d in team_data['players'] if d['codename'] == 'Sct')
+    assert p1_data['hp'] == 3
+    assert p2_data['hp'] == 1
+
+    # Total HP should only sum Commander (3), not Scout (1), so total is 3
+    assert team_data['totals']['hp'] == 3

@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 class UIElementStyle:
     """Represents text styling attributes for visual elements."""
 
-    font: str = 'Anton-Regular'
+    font: str = 'GoogleSans-Bold'
     style: str = 'normal'
     size: int = 20
     color: str = '#ffffffff'

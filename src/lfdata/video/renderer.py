@@ -387,7 +387,7 @@ class VideoGenerator:
             return str(path_ttf)
 
         if font_name == 'Anton':
-            path_anton = Path('fonts') / 'Anton-Regular.ttf'
+            path_anton = Path('fonts') / 'GoogleSans-Bold.ttf'
             if path_anton.exists():
                 return str(path_anton)
 
@@ -477,24 +477,32 @@ class VideoGenerator:
         )
         header_font_name = (
             'D Day Stencil'
-            if el.style.font in ('Anton', 'Anton-Regular')
+            if el.style.font in ('Anton', 'GoogleSans-Bold')
             else el.style.font
         )
         header_font, _ = self._load_scoreboard_fonts(
             header_font_name, bold_pixel_size, bold_pixel_size
         )
 
+        sb_config = config.get('elements', {}).get('scoreboard', {})
+        draw_background = sb_config.get('draw_background', False)
+        draw_borders = sb_config.get('draw_borders', False)
+        stroke_width = max(1, int(pixel_size * 0.05))
+
         for team in teams:
             self._draw_team_table(
-                image,
-                team,
-                team_heights[team['team_index']],
-                x_start,
-                font,
-                bold_font,
-                header_font,
-                header_h,
-                row_h,
+                image=image,
+                team=team,
+                th=team_heights[team['team_index']],
+                x_start=x_start,
+                font=font,
+                bold_font=bold_font,
+                header_font=header_font,
+                header_h=header_h,
+                row_h=row_h,
+                stroke_width=stroke_width,
+                draw_background=draw_background,
+                draw_borders=draw_borders,
             )
 
     def _calculate_team_colors(
@@ -552,6 +560,9 @@ class VideoGenerator:
         bold_font: ImageFont.ImageFont,
         header_h: int,
         padding_y: int,
+        stroke_width: int,
+        draw_background: bool,
+        draw_borders: bool,
     ) -> int:
         """Draws the outer table rectangle and the header columns.
 
@@ -568,16 +579,27 @@ class VideoGenerator:
             bold_font: Bold font.
             header_h: Header height.
             padding_y: Vertical padding.
+            stroke_width: The text outline stroke width in pixels.
+            draw_background: Whether to draw the table background color.
+            draw_borders: Whether to draw the table borders and lines.
 
         Returns:
             int: The Y coordinate starting for player rows.
         """
-        draw.rectangle(
-            [x_start, ty, x_start + table_width, ty + th],
-            fill=bg_fill,
-            outline=border_color,
-            width=2,
-        )
+        if draw_background:
+            draw.rectangle(
+                [x_start, ty, x_start + table_width, ty + th],
+                fill=bg_fill,
+                outline=border_color if draw_borders else None,
+                width=2,
+            )
+        elif draw_borders:
+            draw.rectangle(
+                [x_start, ty, x_start + table_width, ty + th],
+                fill=None,
+                outline=border_color,
+                width=2,
+            )
 
         for col_name, offset in zip(columns, offsets):
             draw.text(
@@ -585,14 +607,17 @@ class VideoGenerator:
                 col_name,
                 fill=(255, 255, 255, 255),
                 font=bold_font,
+                stroke_width=stroke_width,
+                stroke_fill=(0, 0, 0, 255),
             )
 
         sep_y = ty + header_h
-        draw.line(
-            [(x_start, sep_y), (x_start + table_width, sep_y)],
-            fill=border_color,
-            width=2,
-        )
+        if draw_borders:
+            draw.line(
+                [(x_start, sep_y), (x_start + table_width, sep_y)],
+                fill=border_color,
+                width=2,
+            )
         return sep_y
 
     def _draw_player_rows(
@@ -608,6 +633,8 @@ class VideoGenerator:
         y_row: int,
         row_h: int,
         height: int,
+        overlay: Image.Image | None,
+        stroke_width: int,
     ) -> int:
         """Draws individual player rows inside the table.
 
@@ -623,6 +650,8 @@ class VideoGenerator:
             y_row: Current Y position coordinate.
             row_h: Row height.
             height: Image height for scaling padding.
+            overlay: The overlay Image for pasting role icons.
+            stroke_width: The text outline stroke width in pixels.
 
         Returns:
             int: The Y coordinate ending after player rows.
@@ -636,9 +665,37 @@ class VideoGenerator:
 
             vals = self._compile_player_row_values(p, columns)
             row_padding = int(2 * height / 1080)
-            for val, offset in zip(vals, offsets):
+            for col, val, offset in zip(columns, vals, offsets):
+                if col == 'Role':
+                    role_name = p.get('role_name', '').lower()
+                    icon_path = Path('assets') / 'sm5' / f'{role_name}.png'
+                    if icon_path.exists() and overlay is not None:
+                        try:
+                            role_img = Image.open(icon_path).convert('RGBA')
+                            icon_size = int(row_h * 0.8)
+                            role_img = role_img.resize(
+                                (icon_size, icon_size),
+                                Image.Resampling.LANCZOS,
+                            )
+                            icon_y = y_row + (row_h - icon_size) // 2
+                            overlay.paste(role_img, (offset, icon_y), role_img)
+                            continue
+                        except Exception as e:
+                            print(f'Warning: failed to load/paste icon: {e}')
+
+                stroke_fill = (
+                    0,
+                    0,
+                    0,
+                    p_color[3] if len(p_color) > 3 else 255,
+                )
                 draw.text(
-                    (offset, y_row + row_padding), val, fill=p_color, font=font
+                    (offset, y_row + row_padding),
+                    val,
+                    fill=p_color,
+                    font=font,
+                    stroke_width=stroke_width,
+                    stroke_fill=stroke_fill,
                 )
             y_row += row_h
         return y_row
@@ -655,6 +712,8 @@ class VideoGenerator:
         table_width: int,
         y_row: int,
         padding_y: int,
+        stroke_width: int,
+        draw_borders: bool,
     ) -> None:
         """Draws the totals row at the bottom of the table.
 
@@ -669,12 +728,15 @@ class VideoGenerator:
             table_width: Table width.
             y_row: Y coordinate starting the totals row.
             padding_y: Vertical padding.
+            stroke_width: The text outline stroke width in pixels.
+            draw_borders: Whether to draw the totals separator line.
         """
-        draw.line(
-            [(x_start, y_row), (x_start + table_width, y_row)],
-            fill=border_color,
-            width=2,
-        )
+        if draw_borders:
+            draw.line(
+                [(x_start, y_row), (x_start + table_width, y_row)],
+                fill=border_color,
+                width=2,
+            )
         tot_vals = self._compile_totals_row_values(totals, columns)
         for val, offset in zip(tot_vals, offsets):
             draw.text(
@@ -682,6 +744,8 @@ class VideoGenerator:
                 val,
                 fill=(255, 255, 255, 255),
                 font=bold_font,
+                stroke_width=stroke_width,
+                stroke_fill=(0, 0, 0, 255),
             )
 
     def _draw_team_table(
@@ -695,6 +759,9 @@ class VideoGenerator:
         header_font: ImageFont.ImageFont,
         header_h: int,
         row_h: int,
+        stroke_width: int,
+        draw_background: bool,
+        draw_borders: bool,
     ) -> None:
         """Draws a single team's table border, headers, player rows, and totals.
 
@@ -708,6 +775,9 @@ class VideoGenerator:
             header_font: Scoreboard column header font.
             header_h: The scoreboard header height in pixels.
             row_h: The scoreboard player row height in pixels.
+            stroke_width: The text outline stroke width in pixels.
+            draw_background: Whether to draw the table background color.
+            draw_borders: Whether to draw the table borders and lines.
         """
         bg_fill, text_color, dimmed_color, gray_color = (
             self._calculate_team_colors(team)
@@ -738,6 +808,9 @@ class VideoGenerator:
             bold_font=header_font,
             header_h=header_h,
             padding_y=padding_y,
+            stroke_width=stroke_width,
+            draw_background=draw_background,
+            draw_borders=draw_borders,
         )
 
         y_row = self._draw_player_rows(
@@ -752,6 +825,8 @@ class VideoGenerator:
             y_row=sep_y,
             row_h=row_h,
             height=image.height,
+            overlay=overlay,
+            stroke_width=stroke_width,
         )
 
         self._draw_totals_row(
@@ -765,6 +840,8 @@ class VideoGenerator:
             table_width=table_width,
             y_row=y_row,
             padding_y=padding_y,
+            stroke_width=stroke_width,
+            draw_borders=draw_borders,
         )
 
         image.alpha_composite(overlay)
@@ -839,7 +916,10 @@ class VideoGenerator:
             elif col == 'Spec':
                 vals.append(str(p.get('special_points', 0)))
             elif col == 'HP':
-                vals.append(str(p.get('hp', 0)))
+                if p.get('max_hp', 0) > 1:
+                    vals.append(str(p.get('hp', 0)))
+                else:
+                    vals.append('')
         return vals
 
     def _compile_totals_row_values(
@@ -874,50 +954,6 @@ class VideoGenerator:
                 vals.append(str(totals.get('hp', 0)))
         return vals
 
-    def _draw_downtime_progress(
-        self,
-        draw: ImageDraw.ImageDraw,
-        inner_x1: int,
-        inner_x2: int,
-        inner_y1: int,
-        inner_y2: int,
-        safe_ms: int,
-        total_remaining_ms: int,
-    ) -> None:
-        """Draws the safe and resettable progress rects inside the downtime bar.
-
-        Args:
-            draw: ImageDraw context.
-            inner_x1: Inner rectangle X1.
-            inner_x2: Inner rectangle X2.
-            inner_y1: Inner rectangle Y1.
-            inner_y2: Inner rectangle Y2.
-            safe_ms: Remaining safe duration in milliseconds.
-            total_remaining_ms: Total remaining downtime in milliseconds.
-        """
-        max_inner_w = inner_x2 - inner_x1
-        rem_width = int(max_inner_w * total_remaining_ms / 8000)
-        rem_width = max(0, min(max_inner_w, rem_width))
-
-        if rem_width > 0:
-            safe_width = int(rem_width * safe_ms / total_remaining_ms)
-
-            if safe_width > 0:
-                draw.rectangle(
-                    [inner_x1, inner_y1, inner_x1 + safe_width, inner_y2],
-                    fill=(255, 0, 0, 255),
-                )
-            if rem_width - safe_width > 0:
-                draw.rectangle(
-                    [
-                        inner_x1 + safe_width,
-                        inner_y1,
-                        inner_x1 + rem_width,
-                        inner_y2,
-                    ],
-                    fill=(255, 255, 0, 255),
-                )
-
     def _draw_downtime_bar(self, image: Image.Image, el: UIElement) -> None:
         """Draws the downtime bar representing safe and resettable time.
 
@@ -934,6 +970,11 @@ class VideoGenerator:
         x2 = int(width * br[0])
         y2 = int(height * br[1])
 
+        W = x2 - x1
+        H = y2 - y1
+        if W <= 0 or H <= 0:
+            return
+
         safe_ms = el.safe_ms
         resettable_ms = el.resettable_ms
         total_remaining_ms = safe_ms + resettable_ms
@@ -942,24 +983,38 @@ class VideoGenerator:
             return
 
         overlay = Image.new('RGBA', image.size, (0, 0, 0, 0))
-        draw = ImageDraw.Draw(overlay)
 
-        draw.rectangle(
-            [x1, y1, x2, y2],
-            fill=(0, 0, 0, 100),
-            outline=(255, 255, 255, 255),
-            width=2,
-        )
+        # Determine elapsed progress (0.0 to 1.0)
+        progress = max(0.0, min(1.0, (8000 - total_remaining_ms) / 8000.0))
 
-        self._draw_downtime_progress(
-            draw=draw,
-            inner_x1=x1 + 2,
-            inner_x2=x2 - 2,
-            inner_y1=y1 + 2,
-            inner_y2=y2 - 2,
-            safe_ms=safe_ms,
-            total_remaining_ms=total_remaining_ms,
-        )
+        path_full = Path('assets') / 'downtime-full.png'
+        path_empty = Path('assets') / 'downtime-empty.png'
+
+        if path_full.exists() and path_empty.exists():
+            try:
+                img_full = Image.open(path_full).convert('RGBA')
+                img_empty = Image.open(path_empty).convert('RGBA')
+
+                # Resize to target box size
+                full_resized = img_full.resize((W, H), Image.Resampling.LANCZOS)
+                empty_resized = img_empty.resize(
+                    (W, H), Image.Resampling.LANCZOS
+                )
+
+                # Composite empty and full parts based on progress
+                split_x = int(W * progress)
+
+                combined = Image.new('RGBA', (W, H))
+                if split_x > 0:
+                    left_part = empty_resized.crop((0, 0, split_x, H))
+                    combined.paste(left_part, (0, 0))
+                if split_x < W:
+                    right_part = full_resized.crop((split_x, 0, W, H))
+                    combined.paste(right_part, (split_x, 0))
+
+                overlay.paste(combined, (x1, y1), combined)
+            except Exception as e:
+                print(f'Warning: failed to composite downtime bar: {e}')
 
         image.alpha_composite(overlay)
 
@@ -1052,12 +1107,21 @@ class VideoGenerator:
                 )
                 draw.rectangle(padded_bbox, fill=bg_color)
 
+            stroke_width = max(1, int(pixel_size * 0.05))
+            stroke_color = (
+                0,
+                0,
+                0,
+                text_color[3] if len(text_color) > 3 else 255,
+            )
             draw.text(
                 (x_coord, y_coord),
                 el.text,
                 fill=text_color,
                 font=font,
                 anchor=anchor,
+                stroke_width=stroke_width,
+                stroke_fill=stroke_color,
             )
             image.alpha_composite(overlay)
 
@@ -1208,7 +1272,16 @@ class VideoGenerator:
             )
             draw.rectangle(padded_bbox, fill=bg_color)
 
-        draw.text((tx, ty), text_str, fill=alpha_color, font=font, anchor='lm')
+        stroke_color = (0, 0, 0, alpha_color[3])
+        draw.text(
+            (tx, ty),
+            text_str,
+            fill=alpha_color,
+            font=font,
+            anchor='lm',
+            stroke_width=max(1, int(pixel_size * 0.05)),
+            stroke_fill=stroke_color,
+        )
         image.alpha_composite(overlay)
 
     def _draw_event_scroller(
@@ -1291,8 +1364,19 @@ class VideoGenerator:
                 else:
                     color = parse_color_with_alpha(el.style.color, el.alpha)
 
+                stroke_color = (
+                    0,
+                    0,
+                    0,
+                    color[3] if len(color) > 3 else 255,
+                )
                 draw_temp.text(
-                    (x_cursor, int(y_pos)), text_part, fill=color, font=font
+                    (x_cursor, int(y_pos)),
+                    text_part,
+                    fill=color,
+                    font=font,
+                    stroke_width=max(1, int(pixel_size * 0.05)),
+                    stroke_fill=stroke_color,
                 )
                 x_cursor += int(draw_temp.textlength(text_part, font=font))
 

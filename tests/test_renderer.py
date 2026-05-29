@@ -357,7 +357,7 @@ def test_font_resolution_and_defaults() -> None:
 
     # 1. Test _resolve_font_path for fonts in the fonts/ directory
     assert os.path.normpath(vg._resolve_font_path('Anton')) == os.path.normpath(
-        'fonts/Anton-Regular.ttf'
+        'fonts/GoogleSans-Bold.ttf'
     )
     assert os.path.normpath(
         vg._resolve_font_path('D Day Stencil')
@@ -370,7 +370,7 @@ def test_font_resolution_and_defaults() -> None:
     # 2. Test scoreboard header font default logic
     el = UIElement(
         element_type='scoreboard',
-        style=UIElementStyle(font='Anton-Regular'),
+        style=UIElementStyle(font='GoogleSans-Bold'),
         scoreboard_data={
             'teams': [
                 {
@@ -514,3 +514,196 @@ def test_generate_frames_progress() -> None:
         )
         assert any_status
         assert mock_render.call_count == 5
+
+
+def test_new_renderer_rules() -> None:
+    from unittest.mock import MagicMock, patch
+    from PIL import Image
+    from lfdata.video.element import UIElement, UIElementStyle
+    from lfdata.video.renderer import VideoGenerator
+
+    game = LFGame(game_id='test_rules_render', game_type='SM5')
+    vg = VideoGenerator(game)
+
+    # 1. Test text outline parameters passed to draw.text
+    img = Image.new('RGBA', (800, 600), (0, 0, 0, 0))
+    el = UIElement(
+        element_type='text',
+        x=0.5,
+        y=0.5,
+        text='Hello world',
+        style=UIElementStyle(size=20, color='#ffffffff'),
+    )
+
+    mock_draw = MagicMock()
+    with patch('PIL.ImageDraw.Draw', return_value=mock_draw):
+        vg._draw_text_elements(img, [el], {})
+
+        # Verify draw.text was called with stroke_width and stroke_fill
+        mock_draw.text.assert_called_once()
+        args, kwargs = mock_draw.text.call_args
+        assert kwargs.get('stroke_width') is not None
+        assert kwargs.get('stroke_width') > 0
+        assert kwargs.get('stroke_fill') == (0, 0, 0, 255)
+
+    # 2. Test scoreboard optional borders/background (disabled by default)
+    el_sb = UIElement(
+        element_type='scoreboard',
+        x=0.1,
+        y=0.4,
+        style=UIElementStyle(size=15),
+        scoreboard_data={
+            'teams': [
+                {
+                    'team_index': 0,
+                    'team_name': 'Fire Team',
+                    'team_score': 100,
+                    'color_rgb': '#FF5000',
+                    'visual_rank': 1.0,
+                    'players': [
+                        {
+                            'codename': 'Cmdr',
+                            'role_name': 'Commander',
+                            'score': 100,
+                            'lives': 15,
+                            'shots': 30,
+                            'missiles': 5,
+                            'special_points': 0,
+                            'hp': 3,
+                            'max_hp': 3,
+                        },
+                        {
+                            'codename': 'Sct',
+                            'role_name': 'Scout',
+                            'score': 50,
+                            'lives': 15,
+                            'shots': 30,
+                            'missiles': 0,
+                            'special_points': 0,
+                            'hp': 1,
+                            'max_hp': 1,
+                        },
+                    ],
+                    'totals': {'score': 150, 'hp': 3},
+                }
+            ]
+        },
+    )
+
+    mock_draw_sb = MagicMock()
+    with (
+        patch('PIL.ImageDraw.Draw', return_value=mock_draw_sb),
+        patch.object(vg, '_load_scoreboard_fonts', return_value=(None, None)),
+    ):
+        # Default config: draw_background=False, draw_borders=False
+        vg._draw_scoreboard(img, el_sb, {})
+        # Should not call draw.rectangle or draw.line
+        assert mock_draw_sb.rectangle.call_count == 0
+        assert mock_draw_sb.line.call_count == 0
+
+        # When enabled in config: draw_background=True, draw_borders=True
+        mock_draw_sb.reset_mock()
+        cfg = {
+            'elements': {
+                'scoreboard': {
+                    'draw_background': True,
+                    'draw_borders': True,
+                }
+            }
+        }
+        vg._draw_scoreboard(img, el_sb, cfg)
+        # Should draw rectangle and separator lines
+        assert mock_draw_sb.rectangle.call_count > 0
+        assert mock_draw_sb.line.call_count > 0
+
+    # 3. Test player HP filtering in player rows
+    mock_draw_p = MagicMock()
+    with (
+        patch('PIL.ImageDraw.Draw', return_value=mock_draw_p),
+        patch.object(vg, '_load_scoreboard_fonts', return_value=(None, None)),
+    ):
+        vg._draw_scoreboard(img, el_sb, {})
+        # Commander has max_hp = 3 (>1), Sct has max_hp = 1 (<=1)
+        # Check HP values passed to draw.text
+        hp_calls = [
+            args[1] if len(args) > 1 else kwargs.get('text', '')
+            for args, kwargs in mock_draw_p.text.call_args_list
+        ]
+        # HP '3' should be drawn, '1' should be hidden (so not present)
+        assert '3' in hp_calls
+        assert '1' not in hp_calls
+
+
+def test_downtime_bar_cropping() -> None:
+    from unittest.mock import MagicMock, patch
+    from PIL import Image
+    from lfdata.video.element import UIElement
+    from lfdata.video.renderer import VideoGenerator
+
+    game = LFGame(game_id='test_downtime_bar', game_type='SM5')
+    vg = VideoGenerator(game)
+
+    img = Image.new('RGBA', (800, 600), (0, 0, 0, 0))
+    el = UIElement(
+        element_type='downtime_bar',
+        top_left=[0.3, 0.2],
+        bottom_right=[0.7, 0.25],
+        safe_ms=2000,
+        resettable_ms=4000,
+    )
+
+    mock_img_full = MagicMock()
+    mock_img_empty = MagicMock()
+    mock_resized_full = MagicMock()
+    mock_resized_empty = MagicMock()
+    mock_crop_left = MagicMock()
+    mock_crop_right = MagicMock()
+    mock_overlay = MagicMock()
+    mock_combined = MagicMock()
+
+    mock_img_full.convert.return_value = mock_img_full
+    mock_img_empty.convert.return_value = mock_img_empty
+    mock_img_full.resize.return_value = mock_resized_full
+    mock_img_empty.resize.return_value = mock_resized_empty
+    mock_resized_empty.crop.return_value = mock_crop_left
+    mock_resized_full.crop.return_value = mock_crop_right
+
+    def open_side_effect(path):
+        if 'downtime-full' in str(path):
+            return mock_img_full
+        if 'downtime-empty' in str(path):
+            return mock_img_empty
+        raise FileNotFoundError(path)
+
+    with (
+        patch('PIL.Image.open', side_effect=open_side_effect),
+        patch('PIL.Image.new') as mock_new,
+        patch.object(img, 'alpha_composite') as mock_alpha,
+    ):
+        mock_new.side_effect = [mock_overlay, mock_combined]
+        vg._draw_downtime_bar(img, el)
+
+        # Verify alpha_composite was called with mock_overlay
+        mock_alpha.assert_called_once_with(mock_overlay)
+
+        # W = 560 - 240 = 320, H = 150 - 120 = 30.
+        mock_img_full.resize.assert_called_once_with(
+            (320, 30), Image.Resampling.LANCZOS
+        )
+        mock_img_empty.resize.assert_called_once_with(
+            (320, 30), Image.Resampling.LANCZOS
+        )
+
+        # progress = (8000 - 6000) / 8000 = 0.25
+        # split_x = 320 * 0.25 = 80.
+        mock_resized_empty.crop.assert_called_once_with((0, 0, 80, 30))
+        mock_resized_full.crop.assert_called_once_with((80, 0, 320, 30))
+
+        # Paste parts on combined
+        mock_combined.paste.assert_any_call(mock_crop_left, (0, 0))
+        mock_combined.paste.assert_any_call(mock_crop_right, (80, 0))
+
+        # Paste combined on overlay
+        mock_overlay.paste.assert_called_once_with(
+            mock_combined, (240, 120), mock_combined
+        )

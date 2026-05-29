@@ -3,7 +3,7 @@ from lfdata.video.element import UIElement, UIElementStyle
 
 def test_ui_element_style_defaults() -> None:
     style = UIElementStyle()
-    assert style.font == 'Anton-Regular'
+    assert style.font == 'GoogleSans-Bold'
     assert style.style == 'normal'
     assert style.size == 20
     assert style.color == '#ffffffff'
@@ -23,4 +23,4 @@ def test_ui_element_initialization() -> None:
     assert element.text == 'Score: 100'
     assert element.safe_ms == 1000
     assert element.resettable_ms == 2000
-    assert element.style.font == 'Anton-Regular'
+    assert element.style.font == 'GoogleSans-Bold'

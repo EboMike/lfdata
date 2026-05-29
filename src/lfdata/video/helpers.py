@@ -4,7 +4,7 @@ from typing import Any
 
 
 DEFAULT_CONFIG: dict[str, Any] = {
-    'font': 'Anton-Regular',
+    'font': 'GoogleSans-Bold',
     'style': 'normal',
     'size': 20,
     'color': '#ffffffff',
@@ -105,6 +105,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
             'y': 0.4,
             'extents': [0.5, 0.5],
             'align': 'left',
+            'draw_background': False,
+            'draw_borders': False,
             'style': {'size': 15},
         },
         'downtime': {

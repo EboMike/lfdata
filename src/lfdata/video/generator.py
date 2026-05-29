@@ -561,7 +561,7 @@ class VisualElementGenerator:
         """
         style_config = el_config.get('style', {})
         global_style = {
-            'font': self.config.get('font', 'Anton-Regular'),
+            'font': self.config.get('font', 'GoogleSans-Bold'),
             'style': self.config.get('style', 'normal'),
             'size': self.config.get('size', 20),
             'color': self.config.get('color', '#ffffffff'),
@@ -706,7 +706,8 @@ class VisualElementGenerator:
             tot_shots += p.shots
             tot_missiles += p.missiles
             tot_spec += p.special_points
-            tot_hp += p.hp
+            if p.max_hp > 1:
+                tot_hp += p.hp
 
         totals = {
             'score': tot_score,
