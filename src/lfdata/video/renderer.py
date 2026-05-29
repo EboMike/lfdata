@@ -953,14 +953,15 @@ class VideoGenerator:
             image: The Image canvas to draw on.
             el: The downtime bar UIElement.
         """
-        tl = el.top_left if el.top_left is not None else [0.3, 0.3]
-        br = el.bottom_right if el.bottom_right is not None else [0.7, 0.35]
+        x = el.x if el.x is not None else 0.3
+        y = el.y if el.y is not None else 0.3
+        ext = el.extents if el.extents is not None else [0.4, 0.05]
 
         width, height = image.size
-        x1 = int(width * tl[0])
-        y1 = int(height * tl[1])
-        x2 = int(width * br[0])
-        y2 = int(height * br[1])
+        x1 = int(width * x)
+        y1 = int(height * y)
+        x2 = int(width * (x + ext[0]))
+        y2 = int(height * (y + ext[1]))
 
         W = x2 - x1
         H = y2 - y1

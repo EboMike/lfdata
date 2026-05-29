@@ -646,8 +646,9 @@ def test_downtime_bar_cropping() -> None:
     img = Image.new('RGBA', (800, 600), (0, 0, 0, 0))
     el = UIElement(
         element_type='downtime_bar',
-        top_left=[0.3, 0.2],
-        bottom_right=[0.7, 0.25],
+        x=0.3,
+        y=0.2,
+        extents=[0.4, 0.05],
         safe_ms=2000,
         resettable_ms=4000,
     )

@@ -289,7 +289,7 @@ class VisualElementGenerator:
                 '0B03',
                 'nuke_cancel',
             ]
-            if desc:
+            if desc and 'misses' not in desc:
                 self.event_log.append(
                     {
                         'time': event.time,
@@ -633,8 +633,6 @@ class VisualElementGenerator:
         x = el_config.get('x')
         y = el_config.get('y')
         align = el_config.get('align')
-        top_left = el_config.get('top_left')
-        bottom_right = el_config.get('bottom_right')
         extents = el_config.get('extents')
         icon = el_config.get('icon')
 
@@ -656,8 +654,6 @@ class VisualElementGenerator:
             x=x,
             y=y,
             align=align,
-            top_left=top_left,
-            bottom_right=bottom_right,
             **kwargs_copy,
         )
 

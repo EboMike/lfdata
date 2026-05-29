@@ -166,8 +166,8 @@ def main() -> None:
                 print(f'{coord_str} Text: {el.text} {style_str}')
             elif el.element_type == 'downtime_bar':
                 coord_str = (
-                    f'  [top_left={el.top_left}, '
-                    f'bottom_right={el.bottom_right}, alpha={el.alpha:.2f}]'
+                    f'  [x={el.x}, y={el.y}, '
+                    f'extents={el.extents}, alpha={el.alpha:.2f}]'
                 )
                 print(
                     f'{coord_str} Downtime Bar: safe_ms={el.safe_ms}, '

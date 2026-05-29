@@ -302,3 +302,91 @@ def test_scoreboard_hp_total_filtering() -> None:
 
     # Total HP should only sum Commander (3), not Scout (1), so total is 3
     assert team_data['totals']['hp'] == 3
+
+
+def test_event_scroller_miss_filtering() -> None:
+    from lfdata.model import GameTeam, GameEntity, GameEvent
+    from lfdata.video.generator import VisualElementGenerator
+
+    game = LFGame(
+        game_id='test_scroller_miss',
+        timestamp=datetime.now(),
+        game_type='SM5',
+        duration=5000,
+    )
+    t1 = GameTeam(
+        game_id='test_scroller_miss',
+        team_index=0,
+        desc='Fire Team',
+        color_enum=11,
+        color_desc='Fire',
+        color_rgb='#FF5000',
+    )
+    game.teams = [t1]
+
+    p1 = GameEntity(
+        game_id='test_scroller_miss',
+        entity_id='P1',
+        type='player',
+        desc='Player1',
+        team_index=0,
+        level=1,
+        category=1,
+        battlesuit='Maverick',
+    )
+    p2 = GameEntity(
+        game_id='test_scroller_miss',
+        entity_id='P2',
+        type='player',
+        desc='Player2',
+        team_index=0,
+        level=1,
+        category=3,
+        battlesuit='Interceptor',
+    )
+    game.entities = [p1, p2]
+
+    # Miss event and Zap event
+    game.events = [
+        GameEvent(
+            game_id='test_scroller_miss',
+            time=0,
+            event_type='0100',
+            action='start',
+            raw_message='',
+        ),
+        GameEvent(
+            game_id='test_scroller_miss',
+            time=1000,
+            event_type='0201',
+            actor_entity_id='P1',
+            action='miss',
+            raw_message='',
+        ),
+        GameEvent(
+            game_id='test_scroller_miss',
+            time=2000,
+            event_type='0203',
+            actor_entity_id='P1',
+            target_entity_id='P2',
+            action='zap',
+            raw_message='',
+        ),
+    ]
+
+    hud_gen = VisualElementGenerator(game, 'Player1')
+    elements = hud_gen.generate_at(3000)
+
+    scroller_el = next(
+        (el for el in elements if el.element_type == 'event_scroller'), None
+    )
+    assert scroller_el is not None
+    events = scroller_el.events_data
+    assert events is not None
+    # Convert event descriptions to check
+    descriptions = [ev['desc'] for ev in events]
+
+    # Assert that start and zap events are logged, but miss event is not
+    assert '* Mission Start *' in descriptions
+    assert 'Player1 zaps Player2' in descriptions
+    assert not any('misses' in desc for desc in descriptions)

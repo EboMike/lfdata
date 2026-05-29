@@ -25,8 +25,6 @@ class UIElement:
     x: float | None = None
     y: float | None = None
     align: str | None = None
-    top_left: list[float] | None = None
-    bottom_right: list[float] | None = None
     safe_ms: int = 0
     resettable_ms: int = 0
     scoreboard_data: dict[str, any] | None = None

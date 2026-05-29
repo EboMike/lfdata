@@ -111,8 +111,9 @@ DEFAULT_CONFIG: dict[str, Any] = {
         },
         'downtime': {
             'enabled': True,
-            'top_left': [0.3, 0.14],
-            'bottom_right': [0.7, 0.17],
+            'x': 0.3,
+            'y': 0.14,
+            'extents': [0.4, 0.03],
         },
         'player_events': {
             'enabled': True,
