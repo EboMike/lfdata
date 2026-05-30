@@ -603,28 +603,31 @@ class VideoGenerator:
                 'Please ensure FFmpeg is installed.'
             )
 
-        with ProcessPoolExecutor(
-            max_workers=max_workers,
-            initializer=_init_renderer_process,
-            initargs=(self, hud_gen),
-        ) as executor:
-            total_frames = len(tasks)
-            active_futures: dict[int, Any] = {}
+        try:
+            print(f'Starting process pool with {max_workers} workers...')
+            with ProcessPoolExecutor(
+                max_workers=max_workers,
+                initializer=_init_renderer_process,
+                initargs=(self, hud_gen),
+            ) as executor:
+                total_frames = len(tasks)
+                active_futures: dict[int, Any] = {}
 
-            # Submit first batch of tasks up to window size
-            window_size = max_workers * 2
-            for idx in range(min(total_frames, window_size)):
-                active_futures[idx] = executor.submit(
-                    _render_frame_bytes_worker,
-                    tasks[idx][1],
-                    config,
-                )
+                # Submit first batch of tasks up to window size
+                window_size = max_workers * 2
+                for idx in range(min(total_frames, window_size)):
+                    active_futures[idx] = executor.submit(
+                        _render_frame_bytes_worker,
+                        tasks[idx][1],
+                        config,
+                    )
 
-            start_time = time.time()
-            last_report_time = start_time
-            write_idx = 0
+                print('First batch of frames submitted. Starting pipeline...')
 
-            try:
+                start_time = time.time()
+                last_report_time = start_time
+                write_idx = 0
+
                 while write_idx < total_frames:
                     if ffmpeg_proc.poll() is not None:
                         _, stderr_data = ffmpeg_proc.communicate()
@@ -643,38 +646,39 @@ class VideoGenerator:
                         )
                         active_futures[write_idx] = curr_future
 
+                    current_time = time.time()
+                    if current_time - last_report_time >= 10.0:
+                        completed = write_idx
+                        pct = (
+                            (completed / total_frames) * 100.0
+                            if total_frames > 0
+                            else 0.0
+                        )
+                        elapsed = current_time - start_time
+                        elapsed_str = self._format_duration(elapsed)
+
+                        if completed >= 5 and elapsed > 1.0:
+                            rate = completed / elapsed
+                            rem_frames = total_frames - completed
+                            remaining = rem_frames / rate
+                            remaining_str = self._format_duration(remaining)
+                            msg = (
+                                f'Rendered {completed}/{total_frames} '
+                                f'frames ({pct:.1f}%) - '
+                                f'{elapsed_str} elapsed, '
+                                f'{remaining_str} remaining.'
+                            )
+                        else:
+                            msg = (
+                                f'Rendered {completed}/{total_frames} '
+                                f'frames ({pct:.1f}%) - '
+                                f'{elapsed_str} elapsed.'
+                            )
+                        print(msg)
+                        last_report_time = current_time
+
                     if not curr_future.done():
                         wait([curr_future], timeout=0.1)
-                        current_time = time.time()
-                        if current_time - last_report_time >= 10.0:
-                            completed = write_idx
-                            pct = (
-                                (completed / total_frames) * 100.0
-                                if total_frames > 0
-                                else 0.0
-                            )
-                            elapsed = current_time - start_time
-                            elapsed_str = self._format_duration(elapsed)
-
-                            if completed >= 5 and elapsed > 1.0:
-                                rate = completed / elapsed
-                                rem_frames = total_frames - completed
-                                remaining = rem_frames / rate
-                                remaining_str = self._format_duration(remaining)
-                                msg = (
-                                    f'Rendered {completed}/{total_frames} '
-                                    f'frames ({pct:.1f}%) - '
-                                    f'{elapsed_str} elapsed, '
-                                    f'{remaining_str} remaining.'
-                                )
-                            else:
-                                msg = (
-                                    f'Rendered {completed}/{total_frames} '
-                                    f'frames ({pct:.1f}%) - '
-                                    f'{elapsed_str} elapsed.'
-                                )
-                            print(msg)
-                            last_report_time = current_time
                         continue
 
                     frame_bytes = curr_future.result()
@@ -694,10 +698,6 @@ class VideoGenerator:
 
                     write_idx += 1
 
-            except Exception as e:
-                ffmpeg_proc.kill()
-                raise e
-
             completed = total_frames
             elapsed = time.time() - start_time
             elapsed_str = self._format_duration(elapsed)
@@ -707,17 +707,22 @@ class VideoGenerator:
                 f'{elapsed_str} elapsed.'
             )
 
-        if ffmpeg_proc.stdin:
-            ffmpeg_proc.stdin.close()
-            ffmpeg_proc.stdin = None
-        _, stderr_data = ffmpeg_proc.communicate()
+            if ffmpeg_proc.stdin:
+                ffmpeg_proc.stdin.close()
+                ffmpeg_proc.stdin = None
+            _, stderr_data = ffmpeg_proc.communicate()
 
-        if ffmpeg_proc.returncode != 0:
-            err_msg = stderr_data.decode('utf-8', errors='replace')
-            raise RuntimeError(
-                f'FFmpeg encoding failed with exit code '
-                f'{ffmpeg_proc.returncode}:\n{err_msg}'
-            )
+            if ffmpeg_proc.returncode != 0:
+                err_msg = stderr_data.decode('utf-8', errors='replace')
+                raise RuntimeError(
+                    f'FFmpeg encoding failed with exit code '
+                    f'{ffmpeg_proc.returncode}:\n{err_msg}'
+                )
+
+        except BaseException as e:
+            ffmpeg_proc.kill()
+            ffmpeg_proc.wait()
+            raise e
 
     def _compile_video(
         self, frames_dir: Path, fps: int, output_path: Path
