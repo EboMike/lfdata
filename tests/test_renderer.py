@@ -1166,9 +1166,9 @@ def test_counter_indicator_rendering() -> None:
         assert mock_draw.arc.call_count == 3
 
         call_args_list = mock_draw.arc.call_args_list
-        # Segment 1: [135.0, 201.0]
+        # Segment 1: [141.0, 201.0]
         args1, kwargs1 = call_args_list[0]
-        assert abs(kwargs1['start'] - 135.0) < 1e-7
+        assert abs(kwargs1['start'] - 141.0) < 1e-7
         assert abs(kwargs1['end'] - 201.0) < 1e-7
 
         # Segment 2: [213.0, 273.0]
@@ -1215,3 +1215,34 @@ def test_missile_flash_rendering() -> None:
     res_after = vg._render_frame([], 1130, {'resolution': [100, 100]}, hud_gen)
     assert res_after.getpixel((50, 50)) == (0, 0, 0, 0)
     res_after.close()
+
+
+def test_dimmed_color_half_saturation_and_darker() -> None:
+    """Verifies that dimmed colors have half saturation and slightly darker
+    lightness value.
+    """
+    from lfdata.model import LFGame
+    from lfdata.video.renderer import VideoGenerator
+    import colorsys
+
+    game = LFGame(game_id='test_color_game', game_type='SM5')
+    vg = VideoGenerator(game)
+
+    # Test with #FF5000 (saturated red-orange)
+    team = {'color_rgb': '#FF5000'}
+    _, _, dimmed_color, _ = vg._calculate_team_colors(team)
+
+    h, lightness, s = colorsys.rgb_to_hls(
+        255.0 / 255.0, 80.0 / 255.0, 0.0 / 255.0
+    )
+
+    r_dim, g_dim, b_dim = colorsys.hls_to_rgb(h, lightness * 0.8, s * 0.5)
+    expected_dimmed = (
+        int(r_dim * 255),
+        int(g_dim * 255),
+        int(b_dim * 255),
+        255,
+    )
+
+    assert dimmed_color == expected_dimmed
+

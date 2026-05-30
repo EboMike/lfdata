@@ -1205,11 +1205,14 @@ class VideoGenerator:
             int(b_sat_hls * 255),
             255,
         )
+        r_dim, g_dim, b_dim = colorsys.hls_to_rgb(
+            h, max(0.0, lightness * 0.8), s * 0.5
+        )
         dimmed_color = (
-            int(r_sat_hls * 255),
-            int(g_sat_hls * 255),
-            int(b_sat_hls * 255),
-            128,
+            int(r_dim * 255),
+            int(g_dim * 255),
+            int(b_dim * 255),
+            255,
         )
         gray_color = (128, 128, 128, 255)
         return bg_fill, text_color, dimmed_color, gray_color
@@ -1940,7 +1943,7 @@ class VideoGenerator:
 
                 if el.indicator_interval and el.indicator_interval > 0 and maximum > 0:
                     gap_degrees: float = 12.0
-                    indicator_values: list[int] = []
+                    indicator_values: list[int] = [0]
                     val: int = el.indicator_interval
                     while val < maximum:
                         indicator_values.append(val)

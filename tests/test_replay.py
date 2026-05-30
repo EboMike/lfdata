@@ -1206,3 +1206,141 @@ def test_team_boost_rules() -> None:
 
     # S2 received ammo boost (shots go from 30 - 16 + 10 = 24)
     assert s2_state.shots == 24
+
+
+def test_zap_and_missile_downed_player_authoritative() -> None:
+    from datetime import datetime
+    from lfdata.model import LFGame, GameTeam, GameEntity, GameEvent
+
+    # Create game
+    game = LFGame(
+        game_id='test_resettable_game',
+        timestamp=datetime.now(),
+        game_type='SM5',
+    )
+
+    t1 = GameTeam(
+        game_id='test_resettable_game',
+        team_index=0,
+        desc='Fire Team',
+        color_enum=11,
+        color_desc='Fire',
+        color_rgb='#FF5000',
+    )
+    t2 = GameTeam(
+        game_id='test_resettable_game',
+        team_index=1,
+        desc='Earth Team',
+        color_enum=13,
+        color_desc='Earth',
+        color_rgb='#00FF00',
+    )
+    game.teams = [t1, t2]
+
+    # Commander on team 0 (15 lives, 3 HP)
+    cmd = GameEntity(
+        game_id='test_resettable_game',
+        entity_id='C1',
+        type='player',
+        desc='Cmd1',
+        team_index=0,
+        level=1,
+        category=1,
+        battlesuit='Maverick',
+    )
+    # Scout on team 1 (15 lives, 1 HP)
+    sct = GameEntity(
+        game_id='test_resettable_game',
+        entity_id='S2',
+        type='player',
+        desc='Sct2',
+        team_index=1,
+        level=1,
+        category=3,
+        battlesuit='Interceptor',
+    )
+    game.entities = [cmd, sct]
+
+    events = [
+        # Mission start
+        GameEvent(
+            game_id='test_resettable_game',
+            time=0,
+            event_type='0100',
+            action='start',
+            raw_message='',
+        ),
+        # Scout zaps Commander (Commander HP: 3 -> 2)
+        GameEvent(
+            game_id='test_resettable_game',
+            time=1000,
+            event_type='0205',
+            actor_entity_id='S2',
+            target_entity_id='C1',
+            action='zaps',
+            raw_message='',
+        ),
+        # Scout zaps Commander again (Commander HP: 2 -> 1)
+        GameEvent(
+            game_id='test_resettable_game',
+            time=2000,
+            event_type='0205',
+            actor_entity_id='S2',
+            target_entity_id='C1',
+            action='zaps',
+            raw_message='',
+        ),
+        # Scout zaps Commander again (Commander HP: 1 -> 0, DOWNED, loses 1 life,
+        # down until 3000 + 8000 = 11000, resettable at 3000 + 4000 = 7000)
+        GameEvent(
+            game_id='test_resettable_game',
+            time=3000,
+            event_type='0206',
+            actor_entity_id='S2',
+            target_entity_id='C1',
+            action='zaps',
+            raw_message='',
+        ),
+        # Scout missiles Commander at 6000 ms (Commander is currently down).
+        # Since TDF is authoritative, target loses 2 lives, no matter what!
+        # Downtime resets to 6000 + 8000 = 14000 ms.
+        GameEvent(
+            game_id='test_resettable_game',
+            time=6000,
+            event_type='0306',
+            actor_entity_id='S2',
+            target_entity_id='C1',
+            action='missiles',
+            raw_message='',
+        ),
+        # Scout zaps Commander at 9000 ms (Commander is still down).
+        # Since TDF is authoritative, target loses 1 life, no matter what!
+        # Downtime resets to 9000 + 8000 = 17000 ms.
+        GameEvent(
+            game_id='test_resettable_game',
+            time=9000,
+            event_type='0206',
+            actor_entity_id='S2',
+            target_entity_id='C1',
+            action='zaps',
+            raw_message='',
+        ),
+    ]
+    game.events = events
+
+    replay = LFReplaySystem(game)
+    replay.run()
+
+    players = replay.game_state.players
+    cmd_state = players['C1']
+
+    # Commander starts with 15 lives.
+    # 1. Downed at 3000 ms (0206) -> 14 lives
+    # 2. Missiled at 6000 ms (0306) -> 12 lives (deducted even though down!)
+    # 3. Zapped at 9000 ms (0206) -> 11 lives (deducted even though down!)
+    assert cmd_state.lives == 11
+    # Downtime should be reset to 9000 + 8000 = 17000 ms
+    assert cmd_state.downtime_ends_at_ms == 17000
+    assert cmd_state.resettable_starts_at_ms == 13000
+
+

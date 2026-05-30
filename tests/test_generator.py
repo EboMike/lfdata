@@ -94,7 +94,7 @@ def test_visual_element_generator() -> None:
     assert counters['missiles'].max_value == 5
     assert 'sp' in counters
     assert counters['sp'].current_value == 0
-    assert counters['sp'].max_value == 100
+    assert counters['sp'].max_value == 99
 
     assert not any(el.element_type == 'downtime_bar' for el in elements_active)
 

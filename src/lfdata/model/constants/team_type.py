@@ -1,8 +1,24 @@
 """Enums representing LF game teams and metadata."""
 
+import dataclasses
 import enum
 
 from lfdata.model.constants.color import LFTeamColor
+
+
+@dataclasses.dataclass(frozen=True)
+class LFTeamTypeStats:
+    """Statistics and metadata for a team type.
+
+    Attributes:
+        team_index: The index of the team.
+        display_name: The display name of the team.
+        color: The color enum of the team.
+    """
+
+    team_index: int
+    display_name: str
+    color: LFTeamColor
 
 
 class LFTeamType(enum.Enum):
@@ -11,23 +27,25 @@ class LFTeamType(enum.Enum):
     Includes display names and the color enum.
     """
 
-    FIRE = (0, 'Fire Team', LFTeamColor.FIRE)
-    EARTH = (1, 'Earth Team', LFTeamColor.EARTH)
-    NEUTRAL = (2, 'Neutral', LFTeamColor.NONE)
+    FIRE = LFTeamTypeStats(
+        team_index=0, display_name='Fire Team', color=LFTeamColor.FIRE
+    )
+    EARTH = LFTeamTypeStats(
+        team_index=1, display_name='Earth Team', color=LFTeamColor.EARTH
+    )
+    NEUTRAL = LFTeamTypeStats(
+        team_index=2, display_name='Neutral', color=LFTeamColor.NONE
+    )
 
-    def __init__(
-        self, team_index: int, display_name: str, color: LFTeamColor
-    ) -> None:
+    def __init__(self, stats: LFTeamTypeStats) -> None:
         """Initializes the team type.
 
         Args:
-            team_index: The index of the team.
-            display_name: The display name of the team.
-            color: The color enum of the team.
+            stats: The team type metadata statistics object.
         """
-        self.team_index = team_index
-        self.display_name = display_name
-        self.color = color
+        self.team_index = stats.team_index
+        self.display_name = stats.display_name
+        self.color = stats.color
 
     @classmethod
     def from_index(cls, team_index: int) -> 'LFTeamType':

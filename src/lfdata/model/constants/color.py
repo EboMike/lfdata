@@ -1,6 +1,22 @@
 """Enums representing LF team colors and metadata."""
 
+import dataclasses
 import enum
+
+
+@dataclasses.dataclass(frozen=True)
+class LFTeamColorStats:
+    """Statistics and metadata for a team color.
+
+    Attributes:
+        color_enum: The integer ID from TDF files.
+        display_name: The display name of the color.
+        rgb: The CSS/RGB hex color value.
+    """
+
+    color_enum: int
+    display_name: str
+    rgb: str
 
 
 class LFTeamColor(enum.Enum):
@@ -9,21 +25,19 @@ class LFTeamColor(enum.Enum):
     Includes display names and RGB hex values.
     """
 
-    FIRE = (11, 'Fire', '#FF5000')
-    EARTH = (13, 'Earth', '#A0FF00')
-    NONE = (0, 'None', '#808080')
+    FIRE = LFTeamColorStats(color_enum=11, display_name='Fire', rgb='#FF5000')
+    EARTH = LFTeamColorStats(color_enum=13, display_name='Earth', rgb='#A0FF00')
+    NONE = LFTeamColorStats(color_enum=0, display_name='None', rgb='#808080')
 
-    def __init__(self, color_enum: int, display_name: str, rgb: str) -> None:
+    def __init__(self, stats: LFTeamColorStats) -> None:
         """Initializes the team color.
 
         Args:
-            color_enum: The integer ID from TDF files.
-            display_name: The display name of the color.
-            rgb: The CSS/RGB hex color value.
+            stats: The color metadata statistics object.
         """
-        self.color_enum = color_enum
-        self.display_name = display_name
-        self.rgb = rgb
+        self.color_enum = stats.color_enum
+        self.display_name = stats.display_name
+        self.rgb = stats.rgb
 
     @classmethod
     def from_enum(cls, color_enum: int) -> 'LFTeamColor':

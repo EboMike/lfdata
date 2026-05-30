@@ -53,8 +53,7 @@ class LFReplayHandlersMixin:
             # Check if target goes down or resets downtime
             if event.event_type in ['0206', '0208']:
                 if actor.team_index != target.team_index:
-                    if not target.is_down(event.time):
-                        target.lives = max(0, target.lives - 1)
+                    target.lives = max(0, target.lives - 1)
                 target.hp = 0
                 target.downtime_ends_at_ms = event.time + 8000
                 target.resettable_starts_at_ms = event.time + 4000
@@ -103,8 +102,7 @@ class LFReplayHandlersMixin:
 
             # Missile immediately downs target or resets downtime
             if actor.team_index != target.team_index:
-                if not target.is_down(event.time):
-                    target.lives = max(0, target.lives - 2)
+                target.lives = max(0, target.lives - 2)
             target.hp = 0
             target.downtime_ends_at_ms = event.time + 8000
             target.resettable_starts_at_ms = event.time + 4000

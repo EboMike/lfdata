@@ -994,7 +994,7 @@ class VisualElementGenerator:
             'player_special_points',
             element_type='counter',
             current_value=p_state.special_points,
-            max_value=100,
+            max_value=99,
             indicator_interval=sp_interval,
         )
         if el_pspec:
