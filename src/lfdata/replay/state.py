@@ -61,9 +61,8 @@ class LFReplayPlayerState:
         if self.is_eliminated():
             self.hp = 0
             return
-        if current_time_ms >= self.downtime_ends_at_ms:
-            if self.hp < self.max_hp:
-                self.hp = self.max_hp
+        if self.hp == 0 and current_time_ms >= self.downtime_ends_at_ms:
+            self.hp = self.max_hp
 
     def resupply_lives_from_medic(self) -> None:
         """Adds lives to player based on role-specific medic resupply values."""

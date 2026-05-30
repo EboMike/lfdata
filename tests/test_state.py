@@ -76,6 +76,15 @@ def test_player_downtime_and_elimination() -> None:
     p.update_downtime(9000)
     assert p.hp == 0
 
+    # Zap but not down (Commander hitpoints go from 3 to 2)
+    p2 = LFReplayPlayerState(
+        entity_id='#2', role=LFRole.COMMANDER, team_index=0
+    )
+    p2.hp = 2
+    # Calling update_downtime should NOT restore it because player is not down
+    p2.update_downtime(2000)
+    assert p2.hp == 2
+
 
 def test_player_resupply_checks() -> None:
     p = LFReplayPlayerState(entity_id='#1', role=LFRole.SCOUT, team_index=0)

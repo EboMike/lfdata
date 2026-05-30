@@ -714,7 +714,6 @@ def test_downtime_bar_cropping() -> None:
     mock_resized_empty = MagicMock()
     mock_crop_left = MagicMock()
     mock_crop_right = MagicMock()
-    mock_overlay = MagicMock()
     mock_combined = MagicMock()
 
     mock_img_full.convert.return_value = mock_img_full
@@ -733,14 +732,13 @@ def test_downtime_bar_cropping() -> None:
 
     with (
         patch('PIL.Image.open', side_effect=open_side_effect),
-        patch('PIL.Image.new') as mock_new,
+        patch('PIL.Image.new', return_value=mock_combined),
         patch.object(img, 'alpha_composite') as mock_alpha,
     ):
-        mock_new.side_effect = [mock_overlay, mock_combined]
         vg._draw_downtime_bar(img, el)
 
-        # Verify alpha_composite was called with mock_overlay
-        mock_alpha.assert_called_once_with(mock_overlay)
+        # Verify alpha_composite was called with mock_combined
+        mock_alpha.assert_called_once_with(mock_combined, dest=(240, 120))
 
         # W = 560 - 240 = 320, H = 150 - 120 = 30.
         mock_img_full.resize.assert_called_once_with(
@@ -758,11 +756,6 @@ def test_downtime_bar_cropping() -> None:
         # Paste parts on combined
         mock_combined.paste.assert_any_call(mock_crop_left, (0, 0))
         mock_combined.paste.assert_any_call(mock_crop_right, (80, 0))
-
-        # Paste combined on overlay
-        mock_overlay.paste.assert_called_once_with(
-            mock_combined, (240, 120), mock_combined
-        )
 
 
 def test_event_scroller_fade() -> None:
@@ -912,3 +905,103 @@ def test_video_generator_generate_no_pipe(tmp_path) -> None:
     generated_path = generator.generate(output_file, use_pipe=False)
     assert generated_path.exists()
     assert generated_path == output_file
+
+
+def test_icon_cache_and_pickling() -> None:
+    """Verifies that role/counter icons are cached and picklable."""
+    from pathlib import Path
+    import pickle
+    from unittest.mock import MagicMock, patch
+    from PIL import Image
+    from lfdata.model import LFGame
+    from lfdata.video.renderer import VideoGenerator
+
+    game = LFGame(game_id='test_icon_game', game_type='SM5')
+    vg = VideoGenerator(game)
+
+    # Test cache starts empty
+    assert len(vg._icon_cache) == 0
+
+    icon_path = Path('tests/assets/fake_icon.png')
+    mock_img = MagicMock(spec=Image.Image)
+    mock_resized = MagicMock(spec=Image.Image)
+    mock_img.__enter__.return_value = mock_img
+    mock_img.convert.return_value = mock_img
+    mock_img.resize.return_value = mock_resized
+
+    with (
+        patch('pathlib.Path.exists', return_value=True),
+        patch('PIL.Image.open', return_value=mock_img),
+    ):
+        res1 = vg._get_cached_icon(icon_path, 24)
+        assert res1 is mock_resized
+        assert len(vg._icon_cache) == 1
+
+        # Second request should hit the cache and not call Image.open again
+        with patch('PIL.Image.open') as mock_open:
+            res2 = vg._get_cached_icon(icon_path, 24)
+            assert res2 is mock_resized
+            mock_open.assert_not_called()
+
+    # Serialization test
+    dumped = pickle.dumps(vg)
+    loaded = pickle.loads(dumped)
+    assert len(loaded._icon_cache) == 0
+    assert hasattr(loaded, '_icon_cache_lock')
+
+
+def test_text_cache_eviction() -> None:
+    """Verifies that text cache evicts and closes oldest images at limit."""
+    from unittest.mock import MagicMock
+    from PIL import Image
+    from lfdata.model import LFGame
+    from lfdata.video.element import UIElement, UIElementStyle
+    from lfdata.video.renderer import VideoGenerator
+
+    game = LFGame(game_id='test_evict_game', game_type='SM5')
+    vg = VideoGenerator(game)
+
+    oldest_mock = MagicMock(spec=Image.Image)
+    oldest_key = (
+        'text_0',
+        'Arial',
+        'normal',
+        12,
+        '#ffffff',
+        '#000000',
+        1080,
+        1.0,
+    )
+    vg._text_cache[oldest_key] = (oldest_mock, 0, 0)
+
+    for i in range(1, 1000):
+        mock_img = MagicMock(spec=Image.Image)
+        key = (
+            f'text_{i}',
+            'Arial',
+            'normal',
+            12,
+            '#ffffff',
+            '#000000',
+            1080,
+            1.0,
+        )
+        vg._text_cache[key] = (mock_img, 0, 0)
+
+    assert len(vg._text_cache) == 1000
+
+    # Draw one more text element to trigger eviction
+    img = Image.new('RGBA', (800, 600), (0, 0, 0, 0))
+    el = UIElement(
+        element_type='text',
+        x=0.5,
+        y=0.5,
+        text='New String',
+        style=UIElementStyle(size=20, color='#ffffffff'),
+        alpha=1.0,
+    )
+    vg._draw_text_elements(img, [el], {'resolution': [800, 600]})
+
+    assert len(vg._text_cache) == 1000
+    assert oldest_key not in vg._text_cache
+    oldest_mock.close.assert_called_once()

@@ -109,6 +109,13 @@ class VideoGenerator:
         self.game = game
         self._text_cache: dict[tuple, Image.Image] = {}
         self._text_cache_lock = threading.Lock()
+        self._downtime_full: Image.Image | None = None
+        self._downtime_empty: Image.Image | None = None
+        self._downtime_cache_size: tuple[int, int] | None = None
+        self._downtime_full_resized: Image.Image | None = None
+        self._downtime_empty_resized: Image.Image | None = None
+        self._icon_cache: dict[tuple[str, int], Image.Image] = {}
+        self._icon_cache_lock = threading.Lock()
 
     def __getstate__(self) -> dict[str, Any]:
         """Prepares the object state for serialization.
@@ -123,6 +130,19 @@ class VideoGenerator:
             del state['_text_cache_lock']
         if '_text_cache' in state:
             del state['_text_cache']
+        if '_icon_cache_lock' in state:
+            del state['_icon_cache_lock']
+        if '_icon_cache' in state:
+            del state['_icon_cache']
+        for key in [
+            '_downtime_full',
+            '_downtime_empty',
+            '_downtime_cache_size',
+            '_downtime_full_resized',
+            '_downtime_empty_resized',
+        ]:
+            if key in state:
+                del state[key]
         return state
 
     def __setstate__(self, state: dict[str, Any]) -> None:
@@ -136,6 +156,50 @@ class VideoGenerator:
         self.__dict__.update(state)
         self._text_cache = {}
         self._text_cache_lock = threading.Lock()
+        self._downtime_full = None
+        self._downtime_empty = None
+        self._downtime_cache_size = None
+        self._downtime_full_resized = None
+        self._downtime_empty_resized = None
+        self._icon_cache = {}
+        self._icon_cache_lock = threading.Lock()
+
+    def _get_cached_icon(
+        self, icon_path: Path, size: int
+    ) -> Image.Image | None:
+        """Retrieves a cached, resized version of an icon image or loads it.
+
+        Args:
+            icon_path: The filesystem path to the icon image.
+            size: The target width and height of the icon.
+
+        Returns:
+            Image.Image | None: The resized Image object, or None if loading
+            failed.
+        """
+        if not icon_path.exists():
+            return None
+        cache_key = (str(icon_path), size)
+        with self._icon_cache_lock:
+            cached = self._icon_cache.get(cache_key)
+            if cached is not None:
+                return cached
+
+        try:
+            with Image.open(icon_path) as raw_img:
+                img_rgba = raw_img.convert('RGBA')
+                try:
+                    resized = img_rgba.resize(
+                        (size, size), Image.Resampling.LANCZOS
+                    )
+                    with self._icon_cache_lock:
+                        self._icon_cache[cache_key] = resized
+                    return resized
+                finally:
+                    img_rgba.close()
+        except Exception as e:
+            print(f'Warning: failed to load/resize icon {icon_path}: {e}')
+            return None
 
     def _determine_video_end_ms(
         self,
@@ -299,7 +363,10 @@ class VideoGenerator:
         """
         elements = hud_gen.generate_at(time_ms)
         img = self._render_frame(elements, time_ms, config)
-        return img.tobytes()
+        try:
+            return img.tobytes()
+        finally:
+            img.close()
 
     def _render_and_save_frame(
         self,
@@ -320,7 +387,10 @@ class VideoGenerator:
         """
         elements = hud_gen.generate_at(time_ms)
         img = self._render_frame(elements, time_ms, config)
-        img.save(temp_path / f'frame_{frame_idx:05d}.png')
+        try:
+            img.save(temp_path / f'frame_{frame_idx:05d}.png')
+        finally:
+            img.close()
 
     def _generate_frames(
         self,
@@ -1056,18 +1126,12 @@ class VideoGenerator:
                     role_name = p.get('role_name', '').lower()
                     icon_path = Path('assets') / 'sm5' / f'{role_name}.png'
                     if icon_path.exists() and overlay is not None:
-                        try:
-                            role_img = Image.open(icon_path).convert('RGBA')
-                            icon_size = int(row_h * 0.8)
-                            role_img = role_img.resize(
-                                (icon_size, icon_size),
-                                Image.Resampling.LANCZOS,
-                            )
+                        icon_size = int(row_h * 0.8)
+                        role_img = self._get_cached_icon(icon_path, icon_size)
+                        if role_img is not None:
                             icon_y = y_row + (row_h - icon_size) // 2
                             overlay.paste(role_img, (offset, icon_y), role_img)
                             continue
-                        except Exception as e:
-                            print(f'Warning: failed to load/paste icon: {e}')
 
                 stroke_fill = (
                     0,
@@ -1171,66 +1235,69 @@ class VideoGenerator:
         border_color = text_color
 
         overlay = Image.new('RGBA', image.size, (0, 0, 0, 0))
-        draw = ImageDraw.Draw(overlay)
+        try:
+            draw = ImageDraw.Draw(overlay)
 
-        table_width = int(650 * image.width / 1920)
-        ty = int(team['y_pos'])
+            table_width = int(650 * image.width / 1920)
+            ty = int(team['y_pos'])
 
-        columns, offsets = self._resolve_scoreboard_columns(
-            x_start, table_width
-        )
-        padding_y = int(5 * image.height / 1080)
+            columns, offsets = self._resolve_scoreboard_columns(
+                x_start, table_width
+            )
+            padding_y = int(5 * image.height / 1080)
 
-        sep_y = self._draw_table_structure(
-            draw=draw,
-            x_start=x_start,
-            ty=ty,
-            table_width=table_width,
-            th=th,
-            bg_fill=bg_fill,
-            border_color=border_color,
-            columns=columns,
-            offsets=offsets,
-            bold_font=header_font,
-            header_h=header_h,
-            padding_y=padding_y,
-            stroke_width=stroke_width,
-            draw_background=draw_background,
-            draw_borders=draw_borders,
-        )
+            sep_y = self._draw_table_structure(
+                draw=draw,
+                x_start=x_start,
+                ty=ty,
+                table_width=table_width,
+                th=th,
+                bg_fill=bg_fill,
+                border_color=border_color,
+                columns=columns,
+                offsets=offsets,
+                bold_font=header_font,
+                header_h=header_h,
+                padding_y=padding_y,
+                stroke_width=stroke_width,
+                draw_background=draw_background,
+                draw_borders=draw_borders,
+            )
 
-        y_row = self._draw_player_rows(
-            draw=draw,
-            players=team.get('players', []),
-            columns=columns,
-            offsets=offsets,
-            font=font,
-            text_color=text_color,
-            gray_color=gray_color,
-            dimmed_color=dimmed_color,
-            y_row=sep_y,
-            row_h=row_h,
-            height=image.height,
-            overlay=overlay,
-            stroke_width=stroke_width,
-        )
+            y_row = self._draw_player_rows(
+                draw=draw,
+                players=team.get('players', []),
+                columns=columns,
+                offsets=offsets,
+                font=font,
+                text_color=text_color,
+                gray_color=gray_color,
+                dimmed_color=dimmed_color,
+                y_row=sep_y,
+                row_h=row_h,
+                height=image.height,
+                overlay=overlay,
+                stroke_width=stroke_width,
+            )
 
-        self._draw_totals_row(
-            draw=draw,
-            totals=team.get('totals', {}),
-            columns=columns,
-            offsets=offsets,
-            bold_font=bold_font,
-            border_color=border_color,
-            x_start=x_start,
-            table_width=table_width,
-            y_row=y_row,
-            padding_y=padding_y,
-            stroke_width=stroke_width,
-            draw_borders=draw_borders,
-        )
+            self._draw_totals_row(
+                draw=draw,
+                totals=team.get('totals', {}),
+                columns=columns,
+                offsets=offsets,
+                bold_font=bold_font,
+                border_color=border_color,
+                x_start=x_start,
+                table_width=table_width,
+                y_row=y_row,
+                padding_y=padding_y,
+                stroke_width=stroke_width,
+                draw_borders=draw_borders,
+            )
 
-        image.alpha_composite(overlay)
+            image.alpha_composite(overlay)
+        finally:
+            overlay.close()
 
     def _resolve_scoreboard_columns(
         self, x_start: int, table_width: int
@@ -1361,8 +1428,6 @@ class VideoGenerator:
         if total_remaining_ms <= 0:
             return
 
-        overlay = Image.new('RGBA', image.size, (0, 0, 0, 0))
-
         # Determine elapsed progress (0.0 to 1.0)
         progress = max(0.0, min(1.0, (8000 - total_remaining_ms) / 8000.0))
 
@@ -1371,31 +1436,42 @@ class VideoGenerator:
 
         if path_full.exists() and path_empty.exists():
             try:
-                img_full = Image.open(path_full).convert('RGBA')
-                img_empty = Image.open(path_empty).convert('RGBA')
+                # Lazily load original images once per process
+                if self._downtime_full is None:
+                    self._downtime_full = Image.open(path_full).convert('RGBA')
+                if self._downtime_empty is None:
+                    self._downtime_empty = Image.open(path_empty).convert(
+                        'RGBA'
+                    )
 
-                # Resize to target box size
-                full_resized = img_full.resize((W, H), Image.Resampling.LANCZOS)
-                empty_resized = img_empty.resize(
-                    (W, H), Image.Resampling.LANCZOS
-                )
+                # Resize only if bar layout dimensions changed
+                if self._downtime_cache_size != (W, H):
+                    self._downtime_full_resized = self._downtime_full.resize(
+                        (W, H), Image.Resampling.LANCZOS
+                    )
+                    self._downtime_empty_resized = self._downtime_empty.resize(
+                        (W, H), Image.Resampling.LANCZOS
+                    )
+                    self._downtime_cache_size = (W, H)
 
                 # Composite empty and full parts based on progress
                 split_x = int(W * progress)
 
                 combined = Image.new('RGBA', (W, H))
                 if split_x > 0:
-                    left_part = empty_resized.crop((0, 0, split_x, H))
+                    left_part = self._downtime_empty_resized.crop(
+                        (0, 0, split_x, H)
+                    )
                     combined.paste(left_part, (0, 0))
                 if split_x < W:
-                    right_part = full_resized.crop((split_x, 0, W, H))
+                    right_part = self._downtime_full_resized.crop(
+                        (split_x, 0, W, H)
+                    )
                     combined.paste(right_part, (split_x, 0))
 
-                overlay.paste(combined, (x1, y1), combined)
+                image.alpha_composite(combined, dest=(x1, y1))
             except Exception as e:
                 print(f'Warning: failed to composite downtime bar: {e}')
-
-        image.alpha_composite(overlay)
 
     def _load_text_font(
         self,
@@ -1492,10 +1568,13 @@ class VideoGenerator:
                 margin = stroke_width + padding
 
                 temp_img = Image.new('RGBA', (1, 1), (0, 0, 0, 0))
-                temp_draw = ImageDraw.Draw(temp_img)
-                bbox = temp_draw.textbbox(
-                    (0, 0), el.text, font=font, anchor=anchor
-                )
+                try:
+                    temp_draw = ImageDraw.Draw(temp_img)
+                    bbox = temp_draw.textbbox(
+                        (0, 0), el.text, font=font, anchor=anchor
+                    )
+                finally:
+                    temp_img.close()
 
                 bbox_w = bbox[2] - bbox[0]
                 bbox_h = bbox[3] - bbox[1]
@@ -1542,7 +1621,12 @@ class VideoGenerator:
 
                 cached_entry = (small_img, bbox[0] - margin, bbox[1] - margin)
                 with self._text_cache_lock:
-                    self._text_cache[cache_key] = cached_entry
+                    if cache_key not in self._text_cache:
+                        if len(self._text_cache) >= 1000:
+                            oldest_key = next(iter(self._text_cache))
+                            oldest_img, _, _ = self._text_cache.pop(oldest_key)
+                            oldest_img.close()
+                        self._text_cache[cache_key] = cached_entry
 
             small_img, offset_x, offset_y = cached_entry
             paste_x = int(x_coord + offset_x)
@@ -1638,75 +1722,85 @@ class VideoGenerator:
         y_coord = int(height * (el.y if el.y is not None else 0.9))
 
         overlay = Image.new('RGBA', image.size, (0, 0, 0, 0))
-        draw = ImageDraw.Draw(overlay)
+        try:
+            draw = ImageDraw.Draw(overlay)
 
-        thickness = max(2, int(diameter * 0.1))
-        circle_bbox = [x_coord, y_coord, x_coord + diameter, y_coord + diameter]
+            thickness = max(2, int(diameter * 0.1))
+            circle_bbox = [
+                x_coord,
+                y_coord,
+                x_coord + diameter,
+                y_coord + diameter,
+            ]
 
-        if pct > 0.0:
-            start_angle = 135
-            end_angle = int(135 + pct * 360)
-            draw.arc(
-                circle_bbox,
-                start=start_angle,
-                end=end_angle,
-                fill=color,
-                width=thickness,
-            )
+            if pct > 0.0:
+                start_angle = 135
+                end_angle = int(135 + pct * 360)
+                draw.arc(
+                    circle_bbox,
+                    start=start_angle,
+                    end=end_angle,
+                    fill=color,
+                    width=thickness,
+                )
 
-        if el.icon:
-            icon_path = self._get_icon_path(el.icon)
-            if icon_path and icon_path.exists():
-                try:
-                    icon_img = Image.open(icon_path).convert('RGBA')
+            if el.icon:
+                icon_path = self._get_icon_path(el.icon)
+                if icon_path and icon_path.exists():
                     icon_size = int(diameter * 0.55)
-                    icon_img = icon_img.resize(
-                        (icon_size, icon_size), Image.Resampling.LANCZOS
-                    )
-                    cx = x_coord + diameter // 2
-                    cy = y_coord + diameter // 2
-                    overlay.paste(
-                        icon_img,
-                        (cx - icon_size // 2, cy - icon_size // 2),
-                        icon_img,
-                    )
-                except Exception as e:
-                    print(f'Warning: failed to draw icon {el.icon}: {e}')
+                    icon_img = self._get_cached_icon(icon_path, icon_size)
+                    if icon_img is not None:
+                        cx = x_coord + diameter // 2
+                        cy = y_coord + diameter // 2
+                        overlay.paste(
+                            icon_img,
+                            (cx - icon_size // 2, cy - icon_size // 2),
+                            icon_img,
+                        )
 
-        text_str = f'{current}/{maximum}'
-        pixel_size = max(1, int(height * el.style.size / 800))
-        font = self._load_text_font(el.style.font, el.style.style, pixel_size)
-
-        spacing = int(diameter * 0.2)
-        tx = x_coord + diameter + spacing
-        ty = y_coord + diameter // 2
-
-        alpha_color = (color[0], color[1], color[2], int(color[3] * el.alpha))
-        bg_hex = el.style.background_color
-        bg_color = parse_color_with_alpha(bg_hex, el.alpha)
-
-        if bg_color[3] > 0:
-            bbox = draw.textbbox((tx, ty), text_str, font=font, anchor='lm')
-            padding = max(1, int(height * 4 / 800))
-            padded_bbox = (
-                bbox[0] - padding,
-                bbox[1] - padding,
-                bbox[2] + padding,
-                bbox[3] + padding,
+            text_str = f'{current}/{maximum}'
+            pixel_size = max(1, int(height * el.style.size / 800))
+            font = self._load_text_font(
+                el.style.font, el.style.style, pixel_size
             )
-            draw.rectangle(padded_bbox, fill=bg_color)
 
-        stroke_color = (0, 0, 0, alpha_color[3])
-        draw.text(
-            (tx, ty),
-            text_str,
-            fill=alpha_color,
-            font=font,
-            anchor='lm',
-            stroke_width=max(1, int(pixel_size * 0.05)),
-            stroke_fill=stroke_color,
-        )
-        image.alpha_composite(overlay)
+            spacing = int(diameter * 0.2)
+            tx = x_coord + diameter + spacing
+            ty = y_coord + diameter // 2
+
+            alpha_color = (
+                color[0],
+                color[1],
+                color[2],
+                int(color[3] * el.alpha),
+            )
+            bg_hex = el.style.background_color
+            bg_color = parse_color_with_alpha(bg_hex, el.alpha)
+
+            if bg_color[3] > 0:
+                bbox = draw.textbbox((tx, ty), text_str, font=font, anchor='lm')
+                padding = max(1, int(height * 4 / 800))
+                padded_bbox = (
+                    bbox[0] - padding,
+                    bbox[1] - padding,
+                    bbox[2] + padding,
+                    bbox[3] + padding,
+                )
+                draw.rectangle(padded_bbox, fill=bg_color)
+
+            stroke_color = (0, 0, 0, alpha_color[3])
+            draw.text(
+                (tx, ty),
+                text_str,
+                fill=alpha_color,
+                font=font,
+                anchor='lm',
+                stroke_width=max(1, int(pixel_size * 0.05)),
+                stroke_fill=stroke_color,
+            )
+            image.alpha_composite(overlay)
+        finally:
+            overlay.close()
 
     def _draw_event_scroller(
         self,
@@ -1771,78 +1865,101 @@ class VideoGenerator:
             y_scroll = target_offset
 
         temp_img = Image.new('RGBA', (W, H), (0, 0, 0, 0))
-        draw_temp = ImageDraw.Draw(temp_img)
+        try:
+            draw_temp = ImageDraw.Draw(temp_img)
 
-        for i, ev in enumerate(active_events):
-            y_pos = (H - row_height) + (i * row_height - y_scroll)
-            if y_pos < -row_height or y_pos > H:
-                continue
+            for i, ev in enumerate(active_events):
+                y_pos = (H - row_height) + (i * row_height - y_scroll)
+                if y_pos < -row_height or y_pos > H:
+                    continue
 
-            desc = ev['desc']
-            segments = self._split_by_player_names(desc, player_to_color)
-            x_cursor = 10
+                desc = ev['desc']
+                segments = self._split_by_player_names(desc, player_to_color)
+                x_cursor = 10
 
-            for text_part, color_hex in segments:
-                if color_hex:
-                    color = parse_color_with_alpha(color_hex, el.alpha)
-                else:
-                    color = parse_color_with_alpha(el.style.color, el.alpha)
+                for text_part, color_hex in segments:
+                    if color_hex:
+                        color = parse_color_with_alpha(color_hex, el.alpha)
+                    else:
+                        color = parse_color_with_alpha(el.style.color, el.alpha)
 
-                stroke_color = (
-                    0,
-                    0,
-                    0,
-                    color[3] if len(color) > 3 else 255,
-                )
-                draw_temp.text(
-                    (x_cursor, int(y_pos)),
-                    text_part,
-                    fill=color,
-                    font=font,
-                    stroke_width=max(1, int(pixel_size * 0.05)),
-                    stroke_fill=stroke_color,
-                )
-                x_cursor += int(draw_temp.textlength(text_part, font=font))
+                    stroke_color = (
+                        0,
+                        0,
+                        0,
+                        color[3] if len(color) > 3 else 255,
+                    )
+                    draw_temp.text(
+                        (x_cursor, int(y_pos)),
+                        text_part,
+                        fill=color,
+                        font=font,
+                        stroke_width=max(1, int(pixel_size * 0.05)),
+                        stroke_fill=stroke_color,
+                    )
+                    x_cursor += int(draw_temp.textlength(text_part, font=font))
 
-        # Add fade to the top of the event scroller so there is no hard edge.
-        fade_height = int(H * 0.25)
-        if fade_height > 0:
-            gradient = Image.new('L', (1, H), 255)
-            for y in range(fade_height):
-                alpha = int(255 * (y / fade_height))
-                gradient.putpixel((0, y), alpha)
-            gradient = gradient.resize((W, H))
-            r, g, b, a = temp_img.split()
-            new_a = ImageChops.multiply(a, gradient)
-            temp_img = Image.merge('RGBA', (r, g, b, new_a))
+            # Add fade to the top of the event scroller.
+            fade_height = int(H * 0.25)
+            if fade_height > 0:
+                gradient_1 = Image.new('L', (1, H), 255)
+                try:
+                    for y in range(fade_height):
+                        alpha = int(255 * (y / fade_height))
+                        gradient_1.putpixel((0, y), alpha)
+                    gradient_resized = gradient_1.resize((W, H))
+                finally:
+                    gradient_1.close()
 
-        el_config = config.get('elements', {}).get('all_game_events', {})
-        tilt = el_config.get('tilt', 10.0)
+                try:
+                    r, g, b, a = temp_img.split()
+                    try:
+                        new_a = ImageChops.multiply(a, gradient_resized)
+                        try:
+                            faded_img = Image.merge('RGBA', (r, g, b, new_a))
+                            temp_img.close()
+                            temp_img = faded_img
+                        finally:
+                            new_a.close()
+                    finally:
+                        r.close()
+                        g.close()
+                        b.close()
+                        a.close()
+                finally:
+                    gradient_resized.close()
 
-        if tilt != 0.0:
-            import math
+            el_config = config.get('elements', {}).get('all_game_events', {})
+            tilt = el_config.get('tilt', 10.0)
 
-            dx = H * math.tan(math.radians(tilt))
-            dx = max(0.0, min(W * 0.45, dx))
+            if tilt != 0.0:
+                import math
 
-            a = W / (W - 2.0 * dx)
-            b = W * dx / (H * (W - 2.0 * dx))
-            c = -W * dx / (W - 2.0 * dx)
-            d = 0.0
-            e = a
-            f = 0.0
-            g = 0.0
-            h = (a - 1.0) / H
+                dx = H * math.tan(math.radians(tilt))
+                dx = max(0.0, min(W * 0.45, dx))
 
-            coeffs = (a, b, c, d, e, f, g, h)
-            try:
-                temp_img = temp_img.transform(
-                    (W, H),
-                    Image.Transform.PERSPECTIVE,
-                    coeffs,
-                    Image.Resampling.BILINEAR,
-                )
-            except Exception as e:
-                print(f'Warning: perspective transform failed: {e}')
+                a = W / (W - 2.0 * dx)
+                b = W * dx / (H * (W - 2.0 * dx))
+                c = -W * dx / (W - 2.0 * dx)
+                d = 0.0
+                e = a
+                f = 0.0
+                g = 0.0
+                h = (a - 1.0) / H
 
-        image.paste(temp_img, (x_coord, y_coord), temp_img)
+                coeffs = (a, b, c, d, e, f, g, h)
+                try:
+                    transformed_img = temp_img.transform(
+                        (W, H),
+                        Image.Transform.PERSPECTIVE,
+                        coeffs,
+                        Image.Resampling.BILINEAR,
+                    )
+                    temp_img.close()
+                    temp_img = transformed_img
+                except Exception as e:
+                    print(f'Warning: perspective transform failed: {e}')
+
+            image.paste(temp_img, (x_coord, y_coord), temp_img)
+        finally:
+            temp_img.close()
