@@ -1067,3 +1067,20 @@ def test_get_best_h264_encoder() -> None:
         assert encoder == 'libx264'
         # Tries nvenc, amf, qsv, videotoolbox
         assert mock_run.call_count == 4
+
+
+def test_get_encoder_details() -> None:
+    """Verifies that _get_encoder_details describes encoders correctly."""
+    from lfdata.video.renderer import _get_encoder_details
+
+    # Test mapped GPU encoders
+    assert 'NVIDIA NVENC' in _get_encoder_details('h264_nvenc')
+    assert 'Apple VideoToolbox' in _get_encoder_details('h264_videotoolbox')
+
+    # Test unmapped GPU encoders with known suffixes
+    assert _get_encoder_details('custom_nvenc') == 'GPU-assisted'
+    assert _get_encoder_details('custom_amf') == 'GPU-assisted'
+
+    # Test CPU encoders
+    assert _get_encoder_details('libx264') == 'CPU-only'
+    assert _get_encoder_details('libvpx-vp9') == 'CPU-only'

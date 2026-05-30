@@ -140,6 +140,44 @@ def _get_best_h264_encoder() -> str:
     return 'libx264'
 
 
+def _get_encoder_details(encoder: str) -> str:
+    """Returns a user-friendly description of the video encoder capabilities.
+
+    Identifies whether the encoder is GPU-assisted or CPU-only.
+
+    Args:
+        encoder: The name of the video encoder.
+
+    Returns:
+        A string describing the hardware acceleration details.
+    """
+    gpu_map = {
+        'h264_nvenc': 'GPU-assisted (NVIDIA NVENC)',
+        'h264_amf': 'GPU-assisted (AMD AMF)',
+        'h264_qsv': 'GPU-assisted (Intel Quick Sync Video)',
+        'h264_videotoolbox': 'GPU-assisted (Apple VideoToolbox)',
+        'hevc_nvenc': 'GPU-assisted (NVIDIA NVENC HEVC)',
+        'hevc_amf': 'GPU-assisted (AMD AMF HEVC)',
+        'hevc_qsv': 'GPU-assisted (Intel QSV HEVC)',
+        'hevc_videotoolbox': 'GPU-assisted (Apple VideoToolbox HEVC)',
+        'vp9_nvenc': 'GPU-assisted (NVIDIA NVENC VP9)',
+        'vp9_qsv': 'GPU-assisted (Intel QSV VP9)',
+    }
+    if encoder in gpu_map:
+        return gpu_map[encoder]
+    if any(
+        suffix in encoder
+        for suffix in [
+            '_nvenc',
+            '_amf',
+            '_qsv',
+            '_videotoolbox',
+        ]
+    ):
+        return 'GPU-assisted'
+    return 'CPU-only'
+
+
 class VideoGenerator:
     """Generates visual videos from LF game events and data."""
 
@@ -594,6 +632,8 @@ class VideoGenerator:
         cmd = [
             'ffmpeg',
             '-y',
+            '-loglevel',
+            'error',
             '-f',
             'rawvideo',
             '-pix_fmt',
@@ -618,6 +658,7 @@ class VideoGenerator:
         )
 
         print(f'Encoding video to {output_path} (direct pipe)...')
+        print(f'Using video encoder: {codec} ({_get_encoder_details(codec)})')
 
         frame_step = 1000.0 / fps
         tasks = []
@@ -803,9 +844,13 @@ class VideoGenerator:
             pix_fmt = 'yuv420p'
             extra_args = []
 
+        print(f'Using video encoder: {codec} ({_get_encoder_details(codec)})')
+
         cmd: list[str] = [
             'ffmpeg',
             '-y',
+            '-loglevel',
+            'error',
             '-framerate',
             str(fps),
             '-i',
