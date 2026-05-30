@@ -114,6 +114,9 @@ system_env/
 data/*.db
 data/*.sqlite
 
+# Internal assets
+assets_src/
+fonts/
+
 # Goofy vibe stuff
-AGENTS.md
-design/
+private.AGENTS.md
