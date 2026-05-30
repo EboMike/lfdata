@@ -97,6 +97,49 @@ def _render_frame_bytes_worker(
     )
 
 
+def _get_best_h264_encoder() -> str:
+    """Detects and returns the best available H.264 encoder on the system.
+
+    Tries hardware-accelerated encoders (nvenc, amf, qsv, videotoolbox) and
+    falls back to libx264 if none are fully functional.
+
+    Returns:
+        The name of the best H.264 encoder to use.
+    """
+    candidates = [
+        'h264_nvenc',
+        'h264_amf',
+        'h264_qsv',
+        'h264_videotoolbox',
+    ]
+    for candidate in candidates:
+        try:
+            cmd = [
+                'ffmpeg',
+                '-y',
+                '-f',
+                'lavfi',
+                '-i',
+                'color=c=blue:s=64x64:d=0.01',
+                '-c:v',
+                candidate,
+                '-f',
+                'null',
+                '-',
+            ]
+            subprocess.run(
+                cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=1.0,
+                check=True,
+            )
+            return candidate
+        except (subprocess.SubprocessError, FileNotFoundError):
+            continue
+    return 'libx264'
+
+
 class VideoGenerator:
     """Generates visual videos from LF game events and data."""
 
@@ -530,7 +573,12 @@ class VideoGenerator:
         codec: str
         pix_fmt: str
         extra_args: list[str]
-        if ext == '.webm':
+        user_codec = config.get('codec')
+        if user_codec:
+            codec = user_codec
+            pix_fmt = 'yuv420p'
+            extra_args = []
+        elif ext == '.webm':
             codec = 'libvpx-vp9'
             pix_fmt = 'yuva420p'
             extra_args = []
@@ -539,7 +587,7 @@ class VideoGenerator:
             pix_fmt = 'yuva444p10le'
             extra_args = ['-profile:v', '4']
         else:
-            codec = 'libx264'
+            codec = _get_best_h264_encoder()
             pix_fmt = 'yuv420p'
             extra_args = []
 
@@ -751,7 +799,7 @@ class VideoGenerator:
             pix_fmt = 'yuva444p10le'
             extra_args = ['-profile:v', '4']
         else:
-            codec = 'libx264'
+            codec = _get_best_h264_encoder()
             pix_fmt = 'yuv420p'
             extra_args = []
 

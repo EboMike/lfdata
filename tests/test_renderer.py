@@ -409,6 +409,10 @@ def test_compile_video_extensions() -> None:
     with (
         patch('subprocess.run') as mock_run,
         patch('builtins.print') as mock_print,
+        patch(
+            'lfdata.video.renderer._get_best_h264_encoder',
+            return_value='libx264',
+        ),
     ):
         # 1. Test .mp4 (default H.264 / yuv420p)
         vg._compile_video(
@@ -1041,3 +1045,25 @@ def test_nuke_flash_rendering() -> None:
     res_after = vg._render_frame([], 1250, {'resolution': [100, 100]}, hud_gen)
     assert res_after.getpixel((50, 50)) == (0, 0, 0, 0)
     res_after.close()
+
+
+def test_get_best_h264_encoder() -> None:
+    """Verifies that _get_best_h264_encoder returns a valid encoder."""
+    from unittest.mock import patch
+    import subprocess
+    from lfdata.video.renderer import _get_best_h264_encoder
+
+    # Test when a hardware encoder succeeds
+    with patch('subprocess.run') as mock_run:
+        mock_run.return_value = None  # succeeds
+        encoder = _get_best_h264_encoder()
+        assert encoder == 'h264_nvenc'
+        assert mock_run.call_count == 1
+
+    # Test fallback to libx264 when all hardware encoders fail
+    with patch('subprocess.run') as mock_run:
+        mock_run.side_effect = subprocess.SubprocessError('Failed')
+        encoder = _get_best_h264_encoder()
+        assert encoder == 'libx264'
+        # Tries nvenc, amf, qsv, videotoolbox
+        assert mock_run.call_count == 4
