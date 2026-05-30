@@ -828,7 +828,7 @@ def test_multiline_text_slot_allocation() -> None:
     pe1 = next(el for el in pe_elements if el.text == 'event 1')
     pe2 = next(el for el in pe_elements if el.text == 'event 2')
 
-    # default player_events y = 0.2, font size = 18.
+    # default player_events y = 0.18, font size = 18.
     # line_height = (18 * 1.3) / 800 = 0.02925
-    assert abs(pe1.y - 0.2) < 1e-7
-    assert abs(pe2.y - 0.22925) < 1e-7
+    assert abs(pe1.y - 0.18) < 1e-7
+    assert abs(pe2.y - 0.20925) < 1e-7

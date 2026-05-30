@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import threading
 import time
 from typing import Any
 
@@ -22,6 +23,54 @@ from lfdata.video.helpers import (
 )
 
 
+_local_vg: 'VideoGenerator | None' = None
+_local_hud_gen: VisualElementGenerator | None = None
+
+
+def _init_renderer_process(
+    vg: 'VideoGenerator',
+    hud_gen: VisualElementGenerator,
+) -> None:
+    """Initializes global worker state in a child process.
+
+    Args:
+        vg: The VideoGenerator instance.
+        hud_gen: The VisualElementGenerator instance.
+    """
+    global _local_vg, _local_hud_gen
+    _local_vg = vg
+    _local_hud_gen = hud_gen
+
+
+def _render_frame_worker(
+    frame_idx: int,
+    time_ms: int,
+    temp_path: Path,
+    config: dict[str, Any],
+) -> None:
+    """Renders a single frame using the process-local generator.
+
+    Args:
+        frame_idx: The sequential index of the frame.
+        time_ms: The millisecond timestamp.
+        temp_path: The directory path to save frame PNGs.
+        config: The video styling options.
+
+    Raises:
+        RuntimeError: If the worker process is not properly initialized.
+    """
+    global _local_vg, _local_hud_gen
+    if _local_vg is None or _local_hud_gen is None:
+        raise RuntimeError('Worker process not properly initialized.')
+    _local_vg._render_and_save_frame(
+        frame_idx=frame_idx,
+        time_ms=time_ms,
+        temp_path=temp_path,
+        config=config,
+        hud_gen=_local_hud_gen,
+    )
+
+
 class VideoGenerator:
     """Generates visual videos from LF game events and data."""
 
@@ -32,6 +81,35 @@ class VideoGenerator:
             game: The LFGame data object.
         """
         self.game = game
+        self._text_cache: dict[tuple, Image.Image] = {}
+        self._text_cache_lock = threading.Lock()
+
+    def __getstate__(self) -> dict[str, Any]:
+        """Prepares the object state for serialization.
+
+        Removes non-picklable locks and cache objects prior to pickling.
+
+        Returns:
+            dict[str, Any]: The picklable object state.
+        """
+        state = self.__dict__.copy()
+        if '_text_cache_lock' in state:
+            del state['_text_cache_lock']
+        if '_text_cache' in state:
+            del state['_text_cache']
+        return state
+
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        """Restores the object state from serialization.
+
+        Re-initializes the thread lock and text cache for the current process.
+
+        Args:
+            state: The serialized state dictionary.
+        """
+        self.__dict__.update(state)
+        self._text_cache = {}
+        self._text_cache_lock = threading.Lock()
 
     def _determine_video_end_ms(
         self,
@@ -217,28 +295,26 @@ class VideoGenerator:
 
         from concurrent.futures import (
             FIRST_COMPLETED,
-            ThreadPoolExecutor,
+            ProcessPoolExecutor,
             wait,
         )
 
-        def worker(task: tuple[int, int]) -> None:
-            """Thread worker function to render a single frame task.
-
-            Args:
-                task: A tuple of (frame_index, time_ms).
-            """
-            f_idx, t_ms = task
-            self._render_and_save_frame(
-                frame_idx=f_idx,
-                time_ms=t_ms,
-                temp_path=temp_path,
-                config=config,
-                hud_gen=hud_gen,
-            )
-
         max_workers = min(16, max(1, os.cpu_count() or 4))
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = [executor.submit(worker, t) for t in tasks]
+        with ProcessPoolExecutor(
+            max_workers=max_workers,
+            initializer=_init_renderer_process,
+            initargs=(self, hud_gen),
+        ) as executor:
+            futures = [
+                executor.submit(
+                    _render_frame_worker,
+                    t[0],
+                    t[1],
+                    temp_path,
+                    config,
+                )
+                for t in tasks
+            ]
             total_frames = len(tasks)
             pending = set(futures)
             start_time = time.time()
@@ -1128,50 +1204,95 @@ class VideoGenerator:
             anchor = anchor_map.get(el.align or 'left', 'la')
 
             pixel_size = max(1, int(height * el.style.size / 800))
-            font = self._load_text_font(
-                font_file=el.style.font,
-                style=el.style.style,
-                pixel_size=pixel_size,
-            )
 
-            text_color = parse_color_with_alpha(el.style.color, el.alpha)
-            bg_color = parse_color_with_alpha(
-                el.style.background_color, el.alpha
-            )
-
-            overlay = Image.new('RGBA', image.size, (0, 0, 0, 0))
-            draw = ImageDraw.Draw(overlay)
-
-            if bg_color[3] > 0:
-                bbox = draw.textbbox(
-                    (x_coord, y_coord), el.text, font=font, anchor=anchor
-                )
-                padding = max(1, int(height * 4 / 800))
-                padded_bbox = (
-                    bbox[0] - padding,
-                    bbox[1] - padding,
-                    bbox[2] + padding,
-                    bbox[3] + padding,
-                )
-                draw.rectangle(padded_bbox, fill=bg_color)
-
-            stroke_width = max(1, int(pixel_size * 0.05))
-            stroke_color = (
-                0,
-                0,
-                0,
-                text_color[3] if len(text_color) > 3 else 255,
-            )
-            draw.text(
-                (x_coord, y_coord),
+            alpha_val = round(el.alpha if el.alpha is not None else 1.0, 2)
+            cache_key = (
                 el.text,
-                fill=text_color,
-                font=font,
-                anchor=anchor,
-                stroke_width=stroke_width,
-                stroke_fill=stroke_color,
+                el.style.font,
+                el.style.style,
+                pixel_size,
+                el.style.color,
+                el.style.background_color,
+                height,
+                alpha_val,
             )
-            image.alpha_composite(overlay)
+
+            with self._text_cache_lock:
+                cached_entry = self._text_cache.get(cache_key)
+
+            if cached_entry is None:
+                font = self._load_text_font(
+                    font_file=el.style.font,
+                    style=el.style.style,
+                    pixel_size=pixel_size,
+                )
+
+                text_color = parse_color_with_alpha(el.style.color, alpha_val)
+                bg_color = parse_color_with_alpha(
+                    el.style.background_color, alpha_val
+                )
+
+                stroke_width = max(1, int(pixel_size * 0.05))
+                padding = max(1, int(height * 4 / 800))
+                margin = stroke_width + padding
+
+                temp_img = Image.new('RGBA', (1, 1), (0, 0, 0, 0))
+                temp_draw = ImageDraw.Draw(temp_img)
+                bbox = temp_draw.textbbox(
+                    (0, 0), el.text, font=font, anchor=anchor
+                )
+
+                bbox_w = bbox[2] - bbox[0]
+                bbox_h = bbox[3] - bbox[1]
+
+                img_w = bbox_w + 2 * margin
+                img_h = bbox_h + 2 * margin
+
+                small_img = Image.new('RGBA', (img_w, img_h), (0, 0, 0, 0))
+                draw = ImageDraw.Draw(small_img)
+
+                draw_x = margin - bbox[0]
+                draw_y = margin - bbox[1]
+
+                if bg_color[3] > 0:
+                    rect_bbox = (
+                        margin,
+                        margin,
+                        margin + bbox_w,
+                        margin + bbox_h,
+                    )
+                    padded_rect = (
+                        rect_bbox[0] - padding,
+                        rect_bbox[1] - padding,
+                        rect_bbox[2] + padding,
+                        rect_bbox[3] + padding,
+                    )
+                    draw.rectangle(padded_rect, fill=bg_color)
+
+                stroke_color = (
+                    0,
+                    0,
+                    0,
+                    text_color[3] if len(text_color) > 3 else 255,
+                )
+                draw.text(
+                    (draw_x, draw_y),
+                    el.text,
+                    fill=text_color,
+                    font=font,
+                    anchor=anchor,
+                    stroke_width=stroke_width,
+                    stroke_fill=stroke_color,
+                )
+
+                cached_entry = (small_img, bbox[0] - margin, bbox[1] - margin)
+                with self._text_cache_lock:
+                    self._text_cache[cache_key] = cached_entry
+
+            small_img, offset_x, offset_y = cached_entry
+            paste_x = int(x_coord + offset_x)
+            paste_y = int(y_coord + offset_y)
+            image.alpha_composite(small_img, dest=(paste_x, paste_y))
 
     def _get_icon_path(self, icon_name: str) -> Path | None:
         """Finds the path to the icon file in the assets directory.

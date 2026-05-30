@@ -481,7 +481,10 @@ def test_generate_frames_progress() -> None:
     game: LFGame = LFGame(game_id='test_progress', game_type='SM5')
     vg: VideoGenerator = VideoGenerator(game)
 
+    from concurrent.futures import ThreadPoolExecutor
+
     with (
+        patch('concurrent.futures.ProcessPoolExecutor', ThreadPoolExecutor),
         patch.object(vg, '_render_and_save_frame') as mock_render,
         patch('os.cpu_count', return_value=1),
         patch('time.time') as mock_time,
@@ -531,7 +534,10 @@ def test_duration_formatting_and_progress_logging() -> None:
     assert vg._format_duration(3665.0) == '1h 1m 5s'
 
     # Test progress logging
+    from concurrent.futures import ThreadPoolExecutor
+
     with (
+        patch('concurrent.futures.ProcessPoolExecutor', ThreadPoolExecutor),
         patch.object(vg, '_render_and_save_frame'),
         patch('os.cpu_count', return_value=1),
         patch('time.time') as mock_time,
@@ -584,6 +590,7 @@ def test_new_renderer_rules() -> None:
     )
 
     mock_draw = MagicMock()
+    mock_draw.textbbox.return_value = (0, 0, 100, 20)
     with patch('PIL.ImageDraw.Draw', return_value=mock_draw):
         vg._draw_text_elements(img, [el], {})
 
@@ -808,3 +815,64 @@ def test_event_scroller_fade() -> None:
     assert max_bottom_alpha == 255
     # The top region should be heavily faded
     assert max_top_alpha < 100
+
+
+def test_text_cache_and_local_composition() -> None:
+    from PIL import Image
+    from lfdata.model import LFGame
+    from lfdata.video.element import UIElement, UIElementStyle
+    from lfdata.video.renderer import VideoGenerator
+
+    game = LFGame(game_id='test_cache_game', game_type='SM5')
+    vg = VideoGenerator(game)
+
+    assert len(vg._text_cache) == 0
+
+    img = Image.new('RGBA', (800, 600), (0, 0, 0, 0))
+    el1 = UIElement(
+        element_type='text',
+        x=0.5,
+        y=0.5,
+        text='Cache Test String',
+        style=UIElementStyle(size=20, color='#ffffffff'),
+        alpha=1.0,
+    )
+    el2 = UIElement(
+        element_type='text',
+        x=0.5,
+        y=0.5,
+        text='Cache Test String',
+        style=UIElementStyle(size=20, color='#ffffffff'),
+        alpha=1.0,
+    )
+
+    vg._draw_text_elements(img, [el1], {'resolution': [800, 600]})
+
+    assert len(vg._text_cache) == 1
+    cache_key = list(vg._text_cache.keys())[0]
+    assert cache_key[0] == 'Cache Test String'
+
+    img2 = Image.new('RGBA', (800, 600), (0, 0, 0, 0))
+    vg._draw_text_elements(img2, [el2], {'resolution': [800, 600]})
+
+    assert len(vg._text_cache) == 1
+
+
+def test_video_generator_pickling_and_multiprocessing() -> None:
+    import pickle
+    from lfdata.model import LFGame
+    from lfdata.video.renderer import VideoGenerator
+
+    game = LFGame(game_id='pickle_test_game', game_type='SM5')
+    vg = VideoGenerator(game)
+    vg._text_cache[('test_key',)] = None
+
+    # Try serializing the VideoGenerator
+    dumped = pickle.dumps(vg)
+    loaded = pickle.loads(dumped)
+
+    assert loaded.game.game_id == 'pickle_test_game'
+    # Lock should be re-initialized and cache cleared in the loaded state
+    assert hasattr(loaded, '_text_cache_lock')
+    assert loaded._text_cache_lock is not None
+    assert len(loaded._text_cache) == 0
