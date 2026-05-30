@@ -359,9 +359,9 @@ def test_font_resolution_and_defaults() -> None:
     assert os.path.normpath(vg._resolve_font_path('Anton')) == os.path.normpath(
         'fonts/GoogleSans-Bold.ttf'
     )
-    assert os.path.normpath(
-        vg._resolve_font_path('D Day Stencil')
-    ) == os.path.normpath('fonts/D Day Stencil.ttf')
+    assert os.path.normpath(vg._resolve_font_path('D Day Stencil')) == os.path.normpath(
+        'fonts/D Day Stencil.ttf'
+    )
     assert os.path.normpath(
         vg._resolve_font_path('advanced_pixel_lcd-7')
     ) == os.path.normpath('fonts/advanced_pixel_lcd-7.ttf')
@@ -772,8 +772,7 @@ def test_event_scroller_fade() -> None:
 
     img = Image.new('RGBA', (400, 400), (0, 0, 0, 0))
     events = [
-        {'time': i * 10, 'desc': f'PlayerOne zaps PlayerTwo {i}'}
-        for i in range(20)
+        {'time': i * 10, 'desc': f'PlayerOne zaps PlayerTwo {i}'} for i in range(20)
     ]
     el = UIElement(
         element_type='event_scroller',
@@ -1181,3 +1180,38 @@ def test_counter_indicator_rendering() -> None:
         args3, kwargs3 = call_args_list[2]
         assert abs(kwargs3['start'] - 285.0) < 1e-7
         assert abs(kwargs3['end'] - 315.0) < 1e-7
+
+
+def test_missile_flash_rendering() -> None:
+    """Verifies that player missiled events trigger a white flash overlay."""
+    from unittest.mock import MagicMock
+    from lfdata.model import LFGame
+    from lfdata.video.renderer import VideoGenerator
+
+    game = LFGame(game_id='test_missile_flash_game', game_type='SM5')
+    vg = VideoGenerator(game)
+
+    hud_gen = MagicMock()
+    hud_gen.nuke_flashes = []
+    hud_gen.missile_flashes_ms = [1000]
+
+    # Test before flash
+    res_before = vg._render_frame([], 500, {'resolution': [100, 100]}, hud_gen)
+    assert res_before.getpixel((50, 50)) == (0, 0, 0, 0)
+    res_before.close()
+
+    # Test at exact flash start
+    res_start = vg._render_frame([], 1000, {'resolution': [100, 100]}, hud_gen)
+    assert res_start.getpixel((50, 50)) == (255, 255, 255, 255)
+    res_start.close()
+
+    # Test in the middle of the flash (65 ms elapsed, alpha should be 127)
+    res_mid = vg._render_frame([], 1065, {'resolution': [100, 100]}, hud_gen)
+    color = res_mid.getpixel((50, 50))
+    assert color == (255, 255, 255, 127)
+    res_mid.close()
+
+    # Test after flash duration (130 ms elapsed)
+    res_after = vg._render_frame([], 1130, {'resolution': [100, 100]}, hud_gen)
+    assert res_after.getpixel((50, 50)) == (0, 0, 0, 0)
+    res_after.close()

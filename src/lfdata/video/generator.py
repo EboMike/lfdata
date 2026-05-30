@@ -62,6 +62,7 @@ class VisualElementGenerator:
         self._precompute_replay()
         self.camera_shakes: list[dict[str, Any]] = []
         self.nuke_flashes: list[int] = []
+        self.missile_flashes_ms: list[int] = []
         self._detect_camera_shakes()
 
     def _find_player_entity_id(self) -> str | None:
@@ -134,9 +135,7 @@ class VisualElementGenerator:
             event_time_ms: The current event timestamp in milliseconds.
             eliminated_teams: The set of already eliminated team indices.
         """
-        active_teams = {
-            p.team_index for p in replay.game_state.players.values()
-        }
+        active_teams = {p.team_index for p in replay.game_state.players.values()}
         for team_idx in active_teams:
             if team_idx not in eliminated_teams:
                 team_players = [
@@ -144,9 +143,7 @@ class VisualElementGenerator:
                     for p in replay.game_state.players.values()
                     if p.team_index == team_idx
                 ]
-                if team_players and all(
-                    p.is_eliminated() for p in team_players
-                ):
+                if team_players and all(p.is_eliminated() for p in team_players):
                     eliminated_teams.add(team_idx)
                     team_name = replay.game_state.teams[team_idx].name
                     self.event_log.append(
@@ -192,9 +189,7 @@ class VisualElementGenerator:
                 else:
                     v_curr = float(target_last)
 
-                self.team_transitions[tid].append(
-                    (event_time_ms, v_curr, t.ranking)
-                )
+                self.team_transitions[tid].append((event_time_ms, v_curr, t.ranking))
                 last_trans_time_ms[tid] = event_time_ms
                 visual_rank_at_last_trans[tid] = v_curr
                 team_ranks[tid] = t.ranking
@@ -226,9 +221,7 @@ class VisualElementGenerator:
             )
         )
 
-        team_ranks = {
-            tid: t.ranking for tid, t in replay.game_state.teams.items()
-        }
+        team_ranks = {tid: t.ranking for tid, t in replay.game_state.teams.items()}
         self.team_transitions = {tid: [] for tid in team_ranks}
         last_trans_time_ms = {tid: 0 for tid in team_ranks}
         visual_rank_at_last_trans = {
@@ -333,9 +326,7 @@ class VisualElementGenerator:
         self.game_ended_at_ms = replay.game_ended_at_ms
         self._precompute_nuke_intervals(sorted_events)
 
-    def _precompute_nuke_intervals(
-        self, sorted_events: list[GameEvent]
-    ) -> None:
+    def _precompute_nuke_intervals(self, sorted_events: list[GameEvent]) -> None:
         """Precomputes active nuke intervals during the game.
 
         Args:
@@ -469,10 +460,7 @@ class VisualElementGenerator:
                     and prev_self
                     and a_state.team_index == self_state.team_index
                 ):
-                    if (
-                        not prev_self.is_down(event.time)
-                        and prev_self.lives > 0
-                    ):
+                    if not prev_self.is_down(event.time) and prev_self.lives > 0:
                         if et == '0510':
                             msg = f'Shot-boosted by {actor_name}'
                         else:
@@ -509,17 +497,17 @@ class VisualElementGenerator:
                 player.role == LFRole.MEDIC
                 and player.lives < prev_player.lives
                 and player.lives > 0
-                and player.lives % 5 == 0
+                and any(
+                    val % 5 == 0
+                    for val in range(player.lives, prev_player.lives)
+                )
             ):
                 p_name = self.entity_names.get(pid, pid)
-                t_state = replay.game_state.teams.get(player.team_index)
-                t_name = (
-                    t_state.name if t_state else f'Team {player.team_index}'
-                )
+                desc = f'Medic {p_name} has {player.lives} left'
                 self.event_log.append(
                     {
                         'time': event.time,
-                        'desc': f'{t_name} {p_name} has {player.lives} lives',
+                        'desc': desc,
                         'is_important': True,
                         'actor_id': None,
                         'target_id': pid,
@@ -544,21 +532,15 @@ class VisualElementGenerator:
         else:
             _, players, teams = self.snapshots[idx - 1]
 
-        cloned_players = {
-            pid: self._copy_player_state(p) for pid, p in players.items()
-        }
-        cloned_teams = {
-            tid: self._copy_team_state(t) for tid, t in teams.items()
-        }
+        cloned_players = {pid: self._copy_player_state(p) for pid, p in players.items()}
+        cloned_teams = {tid: self._copy_team_state(t) for tid, t in teams.items()}
 
         for player in cloned_players.values():
             player.update_downtime(time_ms)
 
         return cloned_players, cloned_teams
 
-    def _resolve_element_style(
-        self, el_config: dict[str, Any]
-    ) -> UIElementStyle:
+    def _resolve_element_style(self, el_config: dict[str, Any]) -> UIElementStyle:
         """Resolves styling properties from configuration.
 
         Args:
@@ -573,16 +555,12 @@ class VisualElementGenerator:
             'style': self.config.get('style', 'normal'),
             'size': self.config.get('size', 20),
             'color': self.config.get('color', '#ffffffff'),
-            'background_color': self.config.get(
-                'background_color', '#00000000'
-            ),
+            'background_color': self.config.get('background_color', '#00000000'),
         }
 
         font = style_config.get('font', global_style['font'])
         style_type = style_config.get('style', global_style['style'])
-        size = style_config.get(
-            'size', el_config.get('size', global_style['size'])
-        )
+        size = style_config.get('size', el_config.get('size', global_style['size']))
         color = style_config.get('color', global_style['color'])
         bg_color = style_config.get(
             'background_color', global_style['background_color']
@@ -596,9 +574,7 @@ class VisualElementGenerator:
             background_color=bg_color,
         )
 
-    def _translate_position_compat(
-        self, x: float | None, y: float | None
-    ) -> str:
+    def _translate_position_compat(self, x: float | None, y: float | None) -> str:
         """Translates coordinate pairs to legacy position strings for compat.
 
         Args:
@@ -665,10 +641,7 @@ class VisualElementGenerator:
         fade_time_ms: int = int(fade_time_s * 1000)
 
         for ev in reversed(self.player_event_log):
-            if (
-                ev['time'] == prev_time
-                and ev['desc'].startswith('Resupplied ')
-            ):
+            if ev['time'] == prev_time and ev['desc'].startswith('Resupplied '):
                 ev['double_resup_desc'] = double_resup_msg
                 ev['double_resup_time'] = event_time
                 ev['duration'] = (event_time - prev_time) + fade_time_ms
@@ -810,13 +783,9 @@ class VisualElementGenerator:
         """
         anim = self.config.get('animation', 'ease-in-out')
         trans_list = self.team_transitions.get(team.team_index, [])
-        vr = get_visual_rank(
-            team.team_index, time_ms, trans_list, team.ranking, anim
-        )
+        vr = get_visual_rank(team.team_index, time_ms, trans_list, team.ranking, anim)
 
-        team_players = [
-            p for p in players.values() if p.team_index == team.team_index
-        ]
+        team_players = [p for p in players.values() if p.team_index == team.team_index]
         team_players.sort(key=lambda p: p.score, reverse=True)
 
         players_data, totals = self._compile_player_scoreboard_data(
@@ -854,9 +823,7 @@ class VisualElementGenerator:
             return None
 
         teams_data = [
-            self._build_team_scoreboard_data(
-                team=t, players=players, time_ms=time_ms
-            )
+            self._build_team_scoreboard_data(team=t, players=players, time_ms=time_ms)
             for t in teams.values()
         ]
 
@@ -902,9 +869,7 @@ class VisualElementGenerator:
         seconds = total_seconds % 60
         time_text = f'{minutes:02d}:{seconds:02d}'
 
-        el_time = self._create_ui_element(
-            'time', text=time_text, element_type='text'
-        )
+        el_time = self._create_ui_element('time', text=time_text, element_type='text')
         if el_time:
             elements.append(el_time)
 
@@ -1011,9 +976,7 @@ class VisualElementGenerator:
         if p_state.is_down(time_ms):
             safe_rem_ms = max(0, p_state.resettable_starts_at_ms - time_ms)
             res_base_ms = max(time_ms, p_state.resettable_starts_at_ms)
-            resettable_rem_ms = max(
-                0, p_state.downtime_ends_at_ms - res_base_ms
-            )
+            resettable_rem_ms = max(0, p_state.downtime_ends_at_ms - res_base_ms)
 
             el_dt = self._create_ui_element(
                 'downtime',
@@ -1196,9 +1159,7 @@ class VisualElementGenerator:
             fade_time_s = self.config.get('fade_out_time', 5.0)
         fade_time_ms = int(fade_time_s * 1000)
 
-        important_events = [
-            ev for ev in self.event_log if ev.get('is_important')
-        ]
+        important_events = [ev for ev in self.event_log if ev.get('is_important')]
 
         slots = self._get_active_multiline_lines(
             event_list=important_events,
@@ -1345,6 +1306,7 @@ class VisualElementGenerator:
                         'strength': 0.01,
                     }
                 )
+                self.missile_flashes_ms.append(event.time)
 
             # 2. Enemy commander detonates a nuke (0.03 strength, 1000 ms duration)
             elif event.event_type == '0405':

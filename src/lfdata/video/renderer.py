@@ -22,7 +22,6 @@ from lfdata.video.helpers import (
     parse_color_with_alpha,
 )
 
-
 _local_vg: 'VideoGenerator | None' = None
 _local_hud_gen: VisualElementGenerator | None = None
 
@@ -245,9 +244,7 @@ class VideoGenerator:
         self._icon_cache = {}
         self._icon_cache_lock = threading.Lock()
 
-    def _get_cached_icon(
-        self, icon_path: Path, size: int
-    ) -> Image.Image | None:
+    def _get_cached_icon(self, icon_path: Path, size: int) -> Image.Image | None:
         """Retrieves a cached, resized version of an icon image or loads it.
 
         Args:
@@ -270,9 +267,7 @@ class VideoGenerator:
             with Image.open(icon_path) as raw_img:
                 img_rgba = raw_img.convert('RGBA')
                 try:
-                    resized = img_rgba.resize(
-                        (size, size), Image.Resampling.LANCZOS
-                    )
+                    resized = img_rgba.resize((size, size), Image.Resampling.LANCZOS)
                     with self._icon_cache_lock:
                         self._icon_cache[cache_key] = resized
                     return resized
@@ -356,14 +351,11 @@ class VideoGenerator:
         if alpha_output_path is not None:
             if not final_use_pipe:
                 raise ValueError(
-                    'Alpha video output is only supported when use_pipe is '
-                    'True.'
+                    'Alpha video output is only supported when use_pipe is ' 'True.'
                 )
             alpha_output_path = Path(alpha_output_path)
 
-        hud_gen = VisualElementGenerator(
-            self.game, config.get('player_name'), config
-        )
+        hud_gen = VisualElementGenerator(self.game, config.get('player_name'), config)
 
         end_ms = self._determine_video_end_ms(hud_gen, config, video_end_ms)
         start_ms = video_start_ms
@@ -555,9 +547,7 @@ class VideoGenerator:
                 if current_time - last_report_time >= 10.0:
                     completed = total_frames - len(pending)
                     pct = (
-                        (completed / total_frames) * 100.0
-                        if total_frames > 0
-                        else 0.0
+                        (completed / total_frames) * 100.0 if total_frames > 0 else 0.0
                     )
                     elapsed = current_time - start_time
                     elapsed_str = self._format_duration(elapsed)
@@ -704,17 +694,14 @@ class VideoGenerator:
             )
         except FileNotFoundError as e:
             raise RuntimeError(
-                f'ffmpeg command not found: {e}. '
-                'Please ensure FFmpeg is installed.'
+                f'ffmpeg command not found: {e}. ' 'Please ensure FFmpeg is installed.'
             )
 
         ffmpeg_proc_alpha = None
         if alpha_output_path:
             alpha_output_path.parent.mkdir(parents=True, exist_ok=True)
             alpha_output_path.touch()
-            print(
-                f'Encoding alpha video to {alpha_output_path} (direct pipe)...'
-            )
+            print(f'Encoding alpha video to {alpha_output_path} (direct pipe)...')
             print(
                 f'Using alpha video encoder: {codec} '
                 f'({_get_encoder_details(codec)})'
@@ -766,17 +753,11 @@ class VideoGenerator:
                         _, stderr_data = ffmpeg_proc.communicate()
                         err_msg = stderr_data.decode('utf-8', errors='replace')
                         raise RuntimeError(
-                            'FFmpeg encoding terminated prematurely:\n'
-                            f'{err_msg}'
+                            'FFmpeg encoding terminated prematurely:\n' f'{err_msg}'
                         )
-                    if (
-                        ffmpeg_proc_alpha
-                        and ffmpeg_proc_alpha.poll() is not None
-                    ):
+                    if ffmpeg_proc_alpha and ffmpeg_proc_alpha.poll() is not None:
                         _, stderr_alpha = ffmpeg_proc_alpha.communicate()
-                        err_msg_alpha = stderr_alpha.decode(
-                            'utf-8', errors='replace'
-                        )
+                        err_msg_alpha = stderr_alpha.decode('utf-8', errors='replace')
                         raise RuntimeError(
                             'FFmpeg alpha encoding terminated '
                             f'prematurely:\n{err_msg_alpha}'
@@ -832,9 +813,7 @@ class VideoGenerator:
                         img = Image.frombytes('RGBA', resolution, frame_bytes)
                         r, g, b, a = img.split()
                         img_main = img.convert('RGB').convert('RGBA')
-                        img_alpha = Image.merge('RGB', (a, a, a)).convert(
-                            'RGBA'
-                        )
+                        img_alpha = Image.merge('RGB', (a, a, a)).convert('RGBA')
                         ffmpeg_proc.stdin.write(img_main.tobytes())
                         ffmpeg_proc_alpha.stdin.write(img_alpha.tobytes())
                         img.close()
@@ -884,9 +863,7 @@ class VideoGenerator:
                     ffmpeg_proc_alpha.stdin = None
                 _, stderr_alpha = ffmpeg_proc_alpha.communicate()
                 if ffmpeg_proc_alpha.returncode != 0:
-                    err_msg_alpha = stderr_alpha.decode(
-                        'utf-8', errors='replace'
-                    )
+                    err_msg_alpha = stderr_alpha.decode('utf-8', errors='replace')
                     raise RuntimeError(
                         f'FFmpeg alpha encoding failed with exit code '
                         f'{ffmpeg_proc_alpha.returncode}:\n{err_msg_alpha}'
@@ -900,9 +877,7 @@ class VideoGenerator:
                 ffmpeg_proc_alpha.wait()
             raise e
 
-    def _compile_video(
-        self, frames_dir: Path, fps: int, output_path: Path
-    ) -> None:
+    def _compile_video(self, frames_dir: Path, fps: int, output_path: Path) -> None:
         """Compiles PNG frames in a directory into a video using ffmpeg.
 
         Args:
@@ -1003,21 +978,31 @@ class VideoGenerator:
 
         self._draw_text_elements(img, elements, config)
 
-        # Draw nuke flash overlay
-        flash_alpha = 0.0
-        duration_ms = config.get('nuke_flash_duration_ms', 250)
+        # Draw screen flash overlays (nukes and player missiled)
+        flash_alpha: float = 0.0
+        nuke_duration_ms: int = config.get('nuke_flash_duration_ms', 250)
         for start_ms in hud_gen.nuke_flashes:
-            if start_ms <= time_ms < start_ms + duration_ms:
-                elapsed_ms = time_ms - start_ms
-                alpha = 1.0 - (elapsed_ms / duration_ms)
+            if start_ms <= time_ms < start_ms + nuke_duration_ms:
+                elapsed_ms: int = time_ms - start_ms
+                alpha: float = 1.0 - (elapsed_ms / nuke_duration_ms)
                 if alpha > flash_alpha:
                     flash_alpha = alpha
 
-        if flash_alpha > 0.0:
+        missile_flash_alpha: float = 0.0
+        missile_duration_ms: int = config.get('missile_flash_duration_ms', 130)
+        for start_ms in hud_gen.missile_flashes_ms:
+            if start_ms <= time_ms < start_ms + missile_duration_ms:
+                elapsed_ms: int = time_ms - start_ms
+                alpha: float = 1.0 - (elapsed_ms / missile_duration_ms)
+                if alpha > missile_flash_alpha:
+                    missile_flash_alpha = alpha
+
+        total_flash_alpha: float = max(flash_alpha, missile_flash_alpha)
+        if total_flash_alpha > 0.0:
             overlay = Image.new(
                 'RGBA',
                 img.size,
-                (255, 255, 255, int(255 * flash_alpha)),
+                (255, 255, 255, int(255 * total_flash_alpha)),
             )
             try:
                 img.alpha_composite(overlay)
@@ -1131,9 +1116,7 @@ class VideoGenerator:
             el: The scoreboard UIElement containing team details.
             config: The merged video configuration options.
         """
-        teams = (
-            el.scoreboard_data.get('teams', []) if el.scoreboard_data else []
-        )
+        teams = el.scoreboard_data.get('teams', []) if el.scoreboard_data else []
         if not teams:
             return
 
@@ -1151,9 +1134,7 @@ class VideoGenerator:
         team_heights = {}
         for team in teams:
             p_count = len(team.get('players', []))
-            team_heights[team['team_index']] = (
-                header_h + (p_count * row_h) + totals_h
-            )
+            team_heights[team['team_index']] = header_h + (p_count * row_h) + totals_h
 
         self._calculate_team_y_positions(teams, y_start, spacing, team_heights)
 
@@ -1194,9 +1175,7 @@ class VideoGenerator:
                 draw_borders=draw_borders,
             )
 
-    def _calculate_team_colors(
-        self, team: dict[str, Any]
-    ) -> tuple[
+    def _calculate_team_colors(self, team: dict[str, Any]) -> tuple[
         tuple[int, int, int, int],
         tuple[int, int, int, int],
         tuple[int, int, int, int],
@@ -1462,8 +1441,8 @@ class VideoGenerator:
             draw_background: Whether to draw the table background color.
             draw_borders: Whether to draw the table borders and lines.
         """
-        bg_fill, text_color, dimmed_color, gray_color = (
-            self._calculate_team_colors(team)
+        bg_fill, text_color, dimmed_color, gray_color = self._calculate_team_colors(
+            team
         )
         border_color = text_color
 
@@ -1474,9 +1453,7 @@ class VideoGenerator:
             table_width = int(650 * image.width / 1920)
             ty = int(team['y_pos'])
 
-            columns, offsets = self._resolve_scoreboard_columns(
-                x_start, table_width
-            )
+            columns, offsets = self._resolve_scoreboard_columns(x_start, table_width)
             padding_y = int(5 * image.height / 1080)
 
             sep_y = self._draw_table_structure(
@@ -1567,8 +1544,7 @@ class VideoGenerator:
         }
 
         offsets = [
-            x_start + int(col_offset_map[col] * table_width / 650)
-            for col in columns
+            x_start + int(col_offset_map[col] * table_width / 650) for col in columns
         ]
         return columns, offsets
 
@@ -1673,9 +1649,7 @@ class VideoGenerator:
                 if self._downtime_full is None:
                     self._downtime_full = Image.open(path_full).convert('RGBA')
                 if self._downtime_empty is None:
-                    self._downtime_empty = Image.open(path_empty).convert(
-                        'RGBA'
-                    )
+                    self._downtime_empty = Image.open(path_empty).convert('RGBA')
 
                 # Resize only if bar layout dimensions changed
                 if self._downtime_cache_size != (W, H):
@@ -1692,14 +1666,10 @@ class VideoGenerator:
 
                 combined = Image.new('RGBA', (W, H))
                 if split_x > 0:
-                    left_part = self._downtime_empty_resized.crop(
-                        (0, 0, split_x, H)
-                    )
+                    left_part = self._downtime_empty_resized.crop((0, 0, split_x, H))
                     combined.paste(left_part, (0, 0))
                 if split_x < W:
-                    right_part = self._downtime_full_resized.crop(
-                        (split_x, 0, W, H)
-                    )
+                    right_part = self._downtime_full_resized.crop((split_x, 0, W, H))
                     combined.paste(right_part, (split_x, 0))
 
                 image.alpha_composite(combined, dest=(x1, y1))
@@ -1792,9 +1762,7 @@ class VideoGenerator:
                 )
 
                 text_color = parse_color_with_alpha(el.style.color, alpha_val)
-                bg_color = parse_color_with_alpha(
-                    el.style.background_color, alpha_val
-                )
+                bg_color = parse_color_with_alpha(el.style.background_color, alpha_val)
 
                 stroke_width = max(1, int(pixel_size * 0.05))
                 padding = max(1, int(height * 4 / 800))
@@ -1803,9 +1771,7 @@ class VideoGenerator:
                 temp_img = Image.new('RGBA', (1, 1), (0, 0, 0, 0))
                 try:
                     temp_draw = ImageDraw.Draw(temp_img)
-                    bbox = temp_draw.textbbox(
-                        (0, 0), el.text, font=font, anchor=anchor
-                    )
+                    bbox = temp_draw.textbbox((0, 0), el.text, font=font, anchor=anchor)
                 finally:
                     temp_img.close()
 
@@ -2025,9 +1991,7 @@ class VideoGenerator:
 
             text_str = f'{current}/{maximum}'
             pixel_size = max(1, int(height * el.style.size / 800))
-            font = self._load_text_font(
-                el.style.font, el.style.style, pixel_size
-            )
+            font = self._load_text_font(el.style.font, el.style.style, pixel_size)
 
             spacing = int(diameter * 0.2)
             tx = x_coord + diameter + spacing

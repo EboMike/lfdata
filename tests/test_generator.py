@@ -5,9 +5,7 @@ from lfdata.video.generator import VisualElementGenerator
 
 def test_visual_element_generator() -> None:
     # 1. Create mock game
-    game = LFGame(
-        game_id='test_vid_game', timestamp=datetime.now(), game_type='SM5'
-    )
+    game = LFGame(game_id='test_vid_game', timestamp=datetime.now(), game_type='SM5')
 
     # Teams
     t1 = GameTeam(
@@ -80,9 +78,7 @@ def test_visual_element_generator() -> None:
     assert 'Commander' in texts
     assert '0' in texts
 
-    counters = {
-        el.icon: el for el in elements_active if el.element_type == 'counter'
-    }
+    counters = {el.icon: el for el in elements_active if el.element_type == 'counter'}
     assert 'lives' in counters
     assert counters['lives'].current_value == 15
     assert counters['lives'].max_value == 30
@@ -156,9 +152,7 @@ def test_visual_element_generator_new_features() -> None:
     texts_capped = [el.text for el in elements_capped if el.text]
     assert '00:04' in texts_capped
 
-    sb_el = next(
-        (el for el in elements if el.element_type == 'scoreboard'), None
-    )
+    sb_el = next((el for el in elements if el.element_type == 'scoreboard'), None)
     assert sb_el is not None
     assert sb_el.scoreboard_data is not None
     teams = sb_el.scoreboard_data['teams']
@@ -287,9 +281,7 @@ def test_scoreboard_hp_total_filtering() -> None:
 
     hud_gen = VisualElementGenerator(game, 'Cmdr')
     elements = hud_gen.generate_at(1000)
-    sb_el = next(
-        (el for el in elements if el.element_type == 'scoreboard'), None
-    )
+    sb_el = next((el for el in elements if el.element_type == 'scoreboard'), None)
     assert sb_el is not None
     teams = sb_el.scoreboard_data['teams']
     team_data = teams[0]
@@ -529,9 +521,7 @@ def test_important_events_filtering() -> None:
     hud_gen.generate_at(180000)
 
     # Assert importance based on time
-    time_to_importance = {
-        ev['time']: ev['is_important'] for ev in hud_gen.event_log
-    }
+    time_to_importance = {ev['time']: ev['is_important'] for ev in hud_gen.event_log}
 
     # Verify that:
     # time 0 (Mission Start) -> False
@@ -549,6 +539,13 @@ def test_important_events_filtering() -> None:
 
     # Check for medic lives checkpoint event (divisible by 5) at 21000 ms
     assert time_to_importance[21000] is True
+    medic_events = [ev for ev in hud_gen.event_log if ev['time'] == 21000]
+    medic_event = next(
+        (ev for ev in medic_events if ev['desc'].startswith('Medic')), None
+    )
+    assert medic_event is not None
+    assert medic_event['desc'] == 'Medic MedicPlayer has 15 left'
+    assert medic_event['is_important'] is True
 
     # Check for player elimination event at 156000 ms
     assert time_to_importance[156000] is True
@@ -556,11 +553,7 @@ def test_important_events_filtering() -> None:
     # Check that Team Elimination (which happens at 156000 ms) is NOT important
     events_at_156000 = [ev for ev in hud_gen.event_log if ev['time'] == 156000]
     team_elim_event = next(
-        (
-            ev
-            for ev in events_at_156000
-            if 'Team Fire Team Eliminated' in ev['desc']
-        ),
+        (ev for ev in events_at_156000 if 'Team Fire Team Eliminated' in ev['desc']),
         None,
     )
     assert team_elim_event is not None
@@ -861,9 +854,7 @@ def test_indicator_interval_configuration() -> None:
     p_state = LFReplayPlayerState('P1', LFRole.COMMANDER, 0)
     elements = []
     gen._add_player_stats_hud_elements(elements, p_state)
-    counters = {
-        el.icon: el for el in elements if el.element_type == 'counter'
-    }
+    counters = {el.icon: el for el in elements if el.element_type == 'counter'}
     assert counters['missiles'].indicator_interval == 1
     assert counters['shields'].indicator_interval == 1
     assert counters['sp'].indicator_interval == 20
@@ -872,18 +863,14 @@ def test_indicator_interval_configuration() -> None:
     p_medic = LFReplayPlayerState('P2', LFRole.MEDIC, 0)
     elements_med = []
     gen._add_player_stats_hud_elements(elements_med, p_medic)
-    counters_med = {
-        el.icon: el for el in elements_med if el.element_type == 'counter'
-    }
+    counters_med = {el.icon: el for el in elements_med if el.element_type == 'counter'}
     assert counters_med['sp'].indicator_interval == 10
 
     # Scout
     p_scout = LFReplayPlayerState('P3', LFRole.SCOUT, 0)
     elements_sct = []
     gen._add_player_stats_hud_elements(elements_sct, p_scout)
-    counters_sct = {
-        el.icon: el for el in elements_sct if el.element_type == 'counter'
-    }
+    counters_sct = {el.icon: el for el in elements_sct if el.element_type == 'counter'}
     assert counters_sct['sp'].indicator_interval == 15
 
     # 3. Test configuration overrides
@@ -921,6 +908,7 @@ def test_double_resupply_in_place_replacement() -> None:
     gen.entity_id = 'P1'
     gen.entity_names = {'P1': 'Player1', 'A1': 'AmmoX', 'M1': 'MedicY'}
     from unittest.mock import MagicMock
+
     mock_replay = MagicMock()
     mock_replay.game_state.players = {}
     mock_replay.game_state.teams = {}
@@ -978,4 +966,3 @@ def test_double_resupply_in_place_replacement() -> None:
     )
     assert slots_1600[0] is not None
     assert slots_1600[0]['text'] == 'Double-resupply by AmmoX and MedicY'
-
