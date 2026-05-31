@@ -19,6 +19,7 @@ class LFGame(Base):
     game_id: Mapped[str] = mapped_column(String(100), primary_key=True)
     timestamp: Mapped[datetime] = mapped_column(DateTime, index=True)
     game_type: Mapped[str] = mapped_column(String(50))
+    start: Mapped[str | None] = mapped_column(String(50), nullable=True)
     file_version: Mapped[str | None] = mapped_column(String(20), nullable=True)
     program_version: Mapped[str | None] = mapped_column(
         String(20), nullable=True

@@ -166,7 +166,9 @@ class VisualElementGenerator:
             event_time_ms: The current event timestamp in milliseconds.
             eliminated_teams: The set of already eliminated team indices.
         """
-        active_teams = {p.team_index for p in replay.game_state.players.values()}
+        active_teams = {
+            p.team_index for p in replay.game_state.players.values()
+        }
         for team_idx in active_teams:
             if team_idx not in eliminated_teams:
                 team_players = [
@@ -174,7 +176,9 @@ class VisualElementGenerator:
                     for p in replay.game_state.players.values()
                     if p.team_index == team_idx
                 ]
-                if team_players and all(p.is_eliminated() for p in team_players):
+                if team_players and all(
+                    p.is_eliminated() for p in team_players
+                ):
                     eliminated_teams.add(team_idx)
                     team_name = replay.game_state.teams[team_idx].name
                     self.event_log.append(
@@ -258,7 +262,9 @@ class VisualElementGenerator:
             )
         )
 
-        team_ranks = {tid: t.ranking for tid, t in replay.game_state.teams.items()}
+        team_ranks = {
+            tid: t.ranking for tid, t in replay.game_state.teams.items()
+        }
         self.team_transitions = {tid: [] for tid in team_ranks}
         last_trans_time_ms = {tid: 0 for tid in team_ranks}
         visual_rank_at_last_trans = {
@@ -363,7 +369,9 @@ class VisualElementGenerator:
         self.game_ended_at_ms = replay.game_ended_at_ms
         self._precompute_nuke_intervals(sorted_events)
 
-    def _precompute_nuke_intervals(self, sorted_events: list[GameEvent]) -> None:
+    def _precompute_nuke_intervals(
+        self, sorted_events: list[GameEvent]
+    ) -> None:
         """Precomputes active nuke intervals during the game.
 
         Args:
@@ -389,7 +397,9 @@ class VisualElementGenerator:
 
             nuker_name = self.entity_names.get(nuker_id, nuker_id)
             self.nuke_intervals.append(
-                LFNukeInterval(start_ms=t_start, end_ms=t_end, nuker_name=nuker_name)
+                LFNukeInterval(
+                    start_ms=t_start, end_ms=t_end, nuker_name=nuker_name
+                )
             )
 
     def _process_hud_event_triggers(
@@ -544,7 +554,10 @@ class VisualElementGenerator:
                 player.role == LFRole.MEDIC
                 and player.lives < prev_player.lives
                 and player.lives > 0
-                and any(val % 5 == 0 for val in range(player.lives, prev_player.lives))
+                and any(
+                    val % 5 == 0
+                    for val in range(player.lives, prev_player.lives)
+                )
             ):
                 p_name = self.entity_names.get(pid, pid)
                 desc = f'Medic {p_name} has {player.lives} left'
@@ -576,15 +589,21 @@ class VisualElementGenerator:
         else:
             _, players, teams = self.snapshots[idx - 1]
 
-        cloned_players = {pid: self._copy_player_state(p) for pid, p in players.items()}
-        cloned_teams = {tid: self._copy_team_state(t) for tid, t in teams.items()}
+        cloned_players = {
+            pid: self._copy_player_state(p) for pid, p in players.items()
+        }
+        cloned_teams = {
+            tid: self._copy_team_state(t) for tid, t in teams.items()
+        }
 
         for player in cloned_players.values():
             player.update_downtime(time_ms)
 
         return cloned_players, cloned_teams
 
-    def _resolve_element_style(self, el_config: dict[str, Any]) -> UIElementStyle:
+    def _resolve_element_style(
+        self, el_config: dict[str, Any]
+    ) -> UIElementStyle:
         """Resolves styling properties from configuration.
 
         Args:
@@ -599,12 +618,16 @@ class VisualElementGenerator:
             'style': self.config.get('style', 'normal'),
             'size': self.config.get('size', 20),
             'color': self.config.get('color', '#ffffffff'),
-            'background_color': self.config.get('background_color', '#00000000'),
+            'background_color': self.config.get(
+                'background_color', '#00000000'
+            ),
         }
 
         font = style_config.get('font', global_style['font'])
         style_type = style_config.get('style', global_style['style'])
-        size = style_config.get('size', el_config.get('size', global_style['size']))
+        size = style_config.get(
+            'size', el_config.get('size', global_style['size'])
+        )
         color = style_config.get('color', global_style['color'])
         bg_color = style_config.get(
             'background_color', global_style['background_color']
@@ -618,7 +641,9 @@ class VisualElementGenerator:
             background_color=bg_color,
         )
 
-    def _translate_position_compat(self, x: float | None, y: float | None) -> str:
+    def _translate_position_compat(
+        self, x: float | None, y: float | None
+    ) -> str:
         """Translates coordinate pairs to legacy position strings for compat.
 
         Args:
@@ -735,14 +760,18 @@ class VisualElementGenerator:
             or el_config.get('indicators')
         )
         if config_indicator is not None:
-            indicator_interval = self._parse_indicator_interval(config_indicator)
+            indicator_interval = self._parse_indicator_interval(
+                config_indicator
+            )
         else:
             indicator_interval = kwarg_indicator
+
+        text_val = text if text is not None else el_config.get('text')
 
         return UIElement(
             element_type=elem_type,
             position=pos_compat,
-            text=text,
+            text=text_val,
             style=style,
             x=x,
             y=y,
@@ -827,9 +856,13 @@ class VisualElementGenerator:
         """
         anim = self.config.get('animation', 'ease-in-out')
         trans_list = self.team_transitions.get(team.team_index, [])
-        vr = get_visual_rank(team.team_index, time_ms, trans_list, team.ranking, anim)
+        vr = get_visual_rank(
+            team.team_index, time_ms, trans_list, team.ranking, anim
+        )
 
-        team_players = [p for p in players.values() if p.team_index == team.team_index]
+        team_players = [
+            p for p in players.values() if p.team_index == team.team_index
+        ]
         team_players.sort(key=lambda p: p.score, reverse=True)
 
         players_data, totals = self._compile_player_scoreboard_data(
@@ -867,7 +900,9 @@ class VisualElementGenerator:
             return None
 
         teams_data = [
-            self._build_team_scoreboard_data(team=t, players=players, time_ms=time_ms)
+            self._build_team_scoreboard_data(
+                team=t, players=players, time_ms=time_ms
+            )
             for t in teams.values()
         ]
 
@@ -913,7 +948,9 @@ class VisualElementGenerator:
         seconds = total_seconds % 60
         time_text = f'{minutes:02d}:{seconds:02d}'
 
-        el_time = self._create_ui_element('time', text=time_text, element_type='text')
+        el_time = self._create_ui_element(
+            'time', text=time_text, element_type='text'
+        )
         if el_time:
             elements.append(el_time)
 
@@ -922,6 +959,46 @@ class VisualElementGenerator:
         )
         if el_sb:
             elements.append(el_sb)
+
+        el_config_date = self.config.get('elements', {}).get('date_of_game', {})
+        format_str = el_config_date.get('format')
+        date_text = ''
+        if self.game.timestamp:
+            if format_str:
+                try:
+                    date_text = self.game.timestamp.strftime(format_str)
+                except Exception:
+                    date_text = self.game.timestamp.strftime('%Y-%m-%d')
+            else:
+                month_str = str(self.game.timestamp.month)
+                day_str = str(self.game.timestamp.day)
+                year_str = self.game.timestamp.strftime('%y')
+                date_text = f'{month_str}/{day_str}/{year_str}'
+        elif self.game.start:
+            date_text = self.game.start
+
+        if date_text:
+            el_date = self._create_ui_element(
+                'date_of_game',
+                text=date_text,
+                element_type='text',
+            )
+            if el_date:
+                elements.append(el_date)
+
+        el_user1 = self._create_ui_element(
+            'user_defined_text_1',
+            element_type='text',
+        )
+        if el_user1:
+            elements.append(el_user1)
+
+        el_user2 = self._create_ui_element(
+            'user_defined_text_2',
+            element_type='text',
+        )
+        if el_user2:
+            elements.append(el_user2)
 
     def _add_player_stats_hud_elements(
         self,
@@ -1020,7 +1097,9 @@ class VisualElementGenerator:
         if p_state.is_down(time_ms):
             safe_rem_ms = max(0, p_state.resettable_starts_at_ms - time_ms)
             res_base_ms = max(time_ms, p_state.resettable_starts_at_ms)
-            resettable_rem_ms = max(0, p_state.downtime_ends_at_ms - res_base_ms)
+            resettable_rem_ms = max(
+                0, p_state.downtime_ends_at_ms - res_base_ms
+            )
 
             el_dt = self._create_ui_element(
                 'downtime',
@@ -1111,7 +1190,10 @@ class VisualElementGenerator:
 
             if slot_idx != -1:
                 text: str = ev['desc']
-                if 'double_resup_desc' in ev and time_ms >= ev['double_resup_time']:
+                if (
+                    'double_resup_desc' in ev
+                    and time_ms >= ev['double_resup_time']
+                ):
                     text = ev['double_resup_desc']
 
                 slots[slot_idx] = {
@@ -1203,7 +1285,9 @@ class VisualElementGenerator:
             fade_time_s = self.config.get('fade_out_time', 5.0)
         fade_time_ms = int(fade_time_s * 1000)
 
-        important_events = [ev for ev in self.event_log if ev.get('is_important')]
+        important_events = [
+            ev for ev in self.event_log if ev.get('is_important')
+        ]
 
         slots = self._get_active_multiline_lines(
             event_list=important_events,

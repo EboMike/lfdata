@@ -162,6 +162,9 @@ If specified, the extents are the length and width as X, Y using the same units.
 | Player events: Events relevant to the current player                                | Multi-line text | 0.5, 0.18        |            | center |          | 18        |
 | Important game events: Events that affect the entire game, for example nukes        | Multi-line text | 0.5, 0.28        |            | center |          | 20        |
 | All game events                                                                     | Event Scroller  | 0.75, 0.6        | 0.25, 0.25 | left   |          | 16        |
+| Date of the game                                                                    | Text            | 0.98, 0.92       |            | right  |          | 18        |
+| User defined text 1 (disabled by default)                                           | Text            | 0.1, 0.6         |            | left   |          | 20        |
+| User defined text 2 (disabled by default)                                           | Text            | 0.1, 0.7         |            | left   |          | 20        |
 
 Special considerations:
 
@@ -172,6 +175,9 @@ Special considerations:
   * **Scout** and **Ammo**: Every 15.
   * **Medic**: Every 10.
   * **Heavy**: None.
+* **Date of the game**: The date is extracted from the game TDF file. This
+  field takes an optional additional parameter, `format`, that specifies
+  how to format the date using a Python date formatting string.
 
 ## Scoreboard
 

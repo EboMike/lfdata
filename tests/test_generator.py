@@ -9,7 +9,9 @@ from lfdata.video.generator import (
 
 def test_visual_element_generator() -> None:
     # 1. Create mock game
-    game = LFGame(game_id='test_vid_game', timestamp=datetime.now(), game_type='SM5')
+    game = LFGame(
+        game_id='test_vid_game', timestamp=datetime.now(), game_type='SM5'
+    )
 
     # Teams
     t1 = GameTeam(
@@ -82,7 +84,9 @@ def test_visual_element_generator() -> None:
     assert 'Commander' in texts
     assert '0' in texts
 
-    counters = {el.icon: el for el in elements_active if el.element_type == 'counter'}
+    counters = {
+        el.icon: el for el in elements_active if el.element_type == 'counter'
+    }
     assert 'lives' in counters
     assert counters['lives'].current_value == 15
     assert counters['lives'].max_value == 30
@@ -156,7 +160,9 @@ def test_visual_element_generator_new_features() -> None:
     texts_capped = [el.text for el in elements_capped if el.text]
     assert '00:04' in texts_capped
 
-    sb_el = next((el for el in elements if el.element_type == 'scoreboard'), None)
+    sb_el = next(
+        (el for el in elements if el.element_type == 'scoreboard'), None
+    )
     assert sb_el is not None
     assert sb_el.scoreboard_data is not None
     teams = sb_el.scoreboard_data['teams']
@@ -287,7 +293,9 @@ def test_scoreboard_hp_total_filtering() -> None:
 
     hud_gen = VisualElementGenerator(game, 'Cmdr')
     elements = hud_gen.generate_at(1000)
-    sb_el = next((el for el in elements if el.element_type == 'scoreboard'), None)
+    sb_el = next(
+        (el for el in elements if el.element_type == 'scoreboard'), None
+    )
     assert sb_el is not None
     teams = sb_el.scoreboard_data['teams']
     team_data = teams[0]
@@ -527,7 +535,9 @@ def test_important_events_filtering() -> None:
     hud_gen.generate_at(180000)
 
     # Assert importance based on time
-    time_to_importance = {ev['time']: ev['is_important'] for ev in hud_gen.event_log}
+    time_to_importance = {
+        ev['time']: ev['is_important'] for ev in hud_gen.event_log
+    }
 
     # Verify that:
     # time 0 (Mission Start) -> False
@@ -559,7 +569,11 @@ def test_important_events_filtering() -> None:
     # Check that Team Elimination (which happens at 156000 ms) is NOT important
     events_at_156000 = [ev for ev in hud_gen.event_log if ev['time'] == 156000]
     team_elim_event = next(
-        (ev for ev in events_at_156000 if 'Team Fire Team Eliminated' in ev['desc']),
+        (
+            ev
+            for ev in events_at_156000
+            if 'Team Fire Team Eliminated' in ev['desc']
+        ),
         None,
     )
     assert team_elim_event is not None
@@ -869,14 +883,18 @@ def test_indicator_interval_configuration() -> None:
     p_medic = LFReplayPlayerState('P2', LFRole.MEDIC, 0)
     elements_med = []
     gen._add_player_stats_hud_elements(elements_med, p_medic)
-    counters_med = {el.icon: el for el in elements_med if el.element_type == 'counter'}
+    counters_med = {
+        el.icon: el for el in elements_med if el.element_type == 'counter'
+    }
     assert counters_med['sp'].indicator_interval == 10
 
     # Scout
     p_scout = LFReplayPlayerState('P3', LFRole.SCOUT, 0)
     elements_sct = []
     gen._add_player_stats_hud_elements(elements_sct, p_scout)
-    counters_sct = {el.icon: el for el in elements_sct if el.element_type == 'counter'}
+    counters_sct = {
+        el.icon: el for el in elements_sct if el.element_type == 'counter'
+    }
     assert counters_sct['sp'].indicator_interval == 15
 
     # 3. Test configuration overrides
@@ -951,7 +969,10 @@ def test_double_resupply_in_place_replacement() -> None:
     event_entry = gen.player_event_log[0]
     assert event_entry['time'] == 1000
     assert event_entry['desc'] == 'Resupplied shots by AmmoX'
-    assert event_entry['double_resup_desc'] == 'Double-resupply by AmmoX and MedicY'
+    assert (
+        event_entry['double_resup_desc']
+        == 'Double-resupply by AmmoX and MedicY'
+    )
     assert event_entry['double_resup_time'] == 1500
 
     # 3. Verify multiline slot allocation resolves correctly at different times
@@ -972,3 +993,107 @@ def test_double_resupply_in_place_replacement() -> None:
     )
     assert slots_1600[0] is not None
     assert slots_1600[0]['text'] == 'Double-resupply by AmmoX and MedicY'
+
+
+def test_new_ui_elements_and_custom_fields() -> None:
+    from datetime import datetime
+    from lfdata.model import LFGame
+    from lfdata.video.generator import VisualElementGenerator
+
+    # 1. Create a game with a known timestamp
+    dt = datetime(2024, 1, 14, 20, 57, 10)
+    game = LFGame(
+        game_id='test_ui_game',
+        timestamp=dt,
+        game_type='SM5',
+        start='20240114205710',
+    )
+
+    # 2. Test default settings (date_of_game enabled, user defined disabled)
+    hud_gen = VisualElementGenerator(game, None)
+    elements = hud_gen.generate_at(1000)
+
+    # Ensure date_of_game is in elements, and formatted with default format
+    date_el = next(
+        (
+            el
+            for el in elements
+            if el.element_type == 'text' and el.text and '1/14/24' in el.text
+        ),
+        None,
+    )
+    assert date_el is not None
+    assert date_el.align == 'right'
+    assert date_el.x == 0.98
+    assert date_el.y == 0.88
+    assert date_el.style.size == 18
+
+    # Ensure user defined texts are not in elements by default
+    user1_el = next(
+        (el for el in elements if el.text == 'Custom Banner 1'), None
+    )
+    assert user1_el is None
+    user2_el = next(
+        (el for el in elements if el.text == 'Custom Banner 2'), None
+    )
+    assert user2_el is None
+
+    # 3. Test config overrides: custom format for date, and enable user texts
+    config = {
+        'elements': {
+            'date_of_game': {
+                'format': '%Y/%m/%d',
+            },
+            'user_defined_text_1': {
+                'enabled': True,
+                'text': 'Custom Banner 1',
+            },
+            'user_defined_text_2': {
+                'enabled': True,
+                'text': 'Custom Banner 2',
+            },
+        }
+    }
+    hud_gen_override = VisualElementGenerator(game, None, config=config)
+    elements_over = hud_gen_override.generate_at(1000)
+
+    # Check custom format date
+    date_el_over = next(
+        (
+            el
+            for el in elements_over
+            if el.element_type == 'text' and el.text == '2024/01/14'
+        ),
+        None,
+    )
+    assert date_el_over is not None
+
+    # Check user defined text 1
+    user1_el_over = next(
+        (
+            el
+            for el in elements_over
+            if el.element_type == 'text' and el.text == 'Custom Banner 1'
+        ),
+        None,
+    )
+    assert user1_el_over is not None
+    assert user1_el_over.align == 'left'
+    assert user1_el_over.x == 0.1
+    assert user1_el_over.y == 0.6
+    assert user1_el_over.style.size == 20
+
+    # Check user defined text 2
+    user2_el_over = next(
+        (
+            el
+            for el in elements_over
+            if el.element_type == 'text' and el.text == 'Custom Banner 2'
+        ),
+        None,
+    )
+    assert user2_el_over is not None
+    assert user2_el_over.align == 'left'
+    assert user2_el_over.x == 0.1
+    assert user2_el_over.y == 0.7
+    assert user2_el_over.style.size == 20

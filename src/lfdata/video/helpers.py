@@ -154,11 +154,37 @@ DEFAULT_CONFIG: dict[str, Any] = {
             'tilt': 10.0,
             'style': {'size': 16},
         },
+        'date_of_game': {
+            'enabled': True,
+            'x': 0.98,
+            'y': 0.92,
+            'align': 'right',
+            'style': {'size': 18},
+            'format': None,
+        },
+        'user_defined_text_1': {
+            'enabled': False,
+            'x': 0.1,
+            'y': 0.6,
+            'align': 'left',
+            'style': {'size': 20},
+            'text': '',
+        },
+        'user_defined_text_2': {
+            'enabled': False,
+            'x': 0.1,
+            'y': 0.7,
+            'align': 'left',
+            'style': {'size': 20},
+            'text': '',
+        },
     },
 }
 
 
-def _merge_configs(base: dict[str, Any], loaded: dict[str, Any]) -> dict[str, Any]:
+def _merge_configs(
+    base: dict[str, Any], loaded: dict[str, Any]
+) -> dict[str, Any]:
     """Recursively merges a loaded configuration dict into base defaults.
 
     Args:

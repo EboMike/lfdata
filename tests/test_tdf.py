@@ -35,6 +35,7 @@ def test_tdf_importer_parse_real_file() -> None:
 
     assert game.game_id == 'sm5_sanitized'
     assert game.game_type == 'Space Marines 5 Tournament Edition'
+    assert game.start == '20240114205710'
     assert game.file_version == '2.005'
     assert game.program_version == '8.503'
     assert game.centre == '4-43'

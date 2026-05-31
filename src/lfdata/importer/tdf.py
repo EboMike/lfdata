@@ -110,16 +110,26 @@ class TdfImporter:
         """
         if len(parts) >= 6:
             game.game_type = parts[2]
+            if len(parts) >= 7:
+                start_str = parts[4]
+                duration_str = parts[5]
+                penalty_str = parts[6]
+            else:
+                start_str = parts[3]
+                duration_str = parts[4]
+                penalty_str = parts[5]
+
+            game.start = start_str
             try:
-                game.timestamp = datetime.strptime(parts[3], '%Y%m%d%H%M%S')
+                game.timestamp = datetime.strptime(start_str, '%Y%m%d%H%M%S')
             except ValueError:
                 pass
             try:
-                game.duration = int(parts[4])
+                game.duration = int(duration_str)
             except ValueError:
                 pass
             try:
-                game.penalty = int(parts[5])
+                game.penalty = int(penalty_str)
             except ValueError:
                 pass
 
