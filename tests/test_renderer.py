@@ -435,6 +435,13 @@ def test_hud_giver_resupply_and_boost_events() -> None:
             event_type='0512',  # Life boost
             actor_entity_id='P1',
         ),
+        # 7. PlayerOne fires missile and misses (event 0304)
+        GameEvent(
+            game_id='test_giver_events',
+            time=9000,
+            event_type='0304',  # Missile miss
+            actor_entity_id='P1',
+        ),
         GameEvent(
             game_id='test_giver_events',
             time=15000,
@@ -450,6 +457,7 @@ def test_hud_giver_resupply_and_boost_events() -> None:
     assert 'Resupplied lives for PlayerTwo' in p_evs
     assert 'Ammo-boosted team' in p_evs
     assert 'Life-boosted team' in p_evs
+    assert 'Missile MISSES' in p_evs
 
     # Verify that double resupply was tracked and set on the previous event
     double_event = None

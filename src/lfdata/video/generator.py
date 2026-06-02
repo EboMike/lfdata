@@ -468,6 +468,10 @@ class VisualElementGenerator:
                         else:
                             msg = f'Missiled by {actor_name}'
 
+            elif et == '0304':
+                if actor_id == self.entity_id:
+                    msg = 'Missile MISSES'
+
             elif et in ('0500', '0502'):
                 msg = self._process_hud_resupply_event(
                     event=event,
