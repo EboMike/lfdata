@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lfdata"
-version = "0.1.0"
+version = "0.9.0"
 description = "Manage LF data: import from TDF, store in databases, and generate videos."
 readme = "README.md"
 requires-python = ">=3.9"
