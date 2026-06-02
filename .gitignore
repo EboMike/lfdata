@@ -108,6 +108,7 @@ system_env/
 
 # Project specific
 *.tdf
+!assets/sm5_sanitized.tdf
 *.mp4
 *.avi
 *.mkv
@@ -116,7 +117,6 @@ data/*.sqlite
 
 # Internal assets
 assets_src/
-fonts/
 
 # Goofy vibe stuff
 private.AGENTS.md
