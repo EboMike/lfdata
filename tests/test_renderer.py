@@ -466,7 +466,9 @@ def test_hud_giver_resupply_and_boost_events() -> None:
             double_event = ev
             break
     assert double_event is not None
-    assert double_event.get('double_resup_desc') == 'Double-resupplied PlayerTwo'
+    assert (
+        double_event.get('double_resup_desc') == 'Double-resupplied PlayerTwo'
+    )
     assert double_event.get('double_resup_time') == 5500
 
 
@@ -483,16 +485,41 @@ def test_font_resolution_and_defaults() -> None:
     import os
 
     # 1. Test _resolve_font_path for fonts in the fonts/ directory
-    assert os.path.normpath(vg._resolve_font_path('Anton')) == os.path.normpath(
-        'fonts/GoogleSans-Bold.ttf'
-    )
-    assert os.path.normpath(
-        vg._resolve_font_path('D Day Stencil')
-    ) == os.path.normpath('fonts/D Day Stencil.ttf')
-    assert os.path.normpath(
-        vg._resolve_font_path('advanced_pixel_lcd-7')
-    ) == os.path.normpath('fonts/advanced_pixel_lcd-7.ttf')
-    assert vg._resolve_font_path('NonexistentFont') == 'NonexistentFont'
+    from pathlib import Path
+
+    existing_paths = {
+        Path('fonts/GoogleSans-Bold.ttf'),
+        Path('fonts/D Day Stencil.ttf'),
+        Path('fonts/advanced_pixel_lcd-7.ttf'),
+    }
+
+    def mock_exists(self: Path) -> bool:
+        normalized_self = Path(os.path.normpath(self))
+        for p in existing_paths:
+            if Path(os.path.normpath(p)) == normalized_self:
+                return True
+        return False
+
+    with patch('pathlib.Path.exists', autospec=True, side_effect=mock_exists):
+        assert os.path.normpath(
+            vg._resolve_font_path('Anton')
+        ) == os.path.normpath('fonts/GoogleSans-Bold.ttf')
+        assert os.path.normpath(
+            vg._resolve_font_path('D Day Stencil')
+        ) == os.path.normpath('fonts/D Day Stencil.ttf')
+        assert os.path.normpath(
+            vg._resolve_font_path('advanced_pixel_lcd-7')
+        ) == os.path.normpath('fonts/advanced_pixel_lcd-7.ttf')
+
+    # When no fonts are present on disk
+    with patch('pathlib.Path.exists', autospec=True, return_value=False):
+        assert vg._resolve_font_path('Anton') == 'Anton'
+        assert vg._resolve_font_path('D Day Stencil') == 'D Day Stencil'
+        assert (
+            vg._resolve_font_path('advanced_pixel_lcd-7')
+            == 'advanced_pixel_lcd-7'
+        )
+        assert vg._resolve_font_path('NonexistentFont') == 'NonexistentFont'
 
     # 2. Test scoreboard header font default logic
     el = UIElement(
