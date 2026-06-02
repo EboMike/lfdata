@@ -86,6 +86,8 @@ class VisualElementGenerator:
         self.player_event_log: list[dict[str, Any]] = []
         self._last_ammo_resup: LFResupplyTracker | None = None
         self._last_medic_resup: LFResupplyTracker | None = None
+        self._last_ammo_resup_by_me: dict[str, int] = {}
+        self._last_medic_resup_by_me: dict[str, int] = {}
         self.team_transitions: dict[int, list[LFTeamTransition]] = {}
         self.game_ended_at_ms: int | None = None
 
@@ -466,63 +468,25 @@ class VisualElementGenerator:
                         else:
                             msg = f'Missiled by {actor_name}'
 
-            elif et in ('0500', '0502') and target_id == self.entity_id:
-                if et == '0500':
-                    self._last_ammo_resup = LFResupplyTracker(
-                        time_ms=event.time, actor_name=actor_name
-                    )
-                    if (
-                        self._last_medic_resup
-                        and event.time - self._last_medic_resup.time_ms <= 1000
-                    ):
-                        msg = (
-                            f'Double-resupply by {actor_name} and '
-                            f'{self._last_medic_resup.actor_name}'
-                        )
-                        if self._update_double_resupply_event(
-                            self._last_medic_resup.time_ms, event.time, msg
-                        ):
-                            msg = None
-                    else:
-                        msg = f'Resupplied shots by {actor_name}'
-                else:
-                    self._last_medic_resup = LFResupplyTracker(
-                        time_ms=event.time, actor_name=actor_name
-                    )
-                    if (
-                        self._last_ammo_resup
-                        and event.time - self._last_ammo_resup.time_ms <= 1000
-                    ):
-                        msg = (
-                            f'Double-resupply by '
-                            f'{self._last_ammo_resup.actor_name} '
-                            f'and {actor_name}'
-                        )
-                        if self._update_double_resupply_event(
-                            self._last_ammo_resup.time_ms, event.time, msg
-                        ):
-                            msg = None
-                    else:
-                        msg = f'Resupplied lives by {actor_name}'
+            elif et in ('0500', '0502'):
+                msg = self._process_hud_resupply_event(
+                    event=event,
+                    et=et,
+                    actor_id=actor_id,
+                    target_id=target_id,
+                    actor_name=actor_name,
+                    target_name=target_name,
+                )
 
-            elif et in ('0510', '0512') and actor_id != self.entity_id:
-                a_state = replay.game_state.players.get(actor_id or '')
-                self_state = replay.game_state.players.get(self.entity_id)
-                prev_self = prev_players.get(self.entity_id)
-                if (
-                    a_state
-                    and self_state
-                    and prev_self
-                    and a_state.team_index == self_state.team_index
-                ):
-                    if (
-                        prev_self.can_receive_resupply(event.time)
-                        and prev_self.lives > 0
-                    ):
-                        if et == '0510':
-                            msg = f'Shot-boosted by {actor_name}'
-                        else:
-                            msg = f'Life-boosted by {actor_name}'
+            elif et in ('0510', '0512'):
+                msg = self._process_hud_boost_event(
+                    event=event,
+                    et=et,
+                    actor_id=actor_id,
+                    actor_name=actor_name,
+                    prev_players=prev_players,
+                    replay=replay,
+                )
 
             if msg:
                 self.player_event_log.append(
@@ -689,15 +653,180 @@ class VisualElementGenerator:
                 return parsed if parsed > 0 else None
         return None
 
+    def _process_hud_resupply_event(
+        self,
+        event: GameEvent,
+        et: str,
+        actor_id: str | None,
+        target_id: str | None,
+        actor_name: str,
+        target_name: str,
+    ) -> str | None:
+        """Processes a resupply event and returns the message description.
+
+        Analyzes individual resupply events (0500 and 0502) to determine if the
+        current player is either receiving a resupply or giving one to a
+        teammate. Handles double-resupply detection for both directions.
+
+        Args:
+            event: The parsed GameEvent.
+            et: The event type string (e.g. '0500', '0502').
+            actor_id: The entity ID of the actor player, or None.
+            target_id: The entity ID of the target player, or None.
+            actor_name: The codename of the actor player.
+            target_name: The codename of the target player.
+
+        Returns:
+            str | None: The event message description, or None if no message
+                should be added.
+        """
+        msg: str | None = None
+        if target_id == self.entity_id:
+            if et == '0500':
+                self._last_ammo_resup = LFResupplyTracker(
+                    time_ms=event.time, actor_name=actor_name
+                )
+                if (
+                    self._last_medic_resup
+                    and event.time - self._last_medic_resup.time_ms <= 1000
+                ):
+                    msg = (
+                        f'Double-resupply by {actor_name} and '
+                        f'{self._last_medic_resup.actor_name}'
+                    )
+                    if self._update_double_resupply_event(
+                        prev_time=self._last_medic_resup.time_ms,
+                        event_time=event.time,
+                        double_resup_msg=msg,
+                        target_id=self.entity_id,
+                    ):
+                        msg = None
+                else:
+                    msg = f'Resupplied shots by {actor_name}'
+            else:
+                self._last_medic_resup = LFResupplyTracker(
+                    time_ms=event.time, actor_name=actor_name
+                )
+                if (
+                    self._last_ammo_resup
+                    and event.time - self._last_ammo_resup.time_ms <= 1000
+                ):
+                    msg = (
+                        f'Double-resupply by '
+                        f'{self._last_ammo_resup.actor_name} '
+                        f'and {actor_name}'
+                    )
+                    if self._update_double_resupply_event(
+                        prev_time=self._last_ammo_resup.time_ms,
+                        event_time=event.time,
+                        double_resup_msg=msg,
+                        target_id=self.entity_id,
+                    ):
+                        msg = None
+                else:
+                    msg = f'Resupplied lives by {actor_name}'
+
+        elif actor_id == self.entity_id and target_id:
+            if et == '0500':
+                self._last_ammo_resup_by_me[target_id] = event.time
+                prev_medic = self._last_medic_resup_by_me.get(target_id)
+                if prev_medic and event.time - prev_medic <= 1000:
+                    msg = f'Double-resupplied {target_name}'
+                    if self._update_double_resupply_event(
+                        prev_time=prev_medic,
+                        event_time=event.time,
+                        double_resup_msg=msg,
+                        target_id=target_id,
+                    ):
+                        msg = None
+                else:
+                    msg = f'Resupplied shots for {target_name}'
+            else:
+                self._last_medic_resup_by_me[target_id] = event.time
+                prev_ammo = self._last_ammo_resup_by_me.get(target_id)
+                if prev_ammo and event.time - prev_ammo <= 1000:
+                    msg = f'Double-resupplied {target_name}'
+                    if self._update_double_resupply_event(
+                        prev_time=prev_ammo,
+                        event_time=event.time,
+                        double_resup_msg=msg,
+                        target_id=target_id,
+                    ):
+                        msg = None
+                else:
+                    msg = f'Resupplied lives for {target_name}'
+        return msg
+
+    def _process_hud_boost_event(
+        self,
+        event: GameEvent,
+        et: str,
+        actor_id: str | None,
+        actor_name: str,
+        prev_players: dict[str, LFReplayPlayerState],
+        replay: LFReplaySystem,
+    ) -> str | None:
+        """Processes a team boost event and returns the message description.
+
+        Analyzes team boost events (0510 and 0512) to check if the current
+        player is the one performing the boost or is on the receiving team.
+
+        Args:
+            event: The parsed GameEvent.
+            et: The event type string (e.g. '0510', '0512').
+            actor_id: The entity ID of the actor player, or None.
+            actor_name: The codename of the actor player.
+            prev_players: The dict of player states from the previous tick.
+            replay: The active replay simulation system.
+
+        Returns:
+            str | None: The event message description, or None if no message
+                should be added.
+        """
+        msg: str | None = None
+        if actor_id == self.entity_id:
+            if et == '0510':
+                msg = 'Ammo-boosted team'
+            else:
+                msg = 'Life-boosted team'
+        elif actor_id != self.entity_id:
+            a_state = replay.game_state.players.get(actor_id or '')
+            self_state = replay.game_state.players.get(self.entity_id)
+            prev_self = prev_players.get(self.entity_id)
+            if (
+                a_state
+                and self_state
+                and prev_self
+                and a_state.team_index == self_state.team_index
+            ):
+                if (
+                    prev_self.can_receive_resupply(event.time)
+                    and prev_self.lives > 0
+                ):
+                    if et == '0510':
+                        msg = f'Shot-boosted by {actor_name}'
+                    else:
+                        msg = f'Life-boosted by {actor_name}'
+        return msg
+
     def _update_double_resupply_event(
-        self, prev_time: int, event_time: int, double_resup_msg: str
+        self,
+        prev_time: int,
+        event_time: int,
+        double_resup_msg: str,
+        target_id: str | None = None,
     ) -> bool:
-        """Finds and replaces the last single resupply event with double resupply.
+        """Finds and updates a previous single resupply with a double resupply.
+
+        Searches the player event log in reverse to find a matching resupply
+        event that occurred at prev_time. If found, updates it to a double
+        resupply description and adjusts its duration.
 
         Args:
             prev_time: The timestamp of the previous resupply event.
             event_time: The timestamp of the current double resupply event.
             double_resup_msg: The double resupply description string.
+            target_id: The optional entity ID of the target player to match.
 
         Returns:
             bool: True if the previous event was found and updated, else False.
@@ -711,7 +840,11 @@ class VisualElementGenerator:
         fade_time_ms: int = int(fade_time_s * 1000)
 
         for ev in reversed(self.player_event_log):
-            if ev['time'] == prev_time and ev['desc'].startswith('Resupplied '):
+            if (
+                ev['time'] == prev_time
+                and ev['desc'].startswith('Resupplied ')
+                and (target_id is None or ev['target_id'] == target_id)
+            ):
                 ev['double_resup_desc'] = double_resup_msg
                 ev['double_resup_time'] = event_time
                 ev['duration'] = (event_time - prev_time) + fade_time_ms

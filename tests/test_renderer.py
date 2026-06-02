@@ -343,6 +343,125 @@ def test_sm5_event_generation() -> None:
     assert any('FRIENDLY zap PlayerTwo' in msg for msg in p_evs)
 
 
+def test_hud_giver_resupply_and_boost_events() -> None:
+    from datetime import datetime
+    from lfdata.model import GameTeam, GameEntity, GameEvent, LFGame
+    from lfdata.video.generator import VisualElementGenerator
+
+    game = LFGame(
+        game_id='test_giver_events',
+        timestamp=datetime.now(),
+        game_type='SM5',
+        duration=15000,
+    )
+    game.teams = [
+        GameTeam(
+            game_id='test_giver_events',
+            team_index=0,
+            desc='Fire Team',
+            color_enum=11,
+            color_desc='Fire',
+            color_rgb='#FF5000',
+        ),
+    ]
+    game.entities = [
+        GameEntity(
+            game_id='test_giver_events',
+            entity_id='P1',
+            type='player',
+            desc='PlayerOne',
+            team_index=0,
+            category=2,  # Heavy
+        ),
+        GameEntity(
+            game_id='test_giver_events',
+            entity_id='P2',
+            type='player',
+            desc='PlayerTwo',
+            team_index=0,
+            category=5,  # Medic
+        ),
+    ]
+    game.events = [
+        GameEvent(
+            game_id='test_giver_events',
+            time=0,
+            event_type='0100',
+            action='start',
+        ),
+        # 1. PlayerOne (focused player) resupplies PlayerTwo with ammo (shots)
+        GameEvent(
+            game_id='test_giver_events',
+            time=1000,
+            event_type='0500',  # Ammo resupply
+            actor_entity_id='P1',
+            target_entity_id='P2',
+        ),
+        # 2. PlayerOne resupplies PlayerTwo with lives (too late for a double)
+        GameEvent(
+            game_id='test_giver_events',
+            time=3000,
+            event_type='0502',  # Medic resupply
+            actor_entity_id='P1',
+            target_entity_id='P2',
+        ),
+        # 3. PlayerOne resupplies PlayerTwo with shots (start of double)
+        GameEvent(
+            game_id='test_giver_events',
+            time=5000,
+            event_type='0500',  # Ammo resupply
+            actor_entity_id='P1',
+            target_entity_id='P2',
+        ),
+        # 4. PlayerOne resupplies PlayerTwo with lives 500ms later (double!)
+        GameEvent(
+            game_id='test_giver_events',
+            time=5500,
+            event_type='0502',  # Medic resupply
+            actor_entity_id='P1',
+            target_entity_id='P2',
+        ),
+        # 5. PlayerOne performs Ammo Boost
+        GameEvent(
+            game_id='test_giver_events',
+            time=7000,
+            event_type='0510',  # Ammo boost
+            actor_entity_id='P1',
+        ),
+        # 6. PlayerOne performs Life Boost
+        GameEvent(
+            game_id='test_giver_events',
+            time=8000,
+            event_type='0512',  # Life boost
+            actor_entity_id='P1',
+        ),
+        GameEvent(
+            game_id='test_giver_events',
+            time=15000,
+            event_type='0101',
+            action='end',
+        ),
+    ]
+
+    hud_gen = VisualElementGenerator(game, 'PlayerOne')
+
+    p_evs = [ev['desc'] for ev in hud_gen.player_event_log]
+    assert 'Resupplied shots for PlayerTwo' in p_evs
+    assert 'Resupplied lives for PlayerTwo' in p_evs
+    assert 'Ammo-boosted team' in p_evs
+    assert 'Life-boosted team' in p_evs
+
+    # Verify that double resupply was tracked and set on the previous event
+    double_event = None
+    for ev in hud_gen.player_event_log:
+        if ev['time'] == 5000:
+            double_event = ev
+            break
+    assert double_event is not None
+    assert double_event.get('double_resup_desc') == 'Double-resupplied PlayerTwo'
+    assert double_event.get('double_resup_time') == 5500
+
+
 def test_font_resolution_and_defaults() -> None:
     from lfdata.model import LFGame
     from lfdata.video.renderer import VideoGenerator
