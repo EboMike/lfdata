@@ -48,6 +48,20 @@ class LFNukeInterval:
     nuker_name: str
 
 
+def _normalize_player_name(name: str) -> str:
+    """Normalizes a player name by removing whitespaces and special characters.
+
+    Args:
+        name: The player name to normalize.
+
+    Returns:
+        str: The normalized alphanumeric lowercase string.
+    """
+    name = name.lower()
+    name = name.replace('&nbsp;', '')
+    return ''.join(c for c in name if c.isalnum())
+
+
 class VisualElementGenerator:
     """Generates the list of UI elements for a player at a specific time."""
 
@@ -105,12 +119,11 @@ class VisualElementGenerator:
         """
         if not self.player_name:
             return None
+        norm_search = _normalize_player_name(self.player_name)
         for entity in self.game.entities:
-            if (
-                entity.type == 'player'
-                and entity.desc.lower() == self.player_name.lower()
-            ):
-                return entity.entity_id
+            if entity.type == 'player':
+                if _normalize_player_name(entity.desc) == norm_search:
+                    return entity.entity_id
         return None
 
     def _copy_player_state(self, p: LFReplayPlayerState) -> LFReplayPlayerState:

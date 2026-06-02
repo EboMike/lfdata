@@ -1099,3 +1099,38 @@ def test_new_ui_elements_and_custom_fields() -> None:
     assert user2_el_over.x == 0.1
     assert user2_el_over.y == 0.7
     assert user2_el_over.style.size == 20
+
+
+def test_player_name_normalization_matching() -> None:
+    from datetime import datetime
+    from lfdata.model import LFGame, GameEntity
+    from lfdata.video import VisualElementGenerator
+
+    game = LFGame(
+        game_id='test_norm_game',
+        timestamp=datetime.now(),
+        game_type='SM5',
+    )
+    p = GameEntity(
+        game_id='test_norm_game',
+        entity_id='P123',
+        type='player',
+        desc=' anchovy!',
+        team_index=0,
+        level=1,
+        category=1,
+        battlesuit='Maverick',
+    )
+    game.entities = [p]
+
+    gen1 = VisualElementGenerator(game, ' anchovy!')
+    assert gen1.entity_id == 'P123'
+
+    gen2 = VisualElementGenerator(game, 'anchovy')
+    assert gen2.entity_id == 'P123'
+
+    gen3 = VisualElementGenerator(game, ' &nbsp;anchovy!')
+    assert gen3.entity_id == 'P123'
+
+    gen4 = VisualElementGenerator(game, 'sardine')
+    assert gen4.entity_id is None
