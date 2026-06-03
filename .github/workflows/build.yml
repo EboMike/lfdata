@@ -22,10 +22,10 @@ jobs:
           - os: ubuntu-latest
             artifact_name: lfdata-linux-x64
             bin_name: lfdata
-          - os: macos-13
+          - os: macos-15-intel
             artifact_name: lfdata-macos-x64
             bin_name: lfdata
-          - os: macos-14
+          - os: macos-15
             artifact_name: lfdata-macos-arm64
             bin_name: lfdata
 
