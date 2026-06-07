@@ -366,6 +366,7 @@ class VisualElementGenerator:
                 visual_rank_at_last_trans=visual_rank_at_last_trans,
             )
             if event.event_type == '0101':
+                replay.game_ended_at_ms = event.time
                 break
 
     def _precompute_replay(self) -> None:
