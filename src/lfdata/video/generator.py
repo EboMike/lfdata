@@ -1238,24 +1238,25 @@ class VisualElementGenerator:
             if el_hp:
                 elements.append(el_hp)
 
-        if p_state.role == LFRole.COMMANDER:
-            sp_interval = 20
-        elif p_state.role in (LFRole.SCOUT, LFRole.AMMO):
-            sp_interval = 15
-        elif p_state.role == LFRole.MEDIC:
-            sp_interval = 10
-        else:
-            sp_interval = None
+        if p_state.role != LFRole.HEAVY:
+            if p_state.role == LFRole.COMMANDER:
+                sp_interval = 20
+            elif p_state.role in (LFRole.SCOUT, LFRole.AMMO):
+                sp_interval = 15
+            elif p_state.role == LFRole.MEDIC:
+                sp_interval = 10
+            else:
+                sp_interval = None
 
-        el_pspec = self._create_ui_element(
-            'player_special_points',
-            element_type='counter',
-            current_value=p_state.special_points,
-            max_value=99,
-            indicator_interval=sp_interval,
-        )
-        if el_pspec:
-            elements.append(el_pspec)
+            el_pspec = self._create_ui_element(
+                'player_special_points',
+                element_type='counter',
+                current_value=p_state.special_points,
+                max_value=99,
+                indicator_interval=sp_interval,
+            )
+            if el_pspec:
+                elements.append(el_pspec)
 
     def _add_player_downtime_hud_element(
         self,

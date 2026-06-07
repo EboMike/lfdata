@@ -182,7 +182,51 @@ def test_visual_element_generator_new_features() -> None:
     assert team_data['totals']['score'] == 0
 
 
+def test_generator_heavy_no_special_points() -> None:
+    game = LFGame(
+        game_id='test_heavy_sp_generator',
+        timestamp=datetime.now(),
+        game_type='SM5',
+    )
+    t1 = GameTeam(
+        game_id='test_heavy_sp_generator',
+        team_index=0,
+        desc='Fire Team',
+        color_enum=11,
+        color_desc='Fire',
+        color_rgb='#FF5000',
+    )
+    game.teams = [t1]
+    heavy = GameEntity(
+        game_id='test_heavy_sp_generator',
+        entity_id='H1',
+        type='player',
+        desc='HeavyPlayer',
+        team_index=0,
+        level=1,
+        category=2,  # Heavy
+        battlesuit='Titan',
+    )
+    game.entities = [heavy]
+    game.events = [
+        GameEvent(
+            game_id='test_heavy_sp_generator',
+            time=0,
+            event_type='0100',
+            action='start',
+            raw_message='',
+        )
+    ]
+
+    hud_gen = VisualElementGenerator(game, 'HeavyPlayer')
+    elements = hud_gen.generate_at(1000)
+
+    counters = {el.icon: el for el in elements if el.element_type == 'counter'}
+    assert 'sp' not in counters
+
+
 def test_config_merging() -> None:
+
     from lfdata.video.generator import _merge_configs, DEFAULT_CONFIG
 
     custom = {
