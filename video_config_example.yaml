@@ -253,6 +253,96 @@ elements:
       size: 20
     text: "Custom Text Overlay 2"
 
+  user_defined_text_3:
+    enabled: false
+    x: 0.1
+    y: 0.8
+    align: left
+    style:
+      size: 20
+    text: ""
+
+  user_defined_text_4:
+    enabled: false
+    x: 0.1
+    y: 0.9
+    align: left
+    style:
+      size: 20
+    text: ""
+
+  user_defined_text_5:
+    enabled: false
+    x: 0.1
+    y: 0.1
+    align: left
+    style:
+      size: 20
+    text: ""
+
+  user_defined_text_6:
+    enabled: false
+    x: 0.1
+    y: 0.2
+    align: left
+    style:
+      size: 20
+    text: ""
+
+  user_defined_text_7:
+    enabled: false
+    x: 0.1
+    y: 0.3
+    align: left
+    style:
+      size: 20
+    text: ""
+
+  user_defined_text_8:
+    enabled: false
+    x: 0.1
+    y: 0.4
+    align: left
+    style:
+      size: 20
+    text: ""
+
+  user_defined_text_9:
+    enabled: false
+    x: 0.1
+    y: 0.5
+    align: left
+    style:
+      size: 20
+    text: ""
+
+  user_defined_text_10:
+    enabled: false
+    x: 0.1
+    y: 0.6
+    align: left
+    style:
+      size: 20
+    text: ""
+
+  user_defined_text_11:
+    enabled: false
+    x: 0.1
+    y: 0.7
+    align: left
+    style:
+      size: 20
+    text: ""
+
+  user_defined_text_12:
+    enabled: false
+    x: 0.1
+    y: 0.8
+    align: left
+    style:
+      size: 20
+    text: ""
+
   # The name of the centre / arena (disabled by default)
   centre_name:
     enabled: false

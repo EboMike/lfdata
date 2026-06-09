@@ -1185,19 +1185,13 @@ class VisualElementGenerator:
             if el_date:
                 elements.append(el_date)
 
-        el_user1 = self._create_ui_element(
-            'user_defined_text_1',
-            element_type='text',
-        )
-        if el_user1:
-            elements.append(el_user1)
-
-        el_user2 = self._create_ui_element(
-            'user_defined_text_2',
-            element_type='text',
-        )
-        if el_user2:
-            elements.append(el_user2)
+        for i in range(1, 13):
+            el_user = self._create_ui_element(
+                f'user_defined_text_{i}',
+                element_type='text',
+            )
+            if el_user:
+                elements.append(el_user)
 
         centre_text = self.game.arena_name or self.game.centre or ''
         el_centre = self._create_ui_element(

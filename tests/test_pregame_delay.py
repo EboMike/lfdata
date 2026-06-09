@@ -184,3 +184,48 @@ def test_game_time_shifting_with_pregame_delay() -> None:
     elements = hud_gen.generate_at(4000)
     texts = [el.text for el in elements if el.text]
     assert '00:00' in texts
+
+
+def test_user_defined_text_elements() -> None:
+    game = LFGame(
+        game_id='test_user_texts',
+        timestamp=datetime.now(),
+        game_type='SM5',
+        duration=10000,
+    )
+    game.events = [
+        GameEvent(
+            game_id='test_shifting',
+            time=0,
+            event_type='0100',
+            action='start',
+            raw_message='',
+        )
+    ]
+    # Check default behavior: elements 1 to 12 should not be created if disabled
+    hud_gen = VisualElementGenerator(game, None)
+    elements = hud_gen.generate_at(1000)
+    for i in range(1, 13):
+        el = next((e for e in elements if e.text == f'Custom {i}'), None)
+        assert el is None
+
+    # Check that they can be enabled and set
+    config = {
+        'elements': {
+            f'user_defined_text_{i}': {
+                'enabled': True,
+                'text': f'Custom {i}',
+            }
+            for i in range(1, 13)
+        }
+    }
+    hud_gen_enabled = VisualElementGenerator(game, None, config=config)
+    elements_enabled = hud_gen_enabled.generate_at(1000)
+    for i in range(1, 13):
+        el = next(
+            (e for e in elements_enabled if e.text == f'Custom {i}'),
+            None,
+        )
+        assert el is not None
+        assert el.visible_start_ms == 0
+        assert el.fade_in_ms == 0
