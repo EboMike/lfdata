@@ -96,3 +96,24 @@ def test_update_element_properties(manager: UIConfigManager) -> None:
 
     # Non-existent element retrieval
     assert manager.get_element('non_existent_element') is None
+
+
+def test_get_lfdata_command(manager: UIConfigManager) -> None:
+    """Verifies retrieval of lfdata command in dev and frozen modes."""
+    import sys
+    import os
+
+    # 1. Dev Mode (sys.frozen is not set)
+    if hasattr(sys, 'frozen'):
+        delattr(sys, 'frozen')
+    cmd = manager.get_lfdata_command()
+    assert cmd == [sys.executable, '-m', 'lfdata']
+
+    # 2. Frozen Mode (sys.frozen = True)
+    sys.frozen = True
+    try:
+        cmd_frozen = manager.get_lfdata_command()
+        expected_bin = 'lfdata.exe' if os.name == 'nt' else 'lfdata'
+        assert expected_bin in cmd_frozen[0]
+    finally:
+        delattr(sys, 'frozen')

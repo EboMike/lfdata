@@ -1,6 +1,8 @@
 """Configuration manager for the LF data UI tool."""
 
 import copy
+import os
+import sys
 from typing import Any
 import yaml
 
@@ -126,3 +128,19 @@ class UIConfigManager:
             value: The new value.
         """
         self.config[key] = value
+
+    def get_lfdata_command(self) -> list[str]:
+        """Returns the base command list to run the lfdata CLI.
+
+        Returns:
+            A list of strings representing the base command prefix.
+        """
+        if getattr(sys, 'frozen', False):
+            exe_dir = os.path.dirname(sys.executable)
+            bin_name = 'lfdata.exe' if os.name == 'nt' else 'lfdata'
+            sibling_bin = os.path.join(exe_dir, bin_name)
+            if os.path.exists(sibling_bin):
+                return [sibling_bin]
+            return [bin_name]
+
+        return [sys.executable, '-m', 'lfdata']

@@ -2,7 +2,6 @@
 
 import os
 import subprocess
-import sys
 import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
@@ -383,10 +382,7 @@ class LFDataUIApp(tk.Tk):
             temp_cfg_path: The temporary config YAML file path.
             player_focus: The player focus name.
         """
-        cmd = [
-            sys.executable,
-            '-m',
-            'lfdata',
+        cmd = self.config_manager.get_lfdata_command() + [
             '--input_tdf',
             self.config_manager.tdf_path,
             '--config',

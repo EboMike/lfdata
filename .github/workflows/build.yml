@@ -66,15 +66,21 @@ jobs:
         run: |
           pytest
 
-      - name: Build binary with PyInstaller
+      - name: Build binaries with PyInstaller
         run: |
           pyinstaller --name lfdata --onefile src/lfdata/__main__.py
+          pyinstaller --name lfdata_ui --onefile --noconsole src/lfdata/ui/__main__.py
 
       - name: Prepare distribution directory
         shell: bash
         run: |
           mkdir -p dist/${{ matrix.artifact_name }}
           cp dist/${{ matrix.bin_name }} dist/${{ matrix.artifact_name }}/
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            cp dist/lfdata_ui.exe dist/${{ matrix.artifact_name }}/
+          else
+            cp dist/lfdata_ui dist/${{ matrix.artifact_name }}/
+          fi
           cp video_config_example.yaml dist/${{ matrix.artifact_name }}/
           mkdir -p dist/${{ matrix.artifact_name }}/fonts
           if [ -d fonts ]; then
@@ -117,15 +123,17 @@ jobs:
           arch: aarch64
           distro: ubuntu_latest
           run: |
-            apt-get update && apt-get install -y python3 python3-pip python3-venv zip build-essential python3-dev libjpeg-dev zlib1g-dev
+            apt-get update && apt-get install -y python3 python3-pip python3-venv zip build-essential python3-dev libjpeg-dev zlib1g-dev python3-tk
             python3 -m venv venv
             source venv/bin/activate
             pip install --upgrade pip
             pip install .
             pip install pyinstaller
             pyinstaller --name lfdata --onefile src/lfdata/__main__.py
+            pyinstaller --name lfdata_ui --onefile --noconsole src/lfdata/ui/__main__.py
             mkdir -p dist/lfdata-linux-arm64
             cp dist/lfdata dist/lfdata-linux-arm64/
+            cp dist/lfdata_ui dist/lfdata-linux-arm64/
             cp video_config_example.yaml dist/lfdata-linux-arm64/
             mkdir -p dist/lfdata-linux-arm64/fonts
             if [ -d fonts ]; then

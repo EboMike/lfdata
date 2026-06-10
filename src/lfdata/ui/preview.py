@@ -1,7 +1,6 @@
 """Image preview and playback control panel for the LF data UI."""
 
 import subprocess
-import sys
 import tempfile
 import tkinter as tk
 from tkinter import ttk
@@ -157,10 +156,7 @@ class ImagePreview(ttk.LabelFrame):
             self.config_manager.save_config(str(cfg_path))
 
             # Run lfdata CLI subprocess to render the image
-            cmd = [
-                sys.executable,
-                '-m',
-                'lfdata',
+            cmd = self.config_manager.get_lfdata_command() + [
                 '--input_tdf',
                 self.config_manager.tdf_path,
                 '--config',
