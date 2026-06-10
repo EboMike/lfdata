@@ -172,13 +172,31 @@ class LFDataUIApp(tk.Tk):
             '<Return>', lambda e: self._on_global_setting_changed()
         )
 
+        # Pregame Delay Input
+        ttk.Label(parent, text='Pregame Delay (ms):').grid(
+            row=4, column=0, sticky='w', padx=5, pady=5
+        )
+        self.pregame_delay_ms_var = tk.StringVar()
+        self.ent_pregame_delay = ttk.Entry(
+            parent, textvariable=self.pregame_delay_ms_var
+        )
+        self.ent_pregame_delay.grid(
+            row=4, column=1, sticky='ew', padx=5, pady=5
+        )
+        self.ent_pregame_delay.bind(
+            '<FocusOut>', lambda e: self._on_global_setting_changed()
+        )
+        self.ent_pregame_delay.bind(
+            '<Return>', lambda e: self._on_global_setting_changed()
+        )
+
         # Elements Listbox
         ttk.Label(parent, text='UI Elements:').grid(
-            row=4, column=0, sticky='nw', padx=5, pady=5
+            row=5, column=0, sticky='nw', padx=5, pady=5
         )
         list_frame = ttk.Frame(parent)
-        list_frame.grid(row=4, column=1, sticky='nsew', padx=5, pady=5)
-        parent.rowconfigure(4, weight=1)
+        list_frame.grid(row=5, column=1, sticky='nsew', padx=5, pady=5)
+        parent.rowconfigure(5, weight=1)
 
         self.lst_elements = tk.Listbox(
             list_frame,
@@ -201,7 +219,7 @@ class LFDataUIApp(tk.Tk):
             parent, text='Generate Video...', command=self._generate_video
         )
         self.btn_gen_video.grid(
-            row=5, column=0, columnspan=2, sticky='ew', padx=5, pady=10
+            row=6, column=0, columnspan=2, sticky='ew', padx=5, pady=10
         )
 
     def _sync_global_widgets(self) -> None:
@@ -212,6 +230,8 @@ class LFDataUIApp(tk.Tk):
         res = cfg.get('resolution', [1920, 1080])
         self.width_var.set(str(res[0]))
         self.height_var.set(str(res[1]))
+
+        self.pregame_delay_ms_var.set(str(cfg.get('pregame_delay_ms', 0)))
 
         # Populate elements listbox
         self.lst_elements.delete(0, 'end')
@@ -269,6 +289,12 @@ class LFDataUIApp(tk.Tk):
             w = int(self.width_var.get())
             h = int(self.height_var.get())
             self.config_manager.update_global_setting('resolution', [w, h])
+        except ValueError:
+            pass
+
+        try:
+            delay = int(self.pregame_delay_ms_var.get())
+            self.config_manager.update_global_setting('pregame_delay_ms', delay)
         except ValueError:
             pass
 

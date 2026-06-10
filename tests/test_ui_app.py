@@ -1,9 +1,8 @@
 """Tests for the LFDataUIApp class."""
 
-import sys
 from unittest.mock import MagicMock, patch
-from typing import Any, Generator
-import pytest
+from typing import Any
+
 
 class DummyStringVar:
     """Mock StringVar for testing."""
@@ -231,6 +230,7 @@ def test_app_initialization() -> None:
     assert app.fps_var.get() == '60'
     assert app.width_var.get() == '1920'
     assert app.height_var.get() == '1080'
+    assert app.pregame_delay_ms_var.get() == '0'
 
     # Check that Listbox contains some elements
     assert app.lst_elements._items
@@ -259,6 +259,7 @@ def test_app_global_settings_change() -> None:
     app.fps_var.set('30')
     app.width_var.set('1280')
     app.height_var.set('720')
+    app.pregame_delay_ms_var.set('2000')
 
     # Trigger setting changed callback
     app._on_global_setting_changed()
@@ -266,6 +267,7 @@ def test_app_global_settings_change() -> None:
     cfg = app.config_manager.config
     assert cfg.get('fps') == 30
     assert cfg.get('resolution') == [1280, 720]
+    assert cfg.get('pregame_delay_ms') == 2000
 
 
 @patch('tkinter.filedialog.askopenfilename')
@@ -276,11 +278,14 @@ def test_app_open_config(mock_dialog: MagicMock) -> None:
     # Create dummy config file content
     import tempfile
     import yaml
+
     with tempfile.NamedTemporaryFile(
         suffix='.yaml', mode='w', encoding='utf-8', delete=False
     ) as f:
         temp_name = f.name
-        yaml.safe_dump({'fps': 24, 'resolution': [640, 480]}, f)
+        yaml.safe_dump(
+            {'fps': 24, 'resolution': [640, 480], 'pregame_delay_ms': 500}, f
+        )
 
     try:
         mock_dialog.return_value = temp_name
@@ -290,7 +295,9 @@ def test_app_open_config(mock_dialog: MagicMock) -> None:
         assert app.fps_var.get() == '24'
         assert app.width_var.get() == '640'
         assert app.height_var.get() == '480'
+        assert app.pregame_delay_ms_var.get() == '500'
     finally:
         import os
+
         if os.path.exists(temp_name):
             os.remove(temp_name)
