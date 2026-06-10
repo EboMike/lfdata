@@ -9,104 +9,100 @@ from lfdata.video.generator import (
 
 def test_visual_element_generator() -> None:
     # 1. Create mock game
-    game = LFGame(
-        game_id='test_vid_game', timestamp=datetime.now(), game_type='SM5'
-    )
+    game = LFGame(game_id="test_vid_game", timestamp=datetime.now(), game_type="SM5")
 
     # Teams
     t1 = GameTeam(
-        game_id='test_vid_game',
+        game_id="test_vid_game",
         team_index=0,
-        desc='Fire Team',
+        desc="Fire Team",
         color_enum=11,
-        color_desc='Fire',
-        color_rgb='#FF5000',
+        color_desc="Fire",
+        color_rgb="#FF5000",
     )
     game.teams = [t1]
 
     # Entity (Commander on team 0)
     cmd = GameEntity(
-        game_id='test_vid_game',
-        entity_id='C1',
-        type='player',
-        desc='Sqnfdcp',
+        game_id="test_vid_game",
+        entity_id="C1",
+        type="player",
+        desc="Sqnfdcp",
         team_index=0,
         level=1,
         category=1,
-        battlesuit='Maverick',
+        battlesuit="Maverick",
     )
     game.entities = [cmd]
 
     # E2 downs C1 at 3000 ms
     e2 = GameEntity(
-        game_id='test_vid_game',
-        entity_id='E2',
-        type='player',
-        desc='Enemy',
+        game_id="test_vid_game",
+        entity_id="E2",
+        type="player",
+        desc="Enemy",
         team_index=1,
         level=1,
         category=3,
-        battlesuit='Interceptor',
+        battlesuit="Interceptor",
     )
     game.entities.append(e2)
 
     events = [
         GameEvent(
-            game_id='test_rule_game',
+            game_id="test_rule_game",
             time=0,
-            event_type='0100',
-            action='start',
-            raw_message='',
+            event_type="0100",
+            action="start",
+            raw_message="",
         ),
         GameEvent(
-            game_id='test_rule_game',
+            game_id="test_rule_game",
             time=3000,
-            event_type='0206',
-            actor_entity_id='E2',
-            target_entity_id='C1',
-            action='zaps',
-            raw_message='',
+            event_type="0206",
+            actor_entity_id="E2",
+            target_entity_id="C1",
+            action="zaps",
+            raw_message="",
         ),
     ]
     game.events = events
 
-    hud_gen = VisualElementGenerator(game, 'Sqnfdcp')
+    hud_gen = VisualElementGenerator(game, "Sqnfdcp")
 
     # 1. Generate at 1000 ms (active player)
     elements_active = hud_gen.generate_at(1000)
 
     types = [el.element_type for el in elements_active]
-    assert 'text' in types
+    assert "text" in types
 
     texts = [el.text for el in elements_active if el.text]
-    assert 'Game Type: SM5' in texts
-    assert 'Sqnfdcp' in texts
-    assert 'Commander' in texts
-    assert '0' in texts
+    assert "Game Type: SM5" in texts
+    assert "Sqnfdcp" in texts
+    assert "Commander" in texts
+    assert "0" in texts
 
-    counters = {
-        el.icon: el for el in elements_active if el.element_type == 'counter'
-    }
-    assert 'lives' in counters
-    assert counters['lives'].current_value == 15
-    assert counters['lives'].max_value == 30
-    assert 'shots' in counters
-    assert counters['shots'].current_value == 30
-    assert counters['shots'].max_value == 60
-    assert 'missiles' in counters
-    assert counters['missiles'].current_value == 5
-    assert counters['missiles'].max_value == 5
-    assert 'sp' in counters
-    assert counters['sp'].current_value == 0
-    assert counters['sp'].max_value == 99
+    counters = {el.icon: el for el in elements_active if el.element_type == "counter"}
+    assert "lives" in counters
+    assert counters["lives"].current_value == 15
+    assert counters["lives"].max_value == 30
+    assert "shots" in counters
+    assert counters["shots"].current_value == 30
+    assert counters["shots"].max_value == 60
+    assert "missiles" in counters
+    assert counters["missiles"].current_value == 5
+    assert counters["missiles"].max_value == 5
+    assert "sp" in counters
+    assert counters["sp"].current_value == 0
+    assert counters["sp"].max_value == 99
 
-    assert not any(el.element_type == 'downtime_bar' for el in elements_active)
+    assert not any(el.element_type == "downtime_bar" for el in elements_active)
 
     # 2. Generate at 5000 ms (downed player, safe phase)
     elements_down = hud_gen.generate_at(5000)
 
     bar_el = next(
-        (el for el in elements_down if el.element_type == 'downtime_bar'), None
+        (el for el in elements_down if el.element_type == "downtime_bar"), None
     )
     assert bar_el is not None
     assert bar_el.safe_ms == 2000
@@ -115,114 +111,112 @@ def test_visual_element_generator() -> None:
 
 def test_visual_element_generator_new_features() -> None:
     game = LFGame(
-        game_id='test_vid_game2',
+        game_id="test_vid_game2",
         timestamp=datetime.now(),
-        game_type='SM5',
+        game_type="SM5",
         duration=4000,
     )
     t1 = GameTeam(
-        game_id='test_vid_game2',
+        game_id="test_vid_game2",
         team_index=0,
-        desc='Fire Team',
+        desc="Fire Team",
         color_enum=11,
-        color_desc='Fire',
-        color_rgb='#FF5000',
+        color_desc="Fire",
+        color_rgb="#FF5000",
     )
     game.teams = [t1]
     cmd = GameEntity(
-        game_id='test_vid_game2',
-        entity_id='C1',
-        type='player',
-        desc='Player1',
+        game_id="test_vid_game2",
+        entity_id="C1",
+        type="player",
+        desc="Player1",
         team_index=0,
         level=1,
         category=1,
-        battlesuit='Maverick',
+        battlesuit="Maverick",
     )
     game.entities = [cmd]
     game.events = [
         GameEvent(
-            game_id='test_vid_game2',
+            game_id="test_vid_game2",
             time=0,
-            event_type='0100',
-            action='start',
-            raw_message='',
+            event_type="0100",
+            action="start",
+            raw_message="",
         )
     ]
 
-    hud_gen = VisualElementGenerator(game, 'Player1')
+    hud_gen = VisualElementGenerator(game, "Player1")
 
     elements = hud_gen.generate_at(1000)
     texts = [el.text for el in elements if el.text]
-    assert '00:01' in texts
+    assert "00:01" in texts
 
     elements_capped = hud_gen.generate_at(5000)
     texts_capped = [el.text for el in elements_capped if el.text]
-    assert '00:04' in texts_capped
+    assert "00:04" in texts_capped
 
-    sb_el = next(
-        (el for el in elements if el.element_type == 'scoreboard'), None
-    )
+    sb_el = next((el for el in elements if el.element_type == "scoreboard"), None)
     assert sb_el is not None
     assert sb_el.scoreboard_data is not None
-    teams = sb_el.scoreboard_data['teams']
+    teams = sb_el.scoreboard_data["teams"]
     assert len(teams) == 1
     team_data = teams[0]
-    assert team_data['team_name'] == 'Fire Team'
-    assert team_data['color_rgb'] == '#FF5000'
-    assert len(team_data['players']) == 1
-    p_data = team_data['players'][0]
-    assert p_data['codename'] == 'Player1'
-    assert p_data['role_name'] == 'Commander'
-    assert p_data['score'] == 0
-    assert p_data['lives'] == 15
-    assert p_data['shots'] == 30
-    assert p_data['missiles'] == 5
-    assert p_data['special_points'] == 0
-    assert team_data['totals']['score'] == 0
+    assert team_data["team_name"] == "Fire Team"
+    assert team_data["color_rgb"] == "#FF5000"
+    assert len(team_data["players"]) == 1
+    p_data = team_data["players"][0]
+    assert p_data["codename"] == "Player1"
+    assert p_data["role_name"] == "Commander"
+    assert p_data["score"] == 0
+    assert p_data["lives"] == 15
+    assert p_data["shots"] == 30
+    assert p_data["missiles"] == 5
+    assert p_data["special_points"] == 0
+    assert team_data["totals"]["score"] == 0
 
 
 def test_generator_heavy_no_special_points() -> None:
     game = LFGame(
-        game_id='test_heavy_sp_generator',
+        game_id="test_heavy_sp_generator",
         timestamp=datetime.now(),
-        game_type='SM5',
+        game_type="SM5",
     )
     t1 = GameTeam(
-        game_id='test_heavy_sp_generator',
+        game_id="test_heavy_sp_generator",
         team_index=0,
-        desc='Fire Team',
+        desc="Fire Team",
         color_enum=11,
-        color_desc='Fire',
-        color_rgb='#FF5000',
+        color_desc="Fire",
+        color_rgb="#FF5000",
     )
     game.teams = [t1]
     heavy = GameEntity(
-        game_id='test_heavy_sp_generator',
-        entity_id='H1',
-        type='player',
-        desc='HeavyPlayer',
+        game_id="test_heavy_sp_generator",
+        entity_id="H1",
+        type="player",
+        desc="HeavyPlayer",
         team_index=0,
         level=1,
         category=2,  # Heavy
-        battlesuit='Titan',
+        battlesuit="Titan",
     )
     game.entities = [heavy]
     game.events = [
         GameEvent(
-            game_id='test_heavy_sp_generator',
+            game_id="test_heavy_sp_generator",
             time=0,
-            event_type='0100',
-            action='start',
-            raw_message='',
+            event_type="0100",
+            action="start",
+            raw_message="",
         )
     ]
 
-    hud_gen = VisualElementGenerator(game, 'HeavyPlayer')
+    hud_gen = VisualElementGenerator(game, "HeavyPlayer")
     elements = hud_gen.generate_at(1000)
 
-    counters = {el.icon: el for el in elements if el.element_type == 'counter'}
-    assert 'sp' not in counters
+    counters = {el.icon: el for el in elements if el.element_type == "counter"}
+    assert "sp" not in counters
 
 
 def test_config_merging() -> None:
@@ -230,35 +224,35 @@ def test_config_merging() -> None:
     from lfdata.video.generator import _merge_configs, DEFAULT_CONFIG
 
     custom = {
-        'fps': 30,
-        'elements': {'game_type': {'enabled': False, 'style': {'size': 12}}},
+        "fps": 30,
+        "elements": {"game_type": {"enabled": False, "style": {"size": 12}}},
     }
     merged = _merge_configs(DEFAULT_CONFIG, custom)
-    assert merged['fps'] == 30
-    assert merged['elements']['game_type']['enabled'] is False
-    assert merged['elements']['game_type']['style']['size'] == 12
+    assert merged["fps"] == 30
+    assert merged["elements"]["game_type"]["enabled"] is False
+    assert merged["elements"]["game_type"]["style"]["size"] == 12
     # Ensure other elements are preserved
-    assert merged['elements']['time']['enabled'] is True
+    assert merged["elements"]["time"]["enabled"] is True
 
 
 def test_animation_progress_and_fade_alpha() -> None:
     from lfdata.video.generator import apply_animation, get_fade_alpha
 
     # Linear
-    assert apply_animation(0.5, 'linear') == 0.5
+    assert apply_animation(0.5, "linear") == 0.5
     # Ease-in
-    assert apply_animation(0.5, 'ease-in') == 0.25
+    assert apply_animation(0.5, "ease-in") == 0.25
     # Ease-out
-    assert apply_animation(0.5, 'ease-out') == 0.75
+    assert apply_animation(0.5, "ease-out") == 0.75
     # Ease-in-out
-    assert apply_animation(0.5, 'ease-in-out') == 0.5
-    assert apply_animation(0.25, 'ease-in-out') == 0.15625
+    assert apply_animation(0.5, "ease-in-out") == 0.5
+    assert apply_animation(0.25, "ease-in-out") == 0.15625
 
     # Fade Alpha
     # linear: 1.0 - 0.5 = 0.5
-    assert get_fade_alpha(500, 1000, 'linear') == 0.5
+    assert get_fade_alpha(500, 1000, "linear") == 0.5
     # ease-in-out: 1.0 - 0.5 = 0.5
-    assert get_fade_alpha(500, 1000, 'ease-in-out') == 0.5
+    assert get_fade_alpha(500, 1000, "ease-in-out") == 0.5
 
 
 def test_scoreboard_visual_rank_transition() -> None:
@@ -269,17 +263,17 @@ def test_scoreboard_visual_rank_transition() -> None:
         LFTeamTransition(event_time_ms=3000, visual_rank=2.0, ranking=1),
     ]
     # Before any transition
-    assert get_visual_rank(0, 500, trans, 1, 'linear') == 1.0
+    assert get_visual_rank(0, 500, trans, 1, "linear") == 1.0
     # During transition 1 (1000 -> 2000 ms)
     # At 1500 ms (linear progress = 0.5)
-    assert get_visual_rank(0, 1500, trans, 1, 'linear') == 1.5
+    assert get_visual_rank(0, 1500, trans, 1, "linear") == 1.5
     # After transition 1 (2000 -> 3000 ms)
-    assert get_visual_rank(0, 2500, trans, 1, 'linear') == 2.0
+    assert get_visual_rank(0, 2500, trans, 1, "linear") == 2.0
     # During transition 2 (3000 -> 4000 ms)
     # At 3250 ms (linear progress = 0.25)
-    assert get_visual_rank(0, 3250, trans, 1, 'linear') == 1.75
+    assert get_visual_rank(0, 3250, trans, 1, "linear") == 1.75
     # After all transitions
-    assert get_visual_rank(0, 5000, trans, 1, 'linear') == 1.0
+    assert get_visual_rank(0, 5000, trans, 1, "linear") == 1.0
 
 
 def test_scoreboard_hp_total_filtering() -> None:
@@ -287,73 +281,71 @@ def test_scoreboard_hp_total_filtering() -> None:
     from lfdata.video.generator import VisualElementGenerator
 
     game = LFGame(
-        game_id='test_hp_filter',
+        game_id="test_hp_filter",
         timestamp=datetime.now(),
-        game_type='SM5',
+        game_type="SM5",
         duration=2000,
     )
     t1 = GameTeam(
-        game_id='test_hp_filter',
+        game_id="test_hp_filter",
         team_index=0,
-        desc='Fire Team',
+        desc="Fire Team",
         color_enum=11,
-        color_desc='Fire',
-        color_rgb='#FF5000',
+        color_desc="Fire",
+        color_rgb="#FF5000",
     )
     game.teams = [t1]
 
     # Commander (max_hp = 3)
     p1 = GameEntity(
-        game_id='test_hp_filter',
-        entity_id='P1',
-        type='player',
-        desc='Cmdr',
+        game_id="test_hp_filter",
+        entity_id="P1",
+        type="player",
+        desc="Cmdr",
         team_index=0,
         level=1,
         category=1,
-        battlesuit='Maverick',
+        battlesuit="Maverick",
     )
     # Scout (max_hp = 1)
     p2 = GameEntity(
-        game_id='test_hp_filter',
-        entity_id='P2',
-        type='player',
-        desc='Sct',
+        game_id="test_hp_filter",
+        entity_id="P2",
+        type="player",
+        desc="Sct",
         team_index=0,
         level=1,
         category=3,
-        battlesuit='Interceptor',
+        battlesuit="Interceptor",
     )
     game.entities = [p1, p2]
     game.events = [
         GameEvent(
-            game_id='test_hp_filter',
+            game_id="test_hp_filter",
             time=0,
-            event_type='0100',
-            action='start',
-            raw_message='',
+            event_type="0100",
+            action="start",
+            raw_message="",
         )
     ]
 
-    hud_gen = VisualElementGenerator(game, 'Cmdr')
+    hud_gen = VisualElementGenerator(game, "Cmdr")
     elements = hud_gen.generate_at(1000)
-    sb_el = next(
-        (el for el in elements if el.element_type == 'scoreboard'), None
-    )
+    sb_el = next((el for el in elements if el.element_type == "scoreboard"), None)
     assert sb_el is not None
-    teams = sb_el.scoreboard_data['teams']
+    teams = sb_el.scoreboard_data["teams"]
     team_data = teams[0]
 
     # Assert player HP details in data dictionary
-    p1_data = next(d for d in team_data['players'] if d['codename'] == 'Cmdr')
-    p2_data = next(d for d in team_data['players'] if d['codename'] == 'Sct')
-    assert p1_data['hp'] == 3
-    assert p2_data['hp'] == 1
-    assert p1_data['penalties'] == 0
-    assert p2_data['penalties'] == 0
+    p1_data = next(d for d in team_data["players"] if d["codename"] == "Cmdr")
+    p2_data = next(d for d in team_data["players"] if d["codename"] == "Sct")
+    assert p1_data["hp"] == 3
+    assert p2_data["hp"] == 1
+    assert p1_data["penalties"] == 0
+    assert p2_data["penalties"] == 0
 
     # Total HP should only sum Commander (3), not Scout (1), so total is 3
-    assert team_data['totals']['hp'] == 3
+    assert team_data["totals"]["hp"] == 3
 
 
 def test_event_scroller_miss_filtering() -> None:
@@ -361,135 +353,135 @@ def test_event_scroller_miss_filtering() -> None:
     from lfdata.video.generator import VisualElementGenerator
 
     game = LFGame(
-        game_id='test_scroller_miss',
+        game_id="test_scroller_miss",
         timestamp=datetime.now(),
-        game_type='SM5',
+        game_type="SM5",
         duration=5000,
     )
     t1 = GameTeam(
-        game_id='test_scroller_miss',
+        game_id="test_scroller_miss",
         team_index=0,
-        desc='Fire Team',
+        desc="Fire Team",
         color_enum=11,
-        color_desc='Fire',
-        color_rgb='#FF5000',
+        color_desc="Fire",
+        color_rgb="#FF5000",
     )
     game.teams = [t1]
 
     p1 = GameEntity(
-        game_id='test_scroller_miss',
-        entity_id='P1',
-        type='player',
-        desc='Player1',
+        game_id="test_scroller_miss",
+        entity_id="P1",
+        type="player",
+        desc="Player1",
         team_index=0,
         level=1,
         category=1,
-        battlesuit='Maverick',
+        battlesuit="Maverick",
     )
     p2 = GameEntity(
-        game_id='test_scroller_miss',
-        entity_id='P2',
-        type='player',
-        desc='Player2',
+        game_id="test_scroller_miss",
+        entity_id="P2",
+        type="player",
+        desc="Player2",
         team_index=0,
         level=1,
         category=3,
-        battlesuit='Interceptor',
+        battlesuit="Interceptor",
     )
     game.entities = [p1, p2]
 
     # Miss event and Zap event
     game.events = [
         GameEvent(
-            game_id='test_scroller_miss',
+            game_id="test_scroller_miss",
             time=0,
-            event_type='0100',
-            action='start',
-            raw_message='',
+            event_type="0100",
+            action="start",
+            raw_message="",
         ),
         GameEvent(
-            game_id='test_scroller_miss',
+            game_id="test_scroller_miss",
             time=1000,
-            event_type='0201',
-            actor_entity_id='P1',
-            action='miss',
-            raw_message='',
+            event_type="0201",
+            actor_entity_id="P1",
+            action="miss",
+            raw_message="",
         ),
         GameEvent(
-            game_id='test_scroller_miss',
+            game_id="test_scroller_miss",
             time=2000,
-            event_type='0203',
-            actor_entity_id='P1',
-            target_entity_id='P2',
-            action='zap',
-            raw_message='',
+            event_type="0203",
+            actor_entity_id="P1",
+            target_entity_id="P2",
+            action="zap",
+            raw_message="",
         ),
     ]
 
-    hud_gen = VisualElementGenerator(game, 'Player1')
+    hud_gen = VisualElementGenerator(game, "Player1")
     elements = hud_gen.generate_at(3000)
 
     scroller_el = next(
-        (el for el in elements if el.element_type == 'event_scroller'), None
+        (el for el in elements if el.element_type == "event_scroller"), None
     )
     assert scroller_el is not None
     events = scroller_el.events_data
     assert events is not None
     # Convert event descriptions to check
-    descriptions = [ev['desc'] for ev in events]
+    descriptions = [ev["desc"] for ev in events]
 
     # Assert that start and zap events are logged, but miss event is not
-    assert '* Mission Start *' in descriptions
-    assert 'Player1 zaps Player2' in descriptions
-    assert not any('misses' in desc for desc in descriptions)
+    assert "* Mission Start *" in descriptions
+    assert "Player1 zaps Player2" in descriptions
+    assert not any("misses" in desc for desc in descriptions)
 
 
 def test_important_events_filtering() -> None:
     game = LFGame(
-        game_id='test_important_filter',
+        game_id="test_important_filter",
         timestamp=datetime.now(),
-        game_type='SM5',
+        game_type="SM5",
         duration=10000,
     )
     t0 = GameTeam(
-        game_id='test_important_filter',
+        game_id="test_important_filter",
         team_index=0,
-        desc='Fire Team',
+        desc="Fire Team",
         color_enum=11,
-        color_desc='Fire',
-        color_rgb='#FF5000',
+        color_desc="Fire",
+        color_rgb="#FF5000",
     )
     t1 = GameTeam(
-        game_id='test_important_filter',
+        game_id="test_important_filter",
         team_index=1,
-        desc='Earth Team',
+        desc="Earth Team",
         color_enum=12,
-        color_desc='Earth',
-        color_rgb='#00FF00',
+        color_desc="Earth",
+        color_rgb="#00FF00",
     )
     game.teams = [t0, t1]
 
     # Medic player on Team 0
     medic = GameEntity(
-        game_id='test_important_filter',
-        entity_id='M0',
-        type='player',
-        desc='MedicPlayer',
+        game_id="test_important_filter",
+        entity_id="M0",
+        type="player",
+        desc="MedicPlayer",
         team_index=0,
         level=1,
         category=5,
-        battlesuit='Maverick',
+        battlesuit="Maverick",
     )
     # Opponent player
     enemy = GameEntity(
-        game_id='test_important_filter',
-        entity_id='E1',
-        type='player',
-        desc='EnemyPlayer',
+        game_id="test_important_filter",
+        entity_id="E1",
+        type="player",
+        desc="EnemyPlayer",
         team_index=1,
         level=1,
         category=3,
-        battlesuit='Maverick',
+        battlesuit="Maverick",
     )
     game.entities = [medic, enemy]
 
@@ -502,59 +494,59 @@ def test_important_events_filtering() -> None:
     # 6. 0405 Nuke Detonate (is_important = True)
     events = [
         GameEvent(
-            game_id='test_important_filter',
+            game_id="test_important_filter",
             time=0,
-            event_type='0100',
-            action='start',
-            raw_message='',
+            event_type="0100",
+            action="start",
+            raw_message="",
         ),
         # Base zap
         GameEvent(
-            game_id='test_important_filter',
+            game_id="test_important_filter",
             time=1000,
-            event_type='0204',
-            actor_entity_id='E1',
-            target_entity_id='B0',
-            action='base_destroy',
-            raw_message='',
+            event_type="0204",
+            actor_entity_id="E1",
+            target_entity_id="B0",
+            action="base_destroy",
+            raw_message="",
         ),
         # Base missile
         GameEvent(
-            game_id='test_important_filter',
+            game_id="test_important_filter",
             time=1500,
-            event_type='0303',
-            actor_entity_id='E1',
-            target_entity_id='B0',
-            action='base_destroy_missile',
-            raw_message='',
+            event_type="0303",
+            actor_entity_id="E1",
+            target_entity_id="B0",
+            action="base_destroy_missile",
+            raw_message="",
         ),
         # Target award
         GameEvent(
-            game_id='test_important_filter',
+            game_id="test_important_filter",
             time=1800,
-            event_type='0B03',
-            actor_entity_id='E1',
-            target_entity_id='B0',
-            action='target_award',
-            raw_message='',
+            event_type="0B03",
+            actor_entity_id="E1",
+            target_entity_id="B0",
+            action="target_award",
+            raw_message="",
         ),
         # Nuke activate
         GameEvent(
-            game_id='test_important_filter',
+            game_id="test_important_filter",
             time=2000,
-            event_type='0404',
-            actor_entity_id='E1',
-            action='nuke_activate',
-            raw_message='',
+            event_type="0404",
+            actor_entity_id="E1",
+            action="nuke_activate",
+            raw_message="",
         ),
         # Nuke detonate
         GameEvent(
-            game_id='test_important_filter',
+            game_id="test_important_filter",
             time=3000,
-            event_type='0405',
-            actor_entity_id='E1',
-            action='nuke_detonate',
-            raw_message='',
+            event_type="0405",
+            actor_entity_id="E1",
+            action="nuke_detonate",
+            raw_message="",
         ),
     ]
 
@@ -564,26 +556,24 @@ def test_important_events_filtering() -> None:
     for i in range(17):
         events.append(
             GameEvent(
-                game_id='test_important_filter',
+                game_id="test_important_filter",
                 time=12000 + i * 9000,
-                event_type='0206',
-                actor_entity_id='E1',
-                target_entity_id='M0',
-                action='zap',
-                raw_message='',
+                event_type="0206",
+                actor_entity_id="E1",
+                target_entity_id="M0",
+                action="zap",
+                raw_message="",
             )
         )
 
     game.events = events
 
-    hud_gen = VisualElementGenerator(game, 'MedicPlayer')
+    hud_gen = VisualElementGenerator(game, "MedicPlayer")
     # Generate at 180000 ms so all events are processed
     hud_gen.generate_at(180000)
 
     # Assert importance based on time
-    time_to_importance = {
-        ev['time']: ev['is_important'] for ev in hud_gen.event_log
-    }
+    time_to_importance = {ev["time"]: ev["is_important"] for ev in hud_gen.event_log}
 
     # Verify that:
     # time 0 (Mission Start) -> False
@@ -601,111 +591,107 @@ def test_important_events_filtering() -> None:
 
     # Check for medic lives checkpoint event (divisible by 5) at 21000 ms
     assert time_to_importance[21000] is True
-    medic_events = [ev for ev in hud_gen.event_log if ev['time'] == 21000]
+    medic_events = [ev for ev in hud_gen.event_log if ev["time"] == 21000]
     medic_event = next(
-        (ev for ev in medic_events if ev['desc'].startswith('Medic')), None
+        (ev for ev in medic_events if ev["desc"].startswith("Medic")), None
     )
     assert medic_event is not None
-    assert medic_event['desc'] == 'Medic MedicPlayer has 15 lives left'
-    assert medic_event['is_important'] is True
+    assert medic_event["desc"] == "Medic MedicPlayer has 15 lives left"
+    assert medic_event["is_important"] is True
 
     # Check for player elimination event at 156000 ms
     assert time_to_importance[156000] is True
 
     # Check that Team Elimination (which happens at 156000 ms) is NOT important
-    events_at_156000 = [ev for ev in hud_gen.event_log if ev['time'] == 156000]
+    events_at_156000 = [ev for ev in hud_gen.event_log if ev["time"] == 156000]
     team_elim_event = next(
-        (
-            ev
-            for ev in events_at_156000
-            if 'Team Fire Team Eliminated' in ev['desc']
-        ),
+        (ev for ev in events_at_156000 if "Team Fire Team Eliminated" in ev["desc"]),
         None,
     )
     assert team_elim_event is not None
-    assert team_elim_event['is_important'] is False
+    assert team_elim_event["is_important"] is False
 
 
 def test_camera_shake_triggering() -> None:
     game = LFGame(
-        game_id='test_shake_game',
+        game_id="test_shake_game",
         timestamp=datetime.now(),
-        game_type='SM5',
+        game_type="SM5",
         duration=10000,
     )
     t0 = GameTeam(
-        game_id='test_shake_game',
+        game_id="test_shake_game",
         team_index=0,
-        desc='Fire Team',
+        desc="Fire Team",
         color_enum=11,
-        color_rgb='#FF5000',
+        color_rgb="#FF5000",
     )
     t1 = GameTeam(
-        game_id='test_shake_game',
+        game_id="test_shake_game",
         team_index=1,
-        desc='Earth Team',
+        desc="Earth Team",
         color_enum=12,
-        color_desc='Earth',
-        color_rgb='#00FF00',
+        color_desc="Earth",
+        color_rgb="#00FF00",
     )
     game.teams = [t0, t1]
 
     medic = GameEntity(
-        game_id='test_shake_game',
-        entity_id='M0',
-        type='player',
-        desc='MedicPlayer',
+        game_id="test_shake_game",
+        entity_id="M0",
+        type="player",
+        desc="MedicPlayer",
         team_index=0,
         level=1,
         category=5,
-        battlesuit='Maverick',
+        battlesuit="Maverick",
     )
     enemy_cmd = GameEntity(
-        game_id='test_shake_game',
-        entity_id='E1',
-        type='player',
-        desc='EnemyCommander',
+        game_id="test_shake_game",
+        entity_id="E1",
+        type="player",
+        desc="EnemyCommander",
         team_index=1,
         level=1,
         category=1,
-        battlesuit='Maverick',
+        battlesuit="Maverick",
     )
     game.entities = [medic, enemy_cmd]
 
     game.events = [
         GameEvent(
-            game_id='test_shake_game',
+            game_id="test_shake_game",
             time=1000,
-            event_type='0306',
-            actor_entity_id='E1',
-            target_entity_id='M0',
-            action='missile',
-            raw_message='',
+            event_type="0306",
+            actor_entity_id="E1",
+            target_entity_id="M0",
+            action="missile",
+            raw_message="",
         ),
         GameEvent(
-            game_id='test_shake_game',
+            game_id="test_shake_game",
             time=3000,
-            event_type='0405',
-            actor_entity_id='E1',
-            action='nuke_detonate',
-            raw_message='',
+            event_type="0405",
+            actor_entity_id="E1",
+            action="nuke_detonate",
+            raw_message="",
         ),
     ]
 
-    hud_gen = VisualElementGenerator(game, 'MedicPlayer')
+    hud_gen = VisualElementGenerator(game, "MedicPlayer")
 
     # Verify camera shakes were precomputed
     assert len(hud_gen.camera_shakes) == 2
 
     shake1 = hud_gen.camera_shakes[0]
-    assert shake1['start_ms'] == 1000
-    assert shake1['duration_ms'] == 500
-    assert shake1['strength'] == 0.01
+    assert shake1["start_ms"] == 1000
+    assert shake1["duration_ms"] == 500
+    assert shake1["strength"] == 0.01
 
     shake2 = hud_gen.camera_shakes[1]
-    assert shake2['start_ms'] == 3000
-    assert shake2['duration_ms'] == 1000
-    assert shake2['strength'] == 0.03
+    assert shake2["start_ms"] == 3000
+    assert shake2["duration_ms"] == 1000
+    assert shake2["strength"] == 0.03
 
     # Generate at 1250 ms (middle of shake 1: strength should be 0.005)
     elements = hud_gen.generate_at(1250)
@@ -715,7 +701,7 @@ def test_camera_shake_triggering() -> None:
         (
             el
             for el in elements
-            if el.element_type == 'text' and el.text and 'Game Type' in el.text
+            if el.element_type == "text" and el.text and "Game Type" in el.text
         ),
         None,
     )
@@ -723,7 +709,7 @@ def test_camera_shake_triggering() -> None:
         (
             el
             for el in elements
-            if el.element_type == 'text' and el.text == 'MedicPlayer'
+            if el.element_type == "text" and el.text == "MedicPlayer"
         ),
         None,
     )
@@ -753,7 +739,7 @@ def test_camera_shake_triggering() -> None:
         (
             el
             for el in elements_idle
-            if el.element_type == 'text' and el.text and 'Game Type' in el.text
+            if el.element_type == "text" and el.text and "Game Type" in el.text
         ),
         None,
     )
@@ -768,19 +754,19 @@ def test_multiline_text_slot_allocation() -> None:
 
     # 1. Create a game with team and entities
     game = LFGame(
-        game_id='test_multiline_game',
+        game_id="test_multiline_game",
         timestamp=datetime.now(),
-        game_type='SM5',
+        game_type="SM5",
         duration=15000,
     )
-    hud_gen = VisualElementGenerator(game, 'Player1')
+    hud_gen = VisualElementGenerator(game, "Player1")
 
     # Directly populate player_event_log to test simulation behavior
     hud_gen.player_event_log = [
-        {'time': 1000, 'desc': 'event 1'},  # Expires at 4000
-        {'time': 3000, 'desc': 'event 2'},  # Expires at 6000
-        {'time': 5000, 'desc': 'event 3'},  # Expires at 8000
-        {'time': 7000, 'desc': 'event 4'},  # Expires at 10000
+        {"time": 1000, "desc": "event 1"},  # Expires at 4000
+        {"time": 3000, "desc": "event 2"},  # Expires at 6000
+        {"time": 5000, "desc": "event 3"},  # Expires at 8000
+        {"time": 7000, "desc": "event 4"},  # Expires at 10000
     ]
 
     # Test slot allocation logic at different times:
@@ -790,7 +776,7 @@ def test_multiline_text_slot_allocation() -> None:
         time_ms=2000,
         fade_time_ms=3000,
     )
-    assert slots_2000[0] is not None and slots_2000[0]['text'] == 'event 1'
+    assert slots_2000[0] is not None and slots_2000[0]["text"] == "event 1"
     assert slots_2000[1] is None
     assert slots_2000[2] is None
 
@@ -800,8 +786,8 @@ def test_multiline_text_slot_allocation() -> None:
         time_ms=3500,
         fade_time_ms=3000,
     )
-    assert slots_3500[0] is not None and slots_3500[0]['text'] == 'event 1'
-    assert slots_3500[1] is not None and slots_3500[1]['text'] == 'event 2'
+    assert slots_3500[0] is not None and slots_3500[0]["text"] == "event 1"
+    assert slots_3500[1] is not None and slots_3500[1]["text"] == "event 2"
     assert slots_3500[2] is None
 
     # At t=5500: event 2 active in Slot 1, event 3 goes to Slot 0
@@ -810,8 +796,8 @@ def test_multiline_text_slot_allocation() -> None:
         time_ms=5500,
         fade_time_ms=3000,
     )
-    assert slots_5500[0] is not None and slots_5500[0]['text'] == 'event 3'
-    assert slots_5500[1] is not None and slots_5500[1]['text'] == 'event 2'
+    assert slots_5500[0] is not None and slots_5500[0]["text"] == "event 3"
+    assert slots_5500[1] is not None and slots_5500[1]["text"] == "event 2"
     assert slots_5500[2] is None
 
     # At t=7500: event 3 in Slot 0, event 4 goes to Slot 1
@@ -820,25 +806,25 @@ def test_multiline_text_slot_allocation() -> None:
         time_ms=7500,
         fade_time_ms=3000,
     )
-    assert slots_7500[0] is not None and slots_7500[0]['text'] == 'event 3'
-    assert slots_7500[1] is not None and slots_7500[1]['text'] == 'event 4'
+    assert slots_7500[0] is not None and slots_7500[0]["text"] == "event 3"
+    assert slots_7500[1] is not None and slots_7500[1]["text"] == "event 4"
     assert slots_7500[2] is None
 
     # 2. Test nuke dynamic durations
     # Nuke activates at 2000, cancels/detonates at 8000
     hud_gen.nuke_intervals = [
-        LFNukeInterval(start_ms=2000, end_ms=8000, nuker_name='CommanderA'),
+        LFNukeInterval(start_ms=2000, end_ms=8000, nuker_name="CommanderA"),
     ]
     hud_gen.event_log = [
         {
-            'time': 2000,
-            'desc': 'CommanderA activates nuke',
-            'is_important': True,
+            "time": 2000,
+            "desc": "CommanderA activates nuke",
+            "is_important": True,
         },
         {
-            'time': 8000,
-            'desc': 'CommanderA detonates nuke',
-            'is_important': True,
+            "time": 8000,
+            "desc": "CommanderA detonates nuke",
+            "is_important": True,
         },
     ]
 
@@ -850,9 +836,9 @@ def test_multiline_text_slot_allocation() -> None:
         is_game_events=True,
     )
     assert slots_5000[0] is not None
-    assert 'activates nuke' in slots_5000[0]['text']
-    assert slots_5000[0]['duration'] == 6000
-    assert slots_5000[0]['is_nuke_act'] is True
+    assert "activates nuke" in slots_5000[0]["text"]
+    assert slots_5000[0]["duration"] == 6000
+    assert slots_5000[0]["is_nuke_act"] is True
 
     # At t=9000: 'activates nuke' expired, 'detonates nuke' active in Slot 0
     slots_9000 = hud_gen._get_active_multiline_lines(
@@ -862,17 +848,17 @@ def test_multiline_text_slot_allocation() -> None:
         is_game_events=True,
     )
     assert slots_9000[0] is not None
-    assert 'detonates nuke' in slots_9000[0]['text']
-    assert slots_9000[0]['duration'] == 5000
-    assert slots_9000[0]['is_nuke_act'] is False
+    assert "detonates nuke" in slots_9000[0]["text"]
+    assert slots_9000[0]["duration"] == 5000
+    assert slots_9000[0]["is_nuke_act"] is False
 
     # 3. Test multi-line text vertical offsets on UIElement list
     game.teams = []
     game.entities = []
-    hud_gen.entity_id = 'P1'
+    hud_gen.entity_id = "P1"
     hud_gen.player_event_log = [
-        {'time': 1000, 'desc': 'event 1'},
-        {'time': 2000, 'desc': 'event 2'},
+        {"time": 1000, "desc": "event 1"},
+        {"time": 2000, "desc": "event 2"},
     ]
     hud_gen._get_state_at = lambda t: ({}, {})
 
@@ -880,12 +866,12 @@ def test_multiline_text_slot_allocation() -> None:
     pe_elements = [
         el
         for el in elements
-        if el.element_type == 'text' and el.text in ('event 1', 'event 2')
+        if el.element_type == "text" and el.text in ("event 1", "event 2")
     ]
     assert len(pe_elements) == 2
 
-    pe1 = next(el for el in pe_elements if el.text == 'event 1')
-    pe2 = next(el for el in pe_elements if el.text == 'event 2')
+    pe1 = next(el for el in pe_elements if el.text == "event 1")
+    pe2 = next(el for el in pe_elements if el.text == "event 2")
 
     # default player_events y = 0.18, font size = 18.
     # line_height = (18 * 1.3) / 800 = 0.02925
@@ -901,66 +887,62 @@ def test_indicator_interval_configuration() -> None:
     from lfdata.replay.state import LFReplayPlayerState
 
     game = LFGame(
-        game_id='test_indicator_game',
+        game_id="test_indicator_game",
         timestamp=datetime.now(),
-        game_type='SM5',
+        game_type="SM5",
     )
     # 1. Test helper parsing
-    gen = VisualElementGenerator(game, 'Player1')
+    gen = VisualElementGenerator(game, "Player1")
     assert gen._parse_indicator_interval(20) == 20
-    assert gen._parse_indicator_interval('every 20') == 20
-    assert gen._parse_indicator_interval('every 15') == 15
-    assert gen._parse_indicator_interval('None') is None
-    assert gen._parse_indicator_interval('none') is None
+    assert gen._parse_indicator_interval("every 20") == 20
+    assert gen._parse_indicator_interval("every 15") == 15
+    assert gen._parse_indicator_interval("None") is None
+    assert gen._parse_indicator_interval("none") is None
     assert gen._parse_indicator_interval(None) is None
     assert gen._parse_indicator_interval(0) is None
     assert gen._parse_indicator_interval(-5) is None
 
     # 2. Test default rules for role-based counters
-    p_state = LFReplayPlayerState('P1', LFRole.COMMANDER, 0)
+    p_state = LFReplayPlayerState("P1", LFRole.COMMANDER, 0)
     elements = []
     gen._add_player_stats_hud_elements(elements, p_state)
-    counters = {el.icon: el for el in elements if el.element_type == 'counter'}
-    assert counters['missiles'].indicator_interval == 1
-    assert counters['shields'].indicator_interval == 1
-    assert counters['sp'].indicator_interval == 20
+    counters = {el.icon: el for el in elements if el.element_type == "counter"}
+    assert counters["missiles"].indicator_interval == 1
+    assert counters["shields"].indicator_interval == 1
+    assert counters["sp"].indicator_interval == 20
 
     # Medic
-    p_medic = LFReplayPlayerState('P2', LFRole.MEDIC, 0)
+    p_medic = LFReplayPlayerState("P2", LFRole.MEDIC, 0)
     elements_med = []
     gen._add_player_stats_hud_elements(elements_med, p_medic)
-    counters_med = {
-        el.icon: el for el in elements_med if el.element_type == 'counter'
-    }
-    assert counters_med['sp'].indicator_interval == 10
+    counters_med = {el.icon: el for el in elements_med if el.element_type == "counter"}
+    assert counters_med["sp"].indicator_interval == 10
 
     # Scout
-    p_scout = LFReplayPlayerState('P3', LFRole.SCOUT, 0)
+    p_scout = LFReplayPlayerState("P3", LFRole.SCOUT, 0)
     elements_sct = []
     gen._add_player_stats_hud_elements(elements_sct, p_scout)
-    counters_sct = {
-        el.icon: el for el in elements_sct if el.element_type == 'counter'
-    }
-    assert counters_sct['sp'].indicator_interval == 15
+    counters_sct = {el.icon: el for el in elements_sct if el.element_type == "counter"}
+    assert counters_sct["sp"].indicator_interval == 15
 
     # 3. Test configuration overrides
     gen_override = VisualElementGenerator(
         game,
-        'Player1',
+        "Player1",
         config={
-            'elements': {
-                'player_special_points': {'indicator_interval': 5},
-                'player_missiles': {'indicator_interval': 'every 2'},
+            "elements": {
+                "player_special_points": {"indicator_interval": 5},
+                "player_missiles": {"indicator_interval": "every 2"},
             }
         },
     )
     elements_over = []
     gen_override._add_player_stats_hud_elements(elements_over, p_state)
     counters_over = {
-        el.icon: el for el in elements_over if el.element_type == 'counter'
+        el.icon: el for el in elements_over if el.element_type == "counter"
     }
-    assert counters_over['sp'].indicator_interval == 5
-    assert counters_over['missiles'].indicator_interval == 2
+    assert counters_over["sp"].indicator_interval == 5
+    assert counters_over["missiles"].indicator_interval == 2
 
 
 def test_double_resupply_in_place_replacement() -> None:
@@ -970,13 +952,13 @@ def test_double_resupply_in_place_replacement() -> None:
     from lfdata.video import VisualElementGenerator
 
     game = LFGame(
-        game_id='test_double_resup_game',
+        game_id="test_double_resup_game",
         timestamp=datetime.now(),
-        game_type='SM5',
+        game_type="SM5",
     )
-    gen = VisualElementGenerator(game, 'Player1')
-    gen.entity_id = 'P1'
-    gen.entity_names = {'P1': 'Player1', 'A1': 'AmmoX', 'M1': 'MedicY'}
+    gen = VisualElementGenerator(game, "Player1")
+    gen.entity_id = "P1"
+    gen.entity_names = {"P1": "Player1", "A1": "AmmoX", "M1": "MedicY"}
     from unittest.mock import MagicMock
 
     mock_replay = MagicMock()
@@ -988,38 +970,35 @@ def test_double_resupply_in_place_replacement() -> None:
 
     # 1. Simulate single ammo resupply at 1000ms
     ev1 = GameEvent(
-        game_id='test_double_resup_game',
+        game_id="test_double_resup_game",
         time=1000,
-        event_type='0500',
-        actor_entity_id='A1',
-        target_entity_id='P1',
+        event_type="0500",
+        actor_entity_id="A1",
+        target_entity_id="P1",
     )
-    gen._process_hud_event_triggers(ev1, mock_replay, '')
+    gen._process_hud_event_triggers(ev1, mock_replay, "")
 
     assert len(gen.player_event_log) == 1
-    assert gen.player_event_log[0]['desc'] == 'Resupplied shots by AmmoX'
-    assert gen.player_event_log[0]['time'] == 1000
+    assert gen.player_event_log[0]["desc"] == "Resupplied shots by AmmoX"
+    assert gen.player_event_log[0]["time"] == 1000
 
     # 2. Simulate medic resupply at 1500ms (within 1000ms, triggering double-resupply)
     ev2 = GameEvent(
-        game_id='test_double_resup_game',
+        game_id="test_double_resup_game",
         time=1500,
-        event_type='0502',
-        actor_entity_id='M1',
-        target_entity_id='P1',
+        event_type="0502",
+        actor_entity_id="M1",
+        target_entity_id="P1",
     )
-    gen._process_hud_event_triggers(ev2, mock_replay, '')
+    gen._process_hud_event_triggers(ev2, mock_replay, "")
 
     # Verifies that it replaced in-place and NO new event was appended
     assert len(gen.player_event_log) == 1
     event_entry = gen.player_event_log[0]
-    assert event_entry['time'] == 1000
-    assert event_entry['desc'] == 'Resupplied shots by AmmoX'
-    assert (
-        event_entry['double_resup_desc']
-        == 'Double-resupply by AmmoX and MedicY'
-    )
-    assert event_entry['double_resup_time'] == 1500
+    assert event_entry["time"] == 1000
+    assert event_entry["desc"] == "Resupplied shots by AmmoX"
+    assert event_entry["double_resup_desc"] == "Double-resupply by AmmoX and MedicY"
+    assert event_entry["double_resup_time"] == 1500
 
     # 3. Verify multiline slot allocation resolves correctly at different times
     # At t = 1200ms: should show original single resupply text
@@ -1029,7 +1008,7 @@ def test_double_resupply_in_place_replacement() -> None:
         fade_time_ms=3000,
     )
     assert slots_1200[0] is not None
-    assert slots_1200[0]['text'] == 'Resupplied shots by AmmoX'
+    assert slots_1200[0]["text"] == "Resupplied shots by AmmoX"
 
     # At t = 1600ms: should show double resupply text
     slots_1600 = gen._get_active_multiline_lines(
@@ -1038,7 +1017,7 @@ def test_double_resupply_in_place_replacement() -> None:
         fade_time_ms=3000,
     )
     assert slots_1600[0] is not None
-    assert slots_1600[0]['text'] == 'Double-resupply by AmmoX and MedicY'
+    assert slots_1600[0]["text"] == "Double-resupply by AmmoX and MedicY"
 
 
 def test_new_ui_elements_and_custom_fields() -> None:
@@ -1049,12 +1028,12 @@ def test_new_ui_elements_and_custom_fields() -> None:
     # 1. Create a game with a known timestamp
     dt = datetime(2024, 1, 14, 20, 57, 10)
     game = LFGame(
-        game_id='test_ui_game',
+        game_id="test_ui_game",
         timestamp=dt,
-        game_type='SM5',
-        start='20240114205710',
-        centre='4-43',
-        arena_name='Invasion',
+        game_type="SM5",
+        start="20240114205710",
+        centre="4-43",
+        arena_name="Invasion",
     )
 
     # 2. Test default settings (date_of_game enabled, user defined disabled)
@@ -1066,44 +1045,40 @@ def test_new_ui_elements_and_custom_fields() -> None:
         (
             el
             for el in elements
-            if el.element_type == 'text' and el.text and '1/14/24' in el.text
+            if el.element_type == "text" and el.text and "1/14/24" in el.text
         ),
         None,
     )
     assert date_el is not None
-    assert date_el.align == 'right'
+    assert date_el.align == "right"
     assert date_el.x == 0.98
     assert date_el.y == 0.92
     assert date_el.style.size == 18
 
     # Ensure user defined texts are not in elements by default
-    user1_el = next(
-        (el for el in elements if el.text == 'Custom Banner 1'), None
-    )
+    user1_el = next((el for el in elements if el.text == "Custom Banner 1"), None)
     assert user1_el is None
-    user2_el = next(
-        (el for el in elements if el.text == 'Custom Banner 2'), None
-    )
+    user2_el = next((el for el in elements if el.text == "Custom Banner 2"), None)
     assert user2_el is None
-    centre_el = next((el for el in elements if el.text == 'Invasion'), None)
+    centre_el = next((el for el in elements if el.text == "Invasion"), None)
     assert centre_el is None
 
     # 3. Test config overrides: custom format for date, and enable user texts
     config = {
-        'elements': {
-            'date_of_game': {
-                'format': '%Y/%m/%d',
+        "elements": {
+            "date_of_game": {
+                "format": "%Y/%m/%d",
             },
-            'user_defined_text_1': {
-                'enabled': True,
-                'text': 'Custom Banner 1',
+            "user_defined_text_1": {
+                "enabled": True,
+                "text": "Custom Banner 1",
             },
-            'user_defined_text_2': {
-                'enabled': True,
-                'text': 'Custom Banner 2',
+            "user_defined_text_2": {
+                "enabled": True,
+                "text": "Custom Banner 2",
             },
-            'centre_name': {
-                'enabled': True,
+            "centre_name": {
+                "enabled": True,
             },
         }
     }
@@ -1115,7 +1090,7 @@ def test_new_ui_elements_and_custom_fields() -> None:
         (
             el
             for el in elements_over
-            if el.element_type == 'text' and el.text == '2024/01/14'
+            if el.element_type == "text" and el.text == "2024/01/14"
         ),
         None,
     )
@@ -1126,12 +1101,12 @@ def test_new_ui_elements_and_custom_fields() -> None:
         (
             el
             for el in elements_over
-            if el.element_type == 'text' and el.text == 'Custom Banner 1'
+            if el.element_type == "text" and el.text == "Custom Banner 1"
         ),
         None,
     )
     assert user1_el_over is not None
-    assert user1_el_over.align == 'left'
+    assert user1_el_over.align == "left"
     assert user1_el_over.x == 0.1
     assert user1_el_over.y == 0.6
     assert user1_el_over.style.size == 20
@@ -1141,12 +1116,12 @@ def test_new_ui_elements_and_custom_fields() -> None:
         (
             el
             for el in elements_over
-            if el.element_type == 'text' and el.text == 'Custom Banner 2'
+            if el.element_type == "text" and el.text == "Custom Banner 2"
         ),
         None,
     )
     assert user2_el_over is not None
-    assert user2_el_over.align == 'left'
+    assert user2_el_over.align == "left"
     assert user2_el_over.x == 0.1
     assert user2_el_over.y == 0.7
     assert user2_el_over.style.size == 20
@@ -1156,12 +1131,12 @@ def test_new_ui_elements_and_custom_fields() -> None:
         (
             el
             for el in elements_over
-            if el.element_type == 'text' and el.text == 'Invasion'
+            if el.element_type == "text" and el.text == "Invasion"
         ),
         None,
     )
     assert centre_el_over is not None
-    assert centre_el_over.align == 'left'
+    assert centre_el_over.align == "left"
     assert centre_el_over.x == 0.1
     assert centre_el_over.y == 0.8
     assert centre_el_over.style.size == 20
@@ -1173,37 +1148,37 @@ def test_player_name_normalization_matching() -> None:
     from lfdata.video import VisualElementGenerator
 
     game = LFGame(
-        game_id='test_norm_game',
+        game_id="test_norm_game",
         timestamp=datetime.now(),
-        game_type='SM5',
+        game_type="SM5",
     )
     p = GameEntity(
-        game_id='test_norm_game',
-        entity_id='P123',
-        type='player',
-        desc=' anchovy!',
+        game_id="test_norm_game",
+        entity_id="P123",
+        type="player",
+        desc=" anchovy!",
         team_index=0,
         level=1,
         category=1,
-        battlesuit='Maverick',
+        battlesuit="Maverick",
     )
     game.entities = [p]
 
-    gen1 = VisualElementGenerator(game, ' anchovy!')
-    assert gen1.entity_id == 'P123'
-    assert gen1.player_name == ' anchovy!'
+    gen1 = VisualElementGenerator(game, " anchovy!")
+    assert gen1.entity_id == "P123"
+    assert gen1.player_name == " anchovy!"
 
-    gen2 = VisualElementGenerator(game, 'anchovy')
-    assert gen2.entity_id == 'P123'
-    assert gen2.player_name == ' anchovy!'
+    gen2 = VisualElementGenerator(game, "anchovy")
+    assert gen2.entity_id == "P123"
+    assert gen2.player_name == " anchovy!"
 
-    gen3 = VisualElementGenerator(game, ' &nbsp;anchovy!')
-    assert gen3.entity_id == 'P123'
-    assert gen3.player_name == ' anchovy!'
+    gen3 = VisualElementGenerator(game, " &nbsp;anchovy!")
+    assert gen3.entity_id == "P123"
+    assert gen3.player_name == " anchovy!"
 
-    gen4 = VisualElementGenerator(game, 'sardine')
+    gen4 = VisualElementGenerator(game, "sardine")
     assert gen4.entity_id is None
-    assert gen4.player_name == 'sardine'
+    assert gen4.player_name == "sardine"
 
 
 def test_normalized_game_type_element() -> None:
@@ -1213,9 +1188,9 @@ def test_normalized_game_type_element() -> None:
 
     # 1. Default config: normalized_game_type is disabled
     game = LFGame(
-        game_id='test_norm_ui',
+        game_id="test_norm_ui",
         timestamp=datetime.now(),
-        game_type='Space Marines 5 Tournament Edition',
+        game_type="Space Marines 5 Tournament Edition",
     )
     gen_default = VisualElementGenerator(game, None)
     elements_default = gen_default.generate_at(1000)
@@ -1224,14 +1199,14 @@ def test_normalized_game_type_element() -> None:
         (
             el
             for el in elements_default
-            if el.element_type == 'text' and el.text == 'Game Type: SM5'
+            if el.element_type == "text" and el.text == "Game Type: SM5"
         ),
         None,
     )
     assert norm_el_default is None
 
     # 2. Custom config: enable normalized_game_type
-    config = {'elements': {'normalized_game_type': {'enabled': True}}}
+    config = {"elements": {"normalized_game_type": {"enabled": True}}}
     gen_enabled = VisualElementGenerator(game, None, config=config)
     elements_enabled = gen_enabled.generate_at(1000)
 
@@ -1239,12 +1214,121 @@ def test_normalized_game_type_element() -> None:
         (
             el
             for el in elements_enabled
-            if el.element_type == 'text' and el.text == 'Game Type: SM5'
+            if el.element_type == "text" and el.text == "Game Type: SM5"
         ),
         None,
     )
     assert norm_el_enabled is not None
-    assert norm_el_enabled.align == 'right'
+    assert norm_el_enabled.align == "right"
     assert norm_el_enabled.x == 0.98
     assert norm_el_enabled.y == 0.96
     assert norm_el_enabled.style.size == 14
+
+
+def test_jinja_rendering_and_caching() -> None:
+    from datetime import datetime
+    from lfdata.model import LFGame, GameEntity
+    from lfdata.video.generator import VisualElementGenerator
+
+    # 1. Create a game and commander player entity to test player stats variables
+    dt = datetime(2026, 6, 9, 20, 0, 0)
+    game = LFGame(
+        game_id="test_jinja_game",
+        timestamp=dt,
+        game_type="SM5",
+        start="20260609200000",
+        centre="4-43",
+        arena_name="Invasion",
+    )
+    p = GameEntity(
+        game_id="test_jinja_game",
+        entity_id="P1",
+        type="player",
+        desc="CommanderA",
+        team_index=0,
+        level=1,
+        category=1,  # Commander
+        battlesuit="Maverick",
+    )
+    game.entities = [p]
+
+    # Create dummy snapshot for player stats
+    hud_gen = VisualElementGenerator(game, "CommanderA")
+    from unittest.mock import MagicMock
+
+    mock_player_state = MagicMock()
+    mock_player_state.entity_id = "P1"
+    mock_player_state.score = 500
+    mock_player_state.lives = 15
+    mock_player_state.shots = 30
+    mock_player_state.missiles = 5
+    mock_player_state.special_points = 20
+    mock_player_state.hp = 3
+    mock_player_state.max_hp = 3
+    mock_player_state.role.display_name = "Commander"
+    mock_player_state.role.max_lives = 30
+    mock_player_state.role.max_shots = 60
+    mock_player_state.role.start_missiles = 5
+    mock_player_state.is_down.return_value = False
+    mock_player_state.is_eliminated.return_value = False
+
+    # Mock _get_state_at to return our mocked state
+    hud_gen._get_state_at = lambda t: ({"P1": mock_player_state}, {})
+
+    # Generate at 1000ms
+    elements = hud_gen.generate_at(1000)
+
+    # 2. Check that variables blob is populated correctly
+    # game_type should be f'Game Type: {self.game.game_type}'
+    assert hud_gen.current_variables["game_type"] == "Game Type: SM5"
+    assert hud_gen.current_variables["centre_name"] == "Invasion"
+    assert hud_gen.current_variables["player_name"] == "CommanderA"
+    assert hud_gen.current_variables["player_role"] == "Commander"
+    assert hud_gen.current_variables["player_score"] == "500"
+    assert hud_gen.current_variables["time"] == "00:01"
+
+    # Check default template rendering: el_game_type should show 'Game Type: SM5'
+    el_gt = next(el for el in elements if el.formatted_text == "{{ game_type }}")
+    assert el_gt.text == "Game Type: SM5"
+
+    # 3. Test custom formatted_text configuration
+    config = {
+        "elements": {
+            "player_name": {
+                "enabled": True,
+                "formatted_text": "Name: {{ player_name }} ({{ player_role }})",
+            },
+            "player_score": {
+                "enabled": True,
+                "formatted_text": "PTS: {{ player_score }}",
+            },
+        }
+    }
+    hud_gen_custom = VisualElementGenerator(game, "CommanderA", config=config)
+    hud_gen_custom._get_state_at = lambda t: ({"P1": mock_player_state}, {})
+
+    elements_custom = hud_gen_custom.generate_at(2000)
+    el_name = next(
+        el
+        for el in elements_custom
+        if el.formatted_text == "Name: {{ player_name }} ({{ player_role }})"
+    )
+    assert el_name.text == "Name: CommanderA (Commander)"
+
+    el_score = next(
+        el for el in elements_custom if el.formatted_text == "PTS: {{ player_score }}"
+    )
+    assert el_score.text == "PTS: 500"
+
+    # 4. Verify caching behavior
+    # Render same template and check that we hit the cache
+    initial_cache_len = len(hud_gen_custom._jinja_cache)
+    assert initial_cache_len > 0
+
+    # Call _render_jinja_text directly and verify cache hit (cache size should not grow)
+    res1 = hud_gen_custom._render_jinja_text(
+        "PTS: {{ player_score }}",
+        hud_gen_custom.current_variables,
+    )
+    assert res1 == "PTS: 500"
+    assert len(hud_gen_custom._jinja_cache) == initial_cache_len
