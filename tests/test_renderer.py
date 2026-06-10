@@ -1484,3 +1484,50 @@ def test_scoreboard_penalties_rendering() -> None:
         call for call in mock_draw.text.call_args_list if 'x5' in call[0][1]
     ]
     assert len(x5_calls) == 1
+
+
+def test_embedded_images_rendering(tmp_path) -> None:
+    """Tests that images embedded via [img:...] tag are rendered correctly."""
+    from pathlib import Path
+    from PIL import Image
+    from lfdata.video.element import UIElement, UIElementStyle
+    from lfdata.video.renderer import VideoGenerator
+
+    # Create a dummy image in assets folder
+    asset_dir = Path('assets')
+    asset_dir.mkdir(exist_ok=True)
+    dummy_asset = asset_dir / 'test_logo.png'
+    img_logo = Image.new('RGBA', (20, 10), '#FF0000')
+    img_logo.save(dummy_asset)
+
+    try:
+        game = LFGame(game_id='test_embedded_img', game_type='SM5')
+        vg = VideoGenerator(game)
+
+        img = Image.new('RGBA', (800, 600), (0, 0, 0, 0))
+        # Text element containing an embedded image tag
+        el = UIElement(
+            element_type='text',
+            x=0.5,
+            y=0.5,
+            text='Score: [img:test_logo.png] 100',
+            style=UIElementStyle(size=20, color='#ffffffff'),
+        )
+
+        # Draw the text element
+        vg._draw_text_elements(img, [el], {})
+
+        # Test fallback for missing image
+        el_fallback = UIElement(
+            element_type='text',
+            x=0.5,
+            y=0.6,
+            text='Missing: [img:missing_logo.png]',
+            style=UIElementStyle(size=20, color='#ffffffff'),
+        )
+        vg._draw_text_elements(img, [el_fallback], {})
+
+    finally:
+        # Cleanup dummy asset
+        if dummy_asset.exists():
+            dummy_asset.unlink()

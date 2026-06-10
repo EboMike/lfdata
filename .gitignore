@@ -109,6 +109,7 @@ system_env/
 # Project specific
 *.tdf
 !assets/sm5_sanitized.tdf
+assets/discord.png
 *.mp4
 *.avi
 *.mkv

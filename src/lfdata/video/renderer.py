@@ -3,6 +3,7 @@
 import colorsys
 import os
 from pathlib import Path
+import re
 import subprocess
 import tempfile
 import threading
@@ -21,6 +22,8 @@ from lfdata.video.helpers import (
     hex_to_rgb,
     parse_color_with_alpha,
 )
+
+IMAGE_TAG_PATTERN = re.compile(r'\[img:([^\]]+)\]')
 
 _local_vg: 'VideoGenerator | None' = None
 _local_hud_gen: VisualElementGenerator | None = None
@@ -2035,33 +2038,122 @@ class VideoGenerator:
                 padding = max(1, int(height * 4 / 800))
                 margin = stroke_width + padding
 
+                # Parse text into segments of text and images
+                parts = IMAGE_TAG_PATTERN.split(el.text)
+                segments = []
+                for idx, part in enumerate(parts):
+                    if idx % 2 == 1:
+                        segments.append(
+                            {
+                                'type': 'image',
+                                'path': Path('assets') / part,
+                                'name': part,
+                            }
+                        )
+                    else:
+                        if part:
+                            segments.append(
+                                {
+                                    'type': 'text',
+                                    'text': part,
+                                }
+                            )
+
+                # Measure dimensions of segments using a temp image
                 temp_img = Image.new('RGBA', (1, 1), (0, 0, 0, 0))
                 try:
                     temp_draw = ImageDraw.Draw(temp_img)
-                    bbox = temp_draw.textbbox(
-                        (0, 0), el.text, font=font, anchor=anchor
-                    )
+                    resolved_segments = []
+                    total_width = 0.0
+                    min_y = 0.0
+                    max_y = float(pixel_size)
+
+                    for seg in segments:
+                        if seg['type'] == 'text':
+                            t_str = seg['text']
+                            w = temp_draw.textlength(t_str, font=font)
+                            t_bbox = temp_draw.textbbox(
+                                (0, 0), t_str, font=font, anchor='la'
+                            )
+                            t_h = t_bbox[3] - t_bbox[1]
+                            resolved_segments.append(
+                                {
+                                    'type': 'text',
+                                    'text': t_str,
+                                    'width': w,
+                                    'height': t_h,
+                                    'bbox': t_bbox,
+                                }
+                            )
+                            total_width += w
+                            if t_bbox[1] < min_y:
+                                min_y = t_bbox[1]
+                            if t_bbox[3] > max_y:
+                                max_y = t_bbox[3]
+                        elif seg['type'] == 'image':
+                            img_path = seg['path']
+                            if img_path.exists():
+                                try:
+                                    with Image.open(img_path) as raw_seg_img:
+                                        img_w, img_h = raw_seg_img.size
+                                        aspect = img_w / img_h
+                                        w = pixel_size * aspect
+                                        resolved_segments.append(
+                                            {
+                                                'type': 'image',
+                                                'path': img_path,
+                                                'width': w,
+                                                'height': pixel_size,
+                                            }
+                                        )
+                                        total_width += w
+                                except Exception as e:
+                                    print(
+                                        f'Warning: failed to open image segment {img_path}: {e}'
+                                    )
+                            else:
+                                # Fallback if image file doesn't exist
+                                fallback_text = f'[img:{seg["name"]}]'
+                                w = temp_draw.textlength(
+                                    fallback_text, font=font
+                                )
+                                t_bbox = temp_draw.textbbox(
+                                    (0, 0),
+                                    fallback_text,
+                                    font=font,
+                                    anchor='la',
+                                )
+                                t_h = t_bbox[3] - t_bbox[1]
+                                resolved_segments.append(
+                                    {
+                                        'type': 'text',
+                                        'text': fallback_text,
+                                        'width': w,
+                                        'height': t_h,
+                                        'bbox': t_bbox,
+                                    }
+                                )
+                                total_width += w
+                                if t_bbox[1] < min_y:
+                                    min_y = t_bbox[1]
+                                if t_bbox[3] > max_y:
+                                    max_y = t_bbox[3]
                 finally:
                     temp_img.close()
 
-                bbox_w = bbox[2] - bbox[0]
-                bbox_h = bbox[3] - bbox[1]
-
-                img_w = bbox_w + 2 * margin
-                img_h = bbox_h + 2 * margin
+                img_w = int(total_width + 2 * margin)
+                img_h = int((max_y - min_y) + 2 * margin)
 
                 small_img = Image.new('RGBA', (img_w, img_h), (0, 0, 0, 0))
                 draw = ImageDraw.Draw(small_img)
 
-                draw_x = margin - bbox[0]
-                draw_y = margin - bbox[1]
-
+                # Draw background rectangle if color is specified
                 if bg_color[3] > 0:
                     rect_bbox = (
                         margin,
                         margin,
-                        margin + bbox_w,
-                        margin + bbox_h,
+                        margin + total_width,
+                        margin + (max_y - min_y),
                     )
                     padded_rect = (
                         rect_bbox[0] - padding,
@@ -2071,23 +2163,102 @@ class VideoGenerator:
                     )
                     draw.rectangle(padded_rect, fill=bg_color)
 
-                stroke_color = (
-                    0,
-                    0,
-                    0,
-                    text_color[3] if len(text_color) > 3 else 255,
-                )
-                draw.text(
-                    (draw_x, draw_y),
-                    el.text,
-                    fill=text_color,
-                    font=font,
-                    anchor=anchor,
-                    stroke_width=stroke_width,
-                    stroke_fill=stroke_color,
-                )
+                # Draw/paste segments
+                seg_x = 0.0
+                for r_seg in resolved_segments:
+                    if r_seg['type'] == 'text':
+                        draw_x = seg_x + margin
+                        draw_y = -min_y + margin
+                        stroke_color = (
+                            0,
+                            0,
+                            0,
+                            text_color[3] if len(text_color) > 3 else 255,
+                        )
+                        draw.text(
+                            (draw_x, draw_y),
+                            r_seg['text'],
+                            fill=text_color,
+                            font=font,
+                            anchor='la',
+                            stroke_width=stroke_width,
+                            stroke_fill=stroke_color,
+                        )
+                        seg_x += r_seg['width']
+                    elif r_seg['type'] == 'image':
+                        draw_x = seg_x + margin
+                        draw_y = -min_y + margin
+                        try:
+                            with Image.open(r_seg['path']) as raw_seg_img:
+                                target_w = int(r_seg['width'])
+                                target_h = int(r_seg['height'])
+                                if target_w > 0 and target_h > 0:
+                                    resized_seg = raw_seg_img.resize(
+                                        (target_w, target_h),
+                                        Image.Resampling.LANCZOS,
+                                    ).convert('RGBA')
 
-                cached_entry = (small_img, bbox[0] - margin, bbox[1] - margin)
+                                    # Handle alpha fading
+                                    if el.alpha < 1.0:
+                                        r_ch, g_ch, b_ch, a_ch = (
+                                            resized_seg.split()
+                                        )
+                                        try:
+                                            new_a_ch = a_ch.point(
+                                                lambda p: int(p * el.alpha)
+                                            )
+                                            try:
+                                                faded_seg = Image.merge(
+                                                    'RGBA',
+                                                    (
+                                                        r_ch,
+                                                        g_ch,
+                                                        b_ch,
+                                                        new_a_ch,
+                                                    ),
+                                                )
+                                                try:
+                                                    small_img.alpha_composite(
+                                                        faded_seg,
+                                                        dest=(
+                                                            int(draw_x),
+                                                            int(draw_y),
+                                                        ),
+                                                    )
+                                                finally:
+                                                    faded_seg.close()
+                                                new_a_ch.close()
+                                            finally:
+                                                pass
+                                        finally:
+                                            r_ch.close()
+                                            g_ch.close()
+                                            b_ch.close()
+                                            a_ch.close()
+                                    else:
+                                        small_img.alpha_composite(
+                                            resized_seg,
+                                            dest=(int(draw_x), int(draw_y)),
+                                        )
+                        except Exception as e:
+                            print(
+                                f'Warning: failed to composite segment image: {e}'
+                            )
+                        seg_x += r_seg['width']
+
+                # Compute final paste offsets
+                if anchor == 'la':
+                    offset_x = -margin
+                elif anchor == 'ma':
+                    offset_x = -total_width / 2 - margin
+                elif anchor == 'ra':
+                    offset_x = -total_width - margin
+                else:
+                    offset_x = -margin
+
+                offset_y = min_y - margin
+                cached_entry = (small_img, offset_x, offset_y)
+
                 with self._text_cache_lock:
                     if cache_key not in self._text_cache:
                         if len(self._text_cache) >= 1000:
