@@ -567,10 +567,38 @@ def test_app_save_config_as_success(
     app.config_manager.save_config.assert_called_once_with(
         'c:/dummy/new_config.yaml'
     )
+    assert app.config_manager.config_path == 'c:/dummy/new_config.yaml'
     assert app.is_dirty is False
     mock_save_pref.assert_called_once_with(
         config_path='c:/dummy/new_config.yaml'
     )
+
+
+@patch('tkinter.filedialog.asksaveasfilename')
+@patch('threading.Thread')
+def test_app_generate_video_does_not_modify_config_path(
+    mock_thread: MagicMock,
+    mock_ask: MagicMock,
+) -> None:
+    """Tests that video generation doesn't overwrite active config path."""
+    app = LFDataUIApp()
+    app.config_manager.tdf_path = 'c:/dummy/game.tdf'
+    app.config_manager.config_path = 'c:/dummy/my_config.yaml'
+    app.config_manager.save_config = MagicMock()
+    app.btn_gen_video = MagicMock()
+    app.lbl_status = MagicMock()
+    app.preview = MagicMock()
+    app.preview.player_var.get.return_value = 'None'
+
+    mock_ask.return_value = 'c:/dummy/output.webm'
+
+    app._generate_video()
+
+    # Assert save_config was called with temporary path
+    app.config_manager.save_config.assert_called_once()
+    # config_path must remain the original user config path
+    assert app.config_manager.config_path == 'c:/dummy/my_config.yaml'
+    mock_thread.assert_called_once()
 
 
 @patch.object(LFDataUIApp, 'destroy')

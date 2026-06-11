@@ -54,7 +54,6 @@ class UIConfigManager:
         Raises:
             RuntimeError: If the config file fails to write.
         """
-        self.config_path = path
         try:
             with open(path, 'w', encoding='utf-8') as f:
                 yaml.safe_dump(self.config, f, default_flow_style=False)

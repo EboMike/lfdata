@@ -482,6 +482,7 @@ class LFDataUIApp(tk.Tk):
 
         try:
             self.config_manager.save_config(path)
+            self.config_manager.config_path = path
             self.lbl_status.config(
                 text=f'Saved config: {os.path.basename(path)}'
             )
