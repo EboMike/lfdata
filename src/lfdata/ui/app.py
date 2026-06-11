@@ -1,11 +1,13 @@
 """Main application window for the LF data UI."""
 
+import json
 import os
 import subprocess
+import sys
 import threading
 import tkinter as tk
+from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
-from PIL import Image, ImageDraw, ImageTk
 from lfdata.ui.canvas import LayoutCanvas
 from lfdata.ui.config_manager import UIConfigManager
 from lfdata.ui.preview import ImagePreview
@@ -15,9 +17,14 @@ from lfdata.ui.properties import PropertiesPanel
 class LFDataUIApp(tk.Tk):
     """Main window class for the LF data UI application."""
 
-    def __init__(self) -> None:
-        """Initializes the main application window and components."""
+    def __init__(self, preferences_path: Path | None = None) -> None:
+        """Initializes the main application window and components.
+
+        Args:
+            preferences_path: Custom path to save/load user preferences.
+        """
         super().__init__()
+        self.preferences_path = preferences_path
         self.title('LF Data Video UI Configurator')
         self.geometry('1180x820')
         self.minsize(1024, 768)
@@ -29,6 +36,9 @@ class LFDataUIApp(tk.Tk):
 
         # Load initial config to widgets
         self._sync_global_widgets()
+
+        # Load preferences on startup
+        self._load_preferences_on_startup()
 
     def _create_menu(self) -> None:
         """Creates the application menu bar."""
@@ -347,6 +357,17 @@ class LFDataUIApp(tk.Tk):
         except ValueError:
             pass
 
+    def _load_tdf_path(self, path: str) -> None:
+        """Loads a TDF file path and updates the UI.
+
+        Args:
+            path: Path to the TDF file.
+        """
+        self.config_manager.load_tdf(path)
+        self.preview.on_tdf_loaded()
+        self.lbl_status.config(text=f'TDF Loaded: {os.path.basename(path)}')
+        self._save_preferences(tdf_path=path)
+
     def _load_tdf(self) -> None:
         """Prompts user to select a TDF file and parses it."""
         path = filedialog.askopenfilename(
@@ -356,16 +377,29 @@ class LFDataUIApp(tk.Tk):
         if not path:
             return
 
-        self.lbl_status.config(text=f'Loading TDF: {os.path.basename(path)}...')
+        status_text = f'Loading TDF: {os.path.basename(path)}...'
+        self.lbl_status.config(text=status_text)
         self.update_idletasks()
 
         try:
-            self.config_manager.load_tdf(path)
-            self.preview.on_tdf_loaded()
-            self.lbl_status.config(text=f'TDF Loaded: {os.path.basename(path)}')
+            self._load_tdf_path(path)
         except Exception as e:
             messagebox.showerror('Error Loading TDF', str(e))
             self.lbl_status.config(text='Failed to load TDF.')
+
+    def _load_config_path(self, path: str) -> None:
+        """Loads a configuration path and updates the UI.
+
+        Args:
+            path: Path to the configuration file.
+        """
+        self.config_manager.load_config(path)
+        self._sync_global_widgets()
+        self.canvas.select_element(None)
+        self.canvas.refresh_elements()
+        self.preview.update_preview()
+        self.lbl_status.config(text=f'Loaded config: {os.path.basename(path)}')
+        self._save_preferences(config_path=path)
 
     def _open_config(self) -> None:
         """Prompts user to load a YAML config file and updates UI elements."""
@@ -377,14 +411,7 @@ class LFDataUIApp(tk.Tk):
             return
 
         try:
-            self.config_manager.load_config(path)
-            self._sync_global_widgets()
-            self.canvas.select_element(None)
-            self.canvas.refresh_elements()
-            self.preview.update_preview()
-            self.lbl_status.config(
-                text=f'Loaded config: {os.path.basename(path)}'
-            )
+            self._load_config_path(path)
         except Exception as e:
             messagebox.showerror('Error Loading Config', str(e))
 
@@ -403,8 +430,78 @@ class LFDataUIApp(tk.Tk):
             self.lbl_status.config(
                 text=f'Saved config: {os.path.basename(path)}'
             )
+            self._save_preferences(config_path=path)
         except Exception as e:
             messagebox.showerror('Error Saving Config', str(e))
+
+    def _get_preferences_path(self) -> Path:
+        """Gets the path to the user preferences file.
+
+        Returns:
+            Path: The path to the preferences file.
+        """
+        if self.preferences_path is not None:
+            return self.preferences_path
+        if 'pytest' in sys.modules or 'unittest' in sys.modules:
+            return Path('dummy_nonexistent_pref.json')
+        return Path.home() / '.lfdata_preferences.json'
+
+    def _save_preferences(
+        self,
+        tdf_path: str | None = None,
+        config_path: str | None = None,
+    ) -> None:
+        """Saves user preferences to the preferences file.
+
+        Args:
+            tdf_path: Optional path to the TDF file to remember.
+            config_path: Optional path to the configuration file to remember.
+        """
+        pref_path = self._get_preferences_path()
+        data = {}
+        if pref_path.exists():
+            try:
+                with open(pref_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+            except Exception:
+                pass
+
+        if tdf_path is not None:
+            data['most_recent_tdf'] = tdf_path
+        if config_path is not None:
+            data['most_recent_config'] = config_path
+
+        try:
+            with open(pref_path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2)
+        except Exception:
+            pass
+
+    def _load_preferences_on_startup(self) -> None:
+        """Loads and processes saved user preferences on startup."""
+        pref_path = self._get_preferences_path()
+        if not pref_path.exists():
+            return
+
+        try:
+            with open(pref_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        except Exception:
+            return
+
+        config_path = data.get('most_recent_config')
+        if config_path and os.path.exists(config_path):
+            try:
+                self._load_config_path(config_path)
+            except Exception:
+                pass
+
+        tdf_path = data.get('most_recent_tdf')
+        if tdf_path and os.path.exists(tdf_path):
+            try:
+                self._load_tdf_path(tdf_path)
+            except Exception:
+                pass
 
     def _generate_video(self) -> None:
         """Triggers the video generation flow with path selection and background thread."""

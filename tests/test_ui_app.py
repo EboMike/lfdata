@@ -1,7 +1,20 @@
-"""Tests for the LFDataUIApp class."""
-
+import os
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 from typing import Any
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def cleanup_dummy_pref():
+    """Fixture to clean up dummy preferences files after each test."""
+    yield
+    dummy = Path('dummy_nonexistent_pref.json')
+    if dummy.exists():
+        try:
+            os.remove(dummy)
+        except Exception:
+            pass
 
 
 class DummyStringVar:
@@ -386,3 +399,55 @@ def test_app_properties_updated_refresh_preview() -> None:
     app._on_properties_updated()
 
     assert app.preview.update_preview.called
+
+
+def test_app_save_preferences(tmp_path) -> None:
+    """Tests saving user preferences to a JSON file."""
+    pref_file = tmp_path / 'pref.json'
+    app = LFDataUIApp(preferences_path=pref_file)
+
+    app._save_preferences(
+        tdf_path='dummy.tdf',
+        config_path='dummy.yaml',
+    )
+
+    assert pref_file.exists()
+    import json
+
+    with open(pref_file, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    assert data.get('most_recent_tdf') == 'dummy.tdf'
+    assert data.get('most_recent_config') == 'dummy.yaml'
+
+
+@patch.object(LFDataUIApp, '_load_config_path')
+@patch.object(LFDataUIApp, '_load_tdf_path')
+def test_app_load_preferences_on_startup(
+    mock_load_tdf: MagicMock,
+    mock_load_config: MagicMock,
+    tmp_path,
+) -> None:
+    """Tests reloading preferences on app startup."""
+    pref_file = tmp_path / 'pref.json'
+    dummy_tdf = tmp_path / 'dummy.tdf'
+    dummy_config = tmp_path / 'dummy.yaml'
+
+    # Write dummy files to disk so os.path.exists passes
+    dummy_tdf.write_text('dummy content', encoding='utf-8')
+    dummy_config.write_text('dummy content', encoding='utf-8')
+
+    # Save preferences to preferences file
+    import json
+
+    pref_data = {
+        'most_recent_tdf': str(dummy_tdf),
+        'most_recent_config': str(dummy_config),
+    }
+    with open(pref_file, 'w', encoding='utf-8') as f:
+        json.dump(pref_data, f)
+
+    # Initialize app - this should trigger loading preferences on startup
+    LFDataUIApp(preferences_path=pref_file)
+
+    mock_load_config.assert_called_once_with(str(dummy_config))
+    mock_load_tdf.assert_called_once_with(str(dummy_tdf))
