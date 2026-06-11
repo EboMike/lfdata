@@ -1,3 +1,4 @@
+import pytest
 from datetime import datetime
 from lfdata.model import LFGame
 from lfdata.video import VideoGenerator
@@ -828,6 +829,20 @@ def test_new_renderer_rules() -> None:
         # Should draw rectangle and separator lines
         assert mock_draw_sb.rectangle.call_count > 0
         assert mock_draw_sb.line.call_count > 0
+
+        # Verify rectangle coordinates scale with font size
+        rect_call_args = mock_draw_sb.rectangle.call_args[0][0]
+        width_size_15 = rect_call_args[2] - rect_call_args[0]
+
+        # Double the font size and draw again
+        el_sb.style.size = 30
+        mock_draw_sb.reset_mock()
+        vg._draw_scoreboard(img, el_sb, cfg)
+        rect_call_args_double = mock_draw_sb.rectangle.call_args[0][0]
+        width_size_30 = rect_call_args_double[2] - rect_call_args_double[0]
+
+        assert width_size_30 > width_size_15
+        assert width_size_30 == pytest.approx(2 * width_size_15, abs=2)
 
     # 3. Test HP column is removed entirely
     mock_draw_p = MagicMock()

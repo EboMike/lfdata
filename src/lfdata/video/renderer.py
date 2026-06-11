@@ -1238,10 +1238,14 @@ class VideoGenerator:
             return
 
         height = image.height
-        header_h = int(35 * height / 1080)
-        row_h = int(28 * height / 1080)
-        totals_h = int(35 * height / 1080)
-        spacing = int(20 * height / 1080)
+        font_size = el.style.size or 20
+        pixel_size = max(1, int(height * font_size / 800))
+        bold_pixel_size = max(1, int(height * (font_size + 2) / 800))
+
+        header_h = int(pixel_size * (35 / 27))
+        row_h = int(pixel_size * (28 / 27))
+        totals_h = int(pixel_size * (35 / 27))
+        spacing = int(pixel_size * (20 / 27))
 
         x_config = el.x if el.x is not None else 0.1
         y_config = el.y if el.y is not None else 0.4
@@ -1256,10 +1260,6 @@ class VideoGenerator:
             )
 
         self._calculate_team_y_positions(teams, y_start, spacing, team_heights)
-
-        font_size = el.style.size or 20
-        pixel_size = max(1, int(height * font_size / 800))
-        bold_pixel_size = max(1, int(height * (font_size + 2) / 800))
 
         font, bold_font = self._load_scoreboard_fonts(
             el.style.font, pixel_size, bold_pixel_size
@@ -1312,8 +1312,11 @@ class VideoGenerator:
                             )
                             if not isinstance(text_w, (int, float)):
                                 text_w = 0.0
+                        scale_factor = pixel_size / 27
                         penalties_w = (
-                            cards_w + text_w + int(10 * image.width / 1920)
+                            cards_w
+                            + text_w
+                            + int(10 * scale_factor * image.width / 1920)
                         )
                     total_w = name_w + penalties_w
                     if total_w > max_player_w:
@@ -1338,6 +1341,7 @@ class VideoGenerator:
                     draw_background=draw_background,
                     draw_borders=draw_borders,
                     max_player_w=max_player_w,
+                    pixel_size=pixel_size,
                 )
             if el.alpha < 1.0:
                 r, g, b, a = overlay.split()
@@ -1523,7 +1527,7 @@ class VideoGenerator:
                 p_color = dimmed_color
 
             vals = self._compile_player_row_values(p, columns)
-            row_padding = int(2 * height / 1080)
+            row_padding = int(2 * (row_h / 28) * height / 1080)
             for col, val, offset in zip(columns, vals, offsets):
                 if col == 'Role':
                     role_name = p.get('role_name', '').lower()
@@ -1555,7 +1559,8 @@ class VideoGenerator:
                     num_penalties = p.get('penalties', 0)
                     if num_penalties > 0 and overlay is not None:
                         name_w = draw.textlength(val, font=font)
-                        margin = int(5 * overlay.width / 1920)
+                        scale = row_h / 28
+                        margin = int(5 * scale * overlay.width / 1920)
                         card_x_start = offset + name_w + margin
                         card_img = self._get_cached_penalty_card(row_h)
                         if card_img is not None:
@@ -1651,6 +1656,7 @@ class VideoGenerator:
         draw_background: bool,
         draw_borders: bool,
         max_player_w: int | None = None,
+        pixel_size: int = 27,
     ) -> None:
         """Draws a single team's table border, headers, and rows.
 
@@ -1668,6 +1674,7 @@ class VideoGenerator:
             draw_background: Whether to draw the table background color.
             draw_borders: Whether to draw the table borders and lines.
             max_player_w: Maximum player column width in pixels.
+            pixel_size: Standard font size in pixels.
         """
         bg_fill, text_color, dimmed_color, gray_color = (
             self._calculate_team_colors(team)
@@ -1678,7 +1685,8 @@ class VideoGenerator:
         try:
             draw = ImageDraw.Draw(overlay)
 
-            table_width = int(650 * image.width / 1920)
+            scale = pixel_size / 27
+            table_width = int(650 * scale * image.width / 1920)
             ty = int(team['y_pos'])
 
             columns = ['Player']
@@ -1702,7 +1710,7 @@ class VideoGenerator:
             columns, offsets = self._resolve_scoreboard_columns(
                 x_start, table_width, max_player_w
             )
-            padding_y = int(5 * image.height / 1080)
+            padding_y = int(5 * scale * image.height / 1080)
 
             sep_y = self._draw_table_structure(
                 draw=draw,
