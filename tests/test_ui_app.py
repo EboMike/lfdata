@@ -140,6 +140,9 @@ class DummyWidget:
     def minsize(self, *args: Any, **kwargs: Any) -> None:
         pass
 
+    def protocol(self, *args: Any, **kwargs: Any) -> None:
+        pass
+
     def destroy(self) -> None:
         pass
 
@@ -406,6 +409,9 @@ def test_app_save_preferences(tmp_path) -> None:
     pref_file = tmp_path / 'pref.json'
     app = LFDataUIApp(preferences_path=pref_file)
 
+    # Set mock geometry return value
+    app.geometry = MagicMock(return_value='1180x820+100+100')
+
     app._save_preferences(
         tdf_path='dummy.tdf',
         config_path='dummy.yaml',
@@ -418,6 +424,7 @@ def test_app_save_preferences(tmp_path) -> None:
         data = json.load(f)
     assert data.get('most_recent_tdf') == 'dummy.tdf'
     assert data.get('most_recent_config') == 'dummy.yaml'
+    assert data.get('window_geometry') == '1180x820+100+100'
 
 
 @patch.object(LFDataUIApp, '_load_config_path')
@@ -442,12 +449,15 @@ def test_app_load_preferences_on_startup(
     pref_data = {
         'most_recent_tdf': str(dummy_tdf),
         'most_recent_config': str(dummy_config),
+        'window_geometry': '1180x820+100+100',
     }
     with open(pref_file, 'w', encoding='utf-8') as f:
         json.dump(pref_data, f)
 
-    # Initialize app - this should trigger loading preferences on startup
-    LFDataUIApp(preferences_path=pref_file)
+    # Patch geometry to verify it was set on startup
+    with patch.object(LFDataUIApp, 'geometry') as mock_geom:
+        LFDataUIApp(preferences_path=pref_file)
+        mock_geom.assert_any_call('1180x820+100+100')
 
     mock_load_config.assert_called_once_with(str(dummy_config))
     mock_load_tdf.assert_called_once_with(str(dummy_tdf))

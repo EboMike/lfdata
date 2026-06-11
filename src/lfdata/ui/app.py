@@ -37,6 +37,9 @@ class LFDataUIApp(tk.Tk):
         # Load initial config to widgets
         self._sync_global_widgets()
 
+        # Set close handler to save geometry
+        self.protocol('WM_DELETE_WINDOW', self._on_close)
+
         # Load preferences on startup
         self._load_preferences_on_startup()
 
@@ -472,6 +475,13 @@ class LFDataUIApp(tk.Tk):
             data['most_recent_config'] = config_path
 
         try:
+            geom = self.geometry()
+            if isinstance(geom, str):
+                data['window_geometry'] = geom
+        except Exception:
+            pass
+
+        try:
             with open(pref_path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=2)
         except Exception:
@@ -489,6 +499,13 @@ class LFDataUIApp(tk.Tk):
         except Exception:
             return
 
+        geom = data.get('window_geometry')
+        if geom:
+            try:
+                self.geometry(geom)
+            except Exception:
+                pass
+
         config_path = data.get('most_recent_config')
         if config_path and os.path.exists(config_path):
             try:
@@ -502,6 +519,14 @@ class LFDataUIApp(tk.Tk):
                 self._load_tdf_path(tdf_path)
             except Exception:
                 pass
+
+    def _on_close(self) -> None:
+        """Saves preferences and exits the application when closed."""
+        try:
+            self._save_preferences()
+        except Exception:
+            pass
+        self.destroy()
 
     def _generate_video(self) -> None:
         """Triggers the video generation flow with path selection and background thread."""
