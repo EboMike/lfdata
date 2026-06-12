@@ -1190,8 +1190,8 @@ class VideoGenerator:
     def _load_scoreboard_fonts(
         self,
         font_name: str,
-        pixel_size: int,
-        bold_pixel_size: int,
+        pixel_size: float | int,
+        bold_pixel_size: float | int,
     ) -> tuple[ImageFont.ImageFont, ImageFont.ImageFont]:
         """Loads and returns standard and bold fonts for the scoreboard.
 
@@ -1239,8 +1239,8 @@ class VideoGenerator:
 
         height = image.height
         font_size = el.style.size or 20
-        pixel_size = max(1, int(height * font_size / 800))
-        bold_pixel_size = max(1, int(height * (font_size + 2) / 800))
+        pixel_size = max(1.0, float(height * font_size / 800))
+        bold_pixel_size = max(1.0, float(height * (font_size + 2) / 800))
 
         header_h = int(pixel_size * (35 / 27))
         row_h = int(pixel_size * (28 / 27))
@@ -1659,7 +1659,7 @@ class VideoGenerator:
         draw_background: bool,
         draw_borders: bool,
         max_player_w: int | None = None,
-        pixel_size: int = 27,
+        pixel_size: float | int = 27,
     ) -> None:
         """Draws a single team's table border, headers, and rows.
 
@@ -1993,7 +1993,7 @@ class VideoGenerator:
         self,
         font_file: str,
         style: str | None,
-        pixel_size: int,
+        pixel_size: float | int,
     ) -> ImageFont.ImageFont:
         """Resolves font variants and loads font with error fallback.
 
@@ -2050,7 +2050,7 @@ class VideoGenerator:
             y_coord = int(height * (el.y if el.y is not None else 0.5))
             anchor = anchor_map.get(el.align or 'left', 'la')
 
-            pixel_size = max(1, int(height * el.style.size / 800))
+            pixel_size = max(1.0, float(height * el.style.size / 800))
 
             alpha_val = round(el.alpha if el.alpha is not None else 1.0, 2)
             cache_key = (
@@ -2545,7 +2545,7 @@ class VideoGenerator:
                         )
 
             text_str = f'{current}/{maximum}'
-            pixel_size = max(1, int(height * el.style.size / 800))
+            pixel_size = max(1.0, float(height * el.style.size / 800))
             font = self._load_text_font(
                 el.style.font, el.style.style, pixel_size
             )
@@ -2638,7 +2638,7 @@ class VideoGenerator:
         x_coord = int(width * (el.x if el.x is not None else 0.55))
         y_coord = int(height * (el.y if el.y is not None else 0.45))
 
-        pixel_size = max(1, int(height * el.style.size / 800))
+        pixel_size = max(1.0, float(height * el.style.size / 800))
         font = self._load_text_font(el.style.font, el.style.style, pixel_size)
         row_height = int(pixel_size * 1.4)
 

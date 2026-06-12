@@ -2009,3 +2009,38 @@ def test_generator_start_time_offset() -> None:
     # visible_start_ms = 1000, visible_end_ms = video_end_ms
     el_default = gen._create_ui_element('el_default', element_type='text')
     assert el_default.visible_start_ms == 1000
+
+
+def test_generator_float_font_size() -> None:
+    """Verifies that floating-point font sizes resolve correctly."""
+    from datetime import datetime
+    from lfdata.model import LFGame
+    from lfdata.video import VisualElementGenerator
+    from lfdata.video.renderer import VideoGenerator as VideoFrameRenderer
+
+    game = LFGame(
+        game_id='test_float_font_game',
+        timestamp=datetime.now(),
+        game_type='SM5',
+        duration=10000,
+    )
+    config = {
+        'elements': {
+            'el_float': {
+                'enabled': True,
+                'style': {
+                    'size': 20.5,
+                },
+            },
+        },
+    }
+    gen = VisualElementGenerator(game, config=config)
+    el = gen._create_ui_element('el_float', element_type='text')
+    assert el is not None
+    assert el.style.size == 20.5
+
+    # Run renderer mock verification to ensure it accepts floats
+    renderer = VideoFrameRenderer(game)
+    # Test text font loading with float size
+    font = renderer._load_text_font('GoogleSans-Bold', 'normal', 20.5)
+    assert font is not None

@@ -7,11 +7,11 @@ from dataclasses import dataclass, field
 class UIElementStyle:
     """Represents text styling attributes for visual elements."""
 
-    font: str = "GoogleSans-Bold"
-    style: str = "normal"
-    size: int = 20
-    color: str = "#ffffffff"
-    background_color: str = "#00000000"
+    font: str = 'GoogleSans-Bold'
+    style: str = 'normal'
+    size: float | int = 20
+    color: str = '#ffffffff'
+    background_color: str = '#00000000'
 
 
 @dataclass
@@ -19,7 +19,7 @@ class UIElement:
     """Represents a single UI element on a video frame."""
 
     element_type: str
-    position: str = ""
+    position: str = ''
     text: str | None = None
     style: UIElementStyle = field(default_factory=UIElementStyle)
     x: float | None = None
