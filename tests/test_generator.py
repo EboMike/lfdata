@@ -1733,3 +1733,211 @@ def test_generator_player_events_in_color() -> None:
         'Player1': '#ff0000',
         'Player2': '#00ff00',
     }
+
+
+def test_generator_show_hit_points_in_events() -> None:
+    """Verifies prepending colored HP boxes in player events."""
+    from datetime import datetime
+    from unittest.mock import MagicMock
+    from lfdata.model import LFGame, GameEvent, LFRole
+    from lfdata.video import VisualElementGenerator
+    from lfdata.replay.state import LFReplayPlayerState, LFReplayTeamState
+
+    game = LFGame(
+        game_id='test_hp_events_game',
+        timestamp=datetime.now(),
+        game_type='SM5',
+    )
+    gen = VisualElementGenerator(game, 'Player1')
+    gen.entity_id = 'P1'
+    gen.entity_names = {'P1': 'Player1', 'P2': 'Player2'}
+
+    mock_replay = MagicMock()
+    # P1 (Commander, max_hp = 3) on team 0
+    p1_state = LFReplayPlayerState('P1', LFRole.COMMANDER, 0)
+    p1_state.hp = 2
+    # P2 (Heavy, max_hp = 3) on team 1
+    p2_state = LFReplayPlayerState('P2', LFRole.HEAVY, 1)
+    p2_state.hp = 1
+    mock_replay.game_state.players = {'P1': p1_state, 'P2': p2_state}
+
+    t0 = LFReplayTeamState(0, 'Fire', '#ff0000')
+    t1 = LFReplayTeamState(1, 'Earth', '#00ff00')
+    mock_replay.game_state.teams = {0: t0, 1: t1}
+
+    gen.snapshots = [(0, {}, {}), (0, {}, {})]
+
+    # 1. P2 zaps P1 (P1 gets zapped, target is P1, max HP 3, HP 2 -> '■■□')
+    ev1 = GameEvent(
+        game_id='test_hp_events_game',
+        time=1000,
+        event_type='0205',
+        actor_entity_id='P2',
+        target_entity_id='P1',
+    )
+    gen._process_hud_event_triggers(ev1, mock_replay, '')
+
+    assert len(gen.player_event_log) == 1
+    # Check that '■■□' was prepended to 'Zapped by Player2'
+    assert gen.player_event_log[0]['desc'] == '■■□ Zapped by Player2'
+    assert gen.player_event_log[0]['target_color_override'] == {
+        '■■□': '#ff0000'
+    }
+
+    # 2. P1 zaps P2 (P1 zaps someone, target is P2, max HP 3, HP 1 -> '■□□')
+    ev2 = GameEvent(
+        game_id='test_hp_events_game',
+        time=2000,
+        event_type='0205',
+        actor_entity_id='P1',
+        target_entity_id='P2',
+    )
+    gen._process_hud_event_triggers(ev2, mock_replay, '')
+
+    assert len(gen.player_event_log) == 2
+    assert gen.player_event_log[1]['desc'] == '■□□ Zapped Player2'
+    assert gen.player_event_log[1]['target_color_override'] == {
+        '■□□': '#00ff00'
+    }
+
+    # 3. Disable show_hit_points_in_events and check no boxes are prepended
+    config_disabled = {'show_hit_points_in_events': False}
+    gen_disabled = VisualElementGenerator(
+        game, 'Player1', config=config_disabled
+    )
+    gen_disabled.entity_id = 'P1'
+    gen_disabled.entity_names = {'P1': 'Player1', 'P2': 'Player2'}
+    gen_disabled.snapshots = [(0, {}, {}), (0, {}, {})]
+
+    ev3 = GameEvent(
+        game_id='test_hp_events_game',
+        time=3000,
+        event_type='0205',
+        actor_entity_id='P1',
+        target_entity_id='P2',
+    )
+    gen_disabled._process_hud_event_triggers(ev3, mock_replay, '')
+    assert len(gen_disabled.player_event_log) == 1
+    assert gen_disabled.player_event_log[0]['desc'] == 'Zapped Player2'
+    assert 'target_color_override' not in gen_disabled.player_event_log[0]
+
+
+def test_generator_bundle_zap_events() -> None:
+    """Verifies that consecutive zaps by the same player are bundled."""
+    from datetime import datetime
+    from unittest.mock import MagicMock
+    from lfdata.model import LFGame, GameEvent, LFRole
+    from lfdata.video import VisualElementGenerator
+    from lfdata.replay.state import LFReplayPlayerState, LFReplayTeamState
+
+    game = LFGame(
+        game_id='test_bundle_zap_game',
+        timestamp=datetime.now(),
+        game_type='SM5',
+    )
+    # 1. Enable bundling (default)
+    gen = VisualElementGenerator(game, 'Player1')
+    gen.entity_id = 'P1'
+    gen.entity_names = {'P1': 'Player1', 'P2': 'Player2', 'P3': 'Player3'}
+
+    mock_replay = MagicMock()
+    p1_state = LFReplayPlayerState('P1', LFRole.COMMANDER, 0)
+    p1_state.hp = 3
+    p2_state = LFReplayPlayerState('P2', LFRole.HEAVY, 1)
+    p2_state.hp = 3
+    p3_state = LFReplayPlayerState('P3', LFRole.COMMANDER, 1)
+    p3_state.hp = 2
+    mock_replay.game_state.players = {
+        'P1': p1_state,
+        'P2': p2_state,
+        'P3': p3_state,
+    }
+
+    t0 = LFReplayTeamState(0, 'Fire', '#ff0000')
+    t1 = LFReplayTeamState(1, 'Earth', '#00ff00')
+    mock_replay.game_state.teams = {0: t0, 1: t1}
+
+    gen.snapshots = [(0, {}, {}), (0, {}, {})]
+
+    # First zap: P1 zaps P2 (P2 max_hp 3, hp 2) at time 1000
+    p2_state.hp = 2
+    ev1 = GameEvent(
+        game_id='test_bundle_zap_game',
+        time=1000,
+        event_type='0205',
+        actor_entity_id='P1',
+        target_entity_id='P2',
+    )
+    gen._process_hud_event_triggers(ev1, mock_replay, '')
+
+    assert len(gen.player_event_log) == 1
+    assert gen.player_event_log[0]['desc'] == '■■□ Zapped Player2'
+
+    # Second zap: P1 zaps P2 again (P2 max_hp 3, hp 1) at time 2000
+    p2_state.hp = 1
+    ev2 = GameEvent(
+        game_id='test_bundle_zap_game',
+        time=2000,
+        event_type='0205',
+        actor_entity_id='P1',
+        target_entity_id='P2',
+    )
+    gen._process_hud_event_triggers(ev2, mock_replay, '')
+
+    # Should NOT add a new entry, should bundle in the first one
+    assert len(gen.player_event_log) == 1
+    assert gen.player_event_log[0]['zap_count'] == 2
+
+    # Now verify that at time 1500 (before second zap),
+    # we get '■■□ Zapped Player2'
+    slots_1500 = gen._get_active_multiline_lines(
+        event_list=gen.player_event_log,
+        time_ms=1500,
+        fade_time_ms=3000,
+    )
+    assert slots_1500[0] is not None
+    assert slots_1500[0]['text'] == '■■□ Zapped Player2'
+    assert slots_1500[0]['target_color_override'] == {'■■□': '#00ff00'}
+
+    slots_2000 = gen._get_active_multiline_lines(
+        event_list=gen.player_event_log,
+        time_ms=2000,
+        fade_time_ms=3000,
+    )
+    assert slots_2000[0] is not None
+    assert slots_2000[0]['text'] == '■□□ Zapped x2 Player2'
+    assert slots_2000[0]['target_color_override'] == {'■□□': '#00ff00'}
+
+    # Third zap: P1 zaps P3 (different player) at time 3000
+    p3_state.hp = 2
+    ev3 = GameEvent(
+        game_id='test_bundle_zap_game',
+        time=3000,
+        event_type='0205',
+        actor_entity_id='P1',
+        target_entity_id='P3',
+    )
+    gen._process_hud_event_triggers(ev3, mock_replay, '')
+
+    # Should add a new entry because it's a different target
+    assert len(gen.player_event_log) == 2
+    assert gen.player_event_log[1]['desc'] == '■■□ Zapped Player3'
+
+    # 2. Verify with bundling disabled
+    config_disabled = {'bundle_zap_events': False}
+    gen_disabled = VisualElementGenerator(
+        game, 'Player1', config=config_disabled
+    )
+    gen_disabled.entity_id = 'P1'
+    gen_disabled.entity_names = {'P1': 'Player1', 'P2': 'Player2'}
+    gen_disabled.snapshots = [(0, {}, {}), (0, {}, {})]
+
+    # Zap twice consecutively
+    p2_state.hp = 2
+    gen_disabled._process_hud_event_triggers(ev1, mock_replay, '')
+    p2_state.hp = 1
+    gen_disabled._process_hud_event_triggers(ev2, mock_replay, '')
+
+    assert len(gen_disabled.player_event_log) == 2
+    assert gen_disabled.player_event_log[0]['desc'] == '■■□ Zapped Player2'
+    assert gen_disabled.player_event_log[1]['desc'] == '■□□ Zapped Player2'

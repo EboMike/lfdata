@@ -462,13 +462,17 @@ class VisualElementGenerator:
 
         if self.entity_id:
             msg = None
+            base_msg = None
+            target_color_override = None
             et = event.event_type
 
             if et in ('0205', '0206', '0207', '0208'):
+                target_state = None
                 if actor_id == self.entity_id:
                     t_state = replay.game_state.players.get(target_id or '')
                     self_state = replay.game_state.players.get(self.entity_id)
                     if t_state and self_state:
+                        target_state = t_state
                         if t_state.team_index == self_state.team_index:
                             msg = f'FRIENDLY zap {target_name}'
                         else:
@@ -477,10 +481,90 @@ class VisualElementGenerator:
                     a_state = replay.game_state.players.get(actor_id or '')
                     self_state = replay.game_state.players.get(self.entity_id)
                     if a_state and self_state:
+                        target_state = self_state
                         if a_state.team_index == self_state.team_index:
                             msg = f'FRIENDLY zap by {actor_name}'
                         else:
                             msg = f'Zapped by {actor_name}'
+
+                if msg and target_state:
+                    base_msg = msg
+                    show_hp = self.config.get('show_hit_points_in_events', True)
+                    bundle = self.config.get('bundle_zap_events', True)
+                    is_bundled = False
+                    if bundle and self.player_event_log:
+                        last_event = self.player_event_log[-1]
+                        if (
+                            last_event.get('event_type')
+                            in ('0205', '0206', '0207', '0208')
+                            and last_event.get('actor_id') == actor_id
+                            and last_event.get('target_id') == target_id
+                        ):
+                            count = last_event.get('zap_count', 1) + 1
+                            last_event['zap_count'] = count
+
+                            multiplied_msg = self._insert_zap_multiplier(
+                                last_event.get('base_desc', base_msg),
+                                count,
+                            )
+
+                            new_target_color_override = None
+                            if show_hp and target_state.max_hp > 1:
+                                hp = target_state.hp
+                                max_hp = target_state.max_hp
+                                boxes = '■' * hp + '□' * (max_hp - hp)
+                                updated_full_msg = f'{boxes} {multiplied_msg}'
+                                t_team = replay.game_state.teams.get(
+                                    target_state.team_index
+                                )
+                                t_color = (
+                                    t_team.color_rgb if t_team else '#ffffff'
+                                )
+                                new_target_color_override = {boxes: t_color}
+                            else:
+                                updated_full_msg = multiplied_msg
+
+                            if 'updates' not in last_event:
+                                last_event['updates'] = []
+
+                            update_entry = {
+                                'time': event.time,
+                                'desc': updated_full_msg,
+                            }
+                            if new_target_color_override:
+                                update_entry['target_color_override'] = (
+                                    new_target_color_override
+                                )
+                            last_event['updates'].append(update_entry)
+
+                            el_config = self.config.get('elements', {}).get(
+                                'player_events', {}
+                            )
+                            fade_time_s = el_config.get('fade_out_time')
+                            if fade_time_s is None:
+                                fade_time_s = self.config.get(
+                                    'fade_out_time', 3.0
+                                )
+                            fade_time_ms = int(fade_time_s * 1000)
+
+                            last_event['duration'] = (
+                                event.time - last_event['time']
+                            ) + fade_time_ms
+
+                            msg = None
+                            is_bundled = True
+
+                    if not is_bundled:
+                        if show_hp and target_state.max_hp > 1:
+                            hp = target_state.hp
+                            max_hp = target_state.max_hp
+                            boxes = '■' * hp + '□' * (max_hp - hp)
+                            msg = f'{boxes} {msg}'
+                            t_team = replay.game_state.teams.get(
+                                target_state.team_index
+                            )
+                            t_color = t_team.color_rgb if t_team else '#ffffff'
+                            target_color_override = {boxes: t_color}
 
             elif et == '0300':
                 if actor_id == self.entity_id:
@@ -623,15 +707,19 @@ class VisualElementGenerator:
                 )
 
             if msg:
-                self.player_event_log.append(
-                    {
-                        'time': event.time,
-                        'desc': msg,
-                        'actor_id': actor_id,
-                        'target_id': target_id,
-                        'event_type': et,
-                    }
-                )
+                log_entry = {
+                    'time': event.time,
+                    'desc': msg,
+                    'actor_id': actor_id,
+                    'target_id': target_id,
+                    'event_type': et,
+                }
+                if target_color_override:
+                    log_entry['target_color_override'] = target_color_override
+                if et in ('0205', '0206', '0207', '0208'):
+                    log_entry['base_desc'] = base_msg
+                    log_entry['zap_count'] = 1
+                self.player_event_log.append(log_entry)
 
         for pid, player in replay.game_state.players.items():
             prev_player = prev_players.get(pid)
@@ -670,6 +758,25 @@ class VisualElementGenerator:
                         'target_id': pid,
                     }
                 )
+
+    def _insert_zap_multiplier(self, text: str, count: int) -> str:
+        """Inserts a zap multiplier (e.g. x2, x3) after 'zap' or 'Zapped'."""
+        multiplier = f' x{count}'
+        if re.search(r'(?i)zapped', text):
+            return re.sub(
+                r'(?i)zapped',
+                lambda m: f'{m.group(0)}{multiplier}',
+                text,
+                count=1,
+            )
+        elif re.search(r'(?i)zap', text):
+            return re.sub(
+                r'(?i)zap',
+                lambda m: f'{m.group(0)}{multiplier}',
+                text,
+                count=1,
+            )
+        return text
 
     def _get_state_at(
         self, time_ms: int
@@ -1629,6 +1736,7 @@ class VisualElementGenerator:
 
             if slot_idx != -1:
                 text: str = ev['desc']
+                target_color_override = ev.get('target_color_override')
                 if (
                     'double_resup_desc' in ev
                     and time_ms >= ev['double_resup_time']
@@ -1636,6 +1744,14 @@ class VisualElementGenerator:
                     text = ev['double_resup_desc']
                 elif 'follow_up_desc' in ev and time_ms >= ev['follow_up_time']:
                     text = ev['follow_up_desc']
+                else:
+                    for update in ev.get('updates', []):
+                        if time_ms >= update['time']:
+                            text = update['desc']
+                            if 'target_color_override' in update:
+                                target_color_override = update[
+                                    'target_color_override'
+                                ]
 
                 slots[slot_idx] = {
                     'text': text,
@@ -1643,6 +1759,7 @@ class VisualElementGenerator:
                     'end': ev_time + duration,
                     'is_nuke_act': is_nuke_act,
                     'duration': duration,
+                    'target_color_override': target_color_override,
                 }
 
         for i in range(max_lines):
@@ -1696,12 +1813,18 @@ class VisualElementGenerator:
                 elapsed = time_ms - slot['start']
                 alpha = get_fade_alpha(elapsed, slot['duration'], anim)
                 y_offset = base_y + line_idx * line_height
+                line_color_map = (
+                    dict(player_to_color) if player_to_color else {}
+                )
+                overrides = slot.get('target_color_override')
+                if overrides:
+                    line_color_map.update(overrides)
                 el = self._create_ui_element(
                     'player_events',
                     text=slot['text'],
                     element_type='text',
                     alpha=alpha,
-                    player_to_color=player_to_color,
+                    player_to_color=line_color_map,
                 )
                 if el:
                     el.y = y_offset
