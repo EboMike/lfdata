@@ -1620,3 +1620,47 @@ def test_embedded_images_rendering_transparency_cropping(tmp_path) -> None:
     finally:
         if dummy_asset.exists():
             dummy_asset.unlink()
+
+
+def test_renderer_player_events_in_color() -> None:
+    """Verifies renderer colors player name segments inside text elements."""
+    from PIL import Image
+    from lfdata.video.element import UIElement, UIElementStyle
+    from lfdata.video.renderer import VideoGenerator
+    from lfdata.model import LFGame
+
+    game = LFGame(game_id='test_render_color_events', game_type='SM5')
+    vg = VideoGenerator(game)
+
+    img = Image.new('RGBA', (800, 600), (0, 0, 0, 0))
+    el = UIElement(
+        element_type='text',
+        x=0.5,
+        y=0.5,
+        text='Zapped Player2',
+        style=UIElementStyle(size=20, color='#ffffffff'),
+        player_to_color={'Player1': '#ff0000', 'Player2': '#00ff00'},
+    )
+
+    from unittest.mock import patch
+    from PIL import ImageDraw
+
+    draw_text_calls = []
+    original_text = ImageDraw.ImageDraw.text
+
+    def mock_text(self, xy, text, fill, *args, **kwargs):
+        draw_text_calls.append((text, fill))
+        return original_text(self, xy, text, fill, *args, **kwargs)
+
+    with patch.object(ImageDraw.ImageDraw, 'text', mock_text):
+        vg._draw_text_elements(img, [el], {})
+
+    # Since player_to_color has 'Player2': '#00ff00',
+    # "Zapped Player2" should be split into:
+    # Segment 1: "Zapped " (color #ffffffff)
+    # Segment 2: "Player2" (color #00ff00)
+    assert len(draw_text_calls) >= 2
+    assert draw_text_calls[0][0] == 'Zapped '
+    assert draw_text_calls[0][1] == (255, 255, 255, 255)
+    assert draw_text_calls[1][0] == 'Player2'
+    assert draw_text_calls[1][1] == (0, 255, 0, 255)

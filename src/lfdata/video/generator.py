@@ -1657,6 +1657,7 @@ class VisualElementGenerator:
         elements: list[UIElement],
         time_ms: int,
         anim: str,
+        player_to_color: dict[str, str] | None = None,
     ) -> None:
         """Adds recent player-specific event HUD elements if active.
 
@@ -1664,6 +1665,7 @@ class VisualElementGenerator:
             elements: List of visual elements to append to.
             time_ms: Current millisecond timestamp.
             anim: Animation function name.
+            player_to_color: Optional player names to hex colors dictionary.
         """
         if not self.entity_id:
             return
@@ -1699,6 +1701,7 @@ class VisualElementGenerator:
                     text=slot['text'],
                     element_type='text',
                     alpha=alpha,
+                    player_to_color=player_to_color,
                 )
                 if el:
                     el.y = y_offset
@@ -1709,6 +1712,7 @@ class VisualElementGenerator:
         elements: list[UIElement],
         time_ms: int,
         anim: str,
+        player_to_color: dict[str, str] | None = None,
     ) -> None:
         """Adds recent important game event HUD elements if active.
 
@@ -1716,6 +1720,7 @@ class VisualElementGenerator:
             elements: List of visual elements to append to.
             time_ms: Current millisecond timestamp.
             anim: Animation function name.
+            player_to_color: Optional player names to hex colors dictionary.
         """
         el_config = self.config.get('elements', {}).get('game_events', {})
         if not el_config.get('enabled', True):
@@ -1756,6 +1761,7 @@ class VisualElementGenerator:
                     text=slot['text'],
                     element_type='text',
                     alpha=alpha,
+                    player_to_color=player_to_color,
                 )
                 if el:
                     el.y = y_offset
@@ -1768,26 +1774,15 @@ class VisualElementGenerator:
         teams: dict[int, LFReplayTeamState],
         time_ms: int,
     ) -> None:
-        """Adds recent event notification HUD elements.
+        """Adds all event elements to HUD (scroller, player events, game events).
 
         Args:
             elements: List of visual elements to append to.
-            players: Current player states.
-            teams: Current team states.
+            players: Dictionary of player states.
+            teams: Dictionary of team states.
             time_ms: Current millisecond timestamp.
         """
         anim = self.config.get('animation', 'ease-in-out')
-
-        self._add_player_event_hud_element(
-            elements=elements,
-            time_ms=time_ms,
-            anim=anim,
-        )
-        self._add_game_event_hud_element(
-            elements=elements,
-            time_ms=time_ms,
-            anim=anim,
-        )
 
         player_to_color: dict[str, str] = {}
         for pid, player in players.items():
@@ -1795,6 +1790,22 @@ class VisualElementGenerator:
             t_state = teams.get(player.team_index)
             color = t_state.color_rgb if t_state else '#ffffff'
             player_to_color[name] = color
+
+        player_events_in_color = self.config.get('player_events_in_color', True)
+        color_map = player_to_color if player_events_in_color else None
+
+        self._add_player_event_hud_element(
+            elements=elements,
+            time_ms=time_ms,
+            anim=anim,
+            player_to_color=color_map,
+        )
+        self._add_game_event_hud_element(
+            elements=elements,
+            time_ms=time_ms,
+            anim=anim,
+            player_to_color=color_map,
+        )
 
         el_scroller = self._create_ui_element(
             'all_game_events',

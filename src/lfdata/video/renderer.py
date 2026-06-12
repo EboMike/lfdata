@@ -2097,12 +2097,25 @@ class VideoGenerator:
                         )
                     else:
                         if part:
-                            segments.append(
-                                {
-                                    'type': 'text',
-                                    'text': part,
-                                }
-                            )
+                            if el.player_to_color:
+                                sub_segs = self._split_by_player_names(
+                                    part, el.player_to_color
+                                )
+                                for sub_text, color_hex in sub_segs:
+                                    segments.append(
+                                        {
+                                            'type': 'text',
+                                            'text': sub_text,
+                                            'color': color_hex,
+                                        }
+                                    )
+                            else:
+                                segments.append(
+                                    {
+                                        'type': 'text',
+                                        'text': part,
+                                    }
+                                )
 
                 # Measure dimensions of segments using a temp image
                 temp_img = Image.new('RGBA', (1, 1), (0, 0, 0, 0))
@@ -2157,6 +2170,7 @@ class VideoGenerator:
                                     'width': w,
                                     'height': t_h,
                                     'bbox': t_bbox,
+                                    'color': seg.get('color'),
                                 }
                             )
                             total_width += w
@@ -2245,16 +2259,23 @@ class VideoGenerator:
                     if r_seg['type'] == 'text':
                         draw_x = seg_x + margin
                         draw_y = -min_y + margin
+                        seg_color_hex = r_seg.get('color')
+                        if seg_color_hex:
+                            seg_color = parse_color_with_alpha(
+                                seg_color_hex, alpha_val
+                            )
+                        else:
+                            seg_color = text_color
                         stroke_color = (
                             0,
                             0,
                             0,
-                            text_color[3] if len(text_color) > 3 else 255,
+                            seg_color[3] if len(seg_color) > 3 else 255,
                         )
                         draw.text(
                             (draw_x, draw_y),
                             r_seg['text'],
-                            fill=text_color,
+                            fill=seg_color,
                             font=font,
                             anchor='la',
                             stroke_width=stroke_width,

@@ -1671,3 +1671,65 @@ def test_generator_missile_lock_and_followup() -> None:
     assert gen.player_event_log[4]['desc'] == 'Missiled Player2'
     assert gen.player_event_log[4]['time'] == 20000
     assert 'follow_up_desc' not in gen.player_event_log[4]
+
+
+def test_generator_player_events_in_color() -> None:
+    """Verifies player_events_in_color config option behavior."""
+    from datetime import datetime
+    from lfdata.model import LFGame, LFRole
+    from lfdata.video import VisualElementGenerator
+    from lfdata.replay.state import LFReplayPlayerState, LFReplayTeamState
+
+    game = LFGame(
+        game_id='test_color_events_game',
+        timestamp=datetime.now(),
+        game_type='SM5',
+    )
+    # Default config (player_events_in_color = True)
+    gen = VisualElementGenerator(game, 'Player1')
+    gen.entity_id = 'P1'
+    gen.entity_names = {'P1': 'Player1', 'P2': 'Player2'}
+
+    players = {
+        'P1': LFReplayPlayerState('P1', LFRole.COMMANDER, 0),
+        'P2': LFReplayPlayerState('P2', LFRole.HEAVY, 1),
+    }
+    teams = {
+        0: LFReplayTeamState(0, 'Fire', '#ff0000'),
+        1: LFReplayTeamState(1, 'Earth', '#00ff00'),
+    }
+
+    # Generate with default (True)
+    elements = []
+    gen._add_event_hud_elements(elements, players, teams, 1000)
+
+    # Scroller element should have player_to_color mapping
+    scroller = next(
+        el for el in elements if el.element_type == 'event_scroller'
+    )
+    assert scroller.player_to_color == {
+        'Player1': '#ff0000',
+        'Player2': '#00ff00',
+    }
+
+    # Now verify with player_events_in_color = False
+    config_disabled = {'player_events_in_color': False}
+    gen_disabled = VisualElementGenerator(
+        game, 'Player1', config=config_disabled
+    )
+    gen_disabled.entity_id = 'P1'
+    gen_disabled.entity_names = {'P1': 'Player1', 'P2': 'Player2'}
+
+    elements_disabled = []
+    gen_disabled._add_event_hud_elements(
+        elements_disabled, players, teams, 1000
+    )
+
+    # Scroller should still have the mapping
+    scroller_disabled = next(
+        el for el in elements_disabled if el.element_type == 'event_scroller'
+    )
+    assert scroller_disabled.player_to_color == {
+        'Player1': '#ff0000',
+        'Player2': '#00ff00',
+    }
