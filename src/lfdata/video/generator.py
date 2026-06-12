@@ -482,27 +482,125 @@ class VisualElementGenerator:
                         else:
                             msg = f'Zapped by {actor_name}'
 
-            elif et in ('0306', '0308'):
+            elif et == '0300':
                 if actor_id == self.entity_id:
                     t_state = replay.game_state.players.get(target_id or '')
                     self_state = replay.game_state.players.get(self.entity_id)
                     if t_state and self_state:
                         if t_state.team_index == self_state.team_index:
-                            msg = f'FRIENDLY missile {target_name}'
+                            msg = f'FRIENDLY lock {target_name}'
                         else:
-                            msg = f'Missiled {target_name}'
+                            msg = f'Locking {target_name}'
+                    else:
+                        msg = f'Locking {target_name}'
                 elif target_id == self.entity_id:
                     a_state = replay.game_state.players.get(actor_id or '')
                     self_state = replay.game_state.players.get(self.entity_id)
                     if a_state and self_state:
                         if a_state.team_index == self_state.team_index:
-                            msg = f'FRIENDLY missile by {actor_name}'
+                            msg = f'FRIENDLY lock by {actor_name}'
                         else:
-                            msg = f'Missiled by {actor_name}'
+                            msg = f'Locked by {actor_name}'
+                    else:
+                        msg = f'Locked by {actor_name}'
 
-            elif et == '0304':
-                if actor_id == self.entity_id:
-                    msg = 'Missile MISSES'
+            elif et in ('0306', '0308', '0304', '0301', '0302', '0303'):
+                found_lock = None
+                for ev_entry in reversed(self.player_event_log):
+                    if (
+                        ev_entry.get('event_type') == '0300'
+                        and ev_entry.get('actor_id') == actor_id
+                        and 'follow_up_time' not in ev_entry
+                    ):
+                        if target_id is not None:
+                            if ev_entry.get('target_id') == target_id:
+                                found_lock = ev_entry
+                                break
+                        else:
+                            found_lock = ev_entry
+                            break
+
+                follow_up_msg = None
+                if et == '0306':
+                    if actor_id == self.entity_id:
+                        t_state = replay.game_state.players.get(target_id or '')
+                        self_state = replay.game_state.players.get(
+                            self.entity_id
+                        )
+                        if t_state and self_state:
+                            if t_state.team_index == self_state.team_index:
+                                follow_up_msg = (
+                                    f'FRIENDLY missile {target_name}'
+                                )
+                            else:
+                                follow_up_msg = f'Missiled {target_name}'
+                    elif target_id == self.entity_id:
+                        a_state = replay.game_state.players.get(actor_id or '')
+                        self_state = replay.game_state.players.get(
+                            self.entity_id
+                        )
+                        if a_state and self_state:
+                            if a_state.team_index == self_state.team_index:
+                                follow_up_msg = (
+                                    f'FRIENDLY missile by {actor_name}'
+                                )
+                            else:
+                                follow_up_msg = f'Missiled by {actor_name}'
+                elif et == '0308':
+                    if actor_id == self.entity_id:
+                        follow_up_msg = f'FRIENDLY missile {target_name}'
+                    elif target_id == self.entity_id:
+                        follow_up_msg = f'FRIENDLY missile by {actor_name}'
+                elif et == '0304':
+                    if actor_id == self.entity_id:
+                        follow_up_msg = 'Missile MISSES'
+                    else:
+                        if (
+                            found_lock
+                            and found_lock.get('target_id') == self.entity_id
+                        ):
+                            a_state = replay.game_state.players.get(
+                                actor_id or ''
+                            )
+                            self_state = replay.game_state.players.get(
+                                self.entity_id
+                            )
+                            if a_state and self_state:
+                                if a_state.team_index == self_state.team_index:
+                                    follow_up_msg = (
+                                        f'FRIENDLY missile from {actor_name} '
+                                        'MISSES'
+                                    )
+                                else:
+                                    follow_up_msg = (
+                                        f'Missile from {actor_name} MISSES'
+                                    )
+                elif et in ('0301', '0302', '0303'):
+                    if actor_id == self.entity_id:
+                        if et == '0301':
+                            follow_up_msg = f'Missile misses {target_name}'
+                        else:
+                            follow_up_msg = f'Missiled {target_name}'
+
+                if found_lock and follow_up_msg:
+                    el_config = self.config.get('elements', {}).get(
+                        'player_events', {}
+                    )
+                    fade_time_s = el_config.get('fade_out_time')
+                    if fade_time_s is None:
+                        fade_time_s = self.config.get('fade_out_time', 3.0)
+                    fade_time_ms = int(fade_time_s * 1000)
+
+                    found_lock['follow_up_desc'] = follow_up_msg
+                    found_lock['follow_up_time'] = event.time
+                    found_lock['duration'] = (
+                        event.time - found_lock['time']
+                    ) + fade_time_ms
+                elif follow_up_msg:
+                    if et in ('0306', '0308') or (
+                        et == '0304' and actor_id == self.entity_id
+                    ):
+                        msg = follow_up_msg
 
             elif et in ('0500', '0502'):
                 msg = self._process_hud_resupply_event(
@@ -531,6 +629,7 @@ class VisualElementGenerator:
                         'desc': msg,
                         'actor_id': actor_id,
                         'target_id': target_id,
+                        'event_type': et,
                     }
                 )
 
@@ -1535,6 +1634,8 @@ class VisualElementGenerator:
                     and time_ms >= ev['double_resup_time']
                 ):
                     text = ev['double_resup_desc']
+                elif 'follow_up_desc' in ev and time_ms >= ev['follow_up_time']:
+                    text = ev['follow_up_desc']
 
                 slots[slot_idx] = {
                     'text': text,

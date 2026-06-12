@@ -1503,3 +1503,171 @@ def test_generator_keyframes_integration() -> None:
     assert el_gt2.x == pytest.approx(0.3)
     # size at 3000 should be 20
     assert el_gt2.style.size == 20
+
+
+def test_generator_missile_lock_and_followup() -> None:
+    """Verifies that missile locking and follow-up events are tracked."""
+    from datetime import datetime
+    from unittest.mock import MagicMock
+    from lfdata.model import LFGame, GameEvent, LFRole
+    from lfdata.video import VisualElementGenerator
+    from lfdata.replay.state import LFReplayPlayerState
+
+    game = LFGame(
+        game_id='test_missile_lock_game',
+        timestamp=datetime.now(),
+        game_type='SM5',
+    )
+    gen = VisualElementGenerator(game, 'Player1')
+    gen.entity_id = 'P1'
+    gen.entity_names = {
+        'P1': 'Player1',
+        'P2': 'Player2',
+        'P3': 'Player3',
+        'B1': 'Base1',
+    }
+
+    mock_replay = MagicMock()
+    p1_state = LFReplayPlayerState('P1', LFRole.COMMANDER, 0)
+    p2_state = LFReplayPlayerState('P2', LFRole.HEAVY, 1)  # Enemy
+    p3_state = LFReplayPlayerState('P3', LFRole.SCOUT, 0)  # Teammate
+    mock_replay.game_state.players = {
+        'P1': p1_state,
+        'P2': p2_state,
+        'P3': p3_state,
+    }
+    mock_replay.game_state.teams = {}
+
+    gen.snapshots = [(0, {}, {}), (0, {}, {})]
+
+    # 1. P1 locks enemy P2 at t = 1000ms
+    ev1 = GameEvent(
+        game_id='test_missile_lock_game',
+        time=1000,
+        event_type='0300',
+        actor_entity_id='P1',
+        target_entity_id='P2',
+    )
+    gen._process_hud_event_triggers(ev1, mock_replay, '')
+
+    assert len(gen.player_event_log) == 1
+    assert gen.player_event_log[0]['desc'] == 'Locking Player2'
+    assert gen.player_event_log[0]['time'] == 1000
+    assert gen.player_event_log[0]['event_type'] == '0300'
+
+    # 2. P1 fires and hits enemy P2 at t = 3000ms (follow-up)
+    ev2 = GameEvent(
+        game_id='test_missile_lock_game',
+        time=3000,
+        event_type='0306',
+        actor_entity_id='P1',
+        target_entity_id='P2',
+    )
+    gen._process_hud_event_triggers(ev2, mock_replay, '')
+
+    # Verifies lock event was replaced/updated and NO new event was appended
+    assert len(gen.player_event_log) == 1
+    assert gen.player_event_log[0]['desc'] == 'Locking Player2'
+    assert gen.player_event_log[0]['follow_up_desc'] == 'Missiled Player2'
+    assert gen.player_event_log[0]['follow_up_time'] == 3000
+
+    # Test multiline rendering before and after follow-up
+    # At t = 2000ms: should show locking message
+    slots_2000 = gen._get_active_multiline_lines(
+        event_list=gen.player_event_log,
+        time_ms=2000,
+        fade_time_ms=3000,
+    )
+    assert slots_2000[0] is not None
+    assert slots_2000[0]['text'] == 'Locking Player2'
+
+    # At t = 3500ms: should show follow-up missiled message
+    slots_3500 = gen._get_active_multiline_lines(
+        event_list=gen.player_event_log,
+        time_ms=3500,
+        fade_time_ms=3000,
+    )
+    assert slots_3500[0] is not None
+    assert slots_3500[0]['text'] == 'Missiled Player2'
+
+    # 3. Enemy P2 locks P1 at t = 5000ms
+    ev3 = GameEvent(
+        game_id='test_missile_lock_game',
+        time=5000,
+        event_type='0300',
+        actor_entity_id='P2',
+        target_entity_id='P1',
+    )
+    gen._process_hud_event_triggers(ev3, mock_replay, '')
+
+    assert len(gen.player_event_log) == 2
+    assert gen.player_event_log[1]['desc'] == 'Locked by Player2'
+    assert gen.player_event_log[1]['time'] == 5000
+
+    # 4. Enemy P2 fires and misses at t = 7000ms (follow-up)
+    ev4 = GameEvent(
+        game_id='test_missile_lock_game',
+        time=7000,
+        event_type='0304',
+        actor_entity_id='P2',
+        target_entity_id=None,
+    )
+    gen._process_hud_event_triggers(ev4, mock_replay, '')
+
+    # Verifies lock event was replaced/updated
+    assert len(gen.player_event_log) == 2
+    assert (
+        gen.player_event_log[1]['follow_up_desc']
+        == 'Missile from Player2 MISSES'
+    )
+    assert gen.player_event_log[1]['follow_up_time'] == 7000
+
+    # At t = 8000ms: should show Missile from Player2 MISSES
+    slots_8000 = gen._get_active_multiline_lines(
+        event_list=gen.player_event_log,
+        time_ms=8000,
+        fade_time_ms=3000,
+    )
+    assert slots_8000[0] is not None
+    assert slots_8000[0]['text'] == 'Missile from Player2 MISSES'
+
+    # 5. P1 locks teammate P3 (FRIENDLY lock) at t = 10000ms
+    ev5 = GameEvent(
+        game_id='test_missile_lock_game',
+        time=10000,
+        event_type='0300',
+        actor_entity_id='P1',
+        target_entity_id='P3',
+    )
+    gen._process_hud_event_triggers(ev5, mock_replay, '')
+
+    assert len(gen.player_event_log) == 3
+    assert gen.player_event_log[2]['desc'] == 'FRIENDLY lock Player3'
+
+    # 6. Teammate P3 locks P1 (FRIENDLY lock by) at t = 12000ms
+    ev6 = GameEvent(
+        game_id='test_missile_lock_game',
+        time=12000,
+        event_type='0300',
+        actor_entity_id='P3',
+        target_entity_id='P1',
+    )
+    gen._process_hud_event_triggers(ev6, mock_replay, '')
+
+    assert len(gen.player_event_log) == 4
+    assert gen.player_event_log[3]['desc'] == 'FRIENDLY lock by Player3'
+
+    # 7. Missile fire without lock event should log normally as new event
+    # e.g., P1 fires missile at P2 (no lock logged before it) at t = 20000ms
+    ev7 = GameEvent(
+        game_id='test_missile_lock_game',
+        time=20000,
+        event_type='0306',
+        actor_entity_id='P1',
+        target_entity_id='P2',
+    )
+    gen._process_hud_event_triggers(ev7, mock_replay, '')
+    assert len(gen.player_event_log) == 5
+    assert gen.player_event_log[4]['desc'] == 'Missiled Player2'
+    assert gen.player_event_log[4]['time'] == 20000
+    assert 'follow_up_desc' not in gen.player_event_log[4]
