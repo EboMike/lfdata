@@ -12,13 +12,14 @@
   files. Except for small classes, or private classes, each class should be
   in its own file.
 * Classes that are almost entirely just data members should be dataclasses.
-* Do NOT use dicts with string keys. 
+* Do NOT use dicts with string keys to store objects with various data
+  points if they're used in more than one place. Instead, use dataclasses.
 * All code in must have test coverage. Every Python file must have a matching
   test file (e.g. `my_module.py` must have a `test_my_module.py`).
 * Test coverage must be thorough, every computed data point needs to be tested
   at least once, using values that are not default values.
-* Strings should use single quotes, not double quotes. Double quotes are OK
-  if the string contains apostrophes.
+* String literals must use single quotes, not double quotes. Double quotes are
+  OK if the string contains apostrophes.
 * Lines should not exceed 80 characters unless they contain strings that
   cannot be broken up, like URLs.
 * Unused imports must be removed.

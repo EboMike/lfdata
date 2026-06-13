@@ -20,266 +20,263 @@ class LFTeamTransition:
 
 
 DEFAULT_CONFIG: dict[str, Any] = {
-    'font': 'GoogleSans-Bold',
-    'style': 'normal',
-    'size': 20,
-    'color': '#ffffffff',
-    'background_color': '#00000000',
-    'fade_out_time': 2.0,
-    'fps': 60,
-    'extra_footage_ms': 10000,
-    'pregame_delay_ms': 0,
-    'player_name': None,
-    'resolution': [1920, 1080],
-    'animation': 'ease-in-out',
-    'elements': {
-        'game_type': {
-            'enabled': True,
-            'x': 0.98,
-            'y': 0.96,
-            'align': 'right',
-            'style': {'size': 14},
+    "font": "GoogleSans-Bold",
+    "style": "normal",
+    "size": 20,
+    "color": "#ffffffff",
+    "background_color": "#00000000",
+    "fps": 60,
+    "extra_footage_ms": 10000,
+    "pregame_delay_ms": 0,
+    "player_name": None,
+    "resolution": [1920, 1080],
+    "animation": "ease-in-out",
+    "elements": {
+        "game_type": {
+            "enabled": True,
+            "x": 0.98,
+            "y": 0.96,
+            "align": "right",
+            "style": {"size": 14},
         },
-        'normalized_game_type': {
-            'enabled': False,
-            'x': 0.98,
-            'y': 0.96,
-            'align': 'right',
-            'style': {'size': 14},
+        "normalized_game_type": {
+            "enabled": False,
+            "x": 0.98,
+            "y": 0.96,
+            "align": "right",
+            "style": {"size": 14},
         },
-        'time': {
-            'enabled': True,
-            'x': 0.98,
-            'y': 0.22,
-            'align': 'right',
-            'style': {
-                'size': 40,
-                'font': 'advanced_pixel_lcd-7',
+        "time": {
+            "enabled": True,
+            "x": 0.98,
+            "y": 0.22,
+            "align": "right",
+            "style": {
+                "size": 40,
+                "font": "advanced_pixel_lcd-7",
             },
         },
-        'player_name': {
-            'enabled': True,
-            'x': 0.5,
-            'y': 0.05,
-            'align': 'center',
-            'style': {'size': 24},
+        "player_name": {
+            "enabled": True,
+            "x": 0.5,
+            "y": 0.05,
+            "align": "center",
+            "style": {"size": 24},
         },
-        'player_role': {
-            'enabled': True,
-            'x': 0.5,
-            'y': 0.09,
-            'align': 'center',
-            'style': {'size': 16},
+        "player_role": {
+            "enabled": True,
+            "x": 0.5,
+            "y": 0.09,
+            "align": "center",
+            "style": {"size": 16},
         },
-        'player_lives': {
-            'enabled': True,
-            'x': 0.25,
-            'y': 0.92,
-            'extents': [0.05, 0.05],
-            'align': 'left',
-            'icon': 'lives',
-            'style': {'size': 18},
+        "player_lives": {
+            "enabled": True,
+            "x": 0.25,
+            "y": 0.92,
+            "extents": [0.05, 0.05],
+            "align": "left",
+            "icon": "lives",
+            "style": {"size": 18},
         },
-        'player_shots': {
-            'enabled': True,
-            'x': 0.35,
-            'y': 0.92,
-            'extents': [0.05, 0.05],
-            'align': 'left',
-            'icon': 'shots',
-            'style': {'size': 18},
+        "player_shots": {
+            "enabled": True,
+            "x": 0.35,
+            "y": 0.92,
+            "extents": [0.05, 0.05],
+            "align": "left",
+            "icon": "shots",
+            "style": {"size": 18},
         },
-        'player_missiles': {
-            'enabled': True,
-            'x': 0.45,
-            'y': 0.92,
-            'extents': [0.05, 0.05],
-            'align': 'left',
-            'icon': 'missiles',
-            'style': {'size': 18},
+        "player_missiles": {
+            "enabled": True,
+            "x": 0.45,
+            "y": 0.92,
+            "extents": [0.05, 0.05],
+            "align": "left",
+            "icon": "missiles",
+            "style": {"size": 18},
         },
-        'player_hitpoints': {
-            'enabled': True,
-            'x': 0.55,
-            'y': 0.92,
-            'extents': [0.05, 0.05],
-            'align': 'left',
-            'icon': 'shields',
-            'style': {'size': 18},
+        "player_hitpoints": {
+            "enabled": True,
+            "x": 0.55,
+            "y": 0.92,
+            "extents": [0.05, 0.05],
+            "align": "left",
+            "icon": "shields",
+            "style": {"size": 18},
         },
-        'player_special_points': {
-            'enabled': True,
-            'x': 0.65,
-            'y': 0.92,
-            'extents': [0.05, 0.05],
-            'align': 'left',
-            'icon': 'sp',
-            'style': {'size': 18},
+        "player_special_points": {
+            "enabled": True,
+            "x": 0.65,
+            "y": 0.92,
+            "extents": [0.05, 0.05],
+            "align": "left",
+            "icon": "sp",
+            "style": {"size": 18},
         },
-        'player_score': {
-            'enabled': True,
-            'x': 0.98,
-            'y': 0.05,
-            'align': 'right',
-            'style': {'size': 36},
+        "player_score": {
+            "enabled": True,
+            "x": 0.98,
+            "y": 0.05,
+            "align": "right",
+            "style": {"size": 36},
         },
-        'scoreboard': {
-            'enabled': True,
-            'x': 0.02,
-            'y': 0.4,
-            'extents': [0.4, 0.4],
-            'align': 'left',
-            'draw_background': False,
-            'draw_borders': False,
-            'style': {'size': 15},
+        "scoreboard": {
+            "enabled": True,
+            "x": 0.02,
+            "y": 0.4,
+            "extents": [0.4, 0.4],
+            "align": "left",
+            "draw_background": False,
+            "draw_borders": False,
+            "style": {"size": 15},
         },
-        'downtime': {
-            'enabled': True,
-            'x': 0.3,
-            'y': 0.14,
-            'extents': [0.4, 0.03],
+        "downtime": {
+            "enabled": True,
+            "x": 0.3,
+            "y": 0.14,
+            "extents": [0.4, 0.03],
         },
-        'player_events': {
-            'enabled': True,
-            'x': 0.5,
-            'y': 0.18,
-            'align': 'center',
-            'style': {'size': 18},
+        "player_events": {
+            "enabled": True,
+            "x": 0.5,
+            "y": 0.18,
+            "align": "center",
+            "style": {"size": 18},
         },
-        'game_events': {
-            'enabled': True,
-            'x': 0.5,
-            'y': 0.28,
-            'align': 'center',
-            'style': {'size': 20},
+        "game_events": {
+            "enabled": True,
+            "x": 0.5,
+            "y": 0.28,
+            "align": "center",
+            "style": {"size": 20},
         },
-        'all_game_events': {
-            'enabled': True,
-            'x': 0.75,
-            'y': 0.6,
-            'extents': [0.25, 0.25],
-            'align': 'left',
-            'tilt': 10.0,
-            'style': {'size': 16},
+        "all_game_events": {
+            "enabled": True,
+            "x": 0.75,
+            "y": 0.6,
+            "extents": [0.25, 0.25],
+            "align": "left",
+            "tilt": 10.0,
+            "style": {"size": 16},
         },
-        'date_of_game': {
-            'enabled': True,
-            'x': 0.98,
-            'y': 0.92,
-            'align': 'right',
-            'style': {'size': 18},
-            'format': None,
+        "date_of_game": {
+            "enabled": True,
+            "x": 0.98,
+            "y": 0.92,
+            "align": "right",
+            "style": {"size": 18},
+            "format": None,
         },
-        'user_defined_text_1': {
-            'enabled': False,
-            'x': 0.1,
-            'y': 0.6,
-            'align': 'left',
-            'style': {'size': 20},
-            'text': '',
+        "user_defined_text_1": {
+            "enabled": False,
+            "x": 0.1,
+            "y": 0.6,
+            "align": "left",
+            "style": {"size": 20},
+            "text": "",
         },
-        'user_defined_text_2': {
-            'enabled': False,
-            'x': 0.1,
-            'y': 0.7,
-            'align': 'left',
-            'style': {'size': 20},
-            'text': '',
+        "user_defined_text_2": {
+            "enabled": False,
+            "x": 0.1,
+            "y": 0.7,
+            "align": "left",
+            "style": {"size": 20},
+            "text": "",
         },
-        'user_defined_text_3': {
-            'enabled': False,
-            'x': 0.1,
-            'y': 0.8,
-            'align': 'left',
-            'style': {'size': 20},
-            'text': '',
+        "user_defined_text_3": {
+            "enabled": False,
+            "x": 0.1,
+            "y": 0.8,
+            "align": "left",
+            "style": {"size": 20},
+            "text": "",
         },
-        'user_defined_text_4': {
-            'enabled': False,
-            'x': 0.1,
-            'y': 0.9,
-            'align': 'left',
-            'style': {'size': 20},
-            'text': '',
+        "user_defined_text_4": {
+            "enabled": False,
+            "x": 0.1,
+            "y": 0.9,
+            "align": "left",
+            "style": {"size": 20},
+            "text": "",
         },
-        'user_defined_text_5': {
-            'enabled': False,
-            'x': 0.1,
-            'y': 0.1,
-            'align': 'left',
-            'style': {'size': 20},
-            'text': '',
+        "user_defined_text_5": {
+            "enabled": False,
+            "x": 0.1,
+            "y": 0.1,
+            "align": "left",
+            "style": {"size": 20},
+            "text": "",
         },
-        'user_defined_text_6': {
-            'enabled': False,
-            'x': 0.1,
-            'y': 0.2,
-            'align': 'left',
-            'style': {'size': 20},
-            'text': '',
+        "user_defined_text_6": {
+            "enabled": False,
+            "x": 0.1,
+            "y": 0.2,
+            "align": "left",
+            "style": {"size": 20},
+            "text": "",
         },
-        'user_defined_text_7': {
-            'enabled': False,
-            'x': 0.1,
-            'y': 0.3,
-            'align': 'left',
-            'style': {'size': 20},
-            'text': '',
+        "user_defined_text_7": {
+            "enabled": False,
+            "x": 0.1,
+            "y": 0.3,
+            "align": "left",
+            "style": {"size": 20},
+            "text": "",
         },
-        'user_defined_text_8': {
-            'enabled': False,
-            'x': 0.1,
-            'y': 0.4,
-            'align': 'left',
-            'style': {'size': 20},
-            'text': '',
+        "user_defined_text_8": {
+            "enabled": False,
+            "x": 0.1,
+            "y": 0.4,
+            "align": "left",
+            "style": {"size": 20},
+            "text": "",
         },
-        'user_defined_text_9': {
-            'enabled': False,
-            'x': 0.1,
-            'y': 0.5,
-            'align': 'left',
-            'style': {'size': 20},
-            'text': '',
+        "user_defined_text_9": {
+            "enabled": False,
+            "x": 0.1,
+            "y": 0.5,
+            "align": "left",
+            "style": {"size": 20},
+            "text": "",
         },
-        'user_defined_text_10': {
-            'enabled': False,
-            'x': 0.1,
-            'y': 0.6,
-            'align': 'left',
-            'style': {'size': 20},
-            'text': '',
+        "user_defined_text_10": {
+            "enabled": False,
+            "x": 0.1,
+            "y": 0.6,
+            "align": "left",
+            "style": {"size": 20},
+            "text": "",
         },
-        'user_defined_text_11': {
-            'enabled': False,
-            'x': 0.1,
-            'y': 0.7,
-            'align': 'left',
-            'style': {'size': 20},
-            'text': '',
+        "user_defined_text_11": {
+            "enabled": False,
+            "x": 0.1,
+            "y": 0.7,
+            "align": "left",
+            "style": {"size": 20},
+            "text": "",
         },
-        'user_defined_text_12': {
-            'enabled': False,
-            'x': 0.1,
-            'y': 0.8,
-            'align': 'left',
-            'style': {'size': 20},
-            'text': '',
+        "user_defined_text_12": {
+            "enabled": False,
+            "x": 0.1,
+            "y": 0.8,
+            "align": "left",
+            "style": {"size": 20},
+            "text": "",
         },
-        'centre_name': {
-            'enabled': False,
-            'x': 0.1,
-            'y': 0.8,
-            'align': 'left',
-            'style': {'size': 20},
+        "centre_name": {
+            "enabled": False,
+            "x": 0.1,
+            "y": 0.8,
+            "align": "left",
+            "style": {"size": 20},
         },
     },
 }
 
 
-def _merge_configs(
-    base: dict[str, Any], loaded: dict[str, Any]
-) -> dict[str, Any]:
+def _merge_configs(base: dict[str, Any], loaded: dict[str, Any]) -> dict[str, Any]:
     """Recursively merges a loaded configuration dict into base defaults.
 
     Args:
@@ -317,7 +314,7 @@ def hex_to_rgb(hex_str: str) -> tuple[int, int, int]:
         tuple[int, int, int]: The RGB integer values (0-255).
     """
     hex_str = hex_str.strip()
-    if hex_str.startswith('#'):
+    if hex_str.startswith("#"):
         hex_str = hex_str[1:]
     try:
         r = int(hex_str[0:2], 16)
@@ -341,7 +338,7 @@ def parse_color_with_alpha(
         tuple[int, int, int, int]: The combined RGBA color values (0-255).
     """
     color_hex = color_hex.strip()
-    if color_hex.startswith('#'):
+    if color_hex.startswith("#"):
         color_hex = color_hex[1:]
     try:
         r = int(color_hex[0:2], 16)
@@ -369,13 +366,13 @@ def apply_animation(p: float, name: str) -> float:
         float: The interpolated progress value.
     """
     p = max(0.0, min(1.0, p))
-    if name == 'linear':
+    if name == "linear":
         return p
-    if name == 'ease-in':
+    if name == "ease-in":
         return p * p
-    if name == 'ease-out':
+    if name == "ease-out":
         return p * (2.0 - p)
-    if name == 'ease-in-out':
+    if name == "ease-in-out":
         return p * p * (3.0 - 2.0 * p)
     return p
 
@@ -454,9 +451,7 @@ def _interpolate_values(val_start: Any, val_end: Any, p_anim: float) -> Any:
     Returns:
         Any: The interpolated value or value pair.
     """
-    if isinstance(val_start, (list, tuple)) and isinstance(
-        val_end, (list, tuple)
-    ):
+    if isinstance(val_start, (list, tuple)) and isinstance(val_end, (list, tuple)):
         if len(val_start) >= 2 and len(val_end) >= 2:
             x_start, y_start = val_start[0], val_start[1]
             x_end, y_end = val_end[0], val_end[1]
@@ -491,10 +486,10 @@ def resolve_animated_value(
     Returns:
         Any: The resolved value or value pair at the specified timestamp.
     """
-    if not isinstance(config_val, dict) or 'keyframes' not in config_val:
+    if not isinstance(config_val, dict) or "keyframes" not in config_val:
         return config_val
 
-    keyframes = config_val['keyframes']
+    keyframes = config_val["keyframes"]
     if not keyframes:
         return None
 
@@ -503,60 +498,58 @@ def resolve_animated_value(
     for kf in keyframes:
         if not isinstance(kf, dict):
             continue
-        kf_time_raw = kf.get('time', 0)
+        kf_time_raw = kf.get("time", 0)
         try:
             kf_time_ms = float(kf_time_raw)
         except (TypeError, ValueError):
             kf_time_ms = 0.0
 
-        ref = kf.get('reference', kf.get('time_reference', 'start_of_video'))
+        ref = kf.get("reference", kf.get("time_reference", "start_of_video"))
         if not isinstance(ref, str):
-            ref = 'start_of_video'
-        ref_clean = ref.strip().lower().replace(' ', '_')
+            ref = "start_of_video"
+        ref_clean = ref.strip().lower().replace(" ", "_")
 
-        if ref_clean in ('start_of_game', 'game_start'):
+        if ref_clean in ("start_of_game", "game_start"):
             abs_time_ms = pregame_delay_ms + kf_time_ms
-        elif ref_clean in ('end_of_game', 'game_end'):
+        elif ref_clean in ("end_of_game", "game_end"):
             abs_time_ms = pregame_delay_ms + game_duration_ms + kf_time_ms
         else:
             abs_time_ms = kf_time_ms
 
         resolved_keyframes.append(
             {
-                'abs_time_ms': abs_time_ms,
-                'value': kf.get('value'),
-                'interpolator': kf.get('interpolator', 'linear'),
+                "abs_time_ms": abs_time_ms,
+                "value": kf.get("value"),
+                "interpolator": kf.get("interpolator", "linear"),
             }
         )
 
     # Sort keyframes by absolute video time
-    resolved_keyframes.sort(key=lambda k: k['abs_time_ms'])
+    resolved_keyframes.sort(key=lambda k: k["abs_time_ms"])
 
     if not resolved_keyframes:
         return None
 
     # Return boundary values if time is outside keyframe range
-    if time_ms <= resolved_keyframes[0]['abs_time_ms']:
-        return resolved_keyframes[0]['value']
-    if time_ms >= resolved_keyframes[-1]['abs_time_ms']:
-        return resolved_keyframes[-1]['value']
+    if time_ms <= resolved_keyframes[0]["abs_time_ms"]:
+        return resolved_keyframes[0]["value"]
+    if time_ms >= resolved_keyframes[-1]["abs_time_ms"]:
+        return resolved_keyframes[-1]["value"]
 
     # Interpolate between matching keyframes
     for i in range(len(resolved_keyframes) - 1):
         kf_start = resolved_keyframes[i]
         kf_end = resolved_keyframes[i + 1]
-        t_start_ms = kf_start['abs_time_ms']
-        t_end_ms = kf_end['abs_time_ms']
+        t_start_ms = kf_start["abs_time_ms"]
+        t_end_ms = kf_end["abs_time_ms"]
 
         if t_start_ms <= time_ms <= t_end_ms:
             if t_end_ms == t_start_ms:
-                return kf_end['value']
+                return kf_end["value"]
 
             p = (time_ms - t_start_ms) / (t_end_ms - t_start_ms)
-            p_anim = apply_animation(p, kf_start['interpolator'])
-            return _interpolate_values(
-                kf_start['value'], kf_end['value'], p_anim
-            )
+            p_anim = apply_animation(p, kf_start["interpolator"])
+            return _interpolate_values(kf_start["value"], kf_end["value"], p_anim)
 
     return None
 
@@ -584,7 +577,7 @@ def resolve_config_dict(
     resolved: dict[str, Any] = {}
     for k, v in config_dict.items():
         if isinstance(v, dict):
-            if 'keyframes' in v:
+            if "keyframes" in v:
                 resolved[k] = resolve_animated_value(
                     v,
                     time_ms,
@@ -602,7 +595,7 @@ def resolve_config_dict(
             resolved_list = []
             for item in v:
                 if isinstance(item, dict):
-                    if 'keyframes' in item:
+                    if "keyframes" in item:
                         resolved_list.append(
                             resolve_animated_value(
                                 item,

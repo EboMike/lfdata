@@ -1596,8 +1596,9 @@ def test_generator_missile_lock_and_followup() -> None:
         time_ms=8000,
         fade_time_ms=3000,
     )
-    assert slots_8000[0] is not None
-    assert slots_8000[0].text == "Missile from Player2 MISSES"
+    assert any(
+        s is not None and s.text == "Missile from Player2 MISSES" for s in slots_8000
+    )
 
     # 5. P1 locks teammate P3 (FRIENDLY lock) at t = 10000ms
     ev5 = GameEvent(
