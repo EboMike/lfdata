@@ -1999,3 +1999,66 @@ def test_generator_float_font_size() -> None:
     # Test text font loading with float size
     font = renderer._load_text_font("GoogleSans-Bold", "normal", 20.5)
     assert font is not None
+
+
+def test_generator_player_events_max_lines_and_fade_duration() -> None:
+    from datetime import datetime
+    from lfdata.model import LFGame, LFRole
+    from lfdata.video import VisualElementGenerator
+    from lfdata.replay.state import LFReplayPlayerState, LFReplayTeamState
+
+    game = LFGame(
+        game_id='test_max_lines_game',
+        timestamp=datetime.now(),
+        game_type='SM5',
+    )
+    # Configure custom max_lines and fade_duration
+    config = {
+        'elements': {
+            'player_events': {
+                'enabled': True,
+                'max_lines': 5,
+                'fade_duration': 2.0,
+            }
+        }
+    }
+    gen = VisualElementGenerator(game, 'Player1', config=config)
+    gen.entity_id = 'P1'
+    gen.entity_names = {'P1': 'Player1', 'P2': 'Player2'}
+
+    players = {
+        'P1': LFReplayPlayerState('P1', LFRole.COMMANDER, 0),
+        'P2': LFReplayPlayerState('P2', LFRole.HEAVY, 1),
+    }
+    teams = {
+        0: LFReplayTeamState(0, 'Fire', '#ff0000'),
+        1: LFReplayTeamState(1, 'Earth', '#00ff00'),
+    }
+
+    # Simulate some player events log entries to fill lines
+    from lfdata.video.element import LFPlayerEventLogEntry
+    gen.player_event_log = [
+        LFPlayerEventLogEntry(time=1000, desc='Zap Player2'),
+        LFPlayerEventLogEntry(time=1100, desc='Zap Player2'),
+        LFPlayerEventLogEntry(time=1200, desc='Zap Player2'),
+        LFPlayerEventLogEntry(time=1300, desc='Zap Player2'),
+        LFPlayerEventLogEntry(time=1400, desc='Zap Player2'),
+    ]
+
+    elements: list = []
+    # Call at time 2000. All events from 1000-1400 are active.
+    gen._add_event_hud_elements(elements, players, teams, 2000)
+
+    # Since max_lines is 5, we should see 5 player_events elements
+    player_evs = [
+        el for el in elements if el.element_type == 'text' and el.text == 'Zap Player2'
+    ]
+    assert len(player_evs) == 5
+
+    # Check fade duration timing logic for these elements.
+    # Since fade_duration is 2.0s (2000ms), and fade_time is 3000ms:
+    # Event 5 starts at 1400 -> end at 4400.
+    # At time 2000: elapsed = 600.
+    # elapsed < total_ms - fade_duration_ms (600 < 3000 - 2000 = 1000):
+    # it must have alpha = 1.0!
+    assert player_evs[4].alpha == 1.0

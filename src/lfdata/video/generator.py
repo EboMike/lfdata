@@ -1745,11 +1745,17 @@ class VisualElementGenerator:
             fade_time_s = self.config.get("fade_out_time", 3.0)
         fade_time_ms = int(fade_time_s * 1000)
 
+        fade_duration_s = el_config.get('fade_duration')
+        if fade_duration_s is None:
+            fade_duration_s = self.config.get('fade_duration', 1.0)
+        fade_duration_ms = int(fade_duration_s * 1000)
+
+        max_lines = el_config.get('max_lines', 4)
         slots = self._get_active_multiline_lines(
             event_list=self.player_event_log,
             time_ms=time_ms,
             fade_time_ms=fade_time_ms,
-            max_lines=3,
+            max_lines=max_lines,
             is_game_events=False,
         )
 
@@ -1760,7 +1766,9 @@ class VisualElementGenerator:
         for line_idx, slot in enumerate(slots):
             if slot is not None:
                 elapsed = time_ms - slot.start
-                alpha = get_fade_alpha(elapsed, slot.duration, anim)
+                alpha = get_fade_alpha(
+                    elapsed, slot.duration, anim, fade_duration_ms
+                )
                 y_offset = base_y + line_idx * line_height
                 line_color_map = dict(player_to_color) if player_to_color else {}
                 overrides = slot.target_color_override
@@ -1801,13 +1809,19 @@ class VisualElementGenerator:
             fade_time_s = self.config.get("fade_out_time", 5.0)
         fade_time_ms = int(fade_time_s * 1000)
 
+        fade_duration_s = el_config.get('fade_duration')
+        if fade_duration_s is None:
+            fade_duration_s = self.config.get('fade_duration', 1.0)
+        fade_duration_ms = int(fade_duration_s * 1000)
+
+        max_lines = el_config.get('max_lines', 3)
         important_events = [ev for ev in self.event_log if ev.is_important]
 
         slots = self._get_active_multiline_lines(
             event_list=important_events,
             time_ms=time_ms,
             fade_time_ms=fade_time_ms,
-            max_lines=3,
+            max_lines=max_lines,
             is_game_events=True,
         )
 
@@ -1821,7 +1835,9 @@ class VisualElementGenerator:
                     alpha = 1.0
                 else:
                     elapsed = time_ms - slot.start
-                    alpha = get_fade_alpha(elapsed, slot.duration, anim)
+                    alpha = get_fade_alpha(
+                        elapsed, slot.duration, anim, fade_duration_ms
+                    )
 
                 y_offset = base_y + line_idx * line_height
                 el = self._create_ui_element(

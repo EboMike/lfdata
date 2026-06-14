@@ -1732,3 +1732,45 @@ def test_renderer_player_events_in_color() -> None:
     assert draw_text_calls[0][1] == (255, 255, 255, 255)
     assert draw_text_calls[1][0] == "Player2"
     assert draw_text_calls[1][1] == (0, 255, 0, 255)
+
+
+def test_renderer_font_fallback() -> None:
+    from PIL import Image, ImageFont, ImageDraw
+    from lfdata.model import LFGame
+    from lfdata.video.renderer import VideoGenerator
+
+    game = LFGame(game_id='test_font_fallback', game_type='SM5')
+    vg = VideoGenerator(game)
+
+    # Load default font
+    font = ImageFont.truetype('fonts/GoogleSans-Bold.ttf', 20)
+
+    # 1. Test _is_char_supported
+    assert vg._is_char_supported(font, 'A') is True
+    assert vg._is_char_supported(font, '☺') is False
+
+    # 2. Test _get_fallback_fonts
+    fb = vg._get_fallback_fonts(20)
+    assert isinstance(fb, list)
+
+    # 3. Test _get_text_runs
+    runs = vg._get_text_runs('Apmkb☺Muwj', font)
+    assert len(runs) >= 3
+    assert runs[0][0] == 'Apmkb'
+    assert runs[1][0] == '☺'
+    assert runs[2][0] == 'Muwj'
+
+    # 4. Test _measure_text_width_with_fallback and bbox
+    img = Image.new('RGBA', (800, 600), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    w = vg._measure_text_width_with_fallback(draw, 'Apmkb☺Muwj', font)
+    assert w > 0
+
+    bbox = vg._measure_text_bbox_with_fallback(draw, 'Apmkb☺Muwj', font)
+    assert len(bbox) == 4
+    assert bbox[2] == w
+
+    # 5. Test _draw_text_with_fallback
+    vg._draw_text_with_fallback(
+        draw, (10, 10), 'Apmkb☺Muwj', fill=(255, 255, 255, 255), font=font
+    )

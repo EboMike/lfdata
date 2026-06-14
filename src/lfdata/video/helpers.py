@@ -31,6 +31,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "player_name": None,
     "resolution": [1920, 1080],
     "animation": "ease-in-out",
+    'fade_duration': 1.0,
     "elements": {
         "game_type": {
             "enabled": True,
@@ -144,11 +145,12 @@ DEFAULT_CONFIG: dict[str, Any] = {
             "y": 0.18,
             "align": "center",
             "style": {"size": 18},
+            'max_lines': 4,
         },
         "game_events": {
             "enabled": True,
             "x": 0.5,
-            "y": 0.28,
+            "y": 0.3,
             "align": "center",
             "style": {"size": 20},
         },
@@ -377,17 +379,36 @@ def apply_animation(p: float, name: str) -> float:
     return p
 
 
-def get_fade_alpha(elapsed_ms: int, total_ms: int, function_name: str) -> float:
+def get_fade_alpha(
+    elapsed_ms: int,
+    total_ms: int,
+    function_name: str,
+    fade_duration_ms: int | None = None,
+) -> float:
     """Calculates fade-out alpha (1.0 to 0.0) based on elapsed duration.
+
+    Supports optional delayed fade where the element stays fully visible
+    until the final fade duration is reached, then animating down.
 
     Args:
         elapsed_ms: Milliseconds elapsed since the fade started.
         total_ms: Total duration of the fade in milliseconds.
         function_name: Name of the animation function.
+        fade_duration_ms: Optional duration of the fadeout period in ms.
 
     Returns:
         float: The calculated alpha opacity value.
     """
+    if total_ms <= 0:
+        return 0.0
+
+    if fade_duration_ms is not None:
+        fade_duration_ms = min(fade_duration_ms, total_ms)
+        if elapsed_ms < total_ms - fade_duration_ms:
+            return 1.0
+        elapsed_ms = elapsed_ms - (total_ms - fade_duration_ms)
+        total_ms = fade_duration_ms
+
     if total_ms <= 0:
         return 0.0
     p = elapsed_ms / total_ms

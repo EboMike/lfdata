@@ -1157,6 +1157,246 @@ class VideoGenerator:
 
         return font_name
 
+    def _is_char_supported(
+        self, font: ImageFont.ImageFont, char: str
+    ) -> bool:
+        """Checks if a character is supported by the given font.
+
+        Compares the character mask size and histogram signature to
+        the fallback/notdef glyph.
+
+        Args:
+            font: The ImageFont to check.
+            char: The single character to inspect.
+
+        Returns:
+            bool: True if the character is supported, False otherwise.
+        """
+        if not hasattr(self, '_font_notdef_signatures'):
+            self._font_notdef_signatures = {}
+        if font not in self._font_notdef_signatures:
+            try:
+                m = font.getmask('\uffff')
+                self._font_notdef_signatures[font] = (m.size, m.histogram())
+            except Exception:
+                self._font_notdef_signatures[font] = None
+
+        sig = self._font_notdef_signatures[font]
+        if sig is None:
+            return True
+
+        try:
+            char_mask = font.getmask(char)
+            if char_mask.size != sig[0]:
+                return True
+            return char_mask.histogram() != sig[1]
+        except Exception:
+            return False
+
+    def _get_fallback_fonts(
+        self, size: float | int
+    ) -> list[ImageFont.ImageFont]:
+        """Loads and returns fallback fonts at the given size.
+
+        Common fallback fonts on Windows are loaded and cached.
+
+        Args:
+            size: The font size in pixels.
+
+        Returns:
+            list[ImageFont.ImageFont]: List of successfully loaded fonts.
+        """
+        if not hasattr(self, '_fallback_font_cache'):
+            self._fallback_font_cache = {}
+        if size not in self._fallback_font_cache:
+            fallbacks = []
+            paths = [
+                r'C:\Windows\Fonts\seguisym.ttf',
+                r'C:\Windows\Fonts\seguiemj.ttf',
+                r'C:\Windows\Fonts\msyh.ttc',
+                r'C:\Windows\Fonts\arial.ttf',
+            ]
+            for p in paths:
+                import os
+                if os.path.exists(p):
+                    try:
+                        fallbacks.append(ImageFont.truetype(p, size))
+                    except Exception:
+                        pass
+            self._fallback_font_cache[size] = fallbacks
+        return self._fallback_font_cache[size]
+
+    def _get_text_runs(
+        self, text: str, font: ImageFont.ImageFont
+    ) -> list[tuple[str, ImageFont.ImageFont]]:
+        """Splits text into runs grouped by font support.
+
+        Characters not supported by the primary font are mapped to fallback fonts.
+
+        Args:
+            text: The text to split.
+            font: The primary font to use.
+
+        Returns:
+            list[tuple[str, ImageFont.ImageFont]]: Runs of (run_text, font).
+        """
+        if not text:
+            return []
+
+        runs: list[tuple[str, ImageFont.ImageFont]] = []
+        current_text: list[str] = []
+        current_font: ImageFont.ImageFont | None = None
+        first = True
+
+        for char in text:
+            resolved_font = font
+            if not self._is_char_supported(font, char):
+                for fb_font in self._get_fallback_fonts(font.size):
+                    if self._is_char_supported(fb_font, char):
+                        resolved_font = fb_font
+                        break
+
+            if first:
+                current_font = resolved_font
+                current_text.append(char)
+                first = False
+            elif resolved_font == current_font:
+                current_text.append(char)
+            else:
+                runs.append((''.join(current_text), current_font))
+                current_font = resolved_font
+                current_text = [char]
+
+        if current_text:
+            runs.append((''.join(current_text), current_font))
+
+        return runs
+
+    def _measure_text_width_with_fallback(
+        self,
+        draw: ImageDraw.ImageDraw,
+        text: str,
+        font: ImageFont.ImageFont,
+    ) -> float:
+        """Measures text width using font fallbacks.
+
+        Sum of the width of each resolved text run.
+
+        Args:
+            draw: The ImageDraw canvas.
+            text: The text to measure.
+            font: The primary font.
+
+        Returns:
+            float: Total measured width in pixels.
+        """
+        runs = self._get_text_runs(text, font)
+        total_w = 0.0
+        for run_text, run_font in runs:
+            total_w += draw.textlength(run_text, font=run_font)
+        return total_w
+
+    def _measure_text_bbox_with_fallback(
+        self,
+        draw: ImageDraw.ImageDraw,
+        text: str,
+        font: ImageFont.ImageFont,
+        anchor: str = 'la',
+    ) -> tuple[float, float, float, float]:
+        """Computes text bounding box using font fallbacks.
+
+        Accumulates horizontal width and calculates min/max vertical bounds.
+
+        Args:
+            draw: The ImageDraw canvas.
+            text: The text to measure.
+            font: The primary font.
+            anchor: Bounding box alignment anchor.
+
+        Returns:
+            tuple[float, float, float, float]: Bounding box (x0, y0, x1, y1).
+        """
+        runs = self._get_text_runs(text, font)
+        if not runs:
+            return (0.0, 0.0, 0.0, 0.0)
+
+        total_w = 0.0
+        min_y = 0.0
+        max_y = 0.0
+        first = True
+
+        for run_text, run_font in runs:
+            w = draw.textlength(run_text, font=run_font)
+            t_bbox = draw.textbbox(
+                (total_w, 0), run_text, font=run_font, anchor=anchor
+            )
+            if first:
+                min_y = t_bbox[1]
+                max_y = t_bbox[3]
+                first = False
+            else:
+                if t_bbox[1] < min_y:
+                    min_y = t_bbox[1]
+                if t_bbox[3] > max_y:
+                    max_y = t_bbox[3]
+            total_w += w
+
+        return (0.0, min_y, total_w, max_y)
+
+    def _draw_text_with_fallback(
+        self,
+        draw: ImageDraw.ImageDraw,
+        xy: tuple[float, float],
+        text: str,
+        fill: Any,
+        font: ImageFont.ImageFont,
+        anchor: str = 'la',
+        stroke_width: int = 0,
+        stroke_fill: Any = None,
+    ) -> None:
+        """Draws text on a canvas using font fallbacks.
+
+        Splits text into font-specific runs and renders them sequentially.
+
+        Args:
+            draw: The ImageDraw canvas.
+            xy: Anchor coordinates (x, y).
+            text: The text to render.
+            fill: Font color.
+            font: The primary font.
+            anchor: Text alignment anchor.
+            stroke_width: Text outline width.
+            stroke_fill: Text outline color.
+        """
+        runs = self._get_text_runs(text, font)
+        if not runs:
+            return
+
+        h_anchor = anchor[0] if len(anchor) >= 1 else 'l'
+        v_anchor = anchor[1] if len(anchor) >= 2 else 'a'
+
+        total_w = self._measure_text_width_with_fallback(draw, text, font)
+
+        x, y = xy
+        if h_anchor == 'm':
+            x = x - total_w / 2.0
+        elif h_anchor == 'r':
+            x = x - total_w
+
+        current_x = x
+        for run_text, run_font in runs:
+            run_anchor = 'l' + v_anchor
+            draw.text(
+                (current_x, y),
+                run_text,
+                fill=fill,
+                font=run_font,
+                anchor=run_anchor,
+                stroke_width=stroke_width,
+                stroke_fill=stroke_fill,
+            )
+            current_x += draw.textlength(run_text, font=run_font)
+
     def _load_scoreboard_fonts(
         self,
         font_name: str,
@@ -1263,7 +1503,9 @@ class VideoGenerator:
             for team in teams:
                 for p in team.players:
                     codename = p.codename
-                    name_w = temp_draw.textlength(codename, font=font)
+                    name_w = self._measure_text_width_with_fallback(
+                        temp_draw, codename, font
+                    )
                     if not isinstance(name_w, (int, float)):
                         name_w = 0.0
                     num_penalties = p.penalties
@@ -1273,8 +1515,8 @@ class VideoGenerator:
                         cards_w = card_w + (num_cards - 1) * (card_w // 2)
                         text_w = 0
                         if num_penalties > 3:
-                            text_w = temp_draw.textlength(
-                                f"x{num_penalties}", font=font
+                            text_w = self._measure_text_width_with_fallback(
+                                temp_draw, f"x{num_penalties}", font
                             )
                             if not isinstance(text_w, (int, float)):
                                 text_w = 0.0
@@ -1427,7 +1669,8 @@ class VideoGenerator:
             )
 
         for col_name, offset in zip(columns, offsets):
-            draw.text(
+            self._draw_text_with_fallback(
+                draw,
                 (offset, ty + header_h // 2),
                 col_name,
                 fill=(255, 255, 255, 255),
@@ -1508,7 +1751,8 @@ class VideoGenerator:
                     0,
                     p_color[3] if len(p_color) > 3 else 255,
                 )
-                draw.text(
+                self._draw_text_with_fallback(
+                    draw,
                     (offset, y_row + row_h // 2),
                     val,
                     fill=p_color,
@@ -1521,7 +1765,9 @@ class VideoGenerator:
                 if col == "Player":
                     num_penalties = p.penalties
                     if num_penalties > 0 and overlay is not None:
-                        name_w = draw.textlength(val, font=font)
+                        name_w = self._measure_text_width_with_fallback(
+                            draw, val, font
+                        )
                         scale = row_h / 28
                         margin = int(5 * scale * overlay.width / 1920)
                         card_x_start = offset + name_w + margin
@@ -1545,7 +1791,8 @@ class VideoGenerator:
                                     + card_w
                                 )
                                 text_x = right_edge + margin
-                                draw.text(
+                                self._draw_text_with_fallback(
+                                    draw,
                                     (text_x, y_row + row_h // 2),
                                     f"x{num_penalties}",
                                     fill=p_color,
@@ -1596,7 +1843,8 @@ class VideoGenerator:
             )
         tot_vals = self._compile_totals_row_values(totals, columns)
         for val, offset in zip(tot_vals, offsets):
-            draw.text(
+            self._draw_text_with_fallback(
+                draw,
                 (offset, y_row + totals_h // 2),
                 val,
                 fill=(255, 255, 255, 255),
@@ -2082,8 +2330,8 @@ class VideoGenerator:
                     for seg in segments:
                         if seg["type"] == "text":
                             t_str = seg["text"]
-                            t_bbox = temp_draw.textbbox(
-                                (0, 0), t_str, font=font, anchor="la"
+                            t_bbox = self._measure_text_bbox_with_fallback(
+                                temp_draw, t_str, font=font, anchor="la"
                             )
                             if t_bbox[1] < min_y:
                                 min_y = t_bbox[1]
@@ -2093,8 +2341,8 @@ class VideoGenerator:
                             img_path = seg["path"]
                             if not img_path.exists():
                                 fallback_text = f'[img:{seg["name"]}]'
-                                t_bbox = temp_draw.textbbox(
-                                    (0, 0),
+                                t_bbox = self._measure_text_bbox_with_fallback(
+                                    temp_draw,
                                     fallback_text,
                                     font=font,
                                     anchor="la",
@@ -2112,9 +2360,11 @@ class VideoGenerator:
                     for seg in segments:
                         if seg["type"] == "text":
                             t_str = seg["text"]
-                            w = temp_draw.textlength(t_str, font=font)
-                            t_bbox = temp_draw.textbbox(
-                                (0, 0), t_str, font=font, anchor="la"
+                            w = self._measure_text_width_with_fallback(
+                                temp_draw, t_str, font=font
+                            )
+                            t_bbox = self._measure_text_bbox_with_fallback(
+                                temp_draw, t_str, font=font, anchor="la"
                             )
                             t_h = t_bbox[3] - t_bbox[1]
                             resolved_segments.append(
@@ -2162,9 +2412,11 @@ class VideoGenerator:
                             else:
                                 # Fallback if image file doesn't exist
                                 fallback_text = f'[img:{seg["name"]}]'
-                                w = temp_draw.textlength(fallback_text, font=font)
-                                t_bbox = temp_draw.textbbox(
-                                    (0, 0),
+                                w = self._measure_text_width_with_fallback(
+                                    temp_draw, fallback_text, font=font
+                                )
+                                t_bbox = self._measure_text_bbox_with_fallback(
+                                    temp_draw,
                                     fallback_text,
                                     font=font,
                                     anchor="la",
@@ -2222,7 +2474,8 @@ class VideoGenerator:
                             0,
                             seg_color[3] if len(seg_color) > 3 else 255,
                         )
-                        draw.text(
+                        self._draw_text_with_fallback(
+                            draw,
                             (draw_x, draw_y),
                             r_seg["text"],
                             fill=seg_color,
@@ -2502,7 +2755,9 @@ class VideoGenerator:
             bg_color = parse_color_with_alpha(bg_hex, el.alpha)
 
             if bg_color[3] > 0:
-                bbox = draw.textbbox((tx, ty), text_str, font=font, anchor="lm")
+                bbox = self._measure_text_bbox_with_fallback(
+                    draw, text_str, font=font, anchor="lm"
+                )
                 padding = max(1, int(height * 4 / 800))
                 padded_bbox = (
                     bbox[0] - padding,
@@ -2513,7 +2768,8 @@ class VideoGenerator:
                 draw.rectangle(padded_bbox, fill=bg_color)
 
             stroke_color = (0, 0, 0, alpha_color[3])
-            draw.text(
+            self._draw_text_with_fallback(
+                draw,
                 (tx, ty),
                 text_str,
                 fill=alpha_color,
@@ -2631,15 +2887,21 @@ class VideoGenerator:
                         0,
                         color[3] if len(color) > 3 else 255,
                     )
-                    draw_temp.text(
+                    self._draw_text_with_fallback(
+                        draw_temp,
                         (x_cursor, int(y_pos)),
                         text_part,
                         fill=color,
                         font=font,
+                        anchor="la",
                         stroke_width=max(1, int(pixel_size * 0.05)),
                         stroke_fill=stroke_color,
                     )
-                    x_cursor += int(draw_temp.textlength(text_part, font=font))
+                    x_cursor += int(
+                        self._measure_text_width_with_fallback(
+                            draw_temp, text_part, font
+                        )
+                    )
 
             # Add fade to the top of the event scroller.
             fade_height = int(H * 0.25)

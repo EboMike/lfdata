@@ -79,17 +79,27 @@ class TdfImporter:
         )
 
         try:
-            with open(self.file_path, 'r', encoding='utf-16-le') as f:
+            with open(self.file_path, 'r', encoding='utf-16') as f:
                 content = f.read()
-                if content.startswith('\ufeff'):
-                    content = content[1:]
         except UnicodeError:
             try:
-                with open(self.file_path, 'r', encoding='utf-16') as f:
+                with open(self.file_path, 'r', encoding='utf-16-le') as f:
                     content = f.read()
+                    if content.startswith('\ufeff'):
+                        content = content[1:]
+                    if '\n' not in content and '\t' not in content:
+                        raise UnicodeError('Wrong byte order')
             except UnicodeError:
-                with open(self.file_path, 'r', encoding='utf-8') as f:
-                    content = f.read()
+                try:
+                    with open(self.file_path, 'r', encoding='utf-16-be') as f:
+                        content = f.read()
+                        if content.startswith('\ufeff'):
+                            content = content[1:]
+                        if '\n' not in content and '\t' not in content:
+                            raise UnicodeError('Wrong byte order')
+                except UnicodeError:
+                    with open(self.file_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
 
         for line in content.splitlines():
             self._parse_line(line, game)

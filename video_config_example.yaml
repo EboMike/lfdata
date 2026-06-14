@@ -22,6 +22,10 @@ resolution: [1920, 1080]
 # Default: ease-in-out
 animation: ease-in-out
 
+# The default duration for message fadeout animations in seconds.
+# Default: 1.0
+fade_duration: 1.0
+
 # The default target player whose specific stats/events are shown on the HUD.
 # If set, this name must match the player's name in the game.
 # Default: null (no specific player focus)
@@ -201,6 +205,10 @@ elements:
     x: 0.5
     y: 0.18
     align: center
+    # Maximum number of event messages displayed concurrently (default 4)
+    max_lines: 4
+    # Duration in seconds of the fadeout animation (default 1.0)
+    fade_duration: 1.0
     style:
       size: 18
 
@@ -208,8 +216,12 @@ elements:
   game_events:
     enabled: true
     x: 0.5
-    y: 0.28
+    y: 0.3
     align: center
+    # Maximum number of event messages displayed concurrently (default 3)
+    max_lines: 3
+    # Duration in seconds of the fadeout animation (default 1.0)
+    fade_duration: 1.0
     style:
       size: 20
 
