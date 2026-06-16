@@ -208,6 +208,10 @@ class VideoGenerator:
         self._icon_cache_lock = threading.Lock()
         self._penalty_card_cache: dict[int, Image.Image] = {}
         self._penalty_card_cache_lock = threading.Lock()
+        self._font_cache: dict[tuple, ImageFont.ImageFont] = {}
+        self._font_cache_lock = threading.Lock()
+        self._fallback_font_cache: dict[float | int, list[ImageFont.ImageFont]] = {}
+        self._font_notdef_signatures: dict[ImageFont.ImageFont, tuple[tuple[int, int], list[int]] | None] = {}
 
     def __getstate__(self) -> dict[str, Any]:
         """Prepares the object state for serialization.
@@ -230,6 +234,14 @@ class VideoGenerator:
             del state["_penalty_card_cache_lock"]
         if "_penalty_card_cache" in state:
             del state["_penalty_card_cache"]
+        if "_font_cache_lock" in state:
+            del state["_font_cache_lock"]
+        if "_font_cache" in state:
+            del state["_font_cache"]
+        if "_fallback_font_cache" in state:
+            del state["_fallback_font_cache"]
+        if "_font_notdef_signatures" in state:
+            del state["_font_notdef_signatures"]
         for key in [
             "_downtime_full",
             "_downtime_empty",
@@ -261,6 +273,10 @@ class VideoGenerator:
         self._icon_cache_lock = threading.Lock()
         self._penalty_card_cache = {}
         self._penalty_card_cache_lock = threading.Lock()
+        self._font_cache = {}
+        self._font_cache_lock = threading.Lock()
+        self._fallback_font_cache = {}
+        self._font_notdef_signatures = {}
 
     def _get_cached_icon(self, icon_path: Path, size: int) -> Image.Image | None:
         """Retrieves a cached, resized version of an icon image or loads it.
@@ -1413,20 +1429,45 @@ class VideoGenerator:
         Returns:
             tuple[ImageFont.ImageFont, ImageFont.ImageFont]: The loaded fonts.
         """
+        if not hasattr(self, '_font_cache'):
+            self._font_cache = {}
+        if not hasattr(self, '_font_cache_lock'):
+            self._font_cache_lock = threading.Lock()
+
+        reg_key = ('scoreboard_regular', font_name, pixel_size)
+        bold_key = ('scoreboard_bold', font_name, bold_pixel_size)
+
+        with self._font_cache_lock:
+            reg_font = self._font_cache.get(reg_key)
+            bold_font = self._font_cache.get(bold_key)
+
+        if reg_font is not None and bold_font is not None:
+            return reg_font, bold_font
+
         resolved_name = self._resolve_font_path(font_name)
         try:
-            font = ImageFont.truetype(resolved_name, pixel_size)
-            bold_font = ImageFont.truetype(resolved_name, bold_pixel_size)
+            if reg_font is None:
+                reg_font = ImageFont.truetype(resolved_name, pixel_size)
+            if bold_font is None:
+                bold_font = ImageFont.truetype(resolved_name, bold_pixel_size)
         except OSError:
-            try:
-                font = ImageFont.load_default(size=pixel_size)
-            except TypeError:
-                font = ImageFont.load_default()
-            try:
-                bold_font = ImageFont.load_default(size=bold_pixel_size)
-            except TypeError:
-                bold_font = ImageFont.load_default()
-        return font, bold_font
+            if reg_font is None:
+                try:
+                    reg_font = ImageFont.load_default(size=pixel_size)
+                except TypeError:
+                    reg_font = ImageFont.load_default()
+            if bold_font is None:
+                try:
+                    bold_font = ImageFont.load_default(size=bold_pixel_size)
+                except TypeError:
+                    bold_font = ImageFont.load_default()
+
+        with self._font_cache_lock:
+            self._font_cache[reg_key] = reg_font
+            self._font_cache[bold_key] = bold_font
+
+        return reg_font, bold_font
+
 
     def _draw_scoreboard(
         self,
@@ -2209,25 +2250,41 @@ class VideoGenerator:
         Returns:
             ImageFont.ImageFont: The loaded font.
         """
-        if style == "bold":
-            if font_file.lower() == "verdana":
-                font_file = "verdanab.ttf"
-            elif font_file.lower() == "arial":
-                font_file = "arialbd.ttf"
-        elif style == "italic":
-            if font_file.lower() == "verdana":
-                font_file = "verdanai.ttf"
-            elif font_file.lower() == "arial":
-                font_file = "ariali.ttf"
+        if not hasattr(self, '_font_cache'):
+            self._font_cache = {}
+        if not hasattr(self, '_font_cache_lock'):
+            self._font_cache_lock = threading.Lock()
+
+        cache_key = ('text', font_file, style, pixel_size)
+        with self._font_cache_lock:
+            cached = self._font_cache.get(cache_key)
+            if cached is not None:
+                return cached
+
+        if style == 'bold':
+            if font_file.lower() == 'verdana':
+                font_file = 'verdanab.ttf'
+            elif font_file.lower() == 'arial':
+                font_file = 'arialbd.ttf'
+        elif style == 'italic':
+            if font_file.lower() == 'verdana':
+                font_file = 'verdanai.ttf'
+            elif font_file.lower() == 'arial':
+                font_file = 'ariali.ttf'
 
         resolved_file = self._resolve_font_path(font_file)
         try:
-            return ImageFont.truetype(resolved_file, pixel_size)
+            font = ImageFont.truetype(resolved_file, pixel_size)
         except OSError:
             try:
-                return ImageFont.load_default(size=pixel_size)
+                font = ImageFont.load_default(size=pixel_size)
             except TypeError:
-                return ImageFont.load_default()
+                font = ImageFont.load_default()
+
+        with self._font_cache_lock:
+            self._font_cache[cache_key] = font
+        return font
+
 
     def _draw_text_elements(
         self,
