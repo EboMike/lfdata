@@ -79,6 +79,15 @@ class PropertiesPanel(ttk.LabelFrame):
 
         self.container.grid_columnconfigure(1, weight=1)
 
+        self.default_frame = ttk.Frame(self.container)
+        self.default_frame.grid(row=1, column=0, columnspan=3, sticky='nsew')
+        self.default_frame.grid_columnconfigure(1, weight=1)
+
+        self.hit_border_frame = ttk.LabelFrame(
+            self.container, text=' Hit Border Options '
+        )
+        self.hit_border_frame.grid_columnconfigure(1, weight=1)
+
         # Variables
         self.x_var = tk.StringVar()
         self.y_var = tk.StringVar()
@@ -95,6 +104,14 @@ class PropertiesPanel(ttk.LabelFrame):
         self.fade_in_ms_var = tk.StringVar()
         self.fade_out_ms_var = tk.StringVar()
         self.formatted_text_var = tk.StringVar()
+
+        # Hit Border specific variables
+        self.hb_dur_hp_var = tk.StringVar()
+        self.hb_dur_down_var = tk.StringVar()
+        self.hb_max_scale_var = tk.StringVar()
+        self.hb_col_zap_var = tk.StringVar()
+        self.hb_col_resup_var = tk.StringVar()
+        self.hb_col_other_var = tk.StringVar()
 
         # Animation states checkboxes variables
         self.x_anim_var = tk.BooleanVar()
@@ -119,52 +136,67 @@ class PropertiesPanel(ttk.LabelFrame):
         self.chk_enabled.grid(row=row, column=1, sticky='w', padx=5, pady=3)
         row += 1
 
-        # Coordinates
-        self._add_row(row, 'Anchor X (0-1):', self.x_var, 'x', self.x_anim_var)
-        row += 1
-        self._add_row(row, 'Anchor Y (0-1):', self.y_var, 'y', self.y_anim_var)
-        row += 1
+        # Coordinates (in default_frame)
+        default_row = 0
         self._add_row(
-            row, 'Width Extent:', self.w_var, 'extents', self.w_anim_var
+            default_row, 'Anchor X (0-1):', self.x_var, 'x', self.x_anim_var
         )
-        row += 1
+        default_row += 1
         self._add_row(
-            row, 'Height Extent:', self.h_var, 'extents', self.h_anim_var
+            default_row, 'Anchor Y (0-1):', self.y_var, 'y', self.y_anim_var
         )
-        row += 1
+        default_row += 1
+        self._add_row(
+            default_row, 'Width Extent:', self.w_var, 'extents', self.w_anim_var
+        )
+        default_row += 1
+        self._add_row(
+            default_row,
+            'Height Extent:',
+            self.h_var,
+            'extents',
+            self.h_anim_var,
+        )
+        default_row += 1
 
         # Alignment
-        ttk.Label(self.container, text='Alignment:').grid(
-            row=row, column=0, sticky='w', padx=5, pady=3
+        ttk.Label(self.default_frame, text='Alignment:').grid(
+            row=default_row, column=0, sticky='w', padx=5, pady=3
         )
         self.cmb_align = ttk.Combobox(
-            self.container,
+            self.default_frame,
             textvariable=self.align_var,
             values=['left', 'center', 'right'],
             state='readonly',
         )
-        self.cmb_align.grid(row=row, column=1, sticky='ew', padx=5, pady=3)
+        self.cmb_align.grid(
+            row=default_row, column=1, sticky='ew', padx=5, pady=3
+        )
         self.cmb_align.bind('<<ComboboxSelected>>', self._on_combobox_select)
-        row += 1
+        default_row += 1
 
         # Font & Style
-        self._add_row(row, 'Font Family:', self.font_var)
-        row += 1
+        self._add_row(default_row, 'Font Family:', self.font_var)
+        default_row += 1
         self._add_row(
-            row, 'Font Size:', self.size_var, 'size', self.size_anim_var
+            default_row, 'Font Size:', self.size_var, 'size', self.size_anim_var
         )
-        row += 1
+        default_row += 1
         self._add_row(
-            row, 'Tilt (degrees):', self.tilt_var, 'tilt', self.tilt_anim_var
+            default_row,
+            'Tilt (degrees):',
+            self.tilt_var,
+            'tilt',
+            self.tilt_anim_var,
         )
-        row += 1
+        default_row += 1
 
         # Timings (in ms)
-        ttk.Label(self.container, text='Start Time Offset:').grid(
-            row=row, column=0, sticky='w', padx=5, pady=3
+        ttk.Label(self.default_frame, text='Start Time Offset:').grid(
+            row=default_row, column=0, sticky='w', padx=5, pady=3
         )
         self.cmb_start_time_offset = ttk.Combobox(
-            self.container,
+            self.default_frame,
             textvariable=self.start_time_offset_var,
             values=[
                 'beginning of video',
@@ -174,33 +206,47 @@ class PropertiesPanel(ttk.LabelFrame):
             state='readonly',
         )
         self.cmb_start_time_offset.grid(
-            row=row, column=1, sticky='ew', padx=5, pady=3
+            row=default_row, column=1, sticky='ew', padx=5, pady=3
         )
         self.cmb_start_time_offset.bind(
             '<<ComboboxSelected>>',
             self._on_start_time_offset_select,
         )
-        row += 1
+        default_row += 1
 
-        self._add_row(row, 'Start Time (ms):', self.start_ms_var)
-        row += 1
-        self._add_row(row, 'End Time (ms):', self.end_ms_var)
-        row += 1
-        self._add_row(row, 'Fade In (ms):', self.fade_in_ms_var)
-        row += 1
-        self._add_row(row, 'Fade Out (ms):', self.fade_out_ms_var)
-        row += 1
+        self._add_row(default_row, 'Start Time (ms):', self.start_ms_var)
+        default_row += 1
+        self._add_row(default_row, 'End Time (ms):', self.end_ms_var)
+        default_row += 1
+        self._add_row(default_row, 'Fade In (ms):', self.fade_in_ms_var)
+        default_row += 1
+        self._add_row(default_row, 'Fade Out (ms):', self.fade_out_ms_var)
+        default_row += 1
 
         # Formatted Text
-        self._add_row(row, 'Formatted Text:', self.formatted_text_var)
-        row += 1
+        self._add_row(default_row, 'Formatted Text:', self.formatted_text_var)
+        default_row += 1
 
         # Embedded Animation Overview Panel (initially hidden)
         self.anim_overview = AnimationOverviewPanel(
-            self.container,
+            self.default_frame,
             self.config_manager,
             on_keyframe_changed=self.on_update,
         )
+
+        # Hit Border specific rows (in hit_border_frame)
+        hb_row = 0
+        self._add_hb_row(hb_row, 'Duration (Active HP):', self.hb_dur_hp_var)
+        hb_row += 1
+        self._add_hb_row(hb_row, 'Duration (Down):', self.hb_dur_down_var)
+        hb_row += 1
+        self._add_hb_row(hb_row, 'Max Scale:', self.hb_max_scale_var)
+        hb_row += 1
+        self._add_hb_row(hb_row, 'Tint Zapped (Active):', self.hb_col_zap_var)
+        hb_row += 1
+        self._add_hb_row(hb_row, 'Tint Resupplied:', self.hb_col_resup_var)
+        hb_row += 1
+        self._add_hb_row(hb_row, 'Tint Other:', self.hb_col_other_var)
 
     def _add_row(
         self,
@@ -219,10 +265,10 @@ class PropertiesPanel(ttk.LabelFrame):
             key: The key identifier for this property.
             anim_var: The BooleanVar for animation state of this property.
         """
-        ttk.Label(self.container, text=label).grid(
+        ttk.Label(self.default_frame, text=label).grid(
             row=row, column=0, sticky='w', padx=5, pady=3
         )
-        entry = ttk.Entry(self.container, textvariable=var)
+        entry = ttk.Entry(self.default_frame, textvariable=var)
         entry.grid(row=row, column=1, sticky='ew', padx=5, pady=3)
         entry.bind('<FocusOut>', lambda e: self._apply_properties())
         entry.bind('<Return>', lambda e: self._apply_properties())
@@ -232,12 +278,33 @@ class PropertiesPanel(ttk.LabelFrame):
 
         if anim_var is not None and key is not None:
             chk = ttk.Checkbutton(
-                self.container,
+                self.default_frame,
                 text='Animate',
                 variable=anim_var,
                 command=lambda: self._toggle_anim(key),
             )
             chk.grid(row=row, column=2, sticky='w', padx=5, pady=3)
+
+    def _add_hb_row(
+        self,
+        row: int,
+        label: str,
+        var: tk.StringVar,
+    ) -> None:
+        """Helper to add a text label and entry for hit border properties.
+
+        Args:
+            row: The row index.
+            label: The label text.
+            var: The tkinter StringVar to bind.
+        """
+        ttk.Label(self.hit_border_frame, text=label).grid(
+            row=row, column=0, sticky='w', padx=5, pady=3
+        )
+        entry = ttk.Entry(self.hit_border_frame, textvariable=var)
+        entry.grid(row=row, column=1, sticky='ew', padx=5, pady=3)
+        entry.bind('<FocusOut>', lambda e: self._apply_properties())
+        entry.bind('<Return>', lambda e: self._apply_properties())
 
     def load_element(self, name: str | None) -> None:
         """Loads element configuration values into form variables.
@@ -261,70 +328,107 @@ class PropertiesPanel(ttk.LabelFrame):
         enabled_val = self.config_manager.resolve_val(el.get('enabled', False))
         self.enabled_var.set(bool(enabled_val))
 
-        x_val = self.config_manager.resolve_val(el.get('x', 0.0))
-        y_val = self.config_manager.resolve_val(el.get('y', 0.0))
-        self.x_var.set(f'{x_val:.3f}' if x_val is not None else '')
-        self.y_var.set(f'{y_val:.3f}' if y_val is not None else '')
+        if name == 'hit_border':
+            self.default_frame.grid_remove()
+            self.hit_border_frame.grid(
+                row=1, column=0, columnspan=3, sticky='nsew'
+            )
 
-        extents = self.config_manager.resolve_val(el.get('extents'))
-        if extents and len(extents) >= 2:
-            self.w_var.set(f'{extents[0]:.3f}')
-            self.h_var.set(f'{extents[1]:.3f}')
+            dur_hp = el.get('duration_hp_s', 0.5)
+            dur_down = el.get('duration_down_s', 1.0)
+            max_scale = el.get('max_scale', 1.2)
+            col_zap = el.get('color_zapped_hp', '#ffff00')
+            col_resup = el.get('color_resupplied', '#ffffff')
+            col_other = el.get('color_other', '#ff0000')
+
+            self.hb_dur_hp_var.set(str(dur_hp))
+            self.hb_dur_down_var.set(str(dur_down))
+            self.hb_max_scale_var.set(str(max_scale))
+            self.hb_col_zap_var.set(str(col_zap))
+            self.hb_col_resup_var.set(str(col_resup))
+            self.hb_col_other_var.set(str(col_other))
         else:
-            self.w_var.set('')
-            self.h_var.set('')
+            self.hit_border_frame.grid_remove()
+            self.default_frame.grid(
+                row=1, column=0, columnspan=3, sticky='nsew'
+            )
 
-        align_val = self.config_manager.resolve_val(el.get('align', 'left'))
-        self.align_var.set(align_val if align_val is not None else 'left')
+            x_val = self.config_manager.resolve_val(el.get('x', 0.0))
+            y_val = self.config_manager.resolve_val(el.get('y', 0.0))
+            self.x_var.set(f'{x_val:.3f}' if x_val is not None else '')
+            self.y_var.set(f'{y_val:.3f}' if y_val is not None else '')
 
-        style = el.get('style', {})
-        font_val = self.config_manager.resolve_val(style.get('font', ''))
-        size_val = self.config_manager.resolve_val(style.get('size', ''))
-        self.font_var.set(font_val if font_val is not None else '')
-        self.size_var.set(str(size_val) if size_val is not None else '')
+            extents = self.config_manager.resolve_val(el.get('extents'))
+            if extents and len(extents) >= 2:
+                self.w_var.set(f'{extents[0]:.3f}')
+                self.h_var.set(f'{extents[1]:.3f}')
+            else:
+                self.w_var.set('')
+                self.h_var.set('')
 
-        tilt_val = self.config_manager.resolve_val(el.get('tilt', 0.0))
-        self.tilt_var.set(f'{tilt_val:.3f}' if tilt_val is not None else '')
+            align_val = self.config_manager.resolve_val(el.get('align', 'left'))
+            self.align_var.set(align_val if align_val is not None else 'left')
 
-        start_val = self.config_manager.resolve_val(
-            el.get('visible_start_ms', 0)
-        )
-        end_val = self.config_manager.resolve_val(el.get('visible_end_ms', 0))
-        fade_in_val = self.config_manager.resolve_val(el.get('fade_in_ms', 0))
-        fade_out_val = self.config_manager.resolve_val(el.get('fade_out_ms', 0))
-        offset_val = self.config_manager.resolve_val(
-            el.get('start_time_offset', 'beginning of video')
-        )
+            style = el.get('style', {})
+            font_val = self.config_manager.resolve_val(style.get('font', ''))
+            size_val = self.config_manager.resolve_val(style.get('size', ''))
+            self.font_var.set(font_val if font_val is not None else '')
+            self.size_var.set(str(size_val) if size_val is not None else '')
 
-        self.start_ms_var.set(str(start_val) if start_val is not None else '0')
-        self.end_ms_var.set(str(end_val) if end_val is not None else '0')
-        self.start_time_offset_var.set(
-            offset_val if offset_val is not None else 'beginning of video'
-        )
-        self.fade_in_ms_var.set(
-            str(fade_in_val) if fade_in_val is not None else '0'
-        )
-        self.fade_out_ms_var.set(
-            str(fade_out_val) if fade_out_val is not None else '0'
-        )
+            tilt_val = self.config_manager.resolve_val(el.get('tilt', 0.0))
+            self.tilt_var.set(f'{tilt_val:.3f}' if tilt_val is not None else '')
 
-        fmt_text = self.config_manager.resolve_val(el.get('formatted_text', ''))
-        self.formatted_text_var.set(fmt_text if fmt_text is not None else '')
+            start_val = self.config_manager.resolve_val(
+                el.get('visible_start_ms', 0)
+            )
+            end_val = self.config_manager.resolve_val(
+                el.get('visible_end_ms', 0)
+            )
+            fade_in_val = self.config_manager.resolve_val(
+                el.get('fade_in_ms', 0)
+            )
+            fade_out_val = self.config_manager.resolve_val(
+                el.get('fade_out_ms', 0)
+            )
+            offset_val = self.config_manager.resolve_val(
+                el.get('start_time_offset', 'beginning of video')
+            )
 
-        # Set animation vars
-        self.x_anim_var.set(self.config_manager.is_prop_animated(name, 'x'))
-        self.y_anim_var.set(self.config_manager.is_prop_animated(name, 'y'))
+            self.start_ms_var.set(
+                str(start_val) if start_val is not None else '0'
+            )
+            self.end_ms_var.set(str(end_val) if end_val is not None else '0')
+            self.start_time_offset_var.set(
+                offset_val if offset_val is not None else 'beginning of video'
+            )
+            self.fade_in_ms_var.set(
+                str(fade_in_val) if fade_in_val is not None else '0'
+            )
+            self.fade_out_ms_var.set(
+                str(fade_out_val) if fade_out_val is not None else '0'
+            )
 
-        ext_anim = self.config_manager.is_prop_animated(name, 'extents')
-        self.w_anim_var.set(ext_anim)
-        self.h_anim_var.set(ext_anim)
+            fmt_text = self.config_manager.resolve_val(
+                el.get('formatted_text', '')
+            )
+            self.formatted_text_var.set(
+                fmt_text if fmt_text is not None else ''
+            )
 
-        self.size_anim_var.set(
-            self.config_manager.is_prop_animated(name, 'size')
-        )
-        self.tilt_anim_var.set(
-            self.config_manager.is_prop_animated(name, 'tilt')
-        )
+            # Set animation vars
+            self.x_anim_var.set(self.config_manager.is_prop_animated(name, 'x'))
+            self.y_anim_var.set(self.config_manager.is_prop_animated(name, 'y'))
+
+            ext_anim = self.config_manager.is_prop_animated(name, 'extents')
+            self.w_anim_var.set(ext_anim)
+            self.h_anim_var.set(ext_anim)
+
+            self.size_anim_var.set(
+                self.config_manager.is_prop_animated(name, 'size')
+            )
+            self.tilt_anim_var.set(
+                self.config_manager.is_prop_animated(name, 'tilt')
+            )
 
         self._update_animation_overview_visibility()
 
@@ -346,6 +450,13 @@ class PropertiesPanel(ttk.LabelFrame):
         self.fade_out_ms_var.set('')
         self.formatted_text_var.set('')
 
+        self.hb_dur_hp_var.set('')
+        self.hb_dur_down_var.set('')
+        self.hb_max_scale_var.set('')
+        self.hb_col_zap_var.set('')
+        self.hb_col_resup_var.set('')
+        self.hb_col_other_var.set('')
+
         self.x_anim_var.set(False)
         self.y_anim_var.set(False)
         self.w_anim_var.set(False)
@@ -362,13 +473,18 @@ class PropertiesPanel(ttk.LabelFrame):
         Args:
             state: The widget state ('normal' or 'disabled').
         """
-        for child in self.container.winfo_children():
-            if isinstance(child, ttk.Entry):
-                child['state'] = state
-            elif isinstance(child, ttk.Combobox):
-                child['state'] = 'readonly' if state == tk.NORMAL else state
-            elif isinstance(child, ttk.Checkbutton):
-                child['state'] = state
+        for frame in (
+            self.container,
+            self.default_frame,
+            self.hit_border_frame,
+        ):
+            for child in frame.winfo_children():
+                if isinstance(child, ttk.Entry):
+                    child['state'] = state
+                elif isinstance(child, ttk.Combobox):
+                    child['state'] = 'readonly' if state == tk.NORMAL else state
+                elif isinstance(child, ttk.Checkbutton):
+                    child['state'] = state
 
     def _on_check_toggle(self) -> None:
         """Handles checkbox clicks immediately."""
@@ -410,6 +526,30 @@ class PropertiesPanel(ttk.LabelFrame):
     def _apply_properties(self) -> None:
         """Parses entry values and applies them back to config manager."""
         if not self.selected_element:
+            return
+
+        if self.selected_element == 'hit_border':
+            self._apply_float(self.hb_dur_hp_var, 'duration_hp_s')
+            self._apply_float(self.hb_dur_down_var, 'duration_down_s')
+            self._apply_float(self.hb_max_scale_var, 'max_scale')
+
+            col_zap = self.hb_col_zap_var.get().strip()
+            if col_zap:
+                self.config_manager.update_element(
+                    'hit_border', 'color_zapped_hp', col_zap
+                )
+            col_resup = self.hb_col_resup_var.get().strip()
+            if col_resup:
+                self.config_manager.update_element(
+                    'hit_border', 'color_resupplied', col_resup
+                )
+            col_other = self.hb_col_other_var.get().strip()
+            if col_other:
+                self.config_manager.update_element(
+                    'hit_border', 'color_other', col_other
+                )
+
+            self.on_update()
             return
 
         # Coordinates & sizes

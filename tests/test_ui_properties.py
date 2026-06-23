@@ -44,6 +44,9 @@ class DummyWidget:
         self._mapped: bool = True
         self._options: dict[str, Any] = {}
 
+    def __getattr__(self, name: str) -> Any:
+        return MagicMock()
+
     def grid(self, *args: Any, **kwargs: Any) -> None:
         self._mapped = True
 
@@ -213,6 +216,9 @@ import tkinter.ttk  # noqa: E402
 
 tkinter.StringVar = DummyStringVar
 tkinter.BooleanVar = DummyBooleanVar
+tkinter.Canvas = DummyWidget
+tkinter.ttk.Frame = DummyWidget
+tkinter.ttk.Scrollbar = DummyWidget
 tkinter.ttk.LabelFrame = DummyWidget
 tkinter.ttk.Label = DummyWidget
 tkinter.ttk.Entry = DummyWidget
@@ -364,3 +370,47 @@ def test_properties_start_time_offset(manager: UIConfigManager) -> None:
     # 4. Clear panel resets value
     panel.clear()
     assert panel.start_time_offset_var.get() == ''
+
+
+def test_properties_hit_border(manager: UIConfigManager) -> None:
+    """Tests loading, applying, and clearing hit_border properties."""
+    # Ensure hit_border exists in the manager config
+    manager.update_element('hit_border', 'enabled', True)
+    manager.update_element('hit_border', 'duration_hp_s', 0.5)
+    manager.update_element('hit_border', 'duration_down_s', 1.0)
+    manager.update_element('hit_border', 'max_scale', 1.2)
+    manager.update_element('hit_border', 'color_zapped_hp', '#ffff00')
+    manager.update_element('hit_border', 'color_resupplied', '#ffffff')
+    manager.update_element('hit_border', 'color_other', '#ff0000')
+
+    parent = MagicMock()
+    panel = PropertiesPanel(parent, manager, lambda: None)
+
+    # 1. Load hit_border
+    panel.load_element('hit_border')
+    assert panel.selected_element == 'hit_border'
+    assert panel.enabled_var.get() is True
+    assert panel.hb_dur_hp_var.get() == '0.5'
+    assert panel.hb_dur_down_var.get() == '1.0'
+    assert panel.hb_max_scale_var.get() == '1.2'
+    assert panel.hb_col_zap_var.get() == '#ffff00'
+    assert panel.hb_col_resup_var.get() == '#ffffff'
+    assert panel.hb_col_other_var.get() == '#ff0000'
+
+    # 2. Modify and apply
+    panel.hb_dur_hp_var.set('0.8')
+    panel.hb_max_scale_var.set('1.5')
+    panel.hb_col_zap_var.set('#00ff00')
+    panel._apply_properties()
+
+    el = manager.get_element('hit_border')
+    assert el is not None
+    assert el.get('duration_hp_s') == 0.8
+    assert el.get('max_scale') == 1.5
+    assert el.get('color_zapped_hp') == '#00ff00'
+
+    # 3. Clear panel
+    panel.clear()
+    assert panel.hb_dur_hp_var.get() == ''
+    assert panel.hb_max_scale_var.get() == ''
+    assert panel.hb_col_zap_var.get() == ''
