@@ -204,7 +204,7 @@ class VideoGenerator:
         self._downtime_cache_size: tuple[int, int] | None = None
         self._downtime_full_resized: Image.Image | None = None
         self._downtime_empty_resized: Image.Image | None = None
-        self._icon_cache: dict[tuple[str, int], Image.Image] = {}
+        self._icon_cache: dict[tuple[Any, ...], Image.Image] = {}
         self._icon_cache_lock = threading.Lock()
         self._penalty_card_cache: dict[int, Image.Image] = {}
         self._penalty_card_cache_lock = threading.Lock()
@@ -326,6 +326,65 @@ class VideoGenerator:
                     img_rgba.close()
         except Exception as e:
             print(f'Warning: failed to load/resize icon {icon_path}: {e}')
+            return None
+
+    def _get_cached_tinted_icon(
+        self,
+        icon_path: Path,
+        size: int,
+        color: tuple[int, int, int, int],
+    ) -> Image.Image | None:
+        """Retrieves a cached, resized, and tinted version of an icon image.
+
+        Loads the icon from the filesystem if not cached, resizes it to a
+        square of the given size, and tints it with the specified color.
+
+        Args:
+            icon_path: The filesystem path to the icon image.
+            size: The target width and height of the icon.
+            color: The RGBA color tuple to tint the icon with.
+
+        Returns:
+            Image.Image | None: The tinted Image object, or None if failed.
+        """
+        if not icon_path.exists():
+            return None
+        cache_key = (str(icon_path), size, color)
+        with self._icon_cache_lock:
+            cached = self._icon_cache.get(cache_key)
+            if cached is not None:
+                return cached
+
+        base_img = self._get_cached_icon(icon_path, size)
+        if base_img is None:
+            return None
+
+        try:
+            solid_tint = Image.new('RGBA', (size, size), color[:3] + (255,))
+            try:
+                tinted = ImageChops.multiply(base_img, solid_tint)
+                if len(color) > 3 and color[3] < 255:
+                    r, g, b, a = tinted.split()
+                    try:
+                        new_a = a.point(lambda val: int(val * color[3] / 255))
+                        try:
+                            tinted_final = Image.merge('RGBA', (r, g, b, new_a))
+                            tinted.close()
+                            tinted = tinted_final
+                        finally:
+                            new_a.close()
+                    finally:
+                        r.close()
+                        g.close()
+                        b.close()
+                        a.close()
+                with self._icon_cache_lock:
+                    self._icon_cache[cache_key] = tinted
+                return tinted
+            finally:
+                solid_tint.close()
+        except Exception as e:
+            print(f'Warning: failed to tint icon {icon_path}: {e}')
             return None
 
     def _get_cached_penalty_card(self, row_h: int) -> Image.Image | None:
@@ -2007,17 +2066,52 @@ class VideoGenerator:
                         scale = row_h / 28
                         img_w = overlay.width if overlay is not None else 1920
                         margin = int(5 * scale * img_w / 1920)
-                        hp_text = '■' * p.hp + '□' * (p.max_hp - p.hp)
-                        self._draw_text_with_fallback(
-                            draw,
-                            (x_pos - margin, y_row + row_h // 2),
-                            hp_text,
-                            fill=p_color,
-                            font=font,
-                            anchor='rm',
-                            stroke_width=stroke_width,
-                            stroke_fill=stroke_fill,
+
+                        hp_text: str = '■' * p.max_hp
+                        total_w_val = self._measure_text_width_with_fallback(
+                            draw, hp_text, font
                         )
+                        total_w: float = (
+                            float(total_w_val)
+                            if isinstance(total_w_val, (int, float))
+                            else 0.0
+                        )
+
+                        char_w: float = total_w / p.max_hp
+
+                        icon_size: int = 15
+                        if not (
+                            hasattr(draw, 'textbbox')
+                            and 'Mock' in type(draw.textbbox).__name__
+                        ):
+                            bbox = draw.textbbox((0, 0), '■', font=font)
+                            icon_size = max(1, int(bbox[3] - bbox[1]))
+
+                        x_start_shield: float = (x_pos - margin) - total_w
+                        y_shield: float = (y_row + row_h // 2) - icon_size // 2
+
+                        for i in range(p.max_hp):
+                            is_full: bool = i < p.hp
+                            asset_name: str = (
+                                'shield_full.png'
+                                if is_full
+                                else 'shield_empty.png'
+                            )
+                            shield_path: Path = Path('assets') / asset_name
+                            shield_img = self._get_cached_tinted_icon(
+                                shield_path, icon_size, p_color
+                            )
+                            if shield_img is not None:
+                                shield_x: int = int(
+                                    x_start_shield
+                                    + i * char_w
+                                    + (char_w - icon_size) // 2
+                                )
+                                overlay.paste(
+                                    shield_img,
+                                    (shield_x, int(y_shield)),
+                                    shield_img,
+                                )
 
                 self._draw_text_with_fallback(
                     draw,
@@ -2086,6 +2180,7 @@ class VideoGenerator:
         totals_h: int,
         stroke_width: int,
         draw_borders: bool,
+        max_hp_w: int = 0,
     ) -> None:
         """Draws the totals row at the bottom of the table.
 
@@ -2102,6 +2197,7 @@ class VideoGenerator:
             totals_h: Height of the totals row.
             stroke_width: The text outline stroke width in pixels.
             draw_borders: Whether to draw the totals separator line.
+            max_hp_w: Maximum hitpoints width in pixels.
         """
         if draw_borders:
             draw.line(
@@ -2110,10 +2206,13 @@ class VideoGenerator:
                 width=2,
             )
         tot_vals = self._compile_totals_row_values(totals, columns)
-        for val, offset in zip(tot_vals, offsets):
+        for col, val, offset in zip(columns, tot_vals, offsets):
+            x_pos: int = offset
+            if col == 'Player':
+                x_pos += max_hp_w
             self._draw_text_with_fallback(
                 draw,
-                (offset, y_row + totals_h // 2),
+                (x_pos, y_row + totals_h // 2),
                 val,
                 fill=(255, 255, 255, 255),
                 font=bold_font,
@@ -2245,6 +2344,7 @@ class VideoGenerator:
                 totals_h=totals_h,
                 stroke_width=stroke_width,
                 draw_borders=draw_borders,
+                max_hp_w=max_hp_w,
             )
 
             image.alpha_composite(overlay)

@@ -1550,6 +1550,7 @@ def test_scoreboard_penalties_rendering() -> None:
     mock_card.width = 20
     mock_card.height = 20
     vg._get_cached_penalty_card = MagicMock(return_value=mock_card)
+    vg._get_cached_tinted_icon = MagicMock(return_value=None)
 
     vg._draw_player_rows(
         draw=mock_draw,
@@ -1786,6 +1787,7 @@ def test_renderer_font_fallback() -> None:
 def test_scoreboard_hitpoints_rendering() -> None:
     """Verifies that hitpoints are correctly drawn on the scoreboard."""
     from unittest.mock import MagicMock, patch
+    from PIL import Image
     from lfdata.model import LFGame
     from lfdata.video.element import LFScoreboardPlayerData
     from lfdata.video.renderer import VideoGenerator
@@ -1832,6 +1834,8 @@ def test_scoreboard_hitpoints_rendering() -> None:
     # Stub font and fallback measurements to avoid PIL dependencies
     font = MagicMock()
     vg._measure_text_width_with_fallback = MagicMock(return_value=10.0)
+    mock_shield = MagicMock(spec=Image.Image)
+    vg._get_cached_tinted_icon = MagicMock(return_value=mock_shield)
 
     # Mock _draw_text_with_fallback to verify calls
     with patch.object(vg, '_draw_text_with_fallback') as mock_draw_text:
@@ -1856,18 +1860,12 @@ def test_scoreboard_hitpoints_rendering() -> None:
         # call[0][2] is the 'text' argument of _draw_text_with_fallback
         draw_text_calls = [call[0][2] for call in mock_draw_text.call_args_list]
 
-        assert '■■□' in draw_text_calls
         assert 'Player1' in draw_text_calls
         assert 'Player2' in draw_text_calls
 
-        # Check right-alignment for Player 1:
-        # HP boxes are drawn at x_pos - margin with anchor='rm'
-        hp_call = next(
-            call
-            for call in mock_draw_text.call_args_list
-            if call[0][2] == '■■□'
-        )
-        assert hp_call[1].get('anchor') == 'rm'
+        # Player1 has max_hp = 3, so overlay.paste should be called 3 times
+        # to draw the shield images.
+        assert mock_overlay.paste.call_count == 3
 
 
 def test_hit_borders_rendering() -> None:
