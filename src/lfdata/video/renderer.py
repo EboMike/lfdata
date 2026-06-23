@@ -1525,8 +1525,10 @@ class VideoGenerator:
         draw_borders = sb_config.get("draw_borders", False)
         stroke_width = max(1, int(pixel_size * 0.05))
 
-        # Find max player column width (name + penalties) across teams.
+        # Find max player column width (name + penalties + hitpoints)
+        # across all teams.
         max_player_w = 0
+        max_hp_w = 0
         card_h = int(row_h * 0.8)
         penalty_path = Path("assets") / "penalty.png"
         aspect_ratio = 0.75
@@ -1567,11 +1569,30 @@ class VideoGenerator:
                             + text_w
                             + int(10 * scale_factor * image.width / 1920)
                         )
+
+                    hp_w = 0
+                    if p.max_hp > 1:
+                        hp_text = "■" * p.max_hp
+                        hp_w = self._measure_text_width_with_fallback(
+                            temp_draw, hp_text, font
+                        )
+                        if not isinstance(hp_w, (int, float)):
+                            hp_w = 0.0
+                        scale_factor = pixel_size / 27
+                        margin = int(5 * scale_factor * image.width / 1920)
+                        hp_w += margin
+                    if hp_w > max_hp_w:
+                        max_hp_w = int(hp_w)
+
                     total_w = name_w + penalties_w
                     if total_w > max_player_w:
                         max_player_w = int(total_w)
         finally:
             temp_img.close()
+
+        # Add the maximum hitpoints width to the maximum player column width
+        # to ensure it expands the column correctly.
+        max_player_w += max_hp_w
 
         overlay = Image.new("RGBA", image.size, (0, 0, 0, 0))
         try:
@@ -1591,6 +1612,7 @@ class VideoGenerator:
                     draw_borders=draw_borders,
                     max_player_w=max_player_w,
                     pixel_size=pixel_size,
+                    max_hp_w=max_hp_w,
                 )
             if el.alpha < 1.0:
                 r, g, b, a = overlay.split()
@@ -1671,6 +1693,7 @@ class VideoGenerator:
         stroke_width: int,
         draw_background: bool,
         draw_borders: bool,
+        max_hp_w: int = 0,
     ) -> int:
         """Draws the outer table rectangle and the header columns.
 
@@ -1690,6 +1713,7 @@ class VideoGenerator:
             stroke_width: The text outline stroke width in pixels.
             draw_background: Whether to draw the table background color.
             draw_borders: Whether to draw the table borders and lines.
+            max_hp_w: Maximum hitpoints width in pixels.
 
         Returns:
             int: The Y coordinate starting for player rows.
@@ -1710,9 +1734,13 @@ class VideoGenerator:
             )
 
         for col_name, offset in zip(columns, offsets):
+            x_pos = offset
+            if col_name == "Player":
+                x_pos += max_hp_w
+
             self._draw_text_with_fallback(
                 draw,
-                (offset, ty + header_h // 2),
+                (x_pos, ty + header_h // 2),
                 col_name,
                 fill=(255, 255, 255, 255),
                 font=bold_font,
@@ -1745,6 +1773,7 @@ class VideoGenerator:
         height: int,
         overlay: Image.Image | None,
         stroke_width: int,
+        max_hp_w: int = 0,
     ) -> int:
         """Draws individual player rows inside the table.
 
@@ -1762,6 +1791,7 @@ class VideoGenerator:
             height: Image height for scaling padding.
             overlay: The overlay Image for pasting role icons.
             stroke_width: The text outline stroke width in pixels.
+            max_hp_w: Maximum hitpoints width in pixels.
 
         Returns:
             int: The Y coordinate ending after player rows.
@@ -1792,9 +1822,33 @@ class VideoGenerator:
                     0,
                     p_color[3] if len(p_color) > 3 else 255,
                 )
+
+                x_pos = offset
+                if col == "Player":
+                    x_pos += max_hp_w
+                    if p.max_hp > 1:
+                        scale = row_h / 28
+                        img_w = (
+                            overlay.width
+                            if overlay is not None
+                            else 1920
+                        )
+                        margin = int(5 * scale * img_w / 1920)
+                        hp_text = "■" * p.hp + "□" * (p.max_hp - p.hp)
+                        self._draw_text_with_fallback(
+                            draw,
+                            (x_pos - margin, y_row + row_h // 2),
+                            hp_text,
+                            fill=p_color,
+                            font=font,
+                            anchor="rm",
+                            stroke_width=stroke_width,
+                            stroke_fill=stroke_fill,
+                        )
+
                 self._draw_text_with_fallback(
                     draw,
-                    (offset, y_row + row_h // 2),
+                    (x_pos, y_row + row_h // 2),
                     val,
                     fill=p_color,
                     font=font,
@@ -1811,7 +1865,7 @@ class VideoGenerator:
                         )
                         scale = row_h / 28
                         margin = int(5 * scale * overlay.width / 1920)
-                        card_x_start = offset + name_w + margin
+                        card_x_start = x_pos + name_w + margin
                         card_img = self._get_cached_penalty_card(row_h)
                         if card_img is not None:
                             card_h = card_img.height
@@ -1911,6 +1965,7 @@ class VideoGenerator:
         draw_borders: bool,
         max_player_w: int | None = None,
         pixel_size: float | int = 27,
+        max_hp_w: int = 0,
     ) -> None:
         """Draws a single team's table border, headers, and rows.
 
@@ -1929,6 +1984,7 @@ class VideoGenerator:
             draw_borders: Whether to draw the table borders and lines.
             max_player_w: Maximum player column width in pixels.
             pixel_size: Standard font size in pixels.
+            max_hp_w: Maximum hitpoints width in pixels.
         """
         bg_fill, text_color, dimmed_color, gray_color = self._calculate_team_colors(
             team
@@ -1982,6 +2038,7 @@ class VideoGenerator:
                 stroke_width=stroke_width,
                 draw_background=draw_background,
                 draw_borders=draw_borders,
+                max_hp_w=max_hp_w,
             )
 
             y_row = self._draw_player_rows(
@@ -1998,6 +2055,7 @@ class VideoGenerator:
                 height=image.height,
                 overlay=overlay,
                 stroke_width=stroke_width,
+                max_hp_w=max_hp_w,
             )
 
             totals_h = int(pixel_size * (35 / 27))

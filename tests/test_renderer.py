@@ -1774,3 +1774,92 @@ def test_renderer_font_fallback() -> None:
     vg._draw_text_with_fallback(
         draw, (10, 10), 'Apmkb☺Muwj', fill=(255, 255, 255, 255), font=font
     )
+
+
+def test_scoreboard_hitpoints_rendering() -> None:
+    """Verifies that hitpoints are correctly drawn on the scoreboard."""
+    from unittest.mock import MagicMock, patch
+    from lfdata.model import LFGame
+    from lfdata.video.element import LFScoreboardPlayerData
+    from lfdata.video.renderer import VideoGenerator
+
+    game = LFGame(game_id='test_hp_render', game_type='SM5')
+    vg = VideoGenerator(game)
+
+    # 1. Test rendering hitpoints in _draw_player_rows
+    players = [
+        LFScoreboardPlayerData(
+            codename='Player1',
+            role_name='Commander',
+            score=100,
+            lives=15,
+            shots=30,
+            missiles=0,
+            special_points=5,
+            hp=2,
+            max_hp=3,
+            is_down=False,
+            is_eliminated=False,
+            penalties=0,
+        ),
+        LFScoreboardPlayerData(
+            codename='Player2',
+            role_name='Medic',
+            score=100,
+            lives=15,
+            shots=30,
+            missiles=0,
+            special_points=5,
+            hp=1,
+            max_hp=1,
+            is_down=False,
+            is_eliminated=False,
+            penalties=0,
+        ),
+    ]
+
+    mock_draw = MagicMock()
+    mock_overlay = MagicMock()
+    mock_overlay.width = 1920
+
+    # Stub font and fallback measurements to avoid PIL dependencies
+    font = MagicMock()
+    vg._measure_text_width_with_fallback = MagicMock(return_value=10.0)
+
+    # Mock _draw_text_with_fallback to verify calls
+    with patch.object(vg, '_draw_text_with_fallback') as mock_draw_text:
+        vg._draw_player_rows(
+            draw=mock_draw,
+            players=players,
+            columns=['Player'],
+            offsets=[100],
+            font=font,
+            text_color=(255, 255, 255, 255),
+            gray_color=(128, 128, 128, 255),
+            dimmed_color=(100, 100, 100, 255),
+            y_row=100,
+            row_h=30,
+            height=600,
+            overlay=mock_overlay,
+            stroke_width=1,
+            max_hp_w=50,
+        )
+
+        # Retrieve the texts of all text calls
+        # call[0][2] is the 'text' argument of _draw_text_with_fallback
+        draw_text_calls = [
+            call[0][2] for call in mock_draw_text.call_args_list
+        ]
+
+        assert '■■□' in draw_text_calls
+        assert 'Player1' in draw_text_calls
+        assert 'Player2' in draw_text_calls
+
+        # Check right-alignment for Player 1:
+        # HP boxes are drawn at x_pos - margin with anchor='rm'
+        hp_call = next(
+            call for call in mock_draw_text.call_args_list
+            if call[0][2] == '■■□'
+        )
+        assert hp_call[1].get('anchor') == 'rm'
+

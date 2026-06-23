@@ -85,7 +85,7 @@ class LFRole(enum.Enum):
         max_shots=30,
         medic_lives_gain=0,
         ammo_shots_gain=5,
-        max_hp=2,
+        max_hp=1,
     )
     AMMO = LFRoleStats(
         role_id=4,
