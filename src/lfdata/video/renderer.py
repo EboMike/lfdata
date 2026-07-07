@@ -561,7 +561,7 @@ class VideoGenerator:
                     config=config,
                     hud_gen=hud_gen,
                 )
-                self._compile_video(temp_path, fps_val, output_path)
+                self._compile_video(temp_path, fps_val, output_path, config)
         return output_path
 
     def _load_config(self, config_path: str | Path | None) -> dict[str, Any]:
@@ -836,6 +836,8 @@ class VideoGenerator:
             '-c:v',
             codec,
         ]
+        if config.get('use_left_channel_mono', False):
+            cmd.extend(['-af', '"pan=stereo|FL=FL|FR=FL"']) # mono audio
         if extra_args:
             cmd.extend(extra_args)
         cmd.extend(
@@ -1074,7 +1076,7 @@ class VideoGenerator:
             raise e
 
     def _compile_video(
-        self, frames_dir: Path, fps: int, output_path: Path
+        self, frames_dir: Path, fps: int, output_path: Path, config: dict[str, Any]
     ) -> None:
         """Compiles PNG frames in a directory into a video using ffmpeg.
 
@@ -1105,7 +1107,6 @@ class VideoGenerator:
             extra_args = []
 
         print(f'Using video encoder: {codec} ({_get_encoder_details(codec)})')
-
         cmd: list[str] = [
             'ffmpeg',
             '-y',
@@ -1116,8 +1117,10 @@ class VideoGenerator:
             '-i',
             str(frames_dir / 'frame_%05d.png'),
             '-c:v',
-            codec,
+            codec
         ]
+        if config.get('use_left_channel_mono', False):
+            cmd.extend(['-af', '"pan=stereo|FL=FL|FR=FL"']) # mono audio
         if extra_args:
             cmd.extend(extra_args)
         cmd.extend(
