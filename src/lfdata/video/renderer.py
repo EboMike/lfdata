@@ -834,6 +834,7 @@ class VideoGenerator:
             '-i',
             '-',
             '-c:v',
+            '-ac', '1', # force mono
             codec,
         ]
         if extra_args:
@@ -1105,7 +1106,6 @@ class VideoGenerator:
             extra_args = []
 
         print(f'Using video encoder: {codec} ({_get_encoder_details(codec)})')
-
         cmd: list[str] = [
             'ffmpeg',
             '-y',
@@ -1117,6 +1117,7 @@ class VideoGenerator:
             str(frames_dir / 'frame_%05d.png'),
             '-c:v',
             codec,
+            '-ac', '1', # mono audio
         ]
         if extra_args:
             cmd.extend(extra_args)
