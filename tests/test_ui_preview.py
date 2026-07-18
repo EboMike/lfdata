@@ -240,4 +240,3 @@ def test_preview_slider_callback(manager: UIConfigManager) -> None:
 
     assert preview.current_time_ms == 35000
     assert callback_val == 35000
-

@@ -50,19 +50,11 @@ def test_get_fade_alpha() -> None:
     assert get_fade_alpha(500, 1000, 'linear') == 0.5
     assert get_fade_alpha(500, 0, 'linear') == 0.0
     # Test delayed fade duration behavior
-    assert get_fade_alpha(
-        500, 2000, 'linear', fade_duration_ms=1000
-    ) == 1.0
-    assert get_fade_alpha(
-        1500, 2000, 'linear', fade_duration_ms=1000
-    ) == 0.5
-    assert get_fade_alpha(
-        2000, 2000, 'linear', fade_duration_ms=1000
-    ) == 0.0
+    assert get_fade_alpha(500, 2000, 'linear', fade_duration_ms=1000) == 1.0
+    assert get_fade_alpha(1500, 2000, 'linear', fade_duration_ms=1000) == 0.5
+    assert get_fade_alpha(2000, 2000, 'linear', fade_duration_ms=1000) == 0.0
     # Test delayed fade duration where fade_duration_ms > total_ms
-    assert get_fade_alpha(
-        200, 400, 'linear', fade_duration_ms=1000
-    ) == 0.5
+    assert get_fade_alpha(200, 400, 'linear', fade_duration_ms=1000) == 0.5
 
 
 def test_get_visual_rank() -> None:

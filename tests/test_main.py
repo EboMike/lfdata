@@ -412,3 +412,27 @@ def test_main_pregame_delay() -> None:
                 alpha_output_path=None,
                 pregame_delay_ms=5000,
             )
+
+
+def test_main_chapters_out(tmp_path: Path) -> None:
+    real_path = Path(__file__).parent.parent / 'assets' / 'sm5_sanitized.tdf'
+    out_file = tmp_path / 'chapters.txt'
+    with patch.object(
+        sys,
+        'argv',
+        [
+            'lfdata',
+            '--input_tdf',
+            str(real_path),
+            '--chapters_out',
+            str(out_file),
+            '--pregame_delay_ms',
+            '5000',
+        ],
+    ):
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+        assert exc_info.value.code == 0
+        assert out_file.exists()
+        content = out_file.read_text(encoding='utf-8')
+        assert '00:00 Warmup' in content

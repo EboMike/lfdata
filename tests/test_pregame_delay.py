@@ -69,6 +69,7 @@ def test_ui_element_visibility_and_fading() -> None:
         'elements': {
             'game_type': {
                 'enabled': True,
+                'end_time_offset': 'beginning of video',
                 'visible_start_ms': 5000,
                 'visible_end_ms': 15000,
                 'fade_in_ms': 1000,

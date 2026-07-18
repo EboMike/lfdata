@@ -164,7 +164,6 @@ class AnimationOverviewPanel(ttk.LabelFrame):
             self.selected_kf_idx = None
             self.refresh()
 
-
     def refresh(self) -> None:
         """Redraws the timeline canvas and updates editing widgets."""
         self.canvas.delete('all')
@@ -219,7 +218,10 @@ class AnimationOverviewPanel(ttk.LabelFrame):
         for kf in keyframes:
             val_raw = kf.get('value')
             if extents_idx is not None:
-                if isinstance(val_raw, (list, tuple)) and len(val_raw) > extents_idx:
+                if (
+                    isinstance(val_raw, (list, tuple))
+                    and len(val_raw) > extents_idx
+                ):
                     resolved_vals.append(float(val_raw[extents_idx]))
             elif val_raw is not None:
                 try:
@@ -312,7 +314,10 @@ class AnimationOverviewPanel(ttk.LabelFrame):
             val_raw = kf.get('value')
             v = 0.0
             if extents_idx is not None:
-                if isinstance(val_raw, (list, tuple)) and len(val_raw) > extents_idx:
+                if (
+                    isinstance(val_raw, (list, tuple))
+                    and len(val_raw) > extents_idx
+                ):
                     v = float(val_raw[extents_idx])
             elif val_raw is not None:
                 try:
@@ -320,7 +325,9 @@ class AnimationOverviewPanel(ttk.LabelFrame):
                 except (ValueError, TypeError):
                     pass
 
-            x_coord = pad_x + (abs_time_ms / float(max_ms)) * (width - 2 * pad_x)
+            x_coord = pad_x + (abs_time_ms / float(max_ms)) * (
+                width - 2 * pad_x
+            )
             y_coord = (
                 height
                 - pad_y
@@ -375,7 +382,10 @@ class AnimationOverviewPanel(ttk.LabelFrame):
                 return None
 
             if extents_idx is not None:
-                if isinstance(resolved, (list, tuple)) and len(resolved) > extents_idx:
+                if (
+                    isinstance(resolved, (list, tuple))
+                    and len(resolved) > extents_idx
+                ):
                     return float(resolved[extents_idx])
                 return None
 
@@ -477,7 +487,10 @@ class AnimationOverviewPanel(ttk.LabelFrame):
         for kf in keyframes:
             val_raw = kf.get('value')
             if extents_idx is not None:
-                if isinstance(val_raw, (list, tuple)) and len(val_raw) > extents_idx:
+                if (
+                    isinstance(val_raw, (list, tuple))
+                    and len(val_raw) > extents_idx
+                ):
                     resolved_vals.append(float(val_raw[extents_idx]))
             elif val_raw is not None:
                 try:
@@ -524,7 +537,10 @@ class AnimationOverviewPanel(ttk.LabelFrame):
             val_raw = kf.get('value')
             v = 0.0
             if extents_idx is not None:
-                if isinstance(val_raw, (list, tuple)) and len(val_raw) > extents_idx:
+                if (
+                    isinstance(val_raw, (list, tuple))
+                    and len(val_raw) > extents_idx
+                ):
                     v = float(val_raw[extents_idx])
             elif val_raw is not None:
                 try:
@@ -532,7 +548,9 @@ class AnimationOverviewPanel(ttk.LabelFrame):
                 except (ValueError, TypeError):
                     pass
 
-            x_coord = pad_x + (abs_time_ms / float(max_ms)) * (width - 2 * pad_x)
+            x_coord = pad_x + (abs_time_ms / float(max_ms)) * (
+                width - 2 * pad_x
+            )
             y_coord = (
                 height
                 - pad_y

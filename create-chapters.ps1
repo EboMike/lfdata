@@ -43,8 +43,6 @@ $env:PYTHONPATH = Join-Path $PSScriptRoot "src"
     --input_tdf $File `
     --video_player $Player `
     --fps $Fps `
-    --video_out "hud-$Tdf-$Player-full.mp4" `
-    --alpha_video_out "hud-$Tdf-$Player-full-alpha.mp4" `
-    --video_end_ms 20000 `
+    --chapters_out "chapters-$Tdf-$Player.txt" `
     --video_start_ms 0 `
     --config "NatsPractice.yaml"

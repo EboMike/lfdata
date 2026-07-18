@@ -5,6 +5,7 @@ import sys
 
 from lfdata.importer import TdfImporter
 from lfdata.replay import LFReplaySystem
+from lfdata.startup import StartupVerifier
 
 
 def _print_game_state(replay: LFReplaySystem, time_ms: int) -> None:
@@ -50,6 +51,7 @@ def _print_game_state(replay: LFReplaySystem, time_ms: int) -> None:
 
 def main() -> None:
     """Parses command line arguments and runs the LF data tool."""
+    StartupVerifier.check_assets_and_print_cwd()
     if hasattr(sys.stdout, 'reconfigure'):
         sys.stdout.reconfigure(encoding='utf-8')
     parser = argparse.ArgumentParser(
@@ -178,6 +180,11 @@ def main() -> None:
         type=int,
         help='Pregame delay in milliseconds.',
     )
+    parser.add_argument(
+        '--chapters_out',
+        type=str,
+        help='Filename of the text file to write YouTube chapters to.',
+    )
 
     args = parser.parse_args()
 
@@ -190,6 +197,29 @@ def main() -> None:
 
     importer = TdfImporter(args.input_tdf)
     game = importer.parse()
+
+    if args.chapters_out:
+        from lfdata.video import VideoGenerator
+        from lfdata.video.chapter import LFChapterGenerator
+
+        generator = VideoGenerator(game)
+        config = generator._load_config(args.config)
+        if args.pregame_delay_ms is not None:
+            config['pregame_delay_ms'] = args.pregame_delay_ms
+        pregame_delay_ms = config.get('pregame_delay_ms', 0)
+
+        chapter_gen = LFChapterGenerator(game)
+        chapters = chapter_gen.generate()
+        youtube_str = chapter_gen.format_youtube_chapters(
+            chapters,
+            pregame_delay_ms=pregame_delay_ms,
+        )
+
+        with open(args.chapters_out, 'w', encoding='utf-8') as f:
+            f.write(youtube_str + '\n')
+
+        if not args.video_out:
+            sys.exit(0)
 
     if args.print_replay:
         replay = LFReplaySystem(game)
