@@ -7,6 +7,7 @@ from lfdata.replay.state import (
     LFReplayPlayerState,
     LFReplayTeamState,
 )
+from lfdata.replay.verification import LFReplayVerifier
 
 __all__ = [
     'LFReplaySystem',
@@ -14,4 +15,5 @@ __all__ = [
     'LFReplayPlayerState',
     'LFReplayTeamState',
     'LFReplayGameState',
+    'LFReplayVerifier',
 ]

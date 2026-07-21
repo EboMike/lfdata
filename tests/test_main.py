@@ -436,3 +436,35 @@ def test_main_chapters_out(tmp_path: Path) -> None:
         assert out_file.exists()
         content = out_file.read_text(encoding='utf-8')
         assert '00:00 Warmup' in content
+
+
+def test_main_verify_tdf_replay_success() -> None:
+    real_path = Path(__file__).parent.parent / 'assets' / 'sm5_sanitized.tdf'
+    with patch(
+        'lfdata.__main__.LFReplayVerifier.verify', return_value=True
+    ) as mock_verify:
+        with patch.object(
+            sys,
+            'argv',
+            ['lfdata', '--input_tdf', str(real_path), '--verify_tdf_replay'],
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+            assert exc_info.value.code == 0
+            mock_verify.assert_called_once()
+
+
+def test_main_verify_tdf_replay_failure() -> None:
+    real_path = Path(__file__).parent.parent / 'assets' / 'sm5_sanitized.tdf'
+    with patch(
+        'lfdata.__main__.LFReplayVerifier.verify', return_value=False
+    ) as mock_verify:
+        with patch.object(
+            sys,
+            'argv',
+            ['lfdata', '--input_tdf', str(real_path), '--verify_tdf_replay'],
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+            assert exc_info.value.code == 1
+            mock_verify.assert_called_once()

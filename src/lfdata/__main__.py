@@ -4,7 +4,7 @@ import argparse
 import sys
 
 from lfdata.importer import TdfImporter
-from lfdata.replay import LFReplaySystem
+from lfdata.replay import LFReplaySystem, LFReplayVerifier
 from lfdata.startup import StartupVerifier
 
 
@@ -185,6 +185,14 @@ def main() -> None:
         type=str,
         help='Filename of the text file to write YouTube chapters to.',
     )
+    parser.add_argument(
+        '--verify_tdf_replay',
+        action='store_true',
+        help=(
+            'Follows all events and computes the final status '
+            'comparing it to TDF entity_end values.'
+        ),
+    )
 
     args = parser.parse_args()
 
@@ -197,6 +205,13 @@ def main() -> None:
 
     importer = TdfImporter(args.input_tdf)
     game = importer.parse()
+
+    if args.verify_tdf_replay:
+        verifier = LFReplayVerifier(game)
+        success = verifier.verify()
+        if not success:
+            sys.exit(1)
+        sys.exit(0)
 
     if args.chapters_out:
         from lfdata.video import VideoGenerator
