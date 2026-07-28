@@ -435,7 +435,7 @@ def test_main_chapters_out(tmp_path: Path) -> None:
         assert exc_info.value.code == 0
         assert out_file.exists()
         content = out_file.read_text(encoding='utf-8')
-        assert '00:00 Warmup' in content
+        assert '00:00 Getting Ready' in content
 
 
 def test_main_verify_tdf_replay_success() -> None:

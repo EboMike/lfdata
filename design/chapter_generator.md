@@ -31,6 +31,16 @@ applying the following rules:
 *   Begin eliminating events starting with the lowest importance until the maximum number of chapters
     is reached.
 
+If an event, like a nuke detonation or a player elimination results in an entire team being eliminated,
+add "{team name} team eliminated" to the respective chapter name.
+
+## First chapters
+
+The very first chapter at 00:00 should be "Game Start" if the video is set up to begin exactly at the
+game start time. Otherwise, the first chapter should be "Getting Ready". If there are more than 20
+seconds between the preroll and the start of the game, the first chapter should be "Getting Ready",
+and the second chapter should be "Game Start" at the moment when the game starts.
+
 ## Outputs
 
 One way to output the chapters is as a YouTube chapter string for a generated video. This string is one

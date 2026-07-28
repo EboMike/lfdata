@@ -312,15 +312,70 @@ def test_format_youtube_chapters() -> None:
         LFChapter(time_ms=75000, message='Med1 eliminated', importance=5),
     ]
 
-    # Without pregame delay (starts with Start at 00:00)
+    # Without pregame delay (starts with Game Start at 00:00)
     out1 = generator.format_youtube_chapters(ch, pregame_delay_ms=0)
-    expected1 = '00:00 Start\n00:15 Nuke Detonated\n01:15 Med1 eliminated'
+    expected1 = '00:00 Game Start\n00:15 Nuke Detonated\n01:15 Med1 eliminated'
     assert out1 == expected1
 
-    # With pregame delay of 10000ms (starts with Warmup at 00:00)
+    # With pregame delay of 10000ms <= 20s (starts with Getting Ready at 00:00)
     out2 = generator.format_youtube_chapters(ch, pregame_delay_ms=10000)
-    expected2 = '00:00 Warmup\n00:25 Nuke Detonated\n01:25 Med1 eliminated'
+    expected2 = (
+        '00:00 Getting Ready\n00:25 Nuke Detonated\n01:25 Med1 eliminated'
+    )
     assert out2 == expected2
+
+
+def test_format_youtube_chapters_preroll_over_20s() -> None:
+    generator = LFChapterGenerator(
+        LFGame(game_id='dummy', timestamp=datetime.now())
+    )
+
+    ch = [
+        LFChapter(time_ms=15000, message='Nuke Detonated', importance=3),
+        LFChapter(time_ms=75000, message='Med1 eliminated', importance=5),
+    ]
+
+    # With pregame delay of 25000ms (>20s): Getting Ready at 00:00, Game Start at 00:25
+    out = generator.format_youtube_chapters(ch, pregame_delay_ms=25000)
+    expected = (
+        '00:00 Getting Ready\n'
+        '00:25 Game Start\n'
+        '00:40 Nuke Detonated\n'
+        '01:40 Med1 eliminated'
+    )
+    assert out == expected
+
+
+def test_format_youtube_chapters_preroll_exactly_20s() -> None:
+    generator = LFChapterGenerator(
+        LFGame(game_id='dummy', timestamp=datetime.now())
+    )
+
+    ch = [
+        LFChapter(time_ms=15000, message='Nuke Detonated', importance=3),
+    ]
+
+    # Exactly 20000ms is not > 20s, so only Getting Ready at 00:00
+    out = generator.format_youtube_chapters(ch, pregame_delay_ms=20000)
+    expected = '00:00 Getting Ready\n00:35 Nuke Detonated'
+    assert out == expected
+
+
+def test_format_youtube_chapters_over_20s_delay_truncation() -> None:
+    generator = LFChapterGenerator(
+        LFGame(game_id='dummy', timestamp=datetime.now())
+    )
+
+    ch = [
+        LFChapter(time_ms=1000 * i, message=f'Event {i}', importance=1)
+        for i in range(25)
+    ]
+
+    out = generator.format_youtube_chapters(ch, pregame_delay_ms=25000)
+    lines = out.split('\n')
+    assert len(lines) == 20
+    assert lines[0] == '00:00 Getting Ready'
+    assert lines[1] == '00:25 Game Start'
 
 
 def test_collect_candidates_multi_nuke_detonations() -> None:
@@ -425,5 +480,104 @@ def test_generate_limits_chapters() -> None:
     generator = MockChapterGenerator(game)
     chapters = generator.generate()
     assert len(chapters) == 20
+
+
+def test_collect_candidates_team_elimination_on_player_elim() -> None:
+    game = _create_test_game()
+
+    # Give Sct2 only 1 life initially by simulating 14 zaps beforehand
+    # Or simply zap Sct2 15 times so Sct2 is eliminated.
+    # Sct2 is the only player on Earth team in _create_test_game().
+    events = [
+        GameEvent(
+            game_id='test_chapter_game',
+            time=0,
+            event_type='0100',
+            action='start',
+            raw_message='',
+        )
+    ]
+    for i in range(15):
+        events.append(
+            GameEvent(
+                game_id='test_chapter_game',
+                time=1000 + i * 9000,
+                event_type='0206',
+                actor_entity_id='C1',
+                target_entity_id='S2',
+                action='zaps',
+                raw_message='',
+            )
+        )
+
+    game.events = events
+    generator = LFChapterGenerator(game)
+    candidates = generator._collect_candidates()
+
+    elim_chapters = [
+        c for c in candidates if 'Earth team eliminated' in c.message
+    ]
+    assert len(elim_chapters) == 1
+    assert 'Sct2 eliminated, Earth team eliminated' in elim_chapters[0].message
+
+
+def test_collect_candidates_team_elimination_on_nuke_detonation() -> None:
+    game = _create_test_game()
+
+    # Reduce Sct2 (Earth team) lives to 3 by zaps, then detonate nuke which loses 3 lives
+    events = [
+        GameEvent(
+            game_id='test_chapter_game',
+            time=0,
+            event_type='0100',
+            action='start',
+            raw_message='',
+        ),
+        # 12 zaps to get Sct2 down to 3 lives
+    ]
+    for i in range(12):
+        events.append(
+            GameEvent(
+                game_id='test_chapter_game',
+                time=1000 + i * 9000,
+                event_type='0206',
+                actor_entity_id='C1',
+                target_entity_id='S2',
+                action='zaps',
+                raw_message='',
+            )
+        )
+
+    # Now Cmd1 activates and detonates nuke.
+    # Nuke detonate (0405) takes 3 lives from opposing players (Sct2 has 3 lives, so goes to 0).
+    events.extend([
+        GameEvent(
+            game_id='test_chapter_game',
+            time=120000,
+            event_type='0404',
+            actor_entity_id='C1',
+            action='activates nuke',
+            raw_message='',
+        ),
+        GameEvent(
+            game_id='test_chapter_game',
+            time=125000,
+            event_type='0405',
+            actor_entity_id='C1',
+            action='detonates nuke',
+            raw_message='',
+        ),
+    ])
+
+    game.events = events
+    generator = LFChapterGenerator(game)
+    candidates = generator._collect_candidates()
+
+    nuke_team_elim = [
+        c for c in candidates if 'Earth team eliminated' in c.message
+    ]
+    assert len(nuke_team_elim) >= 1
+    # Check that the nuke event or elimination message has team eliminated
+    assert any('Earth team eliminated' in c.message for c in candidates)
 
 

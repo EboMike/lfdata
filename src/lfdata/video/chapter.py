@@ -58,7 +58,8 @@ class LFChapterGenerator:
 
         Args:
             chapters: The list of chapter markers.
-            pregame_delay_ms: Pregame delay in milliseconds to add to timestamps.
+            pregame_delay_ms: Pregame delay in milliseconds to add to
+              timestamps.
 
         Returns:
             str: The YouTube chapter string format.
@@ -74,15 +75,31 @@ class LFChapterGenerator:
             ch_entries.append((v_time_ms, ch.message))
 
         if not has_zero:
-            start_name = 'Warmup' if pregame_delay_ms > 0 else 'Start'
-            ch_entries.insert(0, (0, start_name))
+            first_name = (
+                'Game Start' if pregame_delay_ms == 0 else 'Getting Ready'
+            )
+            ch_entries.insert(0, (0, first_name))
+
+        if pregame_delay_ms > 20000:
+            has_game_start = any(msg == 'Game Start' for _, msg in ch_entries)
+            if not has_game_start:
+                inserted = False
+                for idx, (t, _) in enumerate(ch_entries):
+                    if t >= pregame_delay_ms:
+                        ch_entries.insert(
+                            idx, (pregame_delay_ms, 'Game Start')
+                        )
+                        inserted = True
+                        break
+                if not inserted:
+                    ch_entries.append((pregame_delay_ms, 'Game Start'))
 
         # Check final 20 chapters limit and truncate if necessary
         if len(ch_entries) > 20:
             # We want to remove the lowest importance ones.
-            # But the start chapter is important for YouTube, so we keep it.
-            # So we apply the limit to the original chapters first.
-            limit = 20 if has_zero else 19
+            # Structural chapters (00:00 start / game start) are kept.
+            num_structural = len(ch_entries) - len(sorted_ch)
+            limit = max(1, 20 - num_structural)
             limited_original = self._limit_chapters(
                 chapters, max_chapters=limit
             )
@@ -115,8 +132,8 @@ class LFChapterGenerator:
             pid: p.lives for pid, p in replay.game_state.players.items()
         }
 
-        # Track nuke detonate events separately
-        nuke_detonations: list[tuple[GameEvent, str]] = []
+        # Track nuke detonate events separately along with any team eliminations
+        nuke_detonations: list[tuple[GameEvent, str, list[str]]] = []
 
         for event in sorted_events:
             for player in replay.game_state.players.values():
@@ -126,8 +143,37 @@ class LFChapterGenerator:
                 pid: p.lives for pid, p in replay.game_state.players.items()
             }
 
+            active_teams_before = {
+                t_idx: any(
+                    p.lives > 0
+                    for p in replay.game_state.players.values()
+                    if p.team_index == t_idx
+                )
+                for t_idx in replay.game_state.teams
+            }
+
             description = replay._dispatch_event(event)
             replay.game_state.update_team_scores_and_rankings()
+
+            active_teams_after = {
+                t_idx: any(
+                    p.lives > 0
+                    for p in replay.game_state.players.values()
+                    if p.team_index == t_idx
+                )
+                for t_idx in replay.game_state.teams
+            }
+
+            newly_eliminated_teams = [
+                replay.game_state.teams[t_idx].name
+                for t_idx in replay.game_state.teams
+                if active_teams_before.get(t_idx, False)
+                and not active_teams_after.get(t_idx, False)
+            ]
+            team_elim_str = ''.join(
+                f', {self._get_team_short_name(t_name)} team eliminated'
+                for t_name in newly_eliminated_teams
+            )
 
             # 1. Check player state changes
             for pid, player in replay.game_state.players.items():
@@ -140,7 +186,7 @@ class LFChapterGenerator:
                         candidates.append(
                             LFChapter(
                                 time_ms=event.time,
-                                message=f'{p_name} eliminated',
+                                message=f'{p_name} eliminated{team_elim_str}',
                                 importance=5,
                             )
                         )
@@ -148,7 +194,7 @@ class LFChapterGenerator:
                         candidates.append(
                             LFChapter(
                                 time_ms=event.time,
-                                message=f'{p_name} eliminated',
+                                message=f'{p_name} eliminated{team_elim_str}',
                                 importance=4,
                             )
                         )
@@ -156,7 +202,7 @@ class LFChapterGenerator:
                         candidates.append(
                             LFChapter(
                                 time_ms=event.time,
-                                message=f'{p_name} eliminated',
+                                message=f'{p_name} eliminated{team_elim_str}',
                                 importance=2,
                             )
                         )
@@ -168,7 +214,7 @@ class LFChapterGenerator:
                     candidates.append(
                         LFChapter(
                             time_ms=event.time,
-                            message=f'Medic {p_name} has {new_lives} lives left',
+                            message=f'Medic {p_name} has {new_lives} lives left{team_elim_str}',
                             importance=1,
                         )
                     )
@@ -178,60 +224,80 @@ class LFChapterGenerator:
                 candidates.append(
                     LFChapter(
                         time_ms=event.time,
-                        message=description,
+                        message=f'{description}{team_elim_str}',
                         importance=3,
                     )
                 )
             elif event.event_type == '0405':
-                nuke_detonations.append((event, description))
+                nuke_detonations.append(
+                    (event, description, newly_eliminated_teams)
+                )
 
         # Group and process nuke detonations by commander
-        detonations_by_actor: dict[str, list[tuple[GameEvent, str]]] = {}
-        for ev, desc in nuke_detonations:
+        detonations_by_actor: dict[
+            str, list[tuple[GameEvent, str, list[str]]]
+        ] = {}
+        for ev, desc, elim_teams in nuke_detonations:
             actor_id = ev.actor_entity_id
             if not actor_id:
+                team_elim_str = ''.join(
+                    f', {self._get_team_short_name(t_name)} team eliminated'
+                    for t_name in elim_teams
+                )
                 candidates.append(
                     LFChapter(
                         time_ms=ev.time,
-                        message=desc,
+                        message=f'{desc}{team_elim_str}',
                         importance=3,
                     )
                 )
                 continue
-            detonations_by_actor.setdefault(actor_id, []).append((ev, desc))
+            detonations_by_actor.setdefault(actor_id, []).append(
+                (ev, desc, elim_teams)
+            )
 
         for actor_id, evs in detonations_by_actor.items():
             sorted_evs = sorted(evs, key=lambda x: x[0].time)
-            sequences: list[list[tuple[GameEvent, str]]] = []
-            current_seq: list[tuple[GameEvent, str]] = []
-            for ev, desc in sorted_evs:
+            sequences: list[list[tuple[GameEvent, str, list[str]]]] = []
+            current_seq: list[tuple[GameEvent, str, list[str]]] = []
+            for ev, desc, elim_teams in sorted_evs:
                 if not current_seq:
-                    current_seq.append((ev, desc))
+                    current_seq.append((ev, desc, elim_teams))
                 else:
-                    prev_ev, _ = current_seq[-1]
+                    prev_ev, _, _ = current_seq[-1]
                     if ev.time - prev_ev.time <= 15000:
-                        current_seq.append((ev, desc))
+                        current_seq.append((ev, desc, elim_teams))
                     else:
                         sequences.append(current_seq)
-                        current_seq = [(ev, desc)]
+                        current_seq = [(ev, desc, elim_teams)]
             if current_seq:
                 sequences.append(current_seq)
 
             for seq in sequences:
+                seq_elim_teams: list[str] = []
+                for _, _, elim_teams in seq:
+                    for t_name in elim_teams:
+                        if t_name not in seq_elim_teams:
+                            seq_elim_teams.append(t_name)
+                team_elim_str = ''.join(
+                    f', {self._get_team_short_name(t_name)} team eliminated'
+                    for t_name in seq_elim_teams
+                )
+
                 if len(seq) == 1:
-                    ev, desc = seq[0]
+                    ev, desc, _ = seq[0]
                     candidates.append(
                         LFChapter(
                             time_ms=ev.time,
-                            message=desc,
+                            message=f'{desc}{team_elim_str}',
                             importance=3,
                         )
                     )
                 else:
-                    first_ev, _ = seq[0]
+                    first_ev, _, _ = seq[0]
                     actor_name = replay.entity_names.get(actor_id, actor_id)
                     suffix = self._get_multi_nuke_suffix(len(seq))
-                    msg = f'Commander {actor_name} {suffix}'
+                    msg = f'Commander {actor_name} {suffix}{team_elim_str}'
                     candidates.append(
                         LFChapter(
                             time_ms=first_ev.time,
@@ -241,6 +307,19 @@ class LFChapterGenerator:
                     )
 
         return candidates
+
+    def _get_team_short_name(self, name: str) -> str:
+        """Returns the short team name without 'Team' suffix if present.
+
+        Args:
+            name: The full team name.
+
+        Returns:
+            str: The short team name.
+        """
+        if name.endswith(' Team'):
+            return name[:-5]
+        return name
 
     def _get_multi_nuke_suffix(self, count: int) -> str:
         """Returns the suffix for multiple nuke detonations.
