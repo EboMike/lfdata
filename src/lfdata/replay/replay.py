@@ -3,6 +3,8 @@ changes.
 """
 
 import dataclasses
+from typing import Any
+
 from lfdata.model import GameEvent, LFGame, LFRole, LFTeamType
 from lfdata.replay.handlers import LFReplayHandlersMixin
 from lfdata.replay.record import LFReplayEventRecord
@@ -29,11 +31,13 @@ class LFNukeCancelDetails:
 class LFReplaySystem(LFReplayHandlersMixin):
     """Orchestrates the replay simulation from a parsed game."""
 
-    def __init__(self, game: LFGame) -> None:
+    def __init__(self, game: LFGame, align_stats: bool = True) -> None:
         """Initializes the replay system.
 
         Args:
             game: The LF game object containing teams, entities, and events.
+            align_stats: If True, automatically search for choices that align
+                the final stats.
         """
         self.game = game
         self._detect_and_inject_nuke_cancels()
@@ -51,8 +55,9 @@ class LFReplaySystem(LFReplayHandlersMixin):
         self.records: list[LFReplayEventRecord] = []
         self.game_ended_at_ms: int | None = None
         self._team_elimination_processed = False
+        self.resolved_ambiguities: list[dict[str, Any]] = []
 
-        if self.game.sm5_stats:
+        if self.game.sm5_stats and align_stats:
             self._search_choices()
             self._reset_simulation()
 
@@ -68,6 +73,7 @@ class LFReplaySystem(LFReplayHandlersMixin):
         self.game_ended_at_ms = None
         self._team_elimination_processed = False
         self._encountered_points = []
+        self.resolved_ambiguities = []
 
     def _is_player_boost_ambiguous(
         self, player: LFReplayPlayerState, event_time: int

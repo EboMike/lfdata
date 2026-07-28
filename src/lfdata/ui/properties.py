@@ -99,6 +99,7 @@ class PropertiesPanel(ttk.LabelFrame):
         self.size_var = tk.StringVar()
         self.tilt_var = tk.StringVar()
         self.start_time_offset_var = tk.StringVar()
+        self.end_time_offset_var = tk.StringVar()
         self.start_ms_var = tk.StringVar()
         self.end_ms_var = tk.StringVar()
         self.fade_in_ms_var = tk.StringVar()
@@ -216,6 +217,29 @@ class PropertiesPanel(ttk.LabelFrame):
 
         self._add_row(default_row, 'Start Time (ms):', self.start_ms_var)
         default_row += 1
+
+        ttk.Label(self.default_frame, text='End Time Offset:').grid(
+            row=default_row, column=0, sticky='w', padx=5, pady=3
+        )
+        self.cmb_end_time_offset = ttk.Combobox(
+            self.default_frame,
+            textvariable=self.end_time_offset_var,
+            values=[
+                'beginning of video',
+                'beginning of game',
+                'end of game',
+            ],
+            state='readonly',
+        )
+        self.cmb_end_time_offset.grid(
+            row=default_row, column=1, sticky='ew', padx=5, pady=3
+        )
+        self.cmb_end_time_offset.bind(
+            '<<ComboboxSelected>>',
+            self._on_end_time_offset_select,
+        )
+        default_row += 1
+
         self._add_row(default_row, 'End Time (ms):', self.end_ms_var)
         default_row += 1
         self._add_row(default_row, 'Fade In (ms):', self.fade_in_ms_var)
@@ -393,6 +417,9 @@ class PropertiesPanel(ttk.LabelFrame):
             offset_val = self.config_manager.resolve_val(
                 el.get('start_time_offset', 'beginning of video')
             )
+            end_offset_val = self.config_manager.resolve_val(
+                el.get('end_time_offset', 'beginning of game')
+            )
 
             self.start_ms_var.set(
                 str(start_val) if start_val is not None else '0'
@@ -400,6 +427,11 @@ class PropertiesPanel(ttk.LabelFrame):
             self.end_ms_var.set(str(end_val) if end_val is not None else '0')
             self.start_time_offset_var.set(
                 offset_val if offset_val is not None else 'beginning of video'
+            )
+            self.end_time_offset_var.set(
+                end_offset_val
+                if end_offset_val is not None
+                else 'beginning of game'
             )
             self.fade_in_ms_var.set(
                 str(fade_in_val) if fade_in_val is not None else '0'
@@ -444,6 +476,7 @@ class PropertiesPanel(ttk.LabelFrame):
         self.size_var.set('')
         self.tilt_var.set('')
         self.start_time_offset_var.set('')
+        self.end_time_offset_var.set('')
         self.start_ms_var.set('')
         self.end_ms_var.set('')
         self.fade_in_ms_var.set('')
@@ -523,6 +556,21 @@ class PropertiesPanel(ttk.LabelFrame):
         )
         self.on_update()
 
+    def _on_end_time_offset_select(self, event: tk.Event) -> None:
+        """Handles end time offset selection immediately.
+
+        Args:
+            event: The combobox select event.
+        """
+        if not self.selected_element:
+            return
+        self.config_manager.update_element(
+            self.selected_element,
+            'end_time_offset',
+            self.end_time_offset_var.get(),
+        )
+        self.on_update()
+
     def _apply_properties(self) -> None:
         """Parses entry values and applies them back to config manager."""
         if not self.selected_element:
@@ -585,6 +633,12 @@ class PropertiesPanel(ttk.LabelFrame):
         if offset_str:
             self.config_manager.update_element(
                 self.selected_element, 'start_time_offset', offset_str
+            )
+
+        end_offset_str = self.end_time_offset_var.get().strip()
+        if end_offset_str:
+            self.config_manager.update_element(
+                self.selected_element, 'end_time_offset', end_offset_str
             )
 
         self._apply_int(self.start_ms_var, 'visible_start_ms')

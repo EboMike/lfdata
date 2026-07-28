@@ -372,6 +372,34 @@ def test_properties_start_time_offset(manager: UIConfigManager) -> None:
     assert panel.start_time_offset_var.get() == ''
 
 
+def test_properties_end_time_offset(manager: UIConfigManager) -> None:
+    """Tests loading, clearing, and applying end_time_offset."""
+    parent = MagicMock()
+    panel = PropertiesPanel(parent, manager, lambda: None)
+
+    # 1. Load element (default value check)
+    panel.load_element('time')
+    assert panel.end_time_offset_var.get() == 'beginning of game'
+
+    # 2. Change end_time_offset combobox selection
+    panel.end_time_offset_var.set('beginning of video')
+    # Trigger selection handler
+    panel._on_end_time_offset_select(MagicMock())
+
+    el = manager.get_element('time')
+    assert el is not None
+    assert el.get('end_time_offset') == 'beginning of video'
+
+    # 3. Apply properties saving it
+    panel.end_time_offset_var.set('end of game')
+    panel._apply_properties()
+    assert el.get('end_time_offset') == 'end of game'
+
+    # 4. Clear panel resets value
+    panel.clear()
+    assert panel.end_time_offset_var.get() == ''
+
+
 def test_properties_hit_border(manager: UIConfigManager) -> None:
     """Tests loading, applying, and clearing hit_border properties."""
     # Ensure hit_border exists in the manager config

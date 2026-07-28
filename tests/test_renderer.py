@@ -1743,27 +1743,100 @@ def test_renderer_player_events_in_color() -> None:
 
 
 def test_renderer_font_fallback() -> None:
-    from PIL import Image, ImageFont, ImageDraw
+    from PIL import Image, ImageDraw
+    from unittest.mock import MagicMock
     from lfdata.model import LFGame
     from lfdata.video.renderer import VideoGenerator
 
     game = LFGame(game_id='test_font_fallback', game_type='SM5')
     vg = VideoGenerator(game)
 
-    # Load default font
-    font = ImageFont.truetype('fonts/GoogleSans-Bold.ttf', 20)
+    # Stub primary font getmask to support ASCII but not '☺'
+    font = MagicMock()
+    mock_notdef = MagicMock()
+    mock_notdef.size = (10, 10)
+    mock_notdef.histogram = MagicMock(return_value=[0] * 256)
+
+    mock_a = MagicMock()
+    mock_a.size = (12, 12)
+    mock_a.histogram = MagicMock(return_value=[1] * 256)
+
+    mock_smiley = MagicMock()
+    mock_smiley.size = (10, 10)
+    mock_smiley.histogram = MagicMock(return_value=[0] * 256)
+
+    def mock_getmask(char: str) -> MagicMock:
+        if char == '\uffff':
+            return mock_notdef
+        elif char == '☺':
+            return mock_smiley
+        return mock_a
+
+    font.getmask = mock_getmask
+    font.size = 20
+    font.getlength = MagicMock(
+        side_effect=lambda text, *args, **kwargs: float(10 * len(text))
+    )
+    font.getbbox = MagicMock(
+        side_effect=lambda text, *args, **kwargs: (
+            0.0,
+            0.0,
+            float(10 * len(text)),
+            15.0,
+        )
+    )
+    font.getmask2 = MagicMock(
+        side_effect=lambda text, *args, **kwargs: (
+            Image.new('L', (10, 10)).im,
+            (0, 0),
+        )
+    )
 
     # 1. Test _is_char_supported
     assert vg._is_char_supported(font, 'A') is True
     assert vg._is_char_supported(font, '☺') is False
 
-    # 2. Test _get_fallback_fonts
+    # Mock fallback fonts
+    fb_font = MagicMock()
+    mock_fb_smiley = MagicMock()
+    mock_fb_smiley.size = (12, 12)
+    mock_fb_smiley.histogram = MagicMock(return_value=[1] * 256)
+
+    def mock_fb_getmask(char: str) -> MagicMock:
+        if char == '☺':
+            return mock_fb_smiley
+        return mock_notdef
+
+    fb_font.getmask = mock_fb_getmask
+    fb_font.size = 20
+    fb_font.getlength = MagicMock(
+        side_effect=lambda text, *args, **kwargs: float(10 * len(text))
+    )
+    fb_font.getbbox = MagicMock(
+        side_effect=lambda text, *args, **kwargs: (
+            0.0,
+            0.0,
+            float(10 * len(text)),
+            15.0,
+        )
+    )
+    fb_font.getmask2 = MagicMock(
+        side_effect=lambda text, *args, **kwargs: (
+            Image.new('L', (10, 10)).im,
+            (0, 0),
+        )
+    )
+
+    vg._get_fallback_fonts = MagicMock(return_value=[fb_font])
+
+    # 2. Test _get_fallback_fonts returns list
     fb = vg._get_fallback_fonts(20)
     assert isinstance(fb, list)
+    assert len(fb) == 1
 
     # 3. Test _get_text_runs
     runs = vg._get_text_runs('Apmkb☺Muwj', font)
-    assert len(runs) >= 3
+    assert len(runs) == 3
     assert runs[0][0] == 'Apmkb'
     assert runs[1][0] == '☺'
     assert runs[2][0] == 'Muwj'

@@ -1,0 +1,444 @@
+animation: ease-in-out
+background_color: '#00000000'
+color: '#ffffffff'
+elements:
+  all_game_events:
+    align: left
+    enabled: true
+    extents:
+    - 0.25
+    - 0.25
+    fade_in_ms: 2000
+    fade_out_ms: 0
+    formatted_text: ''
+    style:
+      size: 16
+    tilt: 10.0
+    visible_end_ms: 0
+    visible_start_ms: 2000
+    x: 0.75
+    y: 0.6
+  centre_name:
+    align: left
+    enabled: false
+    style:
+      size: 20
+    x: 0.1
+    y: 0.8
+  date_of_game:
+    align: left
+    enabled: true
+    fade_in_ms: 0
+    fade_out_ms: 0
+    format: null
+    formatted_text: '{{date_of_game}} | {{normalized_game_type}}'
+    style:
+      size: 18
+    tilt: 0.0
+    visible_end_ms: 0
+    visible_start_ms: 0
+    x: 0.02
+    y: 0.97
+  downtime:
+    enabled: true
+    extents:
+    - 0.4
+    - 0.03
+    fade_in_ms: 1000
+    fade_out_ms: 0
+    formatted_text: ''
+    tilt: 0.0
+    visible_end_ms: 0
+    visible_start_ms: 3000
+    x: 0.3
+    y: 0.14
+  game_events:
+    align: center
+    enabled: true
+    fade_in_ms: 1000
+    fade_out_ms: 0
+    formatted_text: ''
+    start_time_offset: beginning of video
+    style:
+      size: 20
+    tilt: 0.0
+    visible_end_ms: 0
+    visible_start_ms: 3000
+    x: 0.5
+    y: 0.3
+  game_type:
+    align: right
+    enabled: false
+    fade_in_ms: 0
+    fade_out_ms: 0
+    formatted_text: ''
+    style:
+      size: 14
+    tilt: 0.0
+    visible_end_ms: 0
+    visible_start_ms: 0
+    x: 0.98
+    y: 0.96
+  normalized_game_type:
+    align: right
+    enabled: false
+    style:
+      size: 14
+    x: 0.98
+    y: 0.96
+  player_events:
+    align: center
+    enabled: true
+    max_lines: 4
+    style:
+      size: 18
+    x: 0.5
+    y: 0.18
+  player_hitpoints:
+    align: left
+    enabled: true
+    extents:
+    - 0.05
+    - 0.05
+    icon: shields
+    style:
+      size: 18
+    x: 0.55
+    y: 0.92
+  player_lives:
+    align: left
+    enabled: true
+    extents:
+    - 0.05
+    - 0.05
+    icon: lives
+    style:
+      size: 18
+    x: 0.25
+    y: 0.92
+  player_missiles:
+    align: left
+    enabled: true
+    extents:
+    - 0.05
+    - 0.05
+    icon: missiles
+    style:
+      size: 18
+    x: 0.45
+    y: 0.92
+  player_name:
+    align: center
+    enabled: true
+    style:
+      size: 24
+    x: 0.5
+    y: 0.05
+  player_role:
+    align: center
+    enabled: true
+    style:
+      size: 16
+    x: 0.5
+    y: 0.09
+  player_score:
+    align: right
+    enabled: true
+    fade_in_ms: 1000
+    fade_out_ms: 0
+    formatted_text: ''
+    style:
+      size: 36
+    tilt: 0.0
+    visible_end_ms: 0
+    visible_start_ms: 3000
+    x: 0.98
+    y: 0.05
+  player_shots:
+    align: left
+    enabled: true
+    extents:
+    - 0.05
+    - 0.05
+    icon: shots
+    style:
+      size: 18
+    x: 0.35
+    y: 0.92
+  player_special_points:
+    align: left
+    enabled: true
+    extents:
+    - 0.05
+    - 0.05
+    icon: sp
+    style:
+      size: 18
+    x: 0.65
+    y: 0.92
+  scoreboard:
+    align: left
+    draw_background: false
+    draw_borders: false
+    enabled: true
+    extents:
+      keyframes:
+      - interpolator: linear
+        reference: start_of_video
+        time: 0
+        value:
+        - 0.4
+        - 0.4
+      - interpolator: linear
+        reference: end_of_game
+        time: 0
+        value:
+        - 0.4
+        - 0.4
+      - interpolator: linear
+        reference: end_of_game
+        time: 2500
+        value:
+        - 0.4
+        - 0.4
+      - interpolator: linear
+        reference: end_of_game
+        time: 6000
+        value:
+        - 0.4
+        - 0.4
+    fade_in_ms: 2000
+    fade_out_ms: 0
+    formatted_text: ''
+    style:
+      size:
+        keyframes:
+        - interpolator: linear
+          reference: start_of_video
+          time: 0
+          value: 15
+        - interpolator: linear
+          reference: end_of_game
+          time: 0
+          value: 15
+        - interpolator: linear
+          reference: end_of_game
+          time: 2500
+          value: 30
+        - interpolator: linear
+          reference: end_of_game
+          time: 6000
+          value: 30
+    tilt: 0.0
+    visible_end_ms: 0
+    visible_start_ms: 3000
+    x:
+      keyframes:
+      - interpolator: linear
+        reference: start_of_video
+        time: 0
+        value: 0.02
+      - interpolator: linear
+        reference: end_of_game
+        time: 0
+        value: 0.02
+      - interpolator: linear
+        reference: end_of_game
+        time: 2500
+        value: 0.14
+      - interpolator: linear
+        reference: end_of_game
+        time: 6000
+        value: 0.14
+    y:
+      keyframes:
+      - interpolator: linear
+        reference: start_of_video
+        time: 0
+        value: 0.4
+      - interpolator: linear
+        reference: end_of_game
+        time: 0
+        value: 0.4
+      - interpolator: linear
+        reference: end_of_game
+        time: 2500
+        value: 0.17
+      - interpolator: linear
+        reference: end_of_game
+        time: 6000
+        value: 0.17
+  time:
+    align: right
+    enabled: true
+    fade_in_ms: 500
+    fade_out_ms: 0
+    formatted_text: ''
+    style:
+      font: advanced_pixel_lcd-7
+      size: 40
+    tilt: 0.0
+    visible_end_ms: 0
+    visible_start_ms: 1000
+    x: 0.98
+    y: 0.22
+  user_defined_text_1:
+    align: center
+    enabled: false
+    fade_in_ms: 0
+    fade_out_ms: 1000
+    formatted_text: Laserforce
+    style:
+      font: Nasalization Rg.otf
+      size: 60
+    text: ''
+    tilt: 0.0
+    visible_end_ms: 3000
+    visible_start_ms: 0
+    x: 0.5
+    y: 0.39
+  user_defined_text_10:
+    align: left
+    enabled: false
+    style:
+      size: 20
+    text: ''
+    x: 0.1
+    y: 0.6
+  user_defined_text_11:
+    align: left
+    enabled: false
+    style:
+      size: 20
+    text: ''
+    x: 0.1
+    y: 0.7
+  user_defined_text_12:
+    align: left
+    enabled: false
+    style:
+      size: 20
+    text: ''
+    x: 0.1
+    y: 0.8
+  user_defined_text_2:
+    align: center
+    enabled: false
+    fade_in_ms: 0
+    fade_out_ms: 1000
+    formatted_text: Next-Level Laser Tag
+    style:
+      font: Nasalization Rg.otf
+      size: 60
+    text: ''
+    tilt: 0.0
+    visible_end_ms: 3100
+    visible_start_ms: 0
+    x: 0.5
+    y: 0.48
+  user_defined_text_3:
+    align: center
+    enabled: false
+    fade_in_ms: 0
+    fade_out_ms: 1000
+    formatted_text: Join the Community!
+    style:
+      font: Poppins
+      size: 60
+    text: ''
+    tilt: 0.0
+    visible_end_ms: 3200
+    visible_start_ms: 0
+    x: 0.5
+    y: 0.71
+  user_defined_text_4:
+    align: center
+    enabled: false
+    fade_in_ms: 0
+    fade_out_ms: 1000
+    formatted_text: '[img:discord.png] LF Tournaments'
+    style:
+      font: Poppins
+      size: 60
+    text: ''
+    tilt: 0.0
+    visible_end_ms: 3300
+    visible_start_ms: 0
+    x: 0.5
+    y: 0.8
+  user_defined_text_5:
+    align: right
+    enabled: false
+    fade_in_ms: 2000
+    fade_out_ms: 0
+    formatted_text: Join The Community
+    style:
+      size: 16
+    text: ''
+    tilt: 0.0
+    visible_end_ms: 0
+    visible_start_ms: 2500
+    x: 0.98
+    y: 0.94
+  user_defined_text_6:
+    align: right
+    enabled: false
+    fade_in_ms: 2000
+    fade_out_ms: 0
+    formatted_text: '[img:discord.png] LFTournaments'
+    style:
+      size: 16
+    text: ''
+    tilt: 0.0
+    visible_end_ms: 0
+    visible_start_ms: 2600
+    x: 0.98
+    y: 0.97
+  user_defined_text_7:
+    align: left
+    enabled: true
+    fade_in_ms: 0
+    fade_out_ms: 0
+    formatted_text: '{{ centre_name }}'
+    style:
+      size: 16
+    text: ''
+    tilt: 0.0
+    visible_end_ms: 0
+    visible_start_ms: 0
+    x: 0.02
+    y: 0.94
+  user_defined_text_8:
+    align: right
+    enabled: true
+    fade_in_ms: 0
+    fade_out_ms: 0
+    formatted_text: HUD powered by @EboMike
+    start_time_offset: end of game
+    style:
+      size: 20
+    text: ''
+    tilt: 0.0
+    visible_end_ms: 0
+    visible_start_ms: 0
+    x: 0.98
+    y: 0.4
+  user_defined_text_9:
+    align: left
+    enabled: false
+    style:
+      size: 20
+    text: ''
+    x: 0.1
+    y: 0.5
+extra_footage_ms: 10000
+fade_duration: 1.0
+font: GoogleSans-Bold
+fps: 60
+player_name: null
+pregame_delay_ms: 5000
+resolution:
+- 1920
+- 1080
+size: 20
+style: normal

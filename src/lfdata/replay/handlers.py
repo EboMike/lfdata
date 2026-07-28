@@ -264,6 +264,7 @@ class LFReplayHandlersMixin:
                     and player.entity_id != actor.entity_id
                     and not player.is_eliminated()
                 ):
+                    default_val = player.can_receive_resupply(event.time)
                     is_ambig = self._is_player_boost_ambiguous(
                         player, event.time
                     )
@@ -274,11 +275,20 @@ class LFReplayHandlersMixin:
                         if key in self._resupply_choices:
                             should_boost = self._resupply_choices[key]
                         else:
-                            should_boost = player.can_receive_resupply(
-                                event.time
+                            should_boost = default_val
+
+                        if should_boost != default_val:
+                            self.resolved_ambiguities.append(
+                                {
+                                    'time_ms': event.time,
+                                    'player_id': player.entity_id,
+                                    'default': default_val,
+                                    'chosen': should_boost,
+                                    'event_type': event.event_type,
+                                }
                             )
                     else:
-                        should_boost = player.can_receive_resupply(event.time)
+                        should_boost = default_val
 
                     if should_boost:
                         if is_medic:
