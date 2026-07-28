@@ -47,7 +47,7 @@ class LFChapterGenerator:
         """
         candidates = self._collect_candidates()
         consolidated = self._filter_and_consolidate(candidates)
-        return consolidated
+        return self._limit_chapters(consolidated, max_chapters=20)
 
     def format_youtube_chapters(
         self,
@@ -115,6 +115,9 @@ class LFChapterGenerator:
             pid: p.lives for pid, p in replay.game_state.players.items()
         }
 
+        # Track nuke detonate events separately
+        nuke_detonations: list[tuple[GameEvent, str]] = []
+
         for event in sorted_events:
             for player in replay.game_state.players.values():
                 player.update_downtime(event.time)
@@ -171,7 +174,7 @@ class LFChapterGenerator:
                     )
 
             # 2. Check nuke events
-            if event.event_type in ('0405', 'nuke_cancel'):
+            if event.event_type == 'nuke_cancel':
                 candidates.append(
                     LFChapter(
                         time_ms=event.time,
@@ -179,8 +182,85 @@ class LFChapterGenerator:
                         importance=3,
                     )
                 )
+            elif event.event_type == '0405':
+                nuke_detonations.append((event, description))
+
+        # Group and process nuke detonations by commander
+        detonations_by_actor: dict[str, list[tuple[GameEvent, str]]] = {}
+        for ev, desc in nuke_detonations:
+            actor_id = ev.actor_entity_id
+            if not actor_id:
+                candidates.append(
+                    LFChapter(
+                        time_ms=ev.time,
+                        message=desc,
+                        importance=3,
+                    )
+                )
+                continue
+            detonations_by_actor.setdefault(actor_id, []).append((ev, desc))
+
+        for actor_id, evs in detonations_by_actor.items():
+            sorted_evs = sorted(evs, key=lambda x: x[0].time)
+            sequences: list[list[tuple[GameEvent, str]]] = []
+            current_seq: list[tuple[GameEvent, str]] = []
+            for ev, desc in sorted_evs:
+                if not current_seq:
+                    current_seq.append((ev, desc))
+                else:
+                    prev_ev, _ = current_seq[-1]
+                    if ev.time - prev_ev.time <= 15000:
+                        current_seq.append((ev, desc))
+                    else:
+                        sequences.append(current_seq)
+                        current_seq = [(ev, desc)]
+            if current_seq:
+                sequences.append(current_seq)
+
+            for seq in sequences:
+                if len(seq) == 1:
+                    ev, desc = seq[0]
+                    candidates.append(
+                        LFChapter(
+                            time_ms=ev.time,
+                            message=desc,
+                            importance=3,
+                        )
+                    )
+                else:
+                    first_ev, _ = seq[0]
+                    actor_name = replay.entity_names.get(actor_id, actor_id)
+                    suffix = self._get_multi_nuke_suffix(len(seq))
+                    msg = f'Commander {actor_name} {suffix}'
+                    candidates.append(
+                        LFChapter(
+                            time_ms=first_ev.time,
+                            message=msg,
+                            importance=3,
+                        )
+                    )
 
         return candidates
+
+    def _get_multi_nuke_suffix(self, count: int) -> str:
+        """Returns the suffix for multiple nuke detonations.
+
+        Args:
+            count: The number of nukes detonated.
+
+        Returns:
+            str: The multi-nuke description suffix.
+        """
+        nuke_count_names = {
+            2: 'double-nukes',
+            3: 'triple-nukes',
+            4: 'quad-nukes',
+            5: 'penta-nukes',
+            6: 'hexa-nukes',
+            7: 'hepta-nukes',
+            8: 'octa-nukes',
+        }
+        return nuke_count_names.get(count, f'{count}-nukes')
 
     def _filter_and_consolidate(
         self, chapters: list[LFChapter]

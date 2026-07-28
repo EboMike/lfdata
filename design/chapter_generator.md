@@ -17,6 +17,9 @@ The following events are candidates for chapter markers, in order of importance 
 *   A medic is eliminated
 *   A commander is eliminated
 *   A nuke is detonated, or canceled
+    *   If a commander detonates multiple nukes, each within 15 seconds of the previous one, combine
+        those two one event. For example, if a commander detonates a nuke and then another one after
+        10 seconds, consider this one event called "Commander {name} double-nukes."
 *   A player of a role not mentioned above is eliminated
 *   A medic is down to 10 lives
 

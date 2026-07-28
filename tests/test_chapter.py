@@ -321,3 +321,109 @@ def test_format_youtube_chapters() -> None:
     out2 = generator.format_youtube_chapters(ch, pregame_delay_ms=10000)
     expected2 = '00:00 Warmup\n00:25 Nuke Detonated\n01:25 Med1 eliminated'
     assert out2 == expected2
+
+
+def test_collect_candidates_multi_nuke_detonations() -> None:
+    game = _create_test_game()
+    events = [
+        GameEvent(
+            game_id='test_chapter_game',
+            time=0,
+            event_type='0100',
+            action='start',
+            raw_message='',
+        ),
+        # Nuke 1
+        GameEvent(
+            game_id='test_chapter_game',
+            time=5000,
+            event_type='0404',
+            actor_entity_id='C1',
+            action='activates nuke',
+            raw_message='',
+        ),
+        GameEvent(
+            game_id='test_chapter_game',
+            time=10000,
+            event_type='0405',
+            actor_entity_id='C1',
+            action='detonates nuke',
+            raw_message='',
+        ),
+        # Nuke 2 (detonated at 24000ms, which is 14000ms after Nuke 1)
+        GameEvent(
+            game_id='test_chapter_game',
+            time=20000,
+            event_type='0404',
+            actor_entity_id='C1',
+            action='activates nuke',
+            raw_message='',
+        ),
+        GameEvent(
+            game_id='test_chapter_game',
+            time=24000,
+            event_type='0405',
+            actor_entity_id='C1',
+            action='detonates nuke',
+            raw_message='',
+        ),
+        # Nuke 3 (detonated at 50000ms, which is 26000ms after Nuke 2)
+        GameEvent(
+            game_id='test_chapter_game',
+            time=45000,
+            event_type='0404',
+            actor_entity_id='C1',
+            action='activates nuke',
+            raw_message='',
+        ),
+        GameEvent(
+            game_id='test_chapter_game',
+            time=50000,
+            event_type='0405',
+            actor_entity_id='C1',
+            action='detonates nuke',
+            raw_message='',
+        ),
+    ]
+    game.events = events
+
+    generator = LFChapterGenerator(game)
+    candidates = generator._collect_candidates()
+
+    # We expect:
+    # 1. A double-nukes chapter at 10000ms: 'Commander Cmd1 double-nukes'
+    # 2. A single nuke detonate chapter at 50000ms: 'Cmd1 detonates nuke'
+    double_nukes = [
+        c for c in candidates if 'double-nukes' in c.message
+    ]
+    assert len(double_nukes) == 1
+    assert double_nukes[0].time_ms == 10000
+    assert double_nukes[0].importance == 3
+
+    single_nukes = [
+        c for c in candidates if 'detonates nuke' in c.message
+    ]
+    assert len(single_nukes) == 1
+    assert single_nukes[0].time_ms == 50000
+    assert single_nukes[0].importance == 3
+
+
+def test_generate_limits_chapters() -> None:
+    game = _create_test_game()
+
+    class MockChapterGenerator(LFChapterGenerator):
+        def _collect_candidates(self) -> list[LFChapter]:
+            return [
+                LFChapter(
+                    time_ms=20000 * i,
+                    message=f'Event {i}',
+                    importance=2,
+                )
+                for i in range(25)
+            ]
+
+    generator = MockChapterGenerator(game)
+    chapters = generator.generate()
+    assert len(chapters) == 20
+
+
