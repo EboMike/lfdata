@@ -258,15 +258,29 @@ def test_filter_and_consolidate() -> None:
     # Same importance:
     # 3. Sct2 eliminated at 20000, importance 2
     # 4. Heavy eliminated at 25000, importance 2
-    # Within 10s, same importance -> combine messages and keep earlier time (20000)
+    # Within 10s, both are player eliminations -> combine with 'and'
     ch3 = LFChapter(time_ms=20000, message='Sct2 eliminated', importance=2)
     ch4 = LFChapter(time_ms=25000, message='Heavy eliminated', importance=2)
 
     res = generator._filter_and_consolidate([ch3, ch4])
     assert len(res) == 1
     assert res[0].time_ms == 20000
-    assert res[0].message == 'Sct2 eliminated, Heavy eliminated'
+    assert res[0].message == 'Sct2 and Heavy eliminated'
     assert res[0].importance == 2
+
+
+def test_filter_and_consolidate_three_player_eliminations() -> None:
+    generator = LFChapterGenerator(
+        LFGame(game_id='dummy', timestamp=datetime.now())
+    )
+
+    ch1 = LFChapter(time_ms=10000, message='David eliminated', importance=2)
+    ch2 = LFChapter(time_ms=12000, message='John eliminated', importance=2)
+    ch3 = LFChapter(time_ms=15000, message='Alex eliminated', importance=2)
+
+    res = generator._filter_and_consolidate([ch1, ch2, ch3])
+    assert len(res) == 1
+    assert res[0].message == 'David, John, and Alex eliminated'
 
 
 def test_limit_chapters() -> None:
@@ -312,15 +326,15 @@ def test_format_youtube_chapters() -> None:
         LFChapter(time_ms=75000, message='Med1 eliminated', importance=5),
     ]
 
-    # Without pregame delay (starts with Game Start at 00:00)
+    # Without pregame delay (starts with Game Starts at 00:00)
     out1 = generator.format_youtube_chapters(ch, pregame_delay_ms=0)
-    expected1 = '00:00 Game Start\n00:15 Nuke Detonated\n01:15 Med1 eliminated'
+    expected1 = '00:00 Game Starts\n00:15 Nuke Detonated\n01:15 Med1 eliminated'
     assert out1 == expected1
 
-    # With pregame delay of 10000ms <= 20s (starts with Getting Ready at 00:00)
+    # With pregame delay of 10000ms <= 20s (starts with Game Starts at 00:00)
     out2 = generator.format_youtube_chapters(ch, pregame_delay_ms=10000)
     expected2 = (
-        '00:00 Getting Ready\n00:25 Nuke Detonated\n01:25 Med1 eliminated'
+        '00:00 Game Starts\n00:25 Nuke Detonated\n01:25 Med1 eliminated'
     )
     assert out2 == expected2
 
@@ -355,9 +369,9 @@ def test_format_youtube_chapters_preroll_exactly_20s() -> None:
         LFChapter(time_ms=15000, message='Nuke Detonated', importance=3),
     ]
 
-    # Exactly 20000ms is not > 20s, so only Getting Ready at 00:00
+    # Exactly 20000ms is not > 20s, so Game Starts at 00:00
     out = generator.format_youtube_chapters(ch, pregame_delay_ms=20000)
-    expected = '00:00 Getting Ready\n00:35 Nuke Detonated'
+    expected = '00:00 Game Starts\n00:35 Nuke Detonated'
     assert out == expected
 
 

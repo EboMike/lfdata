@@ -34,12 +34,14 @@ applying the following rules:
 If an event, like a nuke detonation or a player elimination results in an entire team being eliminated,
 add "{team name} team eliminated" to the respective chapter name.
 
+If multiple players are eliminated within 10 seconds of each other, combine them into one chapter, for
+example "David and John eliminated."
+
 ## First chapters
 
-The very first chapter at 00:00 should be "Game Start" if the video is set up to begin exactly at the
-game start time. Otherwise, the first chapter should be "Getting Ready". If there are more than 20
-seconds between the preroll and the start of the game, the first chapter should be "Getting Ready",
-and the second chapter should be "Game Start" at the moment when the game starts.
+The very first chapter at 00:00 should be "Game Starts". If there are more than 20 seconds between the
+preroll and the start of the game, the first chapter should be "Getting Ready", and the second chapter
+should be "Game Start" at the moment when the game starts.
 
 ## Outputs
 

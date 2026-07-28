@@ -76,7 +76,7 @@ class LFChapterGenerator:
 
         if not has_zero:
             first_name = (
-                'Game Start' if pregame_delay_ms == 0 else 'Getting Ready'
+                'Getting Ready' if pregame_delay_ms > 20000 else 'Game Starts'
             )
             ch_entries.insert(0, (0, first_name))
 
@@ -341,6 +341,97 @@ class LFChapterGenerator:
         }
         return nuke_count_names.get(count, f'{count}-nukes')
 
+    def _parse_elimination_message(
+        self, msg: str
+    ) -> tuple[list[str], list[str]] | None:
+        """Parses an elimination message into player names and team eliminations.
+
+        Args:
+            msg: The chapter message string.
+
+        Returns:
+            tuple[list[str], list[str]] | None: (player_names, team_eliminations)
+              or None if not a player elimination message.
+        """
+        parts = msg.split(', ')
+        main_part = parts[0]
+        team_elims = [
+            p.removesuffix(' team eliminated')
+            for p in parts[1:]
+            if p.endswith(' team eliminated')
+        ]
+
+        if main_part.endswith(' eliminated'):
+            name_section = main_part.removesuffix(' eliminated')
+            names = self._split_player_names(name_section)
+            return names, team_elims
+        return None
+
+    def _split_player_names(self, text: str) -> list[str]:
+        """Splits a combined name string into individual names.
+
+        Args:
+            text: Combined names string (e.g. 'David and John').
+
+        Returns:
+            list[str]: Individual player names.
+        """
+        text = text.replace(', and ', ', ').replace(' and ', ', ')
+        names = [n.strip() for n in text.split(',') if n.strip()]
+        return names
+
+    def _format_player_names(self, names: list[str]) -> str:
+        """Formats a list of player names into an English list string.
+
+        Args:
+            names: List of player names.
+
+        Returns:
+            str: Formatted names string.
+        """
+        if not names:
+            return ''
+        if len(names) == 1:
+            return names[0]
+        if len(names) == 2:
+            return f'{names[0]} and {names[1]}'
+        return f"{', '.join(names[:-1])}, and {names[-1]}"
+
+    def _combine_chapter_messages(self, msg1: str, msg2: str) -> str:
+        """Combines two chapter messages, formatting eliminations with 'and'.
+
+        Args:
+            msg1: The first chapter message.
+            msg2: The second chapter message.
+
+        Returns:
+            str: The combined message.
+        """
+        parsed1 = self._parse_elimination_message(msg1)
+        parsed2 = self._parse_elimination_message(msg2)
+
+        if parsed1 is not None and parsed2 is not None:
+            names1, teams1 = parsed1
+            names2, teams2 = parsed2
+
+            combined_names = list(names1)
+            for n in names2:
+                if n not in combined_names:
+                    combined_names.append(n)
+
+            combined_teams = list(teams1)
+            for t in teams2:
+                if t not in combined_teams:
+                    combined_teams.append(t)
+
+            names_str = self._format_player_names(combined_names)
+            team_suffix = ''.join(
+                f', {t} team eliminated' for t in combined_teams
+            )
+            return f'{names_str} eliminated{team_suffix}'
+
+        return f'{msg1}, {msg2}'
+
     def _filter_and_consolidate(
         self, chapters: list[LFChapter]
     ) -> list[LFChapter]:
@@ -362,13 +453,29 @@ class LFChapterGenerator:
 
                 if abs(c1.time_ms - c2.time_ms) <= 10000:
                     conflict_found = True
-                    if c1.importance != c2.importance:
+                    parsed1 = self._parse_elimination_message(c1.message)
+                    parsed2 = self._parse_elimination_message(c2.message)
+
+                    if parsed1 is not None and parsed2 is not None:
+                        combined_msg = self._combine_chapter_messages(
+                            c1.message, c2.message
+                        )
+                        combined_ch = LFChapter(
+                            time_ms=min(c1.time_ms, c2.time_ms),
+                            message=combined_msg,
+                            importance=max(c1.importance, c2.importance),
+                        )
+                        current[i] = combined_ch
+                        current.pop(i + 1)
+                    elif c1.importance != c2.importance:
                         if c1.importance < c2.importance:
                             current.pop(i)
                         else:
                             current.pop(i + 1)
                     else:
-                        combined_msg = f'{c1.message}, {c2.message}'
+                        combined_msg = self._combine_chapter_messages(
+                            c1.message, c2.message
+                        )
                         combined_ch = LFChapter(
                             time_ms=min(c1.time_ms, c2.time_ms),
                             message=combined_msg,
