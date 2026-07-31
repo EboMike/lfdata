@@ -1,49 +1,32 @@
 #!/bin/bash
-# Script to verify all TDF files in the current directory using lfdata.
+# Script to verify all TDF files in a directory using lfdata.
 
-# Directory where this script resides (lfdata repository root)
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-# Current working directory where the script was called from
-CALL_DIR="$(pwd)"
+TARGET_DIR="${1:-.}"
 
-FAILED=0
+export PYTHONPATH="$DIR/src"
 
-# Enable case-insensitive globbing and handle empty matches gracefully
-shopt -s nullglob
-shopt -s nocaseglob
+VENV_PATHS=(
+    "$DIR/venv-wsl/bin/python"
+    "$DIR/.venv/bin/python"
+    "$DIR/venv/bin/python"
+    "$DIR/venv/Scripts/python"
+)
 
-# First, find the TDF files in the current directory
-files=(*.tdf)
-
-if [ ${#files[@]} -eq 0 ]; then
-    echo "No TDF files found in the current directory."
-    exit 0
-fi
-
-# Change directory to the repository root so lfdata can find assets and fonts
-cd "$DIR" || { echo "Failed to change directory to $DIR"; exit 1; }
-
-for file in "${files[@]}"; do
-    abs_file="$CALL_DIR/$file"
-    echo "========================================================================"
-    echo "Verifying: $file"
-    echo "========================================================================"
-    if ! ./run.sh --input_tdf "$abs_file" --verify_tdf_replay; then
-        echo "FAIL: $file verification failed"
-        FAILED=1
-    else
-        echo "PASS: $file verification passed"
+PYTHON_EXE=""
+for path in "${VENV_PATHS[@]}"; do
+    if [ -f "$path" ]; then
+        PYTHON_EXE="$path"
+        break
     fi
-    echo ""
 done
 
-# Go back to the original directory
-cd "$CALL_DIR" || exit 1
-
-if [ $FAILED -ne 0 ]; then
-    echo "Verification complete. One or more files failed verification."
-    exit 1
-else
-    echo "Verification complete. All files passed verification."
-    exit 0
+if [ -z "$PYTHON_EXE" ]; then
+    if command -v python3 &>/dev/null; then
+        PYTHON_EXE="python3"
+    else
+        PYTHON_EXE="python"
+    fi
 fi
+
+"$PYTHON_EXE" -m lfdata.verify_all "$TARGET_DIR"
