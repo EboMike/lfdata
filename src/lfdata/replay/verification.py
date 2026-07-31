@@ -24,13 +24,16 @@ class PlayerDiscrepancy:
 class LFReplayVerifier:
     """Verifier for comparing replay simulation end states with TDF data."""
 
-    def __init__(self, game: LFGame) -> None:
+    def __init__(self, game: LFGame, boost_grace_period_ms: int = 700) -> None:
         """Initializes the verifier.
 
         Args:
             game: The game to verify.
+            boost_grace_period_ms: Grace period in milliseconds for boost
+                eligibility (defaults to 700, representing 0.7 seconds).
         """
         self.game = game
+        self.boost_grace_period_ms = boost_grace_period_ms
 
     def get_discrepancies(
         self, replay: LFReplaySystem
@@ -102,7 +105,11 @@ class LFReplayVerifier:
             bool: True if there were no initial discrepancies, False otherwise.
         """
         print('Running initial replay simulation (no alignment)...')
-        replay_no_align = LFReplaySystem(self.game, align_stats=False)
+        replay_no_align = LFReplaySystem(
+            self.game,
+            align_stats=False,
+            boost_grace_period_ms=self.boost_grace_period_ms,
+        )
         replay_no_align.run()
 
         discrepancies = self.get_discrepancies(replay_no_align)
@@ -129,7 +136,11 @@ class LFReplayVerifier:
                 )
 
         print('\nAttempting to resolve discrepancies using replay alignment...')
-        replay_aligned = LFReplaySystem(self.game, align_stats=True)
+        replay_aligned = LFReplaySystem(
+            self.game,
+            align_stats=True,
+            boost_grace_period_ms=self.boost_grace_period_ms,
+        )
         replay_aligned.run()
 
         # Check if alignment succeeded

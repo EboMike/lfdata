@@ -57,11 +57,14 @@ class LFReplayHandlersMixin:
             if event.event_type in ['0206', '0208']:
                 was_already_down = target.is_down(event.time)
                 target.lives = max(0, target.lives - 1)
-                target.hp = 0
-                target.downtime_ends_at_ms = event.time + 8000
-                target.resettable_starts_at_ms = event.time + 4000
-                if not was_already_down:
-                    target.just_went_down_at_ms = event.time
+                if target.has_authoritative_state:
+                    target.update_downtime(event.time)
+                else:
+                    target.hp = 0
+                    target.downtime_ends_at_ms = event.time + 8000
+                    target.resettable_starts_at_ms = event.time + 4000
+                    if not was_already_down:
+                        target.just_went_down_at_ms = event.time
             else:
                 target.hp = max(1, target.hp - 1)
 
@@ -111,11 +114,14 @@ class LFReplayHandlersMixin:
             # Missile immediately downs target or resets downtime
             was_already_down = target.is_down(event.time)
             target.lives = max(0, target.lives - 2)
-            target.hp = 0
-            target.downtime_ends_at_ms = event.time + 8000
-            target.resettable_starts_at_ms = event.time + 4000
-            if not was_already_down:
-                target.just_went_down_at_ms = event.time
+            if target.has_authoritative_state:
+                target.update_downtime(event.time)
+            else:
+                target.hp = 0
+                target.downtime_ends_at_ms = event.time + 8000
+                target.resettable_starts_at_ms = event.time + 4000
+                if not was_already_down:
+                    target.just_went_down_at_ms = event.time
 
         return f'{actor_name} missiles {target_name}'
 
@@ -192,11 +198,14 @@ class LFReplayHandlersMixin:
                 ):
                     was_already_down = player.is_down(event.time)
                     player.lives = max(0, player.lives - 3)
-                    player.hp = 0
-                    player.downtime_ends_at_ms = event.time + 8000
-                    player.resettable_starts_at_ms = event.time + 4000
-                    if not was_already_down:
-                        player.just_went_down_at_ms = event.time
+                    if player.has_authoritative_state:
+                        player.update_downtime(event.time)
+                    else:
+                        player.hp = 0
+                        player.downtime_ends_at_ms = event.time + 8000
+                        player.resettable_starts_at_ms = event.time + 4000
+                        if not was_already_down:
+                            player.just_went_down_at_ms = event.time
 
         return f'{actor_name} detonates nuke'
 
@@ -226,11 +235,14 @@ class LFReplayHandlersMixin:
             else:
                 target.resupply_shots_from_ammo()
             was_already_down = target.is_down(event.time)
-            target.hp = 0
-            target.downtime_ends_at_ms = event.time + 8000
-            target.resettable_starts_at_ms = event.time + 4000
-            if not was_already_down:
-                target.just_went_down_at_ms = event.time
+            if target.has_authoritative_state:
+                target.update_downtime(event.time)
+            else:
+                target.hp = 0
+                target.downtime_ends_at_ms = event.time + 8000
+                target.resettable_starts_at_ms = event.time + 4000
+                if not was_already_down:
+                    target.just_went_down_at_ms = event.time
             if target.role == LFRole.SCOUT:
                 target.has_rapid_fire = False
         return f'{actor_name} resupplies {target_name}'
@@ -264,7 +276,12 @@ class LFReplayHandlersMixin:
                     and player.entity_id != actor.entity_id
                     and not player.is_eliminated()
                 ):
-                    default_val = player.can_receive_resupply(event.time)
+                    default_val = player.can_receive_resupply(
+                        event.time,
+                        grace_period_ms=getattr(
+                            self, 'boost_grace_period_ms', 700
+                        ),
+                    )
                     is_ambig = self._is_player_boost_ambiguous(
                         player, event.time
                     )
@@ -360,11 +377,14 @@ class LFReplayHandlersMixin:
                 actor.score += penalty_val
                 actor.penalties += 1
                 was_already_down = actor.is_down(event.time)
-                actor.hp = 0
-                actor.downtime_ends_at_ms = event.time + 8000
-                actor.resettable_starts_at_ms = event.time + 4000
-                if not was_already_down:
-                    actor.just_went_down_at_ms = event.time
+                if actor.has_authoritative_state:
+                    actor.update_downtime(event.time)
+                else:
+                    actor.hp = 0
+                    actor.downtime_ends_at_ms = event.time + 8000
+                    actor.resettable_starts_at_ms = event.time + 4000
+                    if not was_already_down:
+                        actor.just_went_down_at_ms = event.time
             return f'{actor_name} is penalized'
         return None
 

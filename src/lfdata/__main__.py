@@ -194,6 +194,16 @@ def main() -> None:
         ),
     )
 
+    parser.add_argument(
+        '--boost_grace_period_ms',
+        type=int,
+        default=700,
+        help=(
+            'Grace period in milliseconds for boost eligibility '
+            '(defaults to 700, representing 0.7 seconds).'
+        ),
+    )
+
     args = parser.parse_args()
 
     if not args.input_tdf:

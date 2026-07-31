@@ -31,15 +31,23 @@ class LFNukeCancelDetails:
 class LFReplaySystem(LFReplayHandlersMixin):
     """Orchestrates the replay simulation from a parsed game."""
 
-    def __init__(self, game: LFGame, align_stats: bool = True) -> None:
+    def __init__(
+        self,
+        game: LFGame,
+        align_stats: bool = True,
+        boost_grace_period_ms: int = 700,
+    ) -> None:
         """Initializes the replay system.
 
         Args:
             game: The LF game object containing teams, entities, and events.
             align_stats: If True, automatically search for choices that align
                 the final stats.
+            boost_grace_period_ms: Grace period in milliseconds for boost
+                eligibility (defaults to 700, representing 0.7 seconds).
         """
         self.game = game
+        self.boost_grace_period_ms = boost_grace_period_ms
         self._detect_and_inject_nuke_cancels()
         self.player_states: list[LFReplayPlayerState] = []
         self.team_states: list[LFReplayTeamState] = []
@@ -80,7 +88,7 @@ class LFReplaySystem(LFReplayHandlersMixin):
     ) -> bool:
         """Checks if a player is ambiguous for a team boost event.
 
-        A player is ambiguous if they went down approximately 750ms ago (within
+        A player is ambiguous if they went down near the grace period (within
         a 2000ms buffer) or if their downtime ends/ended near the boost time
         (within a 2000ms buffer).
 
@@ -91,9 +99,12 @@ class LFReplaySystem(LFReplayHandlersMixin):
         Returns:
             bool: True if the player is ambiguous, False otherwise.
         """
+        if player.has_authoritative_state:
+            return False
+
         if player.just_went_down_at_ms is not None:
             elapsed_ms = event_time - player.just_went_down_at_ms
-            if abs(elapsed_ms - 750) <= 2000:
+            if abs(elapsed_ms - self.boost_grace_period_ms) <= 2000:
                 return True
 
         if abs(event_time - player.downtime_ends_at_ms) <= 2000:
@@ -202,24 +213,19 @@ class LFReplaySystem(LFReplayHandlersMixin):
                     next_point = p
                     break
 
-            if next_point is None:
-                # All encountered points are fixed, but still mismatched.
+            if not next_point:
                 return False
 
-            # Try True branch
-            print(f'Branching: trying True for point {next_point}')
-            fixed_choices[next_point] = True
-            if dfs(fixed_choices):
+            branch1 = fixed_choices.copy()
+            branch1[next_point] = True
+            if dfs(branch1):
                 return True
 
-            # Try False branch
-            print(f'Branching: trying False for point {next_point}')
-            fixed_choices[next_point] = False
-            if dfs(fixed_choices):
+            branch2 = fixed_choices.copy()
+            branch2[next_point] = False
+            if dfs(branch2):
                 return True
 
-            # Backtrack
-            del fixed_choices[next_point]
             return False
 
         result = dfs({})
@@ -251,15 +257,24 @@ class LFReplaySystem(LFReplayHandlersMixin):
                 )
             )
 
+        state_history_by_entity: dict[str, list] = {}
+        if self.game.state_history:
+            for sh in sorted(self.game.state_history, key=lambda s: s.time):
+                state_history_by_entity.setdefault(sh.entity_id, []).append(sh)
+
         for entity in self.game.entities:
             if entity.type == 'player':
                 try:
                     role = LFRole.from_id(entity.category)
                 except ValueError:
                     role = LFRole.SCOUT
+                history = state_history_by_entity.get(entity.entity_id)
                 self.player_states.append(
                     LFReplayPlayerState(
-                        entity.entity_id, role, entity.team_index
+                        entity.entity_id,
+                        role,
+                        entity.team_index,
+                        state_history=history,
                     )
                 )
 

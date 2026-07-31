@@ -117,3 +117,86 @@ def test_player_special_points_clamping() -> None:
 
     p.special_points = -10
     assert p.special_points == 0
+
+
+def test_player_authoritative_state_history() -> None:
+    from lfdata.model import PlayerStateHistory
+
+    history = [
+        PlayerStateHistory(game_id='g1', time=0, entity_id='#1', state=0),
+        PlayerStateHistory(game_id='g1', time=1000, entity_id='#1', state=3),
+        PlayerStateHistory(game_id='g1', time=5000, entity_id='#1', state=2),
+        PlayerStateHistory(game_id='g1', time=9000, entity_id='#1', state=0),
+    ]
+
+    p = LFReplayPlayerState(
+        entity_id='#1',
+        role=LFRole.COMMANDER,
+        team_index=0,
+        state_history=history,
+    )
+
+    assert p.has_authoritative_state
+
+    # t=500 -> state 0 (up)
+    assert p.get_state_at(500) == 0
+    assert not p.is_down(500)
+    assert not p.is_resettable(500)
+    assert p.can_receive_resupply(500)
+    p.update_downtime(500)
+    assert p.hp == p.max_hp
+
+    # t=1500 -> state 3 (down non-resettable), went down at t=1000 (elapsed 500ms <= 750ms)
+    assert p.get_state_at(1500) == 3
+    assert p.is_down(1500)
+    assert not p.is_resettable(1500)
+    assert p.can_receive_resupply(1500)
+    p.update_downtime(1500)
+    assert p.hp == 0
+
+    # t=3000 -> state 3, went down at t=1000 (elapsed 2000ms > 750ms)
+    assert p.get_state_at(3000) == 3
+    assert p.is_down(3000)
+    assert not p.is_resettable(3000)
+    assert not p.can_receive_resupply(3000)
+
+    # t=6000 -> state 2 (resettable)
+    assert p.get_state_at(6000) == 2
+    assert p.is_down(6000)
+    assert p.is_resettable(6000)
+
+    # t=10000 -> state 0 (up again)
+    assert p.get_state_at(10000) == 0
+    assert not p.is_down(10000)
+    p.update_downtime(10000)
+    assert p.hp == p.max_hp
+
+
+def test_configurable_boost_grace_period() -> None:
+    from lfdata.model import PlayerStateHistory
+
+    history = [
+        PlayerStateHistory(game_id='g1', time=0, entity_id='#1', state=0),
+        PlayerStateHistory(game_id='g1', time=1000, entity_id='#1', state=3),
+    ]
+
+    p = LFReplayPlayerState(
+        entity_id='#1',
+        role=LFRole.COMMANDER,
+        team_index=0,
+        state_history=history,
+    )
+
+    # At t=1650 (elapsed = 650ms):
+    # Default (700ms grace period): 650ms <= 700ms -> True
+    assert p.can_receive_resupply(1650)
+    assert p.can_receive_resupply(1650, grace_period_ms=700)
+
+    # Custom 500ms grace period: 650ms > 500ms -> False
+    assert not p.can_receive_resupply(1650, grace_period_ms=500)
+
+    # Custom 1000ms grace period: at t=1900 (elapsed = 900ms): 900ms <= 1000ms -> True
+    assert p.can_receive_resupply(1900, grace_period_ms=1000)
+    assert not p.can_receive_resupply(1900, grace_period_ms=700)
+
+

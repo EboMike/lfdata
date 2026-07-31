@@ -2,19 +2,27 @@
 a replay.
 """
 
-from lfdata.model import LFRole
+from lfdata.model import LFRole, PlayerStateHistory
 
 
 class LFReplayPlayerState:
     """Tracks a single player's state during a game replay."""
 
-    def __init__(self, entity_id: str, role: LFRole, team_index: int) -> None:
+    def __init__(
+        self,
+        entity_id: str,
+        role: LFRole,
+        team_index: int,
+        state_history: list[PlayerStateHistory] | None = None,
+    ) -> None:
         """Initializes the player state with role-based start values.
 
         Args:
             entity_id: The ID of the game entity.
             role: The LFRole enum representing the player's role.
             team_index: The team index the player belongs to.
+            state_history: Optional list of authoritative state history entries
+                parsed from type 9 records.
         """
         self.entity_id = entity_id
         self.role = role
@@ -36,6 +44,36 @@ class LFReplayPlayerState:
         self.nuke_cancels: int = 0
         self.own_nuke_cancels: int = 0
         self.penalties: int = 0
+        self.state_history: list[PlayerStateHistory] | None = state_history
+
+    @property
+    def has_authoritative_state(self) -> bool:
+        """Returns True if authoritative type 9 state history is present."""
+        return bool(self.state_history)
+
+    def get_state_at(self, current_time_ms: int) -> int:
+        """Returns the player's authoritative state at current_time_ms.
+
+        State values:
+        - 0: Player is up
+        - 3: Player is down and not resettable
+        - 2: Player is resettable
+
+        Args:
+            current_time_ms: Timestamp in milliseconds.
+
+        Returns:
+            int: 0 if up, 3 if down and not resettable, 2 if resettable.
+        """
+        if not self.state_history:
+            return 0
+        latest_state = 0
+        for entry in self.state_history:
+            if entry.time <= current_time_ms:
+                latest_state = entry.state
+            else:
+                break
+        return latest_state
 
     def is_eliminated(self) -> bool:
         """Returns True if the player has no lives left and is out of the
@@ -52,16 +90,62 @@ class LFReplayPlayerState:
         Returns:
             bool: True if the player is currently down, False otherwise.
         """
+        if self.has_authoritative_state:
+            return self.get_state_at(current_time_ms) in (2, 3)
         return current_time_ms < self.downtime_ends_at_ms
 
-    def can_receive_resupply(self, current_time_ms: int) -> bool:
-        """Checks if the player can receive resupply or team boost.
-
-        A player is eligible to receive resupply if they are not down, or if
-        they transitioned to down within the last 750 milliseconds.
+    def is_resettable(self, current_time_ms: int) -> bool:
+        """Returns True if the player is currently in a resettable down state.
 
         Args:
             current_time_ms: The current millisecond timestamp.
+
+        Returns:
+            bool: True if resettable down state, False otherwise.
+        """
+        if self.has_authoritative_state:
+            return self.get_state_at(current_time_ms) == 2
+        return (
+            self.is_down(current_time_ms)
+            and current_time_ms >= self.resettable_starts_at_ms
+        )
+
+    def get_down_start_time_ms(self, current_time_ms: int) -> int | None:
+        """Returns the timestamp when current down state started, if down.
+
+        Args:
+            current_time_ms: The current millisecond timestamp.
+
+        Returns:
+            int | None: Down start timestamp in ms, or None if not down.
+        """
+        if self.has_authoritative_state:
+            if not self.state_history:
+                return None
+            down_start: int | None = None
+            for entry in self.state_history:
+                if entry.time > current_time_ms:
+                    break
+                if entry.state in (2, 3):
+                    if down_start is None:
+                        down_start = entry.time
+                else:
+                    down_start = None
+            return down_start
+        return self.just_went_down_at_ms
+
+    def can_receive_resupply(
+        self, current_time_ms: int, grace_period_ms: int = 700
+    ) -> bool:
+        """Checks if the player can receive resupply or team boost.
+
+        A player is eligible to receive resupply if they are not down, or if
+        they transitioned to down within the configurable grace period.
+
+        Args:
+            current_time_ms: The current millisecond timestamp.
+            grace_period_ms: Grace period in milliseconds (defaults to 700,
+                representing 0.7 seconds).
 
         Returns:
             bool: True if eligible, False otherwise.
@@ -70,13 +154,14 @@ class LFReplayPlayerState:
             return False
         if not self.is_down(current_time_ms):
             return True
-        if self.just_went_down_at_ms is not None:
-            elapsed_ms = current_time_ms - self.just_went_down_at_ms
-            return 0 <= elapsed_ms <= 750
+        down_start = self.get_down_start_time_ms(current_time_ms)
+        if down_start is not None:
+            elapsed_ms = current_time_ms - down_start
+            return 0 <= elapsed_ms <= grace_period_ms
         return False
 
     def update_downtime(self, current_time_ms: int) -> None:
-        """Restores player's HP if their downtime has expired.
+        """Restores player's HP if active / up, or zeroes HP if down.
 
         Args:
             current_time_ms: The current millisecond timestamp.
@@ -84,9 +169,16 @@ class LFReplayPlayerState:
         if self.is_eliminated():
             self.hp = 0
             return
-        if self.hp == 0 and current_time_ms >= self.downtime_ends_at_ms:
-            self.hp = self.max_hp
-            self.just_went_down_at_ms = None
+        if self.has_authoritative_state:
+            state = self.get_state_at(current_time_ms)
+            if state == 0:
+                self.hp = self.max_hp
+            else:
+                self.hp = 0
+        else:
+            if self.hp == 0 and current_time_ms >= self.downtime_ends_at_ms:
+                self.hp = self.max_hp
+                self.just_went_down_at_ms = None
 
     def resupply_lives_from_medic(self) -> None:
         """Adds lives to player based on role-specific medic resupply values."""
