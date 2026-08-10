@@ -5,7 +5,7 @@ consolidating them into a YouTube chapter list format.
 """
 
 import dataclasses
-from lfdata.model import LFGame, LFRole
+from lfdata.model import GameEvent, LFGame, LFRole
 from lfdata.replay import LFReplaySystem
 
 
@@ -86,9 +86,7 @@ class LFChapterGenerator:
                 inserted = False
                 for idx, (t, _) in enumerate(ch_entries):
                     if t >= pregame_delay_ms:
-                        ch_entries.insert(
-                            idx, (pregame_delay_ms, 'Game Start')
-                        )
+                        ch_entries.insert(idx, (pregame_delay_ms, 'Game Start'))
                         inserted = True
                         break
                 if not inserted:
@@ -395,7 +393,7 @@ class LFChapterGenerator:
             return names[0]
         if len(names) == 2:
             return f'{names[0]} and {names[1]}'
-        return f"{', '.join(names[:-1])}, and {names[-1]}"
+        return f'{", ".join(names[:-1])}, and {names[-1]}'
 
     def _combine_chapter_messages(self, msg1: str, msg2: str) -> str:
         """Combines two chapter messages, formatting eliminations with 'and'.

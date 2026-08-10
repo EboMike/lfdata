@@ -351,3 +351,22 @@ class TdfImporter:
                 state=state_val,
             )
             game.state_history.append(state)
+
+
+def parse_tdf(file_path: str | Path) -> LFGame:
+    """Parses a TDF file into an LFGame object.
+
+    Convenience function that creates a TdfImporter instance and returns
+    the parsed LFGame data structure.
+
+    Args:
+        file_path: The file path to the TDF file.
+
+    Returns:
+        LFGame: The parsed LFGame data structure.
+
+    Raises:
+        FileNotFoundError: If the specified TDF file does not exist.
+    """
+    importer = TdfImporter(file_path=file_path)
+    return importer.parse()

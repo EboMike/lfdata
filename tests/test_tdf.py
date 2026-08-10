@@ -1,8 +1,27 @@
 from pathlib import Path
+
 import pytest
 
-from lfdata.importer import TdfImporter
+from lfdata import parse_tdf as top_level_parse_tdf
+from lfdata.importer import TdfImporter, parse_tdf
 from lfdata.model import LFGame
+
+
+def test_parse_tdf_helper() -> None:
+    real_path = Path(__file__).parent.parent / 'assets' / 'sm5_sanitized.tdf'
+    game = parse_tdf(real_path)
+
+    assert isinstance(game, LFGame)
+    assert game.game_id == 'sm5_sanitized'
+    assert game.centre == '4-43'
+
+
+def test_top_level_package_exports() -> None:
+    real_path = Path(__file__).parent.parent / 'assets' / 'sm5_sanitized.tdf'
+    game = top_level_parse_tdf(real_path)
+
+    assert isinstance(game, LFGame)
+    assert game.game_id == 'sm5_sanitized'
 
 
 def test_tdf_importer_initialization() -> None:

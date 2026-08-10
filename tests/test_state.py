@@ -198,5 +198,3 @@ def test_configurable_boost_grace_period() -> None:
     # Custom 1000ms grace period: at t=1900 (elapsed = 900ms): 900ms <= 1000ms -> True
     assert p.can_receive_resupply(1900, grace_period_ms=1000)
     assert not p.can_receive_resupply(1900, grace_period_ms=700)
-
-

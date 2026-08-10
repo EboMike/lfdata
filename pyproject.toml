@@ -22,9 +22,6 @@ classifiers = [
 ]
 dependencies = [
     "sqlalchemy>=2.0.0",
-    "Pillow>=9.0.0",
-    "PyYAML>=6.0",
-    "jinja2",
 ]
 
 [project.scripts]
@@ -32,6 +29,14 @@ lfdata = "lfdata.__main__:main"
 lfdata_ui = "lfdata.ui.__main__:main"
 
 [project.optional-dependencies]
+video = [
+    "Pillow>=9.0.0",
+    "PyYAML>=6.0",
+    "jinja2",
+]
+all = [
+    "lfdata[video]",
+]
 dev = [
     "pytest>=7.0.0",
     "black>=23.0.0",

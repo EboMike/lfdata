@@ -333,9 +333,7 @@ def test_format_youtube_chapters() -> None:
 
     # With pregame delay of 10000ms <= 20s (starts with Game Starts at 00:00)
     out2 = generator.format_youtube_chapters(ch, pregame_delay_ms=10000)
-    expected2 = (
-        '00:00 Game Starts\n00:25 Nuke Detonated\n01:25 Med1 eliminated'
-    )
+    expected2 = '00:00 Game Starts\n00:25 Nuke Detonated\n01:25 Med1 eliminated'
     assert out2 == expected2
 
 
@@ -462,16 +460,12 @@ def test_collect_candidates_multi_nuke_detonations() -> None:
     # We expect:
     # 1. A double-nukes chapter at 10000ms: 'Commander Cmd1 double-nukes'
     # 2. A single nuke detonate chapter at 50000ms: 'Cmd1 detonates nuke'
-    double_nukes = [
-        c for c in candidates if 'double-nukes' in c.message
-    ]
+    double_nukes = [c for c in candidates if 'double-nukes' in c.message]
     assert len(double_nukes) == 1
     assert double_nukes[0].time_ms == 10000
     assert double_nukes[0].importance == 3
 
-    single_nukes = [
-        c for c in candidates if 'detonates nuke' in c.message
-    ]
+    single_nukes = [c for c in candidates if 'detonates nuke' in c.message]
     assert len(single_nukes) == 1
     assert single_nukes[0].time_ms == 50000
     assert single_nukes[0].importance == 3
@@ -564,24 +558,26 @@ def test_collect_candidates_team_elimination_on_nuke_detonation() -> None:
 
     # Now Cmd1 activates and detonates nuke.
     # Nuke detonate (0405) takes 3 lives from opposing players (Sct2 has 3 lives, so goes to 0).
-    events.extend([
-        GameEvent(
-            game_id='test_chapter_game',
-            time=120000,
-            event_type='0404',
-            actor_entity_id='C1',
-            action='activates nuke',
-            raw_message='',
-        ),
-        GameEvent(
-            game_id='test_chapter_game',
-            time=125000,
-            event_type='0405',
-            actor_entity_id='C1',
-            action='detonates nuke',
-            raw_message='',
-        ),
-    ])
+    events.extend(
+        [
+            GameEvent(
+                game_id='test_chapter_game',
+                time=120000,
+                event_type='0404',
+                actor_entity_id='C1',
+                action='activates nuke',
+                raw_message='',
+            ),
+            GameEvent(
+                game_id='test_chapter_game',
+                time=125000,
+                event_type='0405',
+                actor_entity_id='C1',
+                action='detonates nuke',
+                raw_message='',
+            ),
+        ]
+    )
 
     game.events = events
     generator = LFChapterGenerator(game)
@@ -593,5 +589,3 @@ def test_collect_candidates_team_elimination_on_nuke_detonation() -> None:
     assert len(nuke_team_elim) >= 1
     # Check that the nuke event or elimination message has team eliminated
     assert any('Earth team eliminated' in c.message for c in candidates)
-
-

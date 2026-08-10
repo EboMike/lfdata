@@ -74,7 +74,9 @@ def test_verify_all_mixed_results(tmp_path: Path) -> None:
     def mock_verify_side_effect(file_path: Path) -> bool:
         return file_path.name == 'pass.tdf'
 
-    with patch.object(verifier, 'verify_file', side_effect=mock_verify_side_effect):
+    with patch.object(
+        verifier, 'verify_file', side_effect=mock_verify_side_effect
+    ):
         assert verifier.verify_all() is False
 
 
@@ -94,7 +96,10 @@ def test_main_success(tmp_path: Path) -> None:
     test_args = ['verify_all.py', str(tmp_path)]
     with (
         patch('sys.argv', test_args),
-        patch('lfdata.verify_all.TdfDirectoryVerifier.verify_all', return_value=True),
+        patch(
+            'lfdata.verify_all.TdfDirectoryVerifier.verify_all',
+            return_value=True,
+        ),
     ):
         with pytest.raises(SystemExit) as exc_info:
             main()
@@ -105,7 +110,10 @@ def test_main_failure(tmp_path: Path) -> None:
     test_args = ['verify_all.py', str(tmp_path)]
     with (
         patch('sys.argv', test_args),
-        patch('lfdata.verify_all.TdfDirectoryVerifier.verify_all', return_value=False),
+        patch(
+            'lfdata.verify_all.TdfDirectoryVerifier.verify_all',
+            return_value=False,
+        ),
     ):
         with pytest.raises(SystemExit) as exc_info:
             main()
