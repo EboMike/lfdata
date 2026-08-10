@@ -1,4 +1,14 @@
-"""Data models representing LF game concepts using SQLAlchemy."""
+"""Data models representing LF game concepts using SQLAlchemy.
+
+Provides database ORM models (LFGame, GameEntity, GameEvent, GameTeam, Player) and
+game constant enumerations (LFRole, LFTeamColor, LFTeamType, LFCentre).
+
+Usage example:
+    from lfdata.model import LFGame, LFRole, LFTeamColor
+
+    role = LFRole.COMMANDER
+    print(f'Role {role.display_name} has {role.start_lives} starting lives.')
+"""
 
 from lfdata.model.base import Base
 from lfdata.model.constants.color import LFTeamColor

@@ -1,4 +1,14 @@
-"""Enums representing LF centres and metadata."""
+"""Enums representing LF centres and metadata.
+
+This module defines Laserforce arena centre identifiers, locations, country codes,
+and metadata mappings used across TDF importing and game reporting.
+
+Usage example:
+    from lfdata.model import LFCentre
+
+    centre = LFCentre.from_code('4-43')
+    print(f'Centre arena: {centre.arena_name}')
+"""
 
 import dataclasses
 import enum
@@ -6,12 +16,9 @@ import enum
 
 @dataclasses.dataclass(frozen=True)
 class LFCentreStats:
-    """Statistics and metadata for a centre.
+    """Statistics and metadata for a Laserforce centre.
 
-    Attributes:
-        country_code: The country code integer.
-        location_code: The location code integer.
-        arena_name: The name of the arena.
+    Holds country code, location code, and arena name for a specific venue.
     """
 
     country_code: int
@@ -25,7 +32,10 @@ class LFCentreStats:
 
 
 class LFCentre(enum.Enum):
-    """Defines centres used in LF games with country, location, and arena name."""
+    """Enumeration of known Laserforce arena centres.
+
+    Provides metadata lookup by centre code string or location details.
+    """
 
     BRISBANE = LFCentreStats(1, 1, 'Brisbane')
     ST_GEORGE = LFCentreStats(4, 2, 'St George')

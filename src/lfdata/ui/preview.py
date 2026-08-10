@@ -1,4 +1,14 @@
-"""Image preview and playback control panel for the LF data UI."""
+"""Image preview and playback control panel for the LF data UI.
+
+This module provides a GUI panel widget (`ImagePreview`) featuring frame rendering controls,
+a timeline scrub slider, playback buttons, and an interactive PIL image preview canvas.
+
+Usage example:
+    from lfdata.ui.preview import ImagePreview
+
+    preview = ImagePreview(parent=window, config_manager=cfg_mgr)
+    preview.pack(fill='both', expand=True)
+"""
 
 import subprocess
 import tempfile
@@ -11,7 +21,11 @@ from lfdata.ui.config_manager import UIConfigManager
 
 
 class ImagePreview(ttk.LabelFrame):
-    """Panel for controls, slider, and the rendered game state image."""
+    """GUI widget panel displaying rendered video frame previews and timeline playback controls.
+
+    Holds the configuration manager reference, current millisecond timestamp, callback hooks,
+    time slider, and PIL ImageTk canvas label.
+    """
 
     def __init__(
         self,

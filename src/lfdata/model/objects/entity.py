@@ -1,4 +1,13 @@
-"""SQLAlchemy model for game entities."""
+"""SQLAlchemy model for game entities.
+
+This module defines database ORM models for Laserforce game participants and arena objects
+(including human players, referees, targets, and generator bases).
+
+Usage example:
+    from lfdata.model import GameEntity
+
+    entity = GameEntity(game_id='game_1', entity_id='P1', type='player', desc='Alpha')
+"""
 
 from sqlalchemy import ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -7,9 +16,10 @@ from lfdata.model.base import Base
 
 
 class GameEntity(Base):
-    """Represents an entity in a LF game.
+    """Database model for a Laserforce game entity participant or target object.
 
-    Entities include players, referees, standard targets, and generator targets.
+    Holds entity registration details, description, team assignment, category,
+    battlesuit ID, and final score.
     """
 
     __tablename__ = 'game_entities'

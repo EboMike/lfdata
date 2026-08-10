@@ -1,4 +1,12 @@
-"""Mixin containing event handlers for the LF replay system."""
+"""Mixin containing event handlers for the LF replay system.
+
+This module defines event handler methods (zaps, misses, nukes, resupplies, base captures,
+penalties) for processing individual `GameEvent` records during replay playback.
+
+Usage example:
+    # Used internally as a mixin by LFReplaySystem:
+    # class LFReplaySystem(LFReplayHandlersMixin): ...
+"""
 
 from __future__ import annotations
 
@@ -11,7 +19,11 @@ if TYPE_CHECKING:
 
 
 class LFReplayHandlersMixin:
-    """Mixin class containing event handlers for the LF replay system."""
+    """Mixin class providing event processing dispatchers for LFReplaySystem.
+
+    Encapsulates rules for handling zaps, missile hits, medic/ammo resupplies,
+    base captures, nuke activations/detonations/cancels, and penalties.
+    """
 
     def _process_event_zap(self: 'LFReplaySystem', event: GameEvent) -> str:
         """Processes zapping events.

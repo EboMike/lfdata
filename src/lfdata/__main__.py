@@ -1,4 +1,14 @@
-"""Main command line interface for the LF data tool."""
+"""Main command line interface for the LF data tool.
+
+This module provides the entry point for the `lfdata` command line interface.
+It coordinates TDF importing, state inspection, replay printing, state verification,
+and video generation capabilities.
+
+Usage example:
+    $ lfdata --input_tdf game.tdf --print_replay
+    $ lfdata --input_tdf game.tdf --state_at 60000
+    $ lfdata --input_tdf game.tdf --video_out output.mp4
+"""
 
 import argparse
 import sys
@@ -50,7 +60,12 @@ def _print_game_state(replay: LFReplaySystem, time_ms: int) -> None:
 
 
 def main() -> None:
-    """Parses command line arguments and runs the LF data tool."""
+    """Parses command line arguments and runs the LF data tool CLI.
+
+    Executes startup environment checks, parses command-line arguments,
+    and dispatches execution to appropriate commands (replay output, state query,
+    or video rendering).
+    """
     StartupVerifier.check_assets_and_print_cwd()
     if hasattr(sys.stdout, 'reconfigure'):
         sys.stdout.reconfigure(encoding='utf-8')

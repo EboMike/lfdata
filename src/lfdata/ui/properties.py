@@ -1,4 +1,14 @@
-"""UI element properties editor panel for the LF data UI."""
+"""UI element properties editor panel for the LF data UI.
+
+This module provides a GUI panel widget (`PropertiesPanel`) containing input forms to view
+and edit layout positions, colors, fonts, offsets, and animation keyframes of selected HUD elements.
+
+Usage example:
+    from lfdata.ui.properties import PropertiesPanel
+
+    props = PropertiesPanel(parent=window, config_manager=cfg_mgr, on_update_callback=my_cb)
+    props.pack(fill='both', expand=True)
+"""
 
 import tkinter as tk
 from tkinter import ttk
@@ -8,7 +18,11 @@ from lfdata.ui.animation_overview import AnimationOverviewPanel
 
 
 class PropertiesPanel(ttk.LabelFrame):
-    """Panel containing form inputs to edit the selected UI element properties."""
+    """GUI widget panel providing form inputs to inspect and edit HUD element attributes.
+
+    Holds the configuration manager reference, scrollable canvas layout, entry widgets,
+    and callback triggers for live preview updates.
+    """
 
     def __init__(
         self,

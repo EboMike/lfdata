@@ -1,10 +1,23 @@
-"""Startup verification and environment checking for the LF data tool."""
+"""Startup verification and environment checking for the LF data tool.
+
+This module provides environment checks to verify that required runtime asset files
+and font resources are available in the working directory before running application workflows.
+
+Usage example:
+    from lfdata.startup import StartupVerifier
+
+    StartupVerifier.check_assets_and_print_cwd()
+"""
 
 from pathlib import Path
 
 
 class StartupVerifier:
-    """Verifier for startup requirements of the LF data tool."""
+    """Verifier for application startup environment and asset integrity.
+
+    Checks the filesystem to verify that all necessary font files and UI graphic
+    assets exist in the expected local paths.
+    """
 
     @classmethod
     def check_assets_and_print_cwd(cls) -> None:
@@ -14,8 +27,11 @@ class StartupVerifier:
         and font asset files are present in the expected paths relative to the
         current working directory.
 
+        Usage example:
+            StartupVerifier.check_assets_and_print_cwd()
+
         Raises:
-            FileNotFoundError: If any of the required asset files is missing.
+            FileNotFoundError: If any required asset file is missing.
         """
         cwd = Path.cwd()
         print(f'Current directory: {cwd}')

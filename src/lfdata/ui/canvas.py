@@ -1,4 +1,14 @@
-"""Interactive screen layout arrangement canvas for the LF data UI."""
+"""Interactive screen layout arrangement canvas for the LF data UI.
+
+This module provides a visual drag-and-drop canvas widget (`LayoutCanvas`) for positioning,
+resizing, aligning, and selecting HUD elements on a simulated video frame screen grid.
+
+Usage example:
+    from lfdata.ui.canvas import LayoutCanvas
+
+    canvas = LayoutCanvas(parent=window, config_manager=cfg_mgr, on_select_callback=my_select_cb)
+    canvas.pack(fill='both', expand=True)
+"""
 
 import tkinter as tk
 from typing import Any, Callable
@@ -6,7 +16,11 @@ from lfdata.ui.config_manager import UIConfigManager
 
 
 class LayoutCanvas(tk.Canvas):
-    """Canvas for selecting, dragging, and resizing UI elements."""
+    """Interactive canvas widget for visual drag-and-drop HUD layout editing.
+
+    Holds screen dimensions, element selection handles, drag state, and callback triggers
+    for property panels and preview updates.
+    """
 
     def __init__(
         self,

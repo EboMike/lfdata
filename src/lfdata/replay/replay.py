@@ -1,5 +1,15 @@
-"""Replay system orchestrator for simulating and recording LF game state
-changes.
+"""Replay system orchestrator for simulating and recording LF game state changes.
+
+This module provides playback simulation logic to recreate step-by-step game state
+from event logs, tracking player lives, shots, missiles, scores, downtime, special points,
+nukes, and team rankings.
+
+Usage example:
+    from lfdata.replay import LFReplaySystem
+
+    replay = LFReplaySystem(game=game)
+    replay.process_all_events()
+    print(f'Final Fire Team Score: {replay.game_state.teams[0].score}')
 """
 
 import dataclasses
@@ -17,11 +27,9 @@ from lfdata.replay.state import (
 
 @dataclasses.dataclass
 class LFNukeCancelDetails:
-    """Timestamp and reason for why a nuke was canceled.
+    """Details recording a canceled nuke attempt.
 
-    Attributes:
-        cancel_ms: The millisecond timestamp when the nuke was canceled.
-        cancel_reason: The reason for the nuke cancel.
+    Holds the millisecond timestamp and cancel reason string.
     """
 
     cancel_ms: int
@@ -29,7 +37,11 @@ class LFNukeCancelDetails:
 
 
 class LFReplaySystem(LFReplayHandlersMixin):
-    """Orchestrates the replay simulation from a parsed game."""
+    """Replay simulation engine for processing game events sequentially.
+
+    Holds the input LFGame instance, current LFReplayGameState snapshot, event records,
+    and entity display name mappings.
+    """
 
     def __init__(
         self,

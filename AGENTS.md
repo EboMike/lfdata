@@ -73,6 +73,23 @@ any code changes. Be sure to maintain this order:
 * Initializing dataclasses must be done with named parameters unless there is no
   ambiguity, like a single argument whose purpose is clear from the name.
 
+## Documentation
+
+* Every non-test file must have a description on the top of the file that explains
+  the main purpose of the file and its areas of responsibility. This is normally
+  not longer than a few paragraphs. Then, there should be a quick usage example of
+  its public classes or functions unless they are very self-explanatory.
+* Classes should have a brief pydoc description of their main purpose. This
+  description should explain what the class is, what data it holds, and what
+  responsibilities it has. It should not explain how the
+  class is implemented, or implementation details. Information that is already
+  explained in the file-level docstring should not be repeated - at best, it can
+  be mentioned in a single sentence.
+* Any public function should have a pydoc description of its purpose, any
+  arguments it takes, what it returns, what exceptions it may raise, and a
+  quick usage example. It should be short, and not repeat information already
+  explained in the file-level docstring or class docstring.
+
 ## Code structure
 
 The code uses the following directories:

@@ -1,4 +1,17 @@
-"""Module to verify all TDF files in a specified directory."""
+"""Module to verify all TDF files in a specified directory.
+
+This module provides batch validation utilities to iterate over directories containing
+Laserforce TDF files, parsing each file and running state verification to detect
+data format errors or integrity anomalies.
+
+Usage example:
+    from lfdata.verify_all import TdfDirectoryVerifier
+
+    verifier = TdfDirectoryVerifier(directory_path='tdf_files/')
+    success = verifier.verify_all()
+    if not success:
+        print('One or more TDF files failed verification.')
+"""
 
 import argparse
 from pathlib import Path
@@ -9,7 +22,11 @@ from lfdata.replay import LFReplayVerifier
 
 
 class TdfDirectoryVerifier:
-    """Verifies all TDF files located within a directory."""
+    """Batch verifier for TDF files in a target directory.
+
+    Holds the target directory path and coordinates iterating over TDF files,
+    invoking importers and game replay state verifiers for each file.
+    """
 
     def __init__(self, directory_path: str) -> None:
         """Initializes the directory verifier.

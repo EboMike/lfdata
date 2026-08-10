@@ -1,4 +1,14 @@
-"""Enums representing LF player roles and metadata."""
+"""Enums representing LF player roles and metadata.
+
+This module defines Space Marines 5 player roles (Commander, Heavy, Scout, Medic, Ammo),
+their initial ammo/lives, maximum capacities, resupply rates, and shield hit points.
+
+Usage example:
+    from lfdata.model import LFRole
+
+    role = LFRole.from_id(1)
+    print(f'Role: {role.display_name}, Start Lives: {role.start_lives}')
+"""
 
 import dataclasses
 import enum
@@ -6,19 +16,10 @@ import enum
 
 @dataclasses.dataclass(frozen=True)
 class LFRoleStats:
-    """Statistics and metadata for a player role.
+    """Game statistics and balance parameters for a player role.
 
-    Attributes:
-        role_id: The category ID from TDF files.
-        display_name: The printable name of the role.
-        start_lives: The initial lives count.
-        start_shots: The initial shots count.
-        start_missiles: The initial missiles count.
-        max_lives: The maximum limit of lives.
-        max_shots: The maximum limit of shots.
-        medic_lives_gain: Lives gained when zapped by a medic.
-        ammo_shots_gain: Shots gained when zapped by an ammo carrier.
-        max_hp: The maximum hit points (shields) for the role.
+    Holds role ID, display name, starting/maximum lives and shots, missile count,
+    resupply rates, and maximum hit points.
     """
 
     role_id: int
@@ -34,9 +35,9 @@ class LFRoleStats:
 
 
 class LFRole(enum.Enum):
-    """Defines roles in LF SM5 games, including metadata stats.
+    """Enumeration of player roles in Space Marines 5 games.
 
-    Metadata includes startup lives, shots, missiles, and resupply rates.
+    Provides role lookup by TDF category ID and access to role balance parameters.
     """
 
     COMMANDER = LFRoleStats(

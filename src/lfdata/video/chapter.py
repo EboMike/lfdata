@@ -1,7 +1,14 @@
 """Chapter generator for LF games.
 
-Generates a list of chapters for a TDF playback dataset, filtering and
-consolidating them into a YouTube chapter list format.
+This module analyzes game event timelines and generates consolidated YouTube video chapters
+with timestamp markers for key events (nukes, eliminations, base captures, lead changes).
+
+Usage example:
+    from lfdata.video import LFChapterGenerator
+
+    generator = LFChapterGenerator(game=game)
+    chapters = generator.generate()
+    formatted_str = generator.format_youtube_chapters(chapters)
 """
 
 import dataclasses
@@ -11,13 +18,9 @@ from lfdata.replay import LFReplaySystem
 
 @dataclasses.dataclass
 class LFChapter:
-    """Represents a chapter marker in a game timeline.
+    """Dataclass holding a timestamped chapter marker.
 
-    Attributes:
-        time_ms: The millisecond timestamp since the beginning of the game.
-        message: The text of the event that triggered the chapter.
-        importance: The importance level of this chapter (higher is more
-          important, from 1 to 5).
+    Holds time offset in milliseconds, event message text, and importance priority (1-5).
     """
 
     time_ms: int
@@ -26,7 +29,11 @@ class LFChapter:
 
 
 class LFChapterGenerator:
-    """Generates and filters chapter markers for a game playback."""
+    """Generator for extracting and formatting YouTube video chapters from a game.
+
+    Holds the LFGame input instance and processes replay events to detect, combine,
+    and format timeline chapter markers.
+    """
 
     def __init__(self, game: LFGame) -> None:
         """Initializes the chapter generator.

@@ -1,13 +1,24 @@
-"""Normalizer for LF game types."""
+"""Normalizer for LF game types.
+
+This module provides utilities to map raw, non-standardized game type strings from TDF
+header records into canonical, standardized game type names (such as 'SM5' or 'Laserball').
+
+Usage example:
+    from lfdata.importer.normalizer import GameTypeNormalizer
+
+    normalizer = GameTypeNormalizer()
+    canonical_name = normalizer.normalize('Space Marines 5 Tournament Edition')
+    # Returns 'SM5'
+"""
 
 import re
 
 
 class GameTypeNormalizer:
-    """Normalizes game types using regex pattern matching.
+    """Normalizes raw game type strings into standardized game type identifiers.
 
-    Maintains a list of regexes that map to target normalized game type
-    strings, and uses them to identify a standardized name for game types.
+    Holds compiled regex patterns paired with canonical game type strings,
+    and matches raw input strings against those patterns.
     """
 
     def __init__(self) -> None:

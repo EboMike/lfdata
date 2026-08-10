@@ -1,4 +1,14 @@
-"""SQLAlchemy model for LF games."""
+"""SQLAlchemy model for LF games.
+
+This module defines database ORM models for Laserforce game session metadata (game ID,
+timestamp, game type, duration, centre, arena name) and parent ORM relationships.
+
+Usage example:
+    from datetime import datetime
+    from lfdata.model import LFGame
+
+    game = LFGame(game_id='g1', timestamp=datetime.now(), game_type='SM5')
+"""
 
 from datetime import datetime
 from typing import Any
@@ -9,10 +19,10 @@ from lfdata.model.base import Base
 
 
 class LFGame(Base):
-    """Represents a LF game session.
+    """Database model for a Laserforce game session metadata container.
 
-    This class corresponds to the game data imported from TDF files,
-    including metadata such as duration, centre, and versions.
+    Holds session metadata attributes and manages cascading ORM relationships
+    to teams, entities, events, stats, score history, and state history.
     """
 
     __tablename__ = 'lf_games'

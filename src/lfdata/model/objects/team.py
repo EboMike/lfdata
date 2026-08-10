@@ -1,4 +1,13 @@
-"""SQLAlchemy model for game teams."""
+"""SQLAlchemy model for game teams.
+
+This module defines database ORM models for team definitions parsed from TDF record type 2
+(team index, description, color enum, and color hex values).
+
+Usage example:
+    from lfdata.model import GameTeam
+
+    team = GameTeam(game_id='g1', team_index=0, desc='Fire Team', color_enum=11, color_desc='Fire', color_rgb='#FF5000')
+"""
 
 from sqlalchemy import ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -7,9 +16,9 @@ from lfdata.model.base import Base
 
 
 class GameTeam(Base):
-    """Represents a team within a LF game.
+    """Database model for a team in a Laserforce game.
 
-    Each game mode has specific teams (e.g., Fire Team and Earth Team).
+    Holds team index, description, color enum ID, color name, and CSS hex color string.
     """
 
     __tablename__ = 'game_teams'

@@ -1,4 +1,14 @@
-"""Video generation and visualization for LF games."""
+"""Video generation and visualization for LF games.
+
+This module provides frame rendering and video file synthesis (`VideoGenerator`) using Pillow
+drawing operations and parallel process pools to output H.264/MP4 files from game event HUD layouts.
+
+Usage example:
+    from lfdata.video.renderer import VideoGenerator
+
+    generator = VideoGenerator(game=game)
+    generator.render_video(output_path='game.mp4', player_name='EboMike')
+"""
 
 import colorsys
 import os
@@ -113,7 +123,7 @@ def _get_best_h264_encoder() -> str:
     falls back to libx264 if none are fully functional.
 
     Returns:
-        The name of the best H.264 encoder to use.
+        The encoder codec name string.
     """
     candidates = [
         'h264_nvenc',
@@ -125,11 +135,11 @@ def _get_best_h264_encoder() -> str:
         try:
             cmd = [
                 'ffmpeg',
-                '-y',
+                '-hide_banner',
                 '-f',
                 'lavfi',
                 '-i',
-                'color=c=blue:s=64x64:d=0.01',
+                'color=c=black:s=64x64:d=1',
                 '-c:v',
                 candidate,
                 '-f',
@@ -175,8 +185,8 @@ def _get_encoder_details(encoder: str) -> str:
     if encoder in gpu_map:
         return gpu_map[encoder]
     if any(
-        suffix in encoder
-        for suffix in [
+        x in encoder
+        for x in [
             '_nvenc',
             '_amf',
             '_qsv',
@@ -188,7 +198,11 @@ def _get_encoder_details(encoder: str) -> str:
 
 
 class VideoGenerator:
-    """Generates visual videos from LF game events and data."""
+    """Frame renderer and video generator for LF game replay visualizer outputs.
+
+    Holds the LFGame data model, image/font thread locks and caches, and coordinates
+    multiprocess frame rendering and FFmpeg video encoding.
+    """
 
     def __init__(self, game: LFGame) -> None:
         """Initializes the video generator with game data.

@@ -1,4 +1,14 @@
-"""Enums representing LF game teams and metadata."""
+"""Enums representing LF game teams and metadata.
+
+This module defines Space Marines 5 team types (Fire, Earth, Neutral), their indices,
+display names, and associated team color enums.
+
+Usage example:
+    from lfdata.model import LFTeamType
+
+    team_type = LFTeamType.from_index(0)
+    print(f'Team: {team_type.display_name}, Color: {team_type.color.display_name}')
+"""
 
 import dataclasses
 import enum
@@ -8,12 +18,9 @@ from lfdata.model.constants.color import LFTeamColor
 
 @dataclasses.dataclass(frozen=True)
 class LFTeamTypeStats:
-    """Statistics and metadata for a team type.
+    """Metadata for a team type classification.
 
-    Attributes:
-        team_index: The index of the team.
-        display_name: The display name of the team.
-        color: The color enum of the team.
+    Holds the integer team index, human-readable display name, and team color enum.
     """
 
     team_index: int
@@ -22,9 +29,9 @@ class LFTeamTypeStats:
 
 
 class LFTeamType(enum.Enum):
-    """Defines team types in LF SM5 games, linking indexes to team colors.
+    """Enumeration of team types in Laserforce SM5 games.
 
-    Includes display names and the color enum.
+    Provides team type lookup by team index integer.
     """
 
     FIRE = LFTeamTypeStats(

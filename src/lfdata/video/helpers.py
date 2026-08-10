@@ -1,4 +1,13 @@
-"""Visual helpers and default configurations for LF video generation."""
+"""Visual helpers and default configurations for LF video generation.
+
+This module provides default video layout configuration dictionaries, animation curve interpolation,
+color blending, score transitions, and element placement math for video rendering.
+
+Usage example:
+    from lfdata.video.helpers import DEFAULT_CONFIG, get_fade_alpha
+
+    alpha = get_fade_alpha(current_ms=500, start_ms=0, duration_ms=1000)
+"""
 
 import dataclasses
 from typing import Any
@@ -6,12 +15,9 @@ from typing import Any
 
 @dataclasses.dataclass
 class LFTeamTransition:
-    """Represents a team rank transition at a specific timestamp.
+    """Team rank animation transition state container.
 
-    Attributes:
-        event_time_ms: The millisecond timestamp of the transition.
-        visual_rank: The animated visual rank position of the team.
-        ranking: The actual scoreboard ranking of the team.
+    Holds timestamp in milliseconds, interpolated visual rank float, and scoreboard integer ranking.
     """
 
     event_time_ms: int

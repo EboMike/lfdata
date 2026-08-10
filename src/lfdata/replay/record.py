@@ -1,8 +1,23 @@
-"""Class representing a snapshot of the game state changes after a specific event."""
+"""Class representing a snapshot of game state changes after a specific event.
+
+This module defines data containers that capture incremental score, life, ammo, and status
+changes produced by a single processed game event during playback simulation.
+
+Usage example:
+    from lfdata.replay import LFReplayEventRecord
+
+    record = LFReplayEventRecord(
+        event_id=1, time_ms=1000, description='Player zapped',
+        player_changes={}, team_changes={}
+    )
+"""
 
 
 class LFReplayEventRecord:
-    """Represents a record of changes caused by a single event in the replay."""
+    """Snapshot container for player and team state changes resulting from an event.
+
+    Holds the event database ID, millisecond timestamp, description string, and attribute change dicts.
+    """
 
     def __init__(
         self,

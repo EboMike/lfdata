@@ -1,4 +1,13 @@
-"""SQLAlchemy model for player state history."""
+"""SQLAlchemy model for player state history.
+
+This module defines database ORM models for timestamped player status transition events
+parsed from TDF record type 9 (active, down, eliminated).
+
+Usage example:
+    from lfdata.model import PlayerStateHistory
+
+    history = PlayerStateHistory(game_id='g1', time=12000, entity_id='P1', state=0)
+"""
 
 from sqlalchemy import ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -7,9 +16,9 @@ from lfdata.model.base import Base
 
 
 class PlayerStateHistory(Base):
-    """Represents a state update event for a game entity.
+    """Database model for a timestamped player state transition record.
 
-    These state updates are parsed from the ';9/player-state' record type.
+    Holds time offset in milliseconds, entity ID, and numeric player state value.
     """
 
     __tablename__ = 'player_state_history'

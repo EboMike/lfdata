@@ -1,4 +1,13 @@
-"""SQLAlchemy model for game score history."""
+"""SQLAlchemy model for game score history.
+
+This module defines database ORM models for timestamped entity score delta records
+parsed from TDF record type 5.
+
+Usage example:
+    from lfdata.model import ScoreHistory
+
+    history = ScoreHistory(game_id='g1', time=5000, entity_id='P1', old_score=0, delta_score=100, new_score=100)
+"""
 
 from sqlalchemy import ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -7,9 +16,9 @@ from lfdata.model.base import Base
 
 
 class ScoreHistory(Base):
-    """Represents a score update event for a game entity.
+    """Database model for a timestamped entity score change record.
 
-    These score updates are parsed from the ';5/score' record type.
+    Holds time offset in milliseconds, entity ID, old score, delta score change, and new score.
     """
 
     __tablename__ = 'score_history'

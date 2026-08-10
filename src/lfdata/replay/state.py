@@ -1,12 +1,26 @@
-"""Classes representing the state of players, teams, and the game during
-a replay.
+"""Classes representing the state of players, teams, and the game during a replay.
+
+This module provides mutable state containers (`LFReplayPlayerState`, `LFReplayTeamState`,
+and `LFReplayGameState`) for tracking active player statistics, team scores, and overall
+game status during playback simulation.
+
+Usage example:
+    from lfdata.replay.state import LFReplayGameState, LFReplayPlayerState
+    from lfdata.model import LFRole
+
+    pstate = LFReplayPlayerState(entity_id='P1', role=LFRole.COMMANDER, team_index=0)
+    print(f'Player {pstate.entity_id} starting lives: {pstate.lives}')
 """
 
 from lfdata.model import LFRole, PlayerStateHistory
 
 
 class LFReplayPlayerState:
-    """Tracks a single player's state during a game replay."""
+    """Mutable snapshot of a single player entity during game replay.
+
+    Holds entity ID, role, team index, current lives/shots/missiles, score, special points,
+    downtime timestamps, hit points, captured bases, and nuke status.
+    """
 
     def __init__(
         self,

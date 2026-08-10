@@ -1,4 +1,13 @@
-"""SQLAlchemy model for SM5 game statistics."""
+"""SQLAlchemy model for SM5 game statistics.
+
+This module defines database ORM models for per-player Space Marines 5 end-of-game
+performance statistics (shots hit/fired, zaps, missiles, nukes, medic/ammo boosts, etc.).
+
+Usage example:
+    from lfdata.model import Sm5Stats
+
+    stats = Sm5Stats(game_id='game_1', entity_id='P1', shots_hit=50)
+"""
 
 from sqlalchemy import ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -7,9 +16,9 @@ from lfdata.model.base import Base
 
 
 class Sm5Stats(Base):
-    """Represents the complete SM5 statistics for a game entity.
+    """Database model for Space Marines 5 end-of-game player performance statistics.
 
-    These stats are parsed from the ';7/sm5-stats' record type.
+    Holds detailed post-game metrics parsed from TDF record type 7 for a specific entity.
     """
 
     __tablename__ = 'sm5_stats'

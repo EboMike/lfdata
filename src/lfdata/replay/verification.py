@@ -1,4 +1,16 @@
-"""Verification of replay simulation final states against TDF values."""
+"""Verification of replay simulation final states against TDF values.
+
+This module provides validation logic (`LFReplayVerifier`) that compares simulated end-of-game
+player scores, lives, and SM5 stats against official values recorded in TDF headers and stat records.
+
+Usage example:
+    from lfdata.replay import LFReplayVerifier
+
+    verifier = LFReplayVerifier(game=game)
+    is_valid = verifier.verify()
+    if not is_valid:
+        print('Verification discrepancies detected.')
+"""
 
 import dataclasses
 
@@ -8,12 +20,9 @@ from lfdata.replay.replay import LFReplaySystem
 
 @dataclasses.dataclass(frozen=True)
 class PlayerDiscrepancy:
-    """Represents a discrepancy between a player's computed and expected state.
+    """Discrepancy container between simulated and expected TDF player metrics.
 
-    Attributes:
-        field: The name of the field (e.g., 'score', 'lives', 'shots').
-        computed: The value computed by the replay simulation.
-        expected: The expected value from the TDF file.
+    Holds the metric field name, simulated value, and expected TDF value.
     """
 
     field: str
@@ -22,7 +31,11 @@ class PlayerDiscrepancy:
 
 
 class LFReplayVerifier:
-    """Verifier for comparing replay simulation end states with TDF data."""
+    """Validator comparing replay simulation results against official TDF data.
+
+    Holds the LFGame input instance, runs replay simulation, and verifies computed
+    final scores, remaining lives, remaining shots, and SM5 stats.
+    """
 
     def __init__(self, game: LFGame, boost_grace_period_ms: int = 700) -> None:
         """Initializes the verifier.

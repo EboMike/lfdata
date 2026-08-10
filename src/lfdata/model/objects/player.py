@@ -1,4 +1,13 @@
-"""SQLAlchemy model for players."""
+"""SQLAlchemy model for players.
+
+This module defines database ORM models for individual human players across games,
+storing player IDs, codenames, and optional real names.
+
+Usage example:
+    from lfdata.model import Player
+
+    player = Player(codename='EboMike', real_name='Michael')
+"""
 
 from sqlalchemy import String
 from sqlalchemy.orm import Mapped, mapped_column
@@ -7,9 +16,9 @@ from lfdata.model.base import Base
 
 
 class Player(Base):
-    """Represents a global player across games.
+    """Database model for a persistent human player across games.
 
-    A player is an individual person who participates in LF games.
+    Holds primary key ID, unique codename, and optional real name.
     """
 
     __tablename__ = 'players'

@@ -1,4 +1,15 @@
-"""Configuration manager for the LF data UI tool."""
+"""Configuration manager for the LF data UI desktop application.
+
+This module provides state management (`UIConfigManager`) for loading, saving, and editing
+YAML layout configurations, managing active TDF game sessions, and tracking timeline position.
+
+Usage example:
+    from lfdata.ui.config_manager import UIConfigManager
+
+    cfg_mgr = UIConfigManager()
+    cfg_mgr.load_config('video_config.yaml')
+    cfg_mgr.load_tdf('game.tdf')
+"""
 
 import copy
 import os
@@ -16,7 +27,11 @@ from lfdata.video.helpers import (
 
 
 class UIConfigManager:
-    """Manages the configuration state and TDF data for the UI."""
+    """State manager for UI layout configurations and TDF session data.
+
+    Holds current YAML config dict, TDF file path, parsed LFGame object, player list,
+    active config path, and timeline millisecond timestamp.
+    """
 
     def __init__(self) -> None:
         """Initializes the UIConfigManager with default configuration."""

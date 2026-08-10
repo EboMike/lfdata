@@ -1,4 +1,14 @@
-"""Main application window for the LF data UI."""
+"""Main application window for the LF data UI desktop application.
+
+This module integrates the top menu bar, element properties editor, layout arrangement canvas,
+preview rendering panel, and file I/O operations into the `LFDataUIApp` Tkinter window.
+
+Usage example:
+    from lfdata.ui.app import LFDataUIApp
+
+    app = LFDataUIApp()
+    app.mainloop()
+"""
 
 import json
 import os
@@ -15,7 +25,11 @@ from lfdata.ui.properties import PropertiesPanel
 
 
 class LFDataUIApp(tk.Tk):
-    """Main window class for the LF data UI application."""
+    """Main desktop GUI window for the LF data video configurator application.
+
+    Holds the configuration manager instance, preferences path, UI panels (PropertiesPanel,
+    LayoutCanvas, ImagePreview), dirty state flag, and menu action handlers.
+    """
 
     def __init__(self, preferences_path: Path | None = None) -> None:
         """Initializes the main application window and components.

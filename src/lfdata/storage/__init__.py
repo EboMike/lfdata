@@ -1,4 +1,15 @@
-"""Database storage and retrieval for LF game data."""
+"""Database storage and retrieval for LF game data.
+
+This module provides SQL database persistence and retrieval (`DatabaseStorage`) for
+parsed `LFGame` objects and associated player, team, event, and stat tables.
+
+Usage example:
+    from lfdata.storage import DatabaseStorage
+
+    db = DatabaseStorage('sqlite:///games.db')
+    db.save_game(game)
+    retrieved_game = db.get_game('game_123')
+"""
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, selectinload
@@ -7,7 +18,11 @@ from lfdata.model import Base, GameEntity, LFGame, Player
 
 
 class DatabaseStorage:
-    """Manages database connection and persistence of LF games."""
+    """SQL database manager for persisting and loading LF game objects.
+
+    Holds the connection string and SQLAlchemy engine instance, managing schema creation,
+    player deduplication, and eager relation fetching.
+    """
 
     def __init__(self, connection_string: str = 'sqlite:///lfdata.db'):
         """Initializes the database engine and creates all tables.

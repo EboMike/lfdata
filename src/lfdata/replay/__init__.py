@@ -1,4 +1,14 @@
-"""LF replay system package."""
+"""LF replay system package for simulating game playback and verifying state.
+
+Provides state simulation (`LFReplaySystem`), event records (`LFReplayEventRecord`),
+game state snapshot containers, and integrity verifiers (`LFReplayVerifier`).
+
+Usage example:
+    from lfdata.replay import LFReplaySystem
+
+    replay = LFReplaySystem(game=game)
+    replay.process_all_events()
+"""
 
 from lfdata.replay.record import LFReplayEventRecord
 from lfdata.replay.replay import LFReplaySystem

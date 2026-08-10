@@ -1,4 +1,15 @@
-"""Visual HUD elements generator for LF video frames."""
+"""Visual HUD elements generator for LF video frames.
+
+This module precomputes replay snapshots and generates UI overlay elements (player stats,
+scoreboards, event logs, downtime indicators, hit border flashes, camera shakes) for
+rendering video frames.
+
+Usage example:
+    from lfdata.video.generator import VisualElementGenerator
+
+    generator = VisualElementGenerator(game=game, player_name='EboMike')
+    elements = generator.get_elements_at(time_ms=60000)
+"""
 
 import bisect
 import dataclasses
@@ -42,9 +53,7 @@ from lfdata.video.helpers import (
 class LFResupplyTracker:
     """Tracks the last resupply event timestamp and actor name.
 
-    Attributes:
-        time_ms: The timestamp in milliseconds of the resupply.
-        actor_name: The codename of the player who resupplied.
+    Holds time offset in milliseconds and actor codename.
     """
 
     time_ms: int
@@ -55,15 +64,24 @@ class LFResupplyTracker:
 class LFNukeInterval:
     """Represents a nuke activation interval and its activator name.
 
-    Attributes:
-        start_ms: The millisecond timestamp of the activation.
-        end_ms: The millisecond timestamp of detonation or cancellation.
-        nuker_name: The codename of the player who activated the nuke.
+    Holds start time in milliseconds, end time in milliseconds, and activator codename.
     """
 
     start_ms: int
     end_ms: int
     nuker_name: str
+
+
+def _clean_key_name(name: str) -> str:
+    """Removes non-alphanumeric characters from a string.
+
+    Args:
+        name: Input string.
+
+    Returns:
+        Cleaned alphanumeric string.
+    """
+    return ''.join(c for c in name if c.isalnum())
 
 
 def _normalize_player_name(name: str) -> str:
@@ -81,7 +99,10 @@ def _normalize_player_name(name: str) -> str:
 
 
 class VisualElementGenerator:
-    """Generates the list of UI elements for a player at a specific time."""
+    """HUD visual element generator for frame-by-frame video layout composition.
+
+    Precomputes replay state snapshots and generates UIElement overlays at specific time offsets.
+    """
 
     def __init__(
         self,

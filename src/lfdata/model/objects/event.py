@@ -1,4 +1,13 @@
-"""SQLAlchemy model for game events."""
+"""SQLAlchemy model for game events.
+
+This module defines database ORM models for timestamped game events parsed from TDF
+record type 4 (shots, misses, nukes, penalties, resupplies, eliminations).
+
+Usage example:
+    from lfdata.model import GameEvent
+
+    event = GameEvent(game_id='game_1', time=1000, event_type='0100', action='zaps')
+"""
 
 from sqlalchemy import ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -7,9 +16,10 @@ from lfdata.model.base import Base
 
 
 class GameEvent(Base):
-    """Represents a timestamped event that occurs during a LF game.
+    """Database model for a timestamped Laserforce game event log line.
 
-    Events involve actions performed by one entity on another, or system actions.
+    Holds event time offset in milliseconds, event type code, actor and target entity IDs,
+    action description, and raw tab-separated message text.
     """
 
     __tablename__ = 'game_events'

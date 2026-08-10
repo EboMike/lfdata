@@ -1,11 +1,25 @@
-"""UI elements and styling for LF game video generation."""
+"""UI elements and styling for LF game video generation.
+
+This module defines dataclasses representing visual UI elements, styling definitions,
+scoreboard structures, timeline slots, event log entries, and camera shake parameters
+rendered on video frames.
+
+Usage example:
+    from lfdata.video.element import UIElement, UIElementStyle
+
+    style = UIElementStyle(font='GoogleSans-Bold', size=24, color='#FFFFFFFF')
+    element = UIElement(element_type='text', text='Game Start', style=style, x=100, y=50)
+"""
 
 from dataclasses import dataclass, field
 
 
 @dataclass
 class LFEventLogEntry:
-    """Represents a logged event with various details."""
+    """Event log record formatted for video overlay display.
+
+    Holds event time offset in milliseconds, text description, importance flag, and actor/target IDs.
+    """
 
     time: int
     desc: str

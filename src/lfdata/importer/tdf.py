@@ -1,4 +1,19 @@
-"""TDF parser."""
+"""TDF parser for importing Laserforce game files.
+
+This module parses Laserforce tab-delimited TDF data files (UTF-16/UTF-8 encoded)
+containing game metadata, teams, player entities, events, score history, and role stats,
+converting them into populated `LFGame` database object graphs.
+
+Usage example:
+    from lfdata.importer.tdf import TdfImporter, parse_tdf
+
+    # Quick parsing:
+    game = parse_tdf('path/to/game.tdf')
+
+    # Or using the class directly:
+    importer = TdfImporter(file_path='path/to/game.tdf')
+    game = importer.parse()
+"""
 
 from datetime import datetime
 from pathlib import Path
@@ -17,7 +32,11 @@ from lfdata.model import (
 
 
 class TdfImporter:
-    """Importer and parser for TDF files."""
+    """Importer and parser for Laserforce TDF files.
+
+    Holds the target file path and parses TDF header, entity, team, event,
+    score history, and stat record types into an LFGame object structure.
+    """
 
     def __init__(self, file_path: str | Path) -> None:
         """Initializes the TDF importer.

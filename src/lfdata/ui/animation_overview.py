@@ -1,4 +1,14 @@
-"""Animation timeline graph and keyframe editor panel."""
+"""Animation timeline graph and keyframe editor panel for the LF UI.
+
+This module provides a GUI panel widget (`AnimationOverviewPanel`) displaying keyframe timeline
+charts, interpolation curves, and property reference bindings for animating HUD layout elements.
+
+Usage example:
+    from lfdata.ui.animation_overview import AnimationOverviewPanel
+
+    panel = AnimationOverviewPanel(parent=window, config_manager=cfg_mgr)
+    panel.pack(fill='both', expand=True)
+"""
 
 import tkinter as tk
 from tkinter import ttk
@@ -9,7 +19,11 @@ from lfdata.video.helpers import resolve_animated_value
 
 
 class AnimationOverviewPanel(ttk.LabelFrame):
-    """Panel for visualizing keyframes and editing their references/interpolators."""
+    """GUI widget panel for viewing and editing HUD element animation keyframes.
+
+    Holds reference bindings, property variables, keyframe indices, and canvas widgets
+    for timeline interpolation curves.
+    """
 
     def __init__(
         self,

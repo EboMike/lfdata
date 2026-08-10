@@ -1,4 +1,14 @@
-"""Enums representing LF team colors and metadata."""
+"""Enums representing LF team colors and metadata.
+
+This module defines team colors, display names, RGB hex values, and TDF color ID
+mapping for visual rendering and UI display.
+
+Usage example:
+    from lfdata.model import LFTeamColor
+
+    color = LFTeamColor.from_enum(11)
+    print(f'Color: {color.display_name}, Hex: {color.rgb}')
+"""
 
 import dataclasses
 import enum
@@ -6,12 +16,10 @@ import enum
 
 @dataclasses.dataclass(frozen=True)
 class LFTeamColorStats:
-    """Statistics and metadata for a team color.
+    """Metadata for a team color representation.
 
-    Attributes:
-        color_enum: The integer ID from TDF files.
-        display_name: The display name of the color.
-        rgb: The CSS/RGB hex color value.
+    Holds the integer color enum from TDF files, human-readable display name,
+    and CSS RGB hex code.
     """
 
     color_enum: int
@@ -20,9 +28,9 @@ class LFTeamColorStats:
 
 
 class LFTeamColor(enum.Enum):
-    """Defines team colors used in LF games with internal name and RGB color code.
+    """Enumeration of team colors used in Laserforce games.
 
-    Includes display names and RGB hex values.
+    Provides mapping from TDF color code integers to display names and hex values.
     """
 
     FIRE = LFTeamColorStats(color_enum=11, display_name='Fire', rgb='#FF5000')
