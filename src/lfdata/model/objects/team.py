@@ -18,7 +18,15 @@ from lfdata.model.base import Base
 class GameTeam(Base):
     """Database model for a team in a Laserforce game.
 
-    Holds team index, description, color enum ID, color name, and CSS hex color string.
+    Attributes:
+        id: Primary key integer ID.
+        game_id: Foreign key string referencing parent LFGame.
+        team_index: Team index integer (0=Fire, 1=Earth, 2=Neutral).
+        desc: Team description string from TDF header.
+        color_enum: Team color ID integer.
+        color_desc: Team color display name string.
+        color_rgb: CSS RGB hex color string.
+        game: Parent LFGame ORM relationship.
     """
 
     __tablename__ = 'game_teams'

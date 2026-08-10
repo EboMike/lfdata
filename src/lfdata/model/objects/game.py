@@ -21,8 +21,24 @@ from lfdata.model.base import Base
 class LFGame(Base):
     """Database model for a Laserforce game session metadata container.
 
-    Holds session metadata attributes and manages cascading ORM relationships
-    to teams, entities, events, stats, score history, and state history.
+    Attributes:
+        game_id: Primary key string identifying the game.
+        timestamp: DateTime timestamp when game was parsed/recorded.
+        game_type: Raw game type description string from TDF header.
+        normalized_game_type: Optional normalized game type string (e.g. 'SM5').
+        start: Optional start timestamp string from TDF header.
+        file_version: Optional TDF file format version string.
+        program_version: Optional Laserforce software version string.
+        centre: Optional centre code string (e.g. '4-43').
+        arena_name: Optional arena location name string.
+        duration: Optional game duration in milliseconds.
+        penalty: Optional penalty points value for team eliminations.
+        teams: List of GameTeam ORM relationships.
+        entities: List of GameEntity ORM relationships.
+        events: List of GameEvent ORM relationships.
+        sm5_stats: List of Sm5Stats ORM relationships.
+        score_history: List of ScoreHistory ORM relationships.
+        state_history: List of PlayerStateHistory ORM relationships.
     """
 
     __tablename__ = 'lf_games'

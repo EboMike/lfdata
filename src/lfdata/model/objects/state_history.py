@@ -18,7 +18,13 @@ from lfdata.model.base import Base
 class PlayerStateHistory(Base):
     """Database model for a timestamped player state transition record.
 
-    Holds time offset in milliseconds, entity ID, and numeric player state value.
+    Attributes:
+        id: Primary key integer ID.
+        game_id: Foreign key string referencing parent LFGame.
+        time: Millisecond timestamp offset from start of game.
+        entity_id: Entity ID string for the player.
+        state: Numeric player state transition value.
+        game: Parent LFGame ORM relationship.
     """
 
     __tablename__ = 'player_state_history'

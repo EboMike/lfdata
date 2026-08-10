@@ -21,8 +21,9 @@ from lfdata.video.helpers import resolve_animated_value
 class AnimationOverviewPanel(ttk.LabelFrame):
     """GUI widget panel for viewing and editing HUD element animation keyframes.
 
-    Holds reference bindings, property variables, keyframe indices, and canvas widgets
-    for timeline interpolation curves.
+    Attributes:
+        config_manager: UIConfigManager instance for accessing layout state.
+        on_keyframe_changed: Optional callback function triggered on keyframe modifications.
     """
 
     def __init__(

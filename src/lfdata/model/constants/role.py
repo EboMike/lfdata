@@ -18,8 +18,17 @@ import enum
 class LFRoleStats:
     """Game statistics and balance parameters for a player role.
 
-    Holds role ID, display name, starting/maximum lives and shots, missile count,
-    resupply rates, and maximum hit points.
+    Attributes:
+        role_id: The category ID from TDF files.
+        display_name: The printable name of the role.
+        start_lives: Initial lives count.
+        start_shots: Initial shots count.
+        start_missiles: Initial missiles count.
+        max_lives: Maximum limit of lives.
+        max_shots: Maximum limit of shots.
+        medic_lives_gain: Lives gained when zapped by a medic.
+        ammo_shots_gain: Shots gained when zapped by an ammo carrier.
+        max_hp: Maximum hit points (shields).
     """
 
     role_id: int
@@ -37,7 +46,17 @@ class LFRoleStats:
 class LFRole(enum.Enum):
     """Enumeration of player roles in Space Marines 5 games.
 
-    Provides role lookup by TDF category ID and access to role balance parameters.
+    Attributes:
+        role_id: The category ID integer.
+        display_name: Printable name of the role.
+        start_lives: Initial lives count.
+        start_shots: Initial shots count.
+        start_missiles: Initial missiles count.
+        max_lives: Maximum limit of lives.
+        max_shots: Maximum limit of shots.
+        medic_lives_gain: Lives gained when zapped by a medic.
+        ammo_shots_gain: Shots gained when zapped by an ammo carrier.
+        max_hp: Maximum hit points (shields).
     """
 
     COMMANDER = LFRoleStats(

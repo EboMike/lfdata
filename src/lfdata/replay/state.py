@@ -18,8 +18,24 @@ from lfdata.model import LFRole, PlayerStateHistory
 class LFReplayPlayerState:
     """Mutable snapshot of a single player entity during game replay.
 
-    Holds entity ID, role, team index, current lives/shots/missiles, score, special points,
-    downtime timestamps, hit points, captured bases, and nuke status.
+    Attributes:
+        entity_id: Entity ID string of the player.
+        role: LFRole enum of the player.
+        team_index: Team index integer assigned to the player.
+        lives: Current remaining lives count.
+        shots: Current remaining shots count.
+        missiles: Current remaining missiles count.
+        score: Current player score integer.
+        special_points: Property returning special points value.
+        max_hp: Maximum hit points (shields) integer.
+        hp: Current hit points integer.
+        downtime_ends_at_ms: Timestamp in milliseconds when downtime ends.
+        resettable_starts_at_ms: Timestamp in milliseconds when resettable status starts.
+        just_went_down_at_ms: Optional timestamp in milliseconds when player went down.
+        captured_bases: Set of captured base entity ID strings.
+        nuke_activated_at_ms: Optional timestamp in milliseconds when nuke was activated.
+        nuke_cancel_details: Optional LFNukeCancelDetails instance.
+        state_history: List of PlayerStateHistory entries.
     """
 
     def __init__(
@@ -235,7 +251,15 @@ class LFReplayPlayerState:
 
 
 class LFReplayTeamState:
-    """Tracks a single team's state during a game replay."""
+    """Mutable snapshot of a single team's score and ranking during game replay.
+
+    Attributes:
+        team_index: Team index integer.
+        name: Printable name string of the team.
+        color_rgb: CSS RGB hex color string.
+        score: Cumulative team score integer.
+        ranking: Current team rank position integer (1-based).
+    """
 
     def __init__(
         self, team_index: int, name: str, color_rgb: str = '#ffffff'
@@ -255,7 +279,12 @@ class LFReplayTeamState:
 
 
 class LFReplayGameState:
-    """Tracks the overall game state, including all players and teams."""
+    """Overall game state container tracking active players and teams during replay.
+
+    Attributes:
+        players: Mapping of entity ID strings to LFReplayPlayerState instances.
+        teams: Mapping of team index integers to LFReplayTeamState instances.
+    """
 
     def __init__(
         self,

@@ -18,7 +18,15 @@ from lfdata.model.base import Base
 class ScoreHistory(Base):
     """Database model for a timestamped entity score change record.
 
-    Holds time offset in milliseconds, entity ID, old score, delta score change, and new score.
+    Attributes:
+        id: Primary key integer ID.
+        game_id: Foreign key string referencing parent LFGame.
+        time: Millisecond timestamp offset from start of game.
+        entity_id: Entity ID string for the player/target.
+        old_score: Score value before the update.
+        delta_score: Score change delta value.
+        new_score: Score value after the update.
+        game: Parent LFGame ORM relationship.
     """
 
     __tablename__ = 'score_history'

@@ -18,8 +18,12 @@ from lfdata.ui.config_manager import UIConfigManager
 class LayoutCanvas(tk.Canvas):
     """Interactive canvas widget for visual drag-and-drop HUD layout editing.
 
-    Holds screen dimensions, element selection handles, drag state, and callback triggers
-    for property panels and preview updates.
+    Attributes:
+        config_manager: UIConfigManager instance managing layout state.
+        on_select_callback: Callback triggered when element selection changes.
+        on_update_callback: Optional callback triggered when layout elements change.
+        canvas_width: Width integer of canvas view area in pixels.
+        canvas_height: Height integer of canvas view area in pixels.
     """
 
     def __init__(

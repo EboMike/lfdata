@@ -18,7 +18,34 @@ from lfdata.model.base import Base
 class Sm5Stats(Base):
     """Database model for Space Marines 5 end-of-game player performance statistics.
 
-    Holds detailed post-game metrics parsed from TDF record type 7 for a specific entity.
+    Attributes:
+        id: Primary key integer ID.
+        game_id: Foreign key string referencing the parent LFGame.
+        entity_id: Entity ID string for the player.
+        shots_hit: Total shots hit count.
+        shots_fired: Total shots fired count.
+        times_zapped: Times player was zapped.
+        times_missiled: Times player was missiled.
+        missile_hits: Missile hits count.
+        nukes_detonated: Nukes detonated count.
+        nukes_activated: Nukes activated count.
+        nuke_cancels: Nuke cancels count.
+        medic_hits: Medic hits count.
+        own_medic_hits: Own medic hits count.
+        medic_nukes: Medic nukes count.
+        scout_rapid: Scout rapid fire count.
+        life_boost: Life boosts count.
+        ammo_boost: Ammo boosts count.
+        lives_left: Remaining lives at end of game.
+        shots_left: Remaining shots at end of game.
+        penalties: Penalties count.
+        shot3_hit: 3-shot hits count.
+        own_nuke_cancels: Own nuke cancels count.
+        shot_opponent: Shots hit against opponents count.
+        shot_team: Friendly fire shots hit count.
+        missiled_opponent: Missiles hit against opponents count.
+        missiled_team: Friendly fire missiles hit count.
+        game: Parent LFGame ORM relationship.
     """
 
     __tablename__ = 'sm5_stats'

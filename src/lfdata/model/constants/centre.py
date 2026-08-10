@@ -18,7 +18,11 @@ import enum
 class LFCentreStats:
     """Statistics and metadata for a Laserforce centre.
 
-    Holds country code, location code, and arena name for a specific venue.
+    Attributes:
+        country_code: The country code integer.
+        location_code: The location code integer.
+        arena_name: The name of the arena.
+        centre_code: Formatted centre code string (e.g. '4-43').
     """
 
     country_code: int
@@ -34,7 +38,11 @@ class LFCentreStats:
 class LFCentre(enum.Enum):
     """Enumeration of known Laserforce arena centres.
 
-    Provides metadata lookup by centre code string or location details.
+    Attributes:
+        country_code: Country code integer for the centre.
+        location_code: Location code integer for the centre.
+        arena_name: Printable name of the arena.
+        centre_code: Formatted centre code string.
     """
 
     BRISBANE = LFCentreStats(1, 1, 'Brisbane')

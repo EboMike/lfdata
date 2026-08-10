@@ -20,8 +20,9 @@ from lfdata.model import Base, GameEntity, LFGame, Player
 class DatabaseStorage:
     """SQL database manager for persisting and loading LF game objects.
 
-    Holds the connection string and SQLAlchemy engine instance, managing schema creation,
-    player deduplication, and eager relation fetching.
+    Attributes:
+        connection_string: The database connection URL string.
+        engine: SQLAlchemy Engine instance.
     """
 
     def __init__(self, connection_string: str = 'sqlite:///lfdata.db'):

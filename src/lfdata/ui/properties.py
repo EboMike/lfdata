@@ -20,8 +20,10 @@ from lfdata.ui.animation_overview import AnimationOverviewPanel
 class PropertiesPanel(ttk.LabelFrame):
     """GUI widget panel providing form inputs to inspect and edit HUD element attributes.
 
-    Holds the configuration manager reference, scrollable canvas layout, entry widgets,
-    and callback triggers for live preview updates.
+    Attributes:
+        config_manager: UIConfigManager instance managing layout state.
+        on_update: Callback function triggered when element properties are edited.
+        selected_element: Optional element key name string currently selected for editing.
     """
 
     def __init__(

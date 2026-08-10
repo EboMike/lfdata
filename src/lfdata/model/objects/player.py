@@ -18,7 +18,10 @@ from lfdata.model.base import Base
 class Player(Base):
     """Database model for a persistent human player across games.
 
-    Holds primary key ID, unique codename, and optional real name.
+    Attributes:
+        id: Primary key integer ID.
+        codename: Unique player codename string.
+        real_name: Optional real name string of the player.
     """
 
     __tablename__ = 'players'

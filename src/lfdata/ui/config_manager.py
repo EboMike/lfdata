@@ -29,8 +29,13 @@ from lfdata.video.helpers import (
 class UIConfigManager:
     """State manager for UI layout configurations and TDF session data.
 
-    Holds current YAML config dict, TDF file path, parsed LFGame object, player list,
-    active config path, and timeline millisecond timestamp.
+    Attributes:
+        config: Active layout configuration dictionary.
+        tdf_path: Optional path string pointing to loaded TDF file.
+        game: Optional LFGame data model instance parsed from TDF.
+        players: List of player codename strings present in the game.
+        config_path: Optional path string of loaded YAML config file.
+        current_time_ms: Current timeline timestamp in milliseconds.
     """
 
     def __init__(self) -> None:

@@ -200,8 +200,8 @@ def _get_encoder_details(encoder: str) -> str:
 class VideoGenerator:
     """Frame renderer and video generator for LF game replay visualizer outputs.
 
-    Holds the LFGame data model, image/font thread locks and caches, and coordinates
-    multiprocess frame rendering and FFmpeg video encoding.
+    Attributes:
+        game: The input LFGame data model instance containing game data.
     """
 
     def __init__(self, game: LFGame) -> None:

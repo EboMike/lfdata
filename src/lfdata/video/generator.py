@@ -53,7 +53,9 @@ from lfdata.video.helpers import (
 class LFResupplyTracker:
     """Tracks the last resupply event timestamp and actor name.
 
-    Holds time offset in milliseconds and actor codename.
+    Attributes:
+        time_ms: Millisecond timestamp offset of the resupply event.
+        actor_name: Codename string of the player who resupplied.
     """
 
     time_ms: int
@@ -64,7 +66,10 @@ class LFResupplyTracker:
 class LFNukeInterval:
     """Represents a nuke activation interval and its activator name.
 
-    Holds start time in milliseconds, end time in milliseconds, and activator codename.
+    Attributes:
+        start_ms: Start timestamp in milliseconds when nuke was activated.
+        end_ms: End timestamp in milliseconds when nuke detonated or canceled.
+        nuker_name: Codename string of player who activated the nuke.
     """
 
     start_ms: int
@@ -101,7 +106,23 @@ def _normalize_player_name(name: str) -> str:
 class VisualElementGenerator:
     """HUD visual element generator for frame-by-frame video layout composition.
 
-    Precomputes replay state snapshots and generates UIElement overlays at specific time offsets.
+    Attributes:
+        game: Input LFGame data model instance.
+        player_name: Optional focused player codename string.
+        entity_id: Optional focused player entity ID string.
+        entity_names: Dictionary mapping entity IDs to codename strings.
+        config: Merged video layout configuration dictionary.
+        snapshots: List of precomputed replay state snapshot tuples.
+        event_log: List of global LFEventLogEntry entries.
+        player_event_log: List of focused player LFPlayerEventLogEntry entries.
+        team_transitions: Dictionary mapping team index to rank transition lists.
+        game_ended_at_ms: Optional timestamp in milliseconds when game ended.
+        current_time_ms: Active frame timestamp in milliseconds.
+        current_variables: Dictionary of resolved template variable strings.
+        camera_shakes: List of LFCameraShake effect instances.
+        nuke_flashes: List of nuke flash timestamps in milliseconds.
+        missile_flashes_ms: List of missile hit flash timestamps in milliseconds.
+        hit_borders: List of LFHitBorderInstance effect entries.
     """
 
     def __init__(

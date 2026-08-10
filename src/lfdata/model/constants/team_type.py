@@ -20,7 +20,10 @@ from lfdata.model.constants.color import LFTeamColor
 class LFTeamTypeStats:
     """Metadata for a team type classification.
 
-    Holds the integer team index, human-readable display name, and team color enum.
+    Attributes:
+        team_index: The index of the team.
+        display_name: Printable display name of the team.
+        color: The LFTeamColor enum of the team.
     """
 
     team_index: int
@@ -31,7 +34,10 @@ class LFTeamTypeStats:
 class LFTeamType(enum.Enum):
     """Enumeration of team types in Laserforce SM5 games.
 
-    Provides team type lookup by team index integer.
+    Attributes:
+        team_index: The index of the team.
+        display_name: Printable display name of the team.
+        color: The LFTeamColor enum of the team.
     """
 
     FIRE = LFTeamTypeStats(

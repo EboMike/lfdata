@@ -18,8 +18,10 @@ import enum
 class LFTeamColorStats:
     """Metadata for a team color representation.
 
-    Holds the integer color enum from TDF files, human-readable display name,
-    and CSS RGB hex code.
+    Attributes:
+        color_enum: The integer ID from TDF files.
+        display_name: The display name of the color.
+        rgb: The CSS/RGB hex color value string.
     """
 
     color_enum: int
@@ -30,7 +32,10 @@ class LFTeamColorStats:
 class LFTeamColor(enum.Enum):
     """Enumeration of team colors used in Laserforce games.
 
-    Provides mapping from TDF color code integers to display names and hex values.
+    Attributes:
+        color_enum: TDF color ID integer.
+        display_name: Printable name of the team color.
+        rgb: CSS RGB hex string for rendering.
     """
 
     FIRE = LFTeamColorStats(color_enum=11, display_name='Fire', rgb='#FF5000')

@@ -23,8 +23,10 @@ from lfdata.ui.config_manager import UIConfigManager
 class ImagePreview(ttk.LabelFrame):
     """GUI widget panel displaying rendered video frame previews and timeline playback controls.
 
-    Holds the configuration manager reference, current millisecond timestamp, callback hooks,
-    time slider, and PIL ImageTk canvas label.
+    Attributes:
+        config_manager: UIConfigManager instance managing layout state.
+        current_time_ms: Current timeline scrub position in milliseconds.
+        on_time_changed_callback: Optional callback function triggered on timestamp scrub.
     """
 
     def __init__(

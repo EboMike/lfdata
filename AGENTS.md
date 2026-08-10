@@ -89,6 +89,7 @@ any code changes. Be sure to maintain this order:
   arguments it takes, what it returns, what exceptions it may raise, and a
   quick usage example. It should be short, and not repeat information already
   explained in the file-level docstring or class docstring.
+* In a class, all public attributes must be listed.
 
 ## Code structure
 

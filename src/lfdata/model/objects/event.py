@@ -18,8 +18,16 @@ from lfdata.model.base import Base
 class GameEvent(Base):
     """Database model for a timestamped Laserforce game event log line.
 
-    Holds event time offset in milliseconds, event type code, actor and target entity IDs,
-    action description, and raw tab-separated message text.
+    Attributes:
+        id: Primary key integer ID.
+        game_id: Foreign key string referencing the parent LFGame.
+        time: Millisecond timestamp offset from the start of the game.
+        event_type: TDF event code string (e.g. '0100', '0405').
+        actor_entity_id: Optional entity ID string performing the action.
+        target_entity_id: Optional entity ID string targeted by the action.
+        action: Human-readable action description string.
+        raw_message: Raw tab-separated event line text from TDF file.
+        game: Parent LFGame ORM relationship.
     """
 
     __tablename__ = 'game_events'

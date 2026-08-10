@@ -18,8 +18,20 @@ from lfdata.model.base import Base
 class GameEntity(Base):
     """Database model for a Laserforce game entity participant or target object.
 
-    Holds entity registration details, description, team assignment, category,
-    battlesuit ID, and final score.
+    Attributes:
+        id: Primary key integer ID.
+        game_id: Foreign key string referencing the parent LFGame.
+        entity_id: Unique entity ID string within the game session.
+        type: Entity type identifier ('player', 'target', 'base', 'referee').
+        desc: Human-readable description/codename of the entity.
+        team_index: Team index integer assigned to the entity.
+        level: Optional player skill level integer.
+        category: Optional role category integer ID.
+        battlesuit: Optional battlesuit name string.
+        end_score: Final score integer reported in TDF records.
+        player_id: Optional foreign key integer referencing a persistent Player.
+        game: Parent LFGame ORM relationship.
+        player: Linked persistent Player ORM relationship.
     """
 
     __tablename__ = 'game_entities'

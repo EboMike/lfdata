@@ -16,7 +16,12 @@ Usage example:
 class LFReplayEventRecord:
     """Snapshot container for player and team state changes resulting from an event.
 
-    Holds the event database ID, millisecond timestamp, description string, and attribute change dicts.
+    Attributes:
+        event_id: Database ID of the triggering event.
+        time_ms: Timestamp in milliseconds when the event occurred.
+        description: Printable description string of the event.
+        player_changes: Mapping of entity IDs to player attribute deltas.
+        team_changes: Mapping of team indices to team score deltas.
     """
 
     def __init__(

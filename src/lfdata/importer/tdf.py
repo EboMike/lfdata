@@ -34,8 +34,8 @@ from lfdata.model import (
 class TdfImporter:
     """Importer and parser for Laserforce TDF files.
 
-    Holds the target file path and parses TDF header, entity, team, event,
-    score history, and stat record types into an LFGame object structure.
+    Attributes:
+        file_path: The Path object pointing to the TDF file to parse.
     """
 
     def __init__(self, file_path: str | Path) -> None:

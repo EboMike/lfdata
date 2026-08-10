@@ -18,7 +18,12 @@ from dataclasses import dataclass, field
 class LFEventLogEntry:
     """Event log record formatted for video overlay display.
 
-    Holds event time offset in milliseconds, text description, importance flag, and actor/target IDs.
+    Attributes:
+        time: Millisecond timestamp offset from start of game.
+        desc: Description text string for the event.
+        is_important: True if event is highlighted as high priority.
+        actor_id: Optional entity ID string of event actor.
+        target_id: Optional entity ID string of event target.
     """
 
     time: int
@@ -30,7 +35,13 @@ class LFEventLogEntry:
 
 @dataclass
 class LFPlayerEventUpdate:
-    """Represents a bundled zap update within a player event entry."""
+    """Represents a bundled zap update within a player event entry.
+
+    Attributes:
+        time: Millisecond timestamp offset.
+        desc: Description string of update.
+        target_color_override: Optional mapping of target entity ID to hex color.
+    """
 
     time: int
     desc: str
@@ -39,7 +50,24 @@ class LFPlayerEventUpdate:
 
 @dataclass
 class LFPlayerEventLogEntry:
-    """Represents a logged player-specific event with updates and durations."""
+    """Represents a logged player-specific event with updates and durations.
+
+    Attributes:
+        time: Millisecond timestamp offset.
+        desc: Description string.
+        actor_id: Optional actor entity ID string.
+        target_id: Optional target entity ID string.
+        event_type: Optional TDF event type code string.
+        target_color_override: Optional color mapping override dict.
+        base_desc: Optional base event description string.
+        zap_count: Count of consecutive zaps bundled.
+        updates: List of LFPlayerEventUpdate records.
+        duration: Optional duration in milliseconds.
+        follow_up_desc: Optional follow-up description string.
+        follow_up_time: Optional follow-up timestamp in milliseconds.
+        double_resup_desc: Optional double resupply description string.
+        double_resup_time: Optional double resupply timestamp in milliseconds.
+    """
 
     time: int
     desc: str
@@ -59,7 +87,13 @@ class LFPlayerEventLogEntry:
 
 @dataclass
 class LFCameraShake:
-    """Represents a camera shake action configuration."""
+    """Represents a camera shake action configuration.
+
+    Attributes:
+        start_ms: Timestamp in milliseconds when camera shake starts.
+        duration_ms: Duration in milliseconds of camera shake.
+        strength: Shake intensity multiplier float.
+    """
 
     start_ms: int
     duration_ms: int
@@ -68,7 +102,14 @@ class LFCameraShake:
 
 @dataclass
 class LFHitBorderInstance:
-    """Represents a single fullscreen hit border flash instance."""
+    """Represents a single fullscreen hit border flash instance.
+
+    Attributes:
+        start_ms: Timestamp in milliseconds when border flash starts.
+        duration_ms: Duration in milliseconds of border flash.
+        tint_hex: CSS hex color string for tinting.
+        max_scale: Maximum scaling factor float.
+    """
 
     start_ms: int
     duration_ms: int
@@ -78,7 +119,22 @@ class LFHitBorderInstance:
 
 @dataclass
 class LFScoreboardPlayerData:
-    """Represents a player's scoreboard statistics."""
+    """Represents a player's scoreboard statistics.
+
+    Attributes:
+        codename: Player codename string.
+        role_name: Player role name string.
+        score: Current score integer.
+        lives: Current lives integer.
+        shots: Current shots integer.
+        missiles: Current missiles integer.
+        special_points: Current special points integer.
+        hp: Current hit points integer.
+        max_hp: Maximum hit points integer.
+        is_down: True if player is down.
+        is_eliminated: True if player is eliminated.
+        penalties: Penalty count integer.
+    """
 
     codename: str
     role_name: str
@@ -96,7 +152,16 @@ class LFScoreboardPlayerData:
 
 @dataclass
 class LFScoreboardTeamTotals:
-    """Represents scoreboard totals for a team."""
+    """Represents scoreboard totals for a team.
+
+    Attributes:
+        score: Total team score integer.
+        lives: Total team lives integer.
+        shots: Total team shots integer.
+        missiles: Total team missiles integer.
+        special_points: Total team special points integer.
+        hp: Total team hit points integer.
+    """
 
     score: int
     lives: int
@@ -108,7 +173,18 @@ class LFScoreboardTeamTotals:
 
 @dataclass
 class LFScoreboardTeamData:
-    """Represents scoreboard details for a team."""
+    """Represents scoreboard details for a team.
+
+    Attributes:
+        team_index: Team index integer.
+        team_name: Printable team name string.
+        team_score: Total team score integer.
+        color_rgb: CSS RGB hex color string.
+        players: List of LFScoreboardPlayerData entries.
+        visual_rank: Visual animated rank position float.
+        totals: Team total statistics object.
+        y_pos: Optional vertical y-position coordinate float.
+    """
 
     team_index: int
     team_name: str
@@ -122,14 +198,27 @@ class LFScoreboardTeamData:
 
 @dataclass
 class LFScoreboardData:
-    """Wrapper for scoreboard team data list."""
+    """Wrapper for scoreboard team data list.
+
+    Attributes:
+        teams: List of LFScoreboardTeamData objects.
+    """
 
     teams: list[LFScoreboardTeamData]
 
 
 @dataclass
 class LFMultilineSlot:
-    """Represents an active timeline slot for event text display."""
+    """Represents an active timeline slot for event text display.
+
+    Attributes:
+        text: Event display text string.
+        start: Start timestamp in milliseconds.
+        end: End timestamp in milliseconds.
+        is_nuke_act: True if slot displays a nuke activation.
+        duration: Slot display duration in milliseconds.
+        target_color_override: Optional target color mapping dict.
+    """
 
     text: str
     start: int
@@ -141,7 +230,15 @@ class LFMultilineSlot:
 
 @dataclass
 class UIElementStyle:
-    """Represents text styling attributes for visual elements."""
+    """Represents text styling attributes for visual elements.
+
+    Attributes:
+        font: Font family name string.
+        style: Font style string ('normal', 'bold').
+        size: Font size in pixels.
+        color: CSS RGBA hex color string.
+        background_color: CSS RGBA hex background color string.
+    """
 
     font: str = 'GoogleSans-Bold'
     style: str = 'normal'
@@ -152,7 +249,33 @@ class UIElementStyle:
 
 @dataclass
 class UIElement:
-    """Represents a single UI element on a video frame."""
+    """Represents a single UI element on a video frame.
+
+    Attributes:
+        element_type: Type identifier string ('text', 'scoreboard', etc.).
+        position: Layout anchor position string ('top-left', 'center', etc.).
+        text: Optional text content string.
+        style: UIElementStyle object.
+        x: Optional horizontal coordinate float.
+        y: Optional vertical coordinate float.
+        align: Optional alignment string ('left', 'center', 'right').
+        safe_ms: Safe time duration in milliseconds.
+        resettable_ms: Resettable status duration in milliseconds.
+        scoreboard_data: Optional LFScoreboardData object.
+        alpha: Opacity alpha value float (0.0 to 1.0).
+        extents: Optional list of bounding box extents [w, h].
+        icon: Optional icon path string.
+        current_value: Optional numeric current value.
+        max_value: Optional numeric maximum value.
+        indicator_interval: Optional indicator animation interval.
+        events_data: Optional list of LFEventLogEntry objects.
+        player_to_color: Optional player entity ID to color mapping.
+        visible_start_ms: Visibility start timestamp in milliseconds.
+        visible_end_ms: Visibility end timestamp in milliseconds.
+        fade_in_ms: Fade-in animation duration in milliseconds.
+        fade_out_ms: Fade-out animation duration in milliseconds.
+        formatted_text: Optional preformatted text content string.
+    """
 
     element_type: str
     position: str = ''

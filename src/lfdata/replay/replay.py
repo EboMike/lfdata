@@ -29,7 +29,9 @@ from lfdata.replay.state import (
 class LFNukeCancelDetails:
     """Details recording a canceled nuke attempt.
 
-    Holds the millisecond timestamp and cancel reason string.
+    Attributes:
+        cancel_ms: Timestamp in milliseconds when the nuke was canceled.
+        cancel_reason: Description string of why the nuke was canceled.
     """
 
     cancel_ms: int
@@ -39,8 +41,16 @@ class LFNukeCancelDetails:
 class LFReplaySystem(LFReplayHandlersMixin):
     """Replay simulation engine for processing game events sequentially.
 
-    Holds the input LFGame instance, current LFReplayGameState snapshot, event records,
-    and entity display name mappings.
+    Attributes:
+        game: Input LFGame database model instance.
+        boost_grace_period_ms: Grace period in milliseconds for boost eligibility.
+        player_states: List of player replay state instances.
+        team_states: List of team replay state instances.
+        entity_names: Dictionary mapping entity IDs to codename strings.
+        game_state: Active LFReplayGameState snapshot object.
+        records: List of generated LFReplayEventRecord entries.
+        game_ended_at_ms: Optional timestamp in milliseconds when game ended.
+        resolved_ambiguities: List of resolved resupply ambiguity decision dicts.
     """
 
     def __init__(

@@ -22,7 +22,10 @@ from lfdata.replay.replay import LFReplaySystem
 class PlayerDiscrepancy:
     """Discrepancy container between simulated and expected TDF player metrics.
 
-    Holds the metric field name, simulated value, and expected TDF value.
+    Attributes:
+        field: Metric attribute name string (e.g. 'score', 'lives', 'shots').
+        computed: Simulated value integer computed by replay system.
+        expected: Official expected value integer from TDF file.
     """
 
     field: str
@@ -33,8 +36,9 @@ class PlayerDiscrepancy:
 class LFReplayVerifier:
     """Validator comparing replay simulation results against official TDF data.
 
-    Holds the LFGame input instance, runs replay simulation, and verifies computed
-    final scores, remaining lives, remaining shots, and SM5 stats.
+    Attributes:
+        game: Input LFGame database model instance to verify.
+        boost_grace_period_ms: Grace period in milliseconds for boost eligibility.
     """
 
     def __init__(self, game: LFGame, boost_grace_period_ms: int = 700) -> None:

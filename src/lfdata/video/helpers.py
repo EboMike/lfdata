@@ -17,7 +17,10 @@ from typing import Any
 class LFTeamTransition:
     """Team rank animation transition state container.
 
-    Holds timestamp in milliseconds, interpolated visual rank float, and scoreboard integer ranking.
+    Attributes:
+        event_time_ms: Millisecond timestamp when the rank swap occurred.
+        visual_rank: Animated interpolated visual rank position float.
+        ranking: Target discrete team scoreboard rank integer (1-based).
     """
 
     event_time_ms: int

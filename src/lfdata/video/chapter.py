@@ -20,7 +20,10 @@ from lfdata.replay import LFReplaySystem
 class LFChapter:
     """Dataclass holding a timestamped chapter marker.
 
-    Holds time offset in milliseconds, event message text, and importance priority (1-5).
+    Attributes:
+        time_ms: Timestamp in milliseconds from the start of the game.
+        message: Description text of the chapter event.
+        importance: Importance rating integer (from 1 to 5).
     """
 
     time_ms: int
@@ -31,8 +34,8 @@ class LFChapter:
 class LFChapterGenerator:
     """Generator for extracting and formatting YouTube video chapters from a game.
 
-    Holds the LFGame input instance and processes replay events to detect, combine,
-    and format timeline chapter markers.
+    Attributes:
+        game: Input LFGame data model instance containing game events.
     """
 
     def __init__(self, game: LFGame) -> None:
