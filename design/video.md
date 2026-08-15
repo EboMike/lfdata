@@ -49,6 +49,16 @@ has suffix `03703`.
 If configured, the video configurator will use `ffmpeg` to encode all PNG files into
 a video.
 
+## HUD video merger (`hudmerge`)
+
+The `hudmerge` tool combines a base GoPro video with the color HUD and alpha HUD
+videos:
+
+* Scales HUD overlays to match GoPro video resolution if different.
+* Automatically synchronizes durations to `min(gopro_len, hud_len)`.
+* Fades out video and audio in the final 5 seconds.
+
+
 ## Configuration
 
 The video generation process can be configured with an optional configuration file.

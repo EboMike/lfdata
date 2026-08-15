@@ -88,3 +88,18 @@ Enable `webm` by choosing a `--video_out` file name ending with `.webm`.
 
 Generates a ProRes 4444 video, which has its alpha channel baked in. This is a very high-fidelity format. It's also
 huge. You won't have fun working with it.
+
+## Merging Videos with `hudmerge`
+
+Once you have generated your `hud.mp4` and `hud-alpha.mp4` files, you can merge
+them directly onto your GoPro base video using `hudmerge`:
+
+```shell
+hudmerge gopro.mp4 hud.mp4 hud-alpha.mp4 -o final.mp4
+```
+
+Features:
+* Automatic resolution scaling if GoPro resolution differs from HUD resolution.
+* Automatic length sync: truncates to the shorter of the two sources.
+* Fades out video and audio over the last 5 seconds.
+

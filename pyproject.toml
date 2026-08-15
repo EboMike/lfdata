@@ -27,6 +27,8 @@ dependencies = [
 [project.scripts]
 lfdata = "lfdata.__main__:main"
 lfdata_ui = "lfdata.ui.__main__:main"
+hudmerge = "lfdata.video.hudmerge:main"
+
 
 [project.optional-dependencies]
 video = [
