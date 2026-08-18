@@ -139,7 +139,9 @@ def _get_best_h264_encoder() -> str:
                 '-f',
                 'lavfi',
                 '-i',
-                'color=c=black:s=64x64:d=1',
+                'color=c=black:s=64x64',
+                '-frames:v',
+                '1',
                 '-c:v',
                 candidate,
                 '-f',
@@ -150,7 +152,7 @@ def _get_best_h264_encoder() -> str:
                 cmd,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
-                timeout=1.0,
+                timeout=5.0,
                 check=True,
             )
             return candidate
