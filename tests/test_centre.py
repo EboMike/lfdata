@@ -22,6 +22,13 @@ def test_lf_centre_all_lookup() -> None:
     cheltanham = LFCentre.from_code('7-13')
     assert cheltanham.arena_name == 'Cheltanham'
 
+    wollongong = LFCentre.from_code('1-58')
+    assert wollongong == LFCentre.WOLLONGONG_REVOLUTION
+    assert wollongong.country_code == 1
+    assert wollongong.location_code == 58
+    assert wollongong.arena_name == 'Wollongong Revolution'
+    assert wollongong.centre_code == '1-58'
+
 
 def test_lf_centre_invalid_lookup() -> None:
     with pytest.raises(ValueError) as exc_info:
