@@ -219,6 +219,10 @@ class HudMerger:
     ) -> tuple[int, int, int]:
         """Calculate effective final duration, fade duration, and fade start.
 
+        The HUD video duration is authoritative for the final output duration.
+        If the GoPro video is shorter, fade parameters apply to the end of
+        the GoPro footage before padding with black frames.
+
         Args:
             gopro_duration_ms: Duration of GoPro video in ms.
             hud_duration_ms: Duration of HUD video in ms.
@@ -227,9 +231,10 @@ class HudMerger:
         Returns:
             Tuple of (final_duration_ms, fade_duration_ms, fade_start_ms).
         """
-        final_duration_ms = min(gopro_duration_ms, hud_duration_ms)
-        fade_duration_ms = min(requested_fade_duration_ms, final_duration_ms)
-        fade_start_ms = max(0, final_duration_ms - fade_duration_ms)
+        final_duration_ms = hud_duration_ms
+        gopro_active_ms = min(gopro_duration_ms, hud_duration_ms)
+        fade_duration_ms = min(requested_fade_duration_ms, gopro_active_ms)
+        fade_start_ms = max(0, gopro_active_ms - fade_duration_ms)
         return final_duration_ms, fade_duration_ms, fade_start_ms
 
     def build_filter_complex(
@@ -256,6 +261,19 @@ class HudMerger:
         final_s = final_duration_ms / 1000.0
         fade_dur_s = fade_duration_ms / 1000.0
         fade_st_s = fade_start_ms / 1000.0
+        gopro_active_s = (fade_start_ms + fade_duration_ms) / 1000.0
+
+        gopro_filters: list[str] = [
+            f'trim=duration={gopro_active_s:.3f}',
+            f'fade=t=out:st={fade_st_s:.3f}:d={fade_dur_s:.3f}',
+        ]
+        if gopro_meta.duration_ms < final_duration_ms:
+            pad_dur_s = (final_duration_ms - gopro_meta.duration_ms) / 1000.0
+            gopro_filters.append(
+                f'tpad=stop_mode=add:color=black:stop_duration={pad_dur_s:.3f}'
+            )
+
+        filters.append(f'[0:v]{",".join(gopro_filters)}[gopro_v]')
 
         diff_res = (
             hud_meta.width != gopro_meta.width
@@ -273,17 +291,12 @@ class HudMerger:
         else:
             filters.append('[1:v][2:v]alphamerge[ovr]')
 
-        filters.append('[0:v][ovr]overlay=shortest=0[merged_v]')
-
-        fade_filter = (
-            f'[merged_v]trim=duration={final_s:.3f},'
-            f'fade=t=out:st={fade_st_s:.3f}:d={fade_dur_s:.3f}[outv]'
-        )
-        filters.append(fade_filter)
+        filters.append('[gopro_v][ovr]overlay=shortest=0[merged_v]')
+        filters.append(f'[merged_v]trim=duration={final_s:.3f}[outv]')
 
         if gopro_meta.has_audio:
             afade_filter = (
-                f'[0:a]atrim=duration={final_s:.3f},'
+                f'[0:a]atrim=duration={gopro_active_s:.3f},'
                 f'afade=t=out:st={fade_st_s:.3f}:d={fade_dur_s:.3f}[outa]'
             )
             filters.append(afade_filter)

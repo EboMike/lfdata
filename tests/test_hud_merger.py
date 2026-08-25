@@ -153,7 +153,7 @@ def test_calculate_sync_parameters_gopro_shorter():
         hud_duration_ms=80000,
         requested_fade_duration_ms=5000,
     )
-    assert final_ms == 60000
+    assert final_ms == 80000
     assert fade_dur_ms == 5000
     assert fade_st_ms == 55000
 
@@ -177,7 +177,7 @@ def test_calculate_sync_parameters_short_video():
         hud_duration_ms=10000,
         requested_fade_duration_ms=5000,
     )
-    assert final_ms == 3000
+    assert final_ms == 10000
     assert fade_dur_ms == 3000
     assert fade_st_ms == 0
 
@@ -205,13 +205,50 @@ def test_build_filter_complex_same_resolution_no_audio():
         fade_start_ms=45000,
     )
 
-    assert '[1:v][2:v]alphamerge[ovr]' in filter_str
-    assert '[0:v][ovr]overlay=shortest=0[merged_v]' in filter_str
     assert (
-        '[merged_v]trim=duration=50.000,fade=t=out:st=45.000:d=5.000[outv]'
+        '[0:v]trim=duration=50.000,fade=t=out:st=45.000:d=5.000[gopro_v]'
         in filter_str
     )
+    assert 'tpad' not in filter_str
+    assert '[1:v][2:v]alphamerge[ovr]' in filter_str
+    assert '[gopro_v][ovr]overlay=shortest=0[merged_v]' in filter_str
+    assert '[merged_v]trim=duration=50.000[outv]' in filter_str
     assert 'afade' not in filter_str
+
+
+def test_build_filter_complex_gopro_shorter_with_tpad_and_audio():
+    merger = HudMerger()
+    gopro = VideoMetadata(
+        width=1920,
+        height=1080,
+        duration_ms=60000,
+        has_audio=True,
+    )
+    hud = VideoMetadata(
+        width=1920,
+        height=1080,
+        duration_ms=80000,
+        has_audio=False,
+    )
+
+    filter_str = merger.build_filter_complex(
+        gopro_meta=gopro,
+        hud_meta=hud,
+        final_duration_ms=80000,
+        fade_duration_ms=5000,
+        fade_start_ms=55000,
+    )
+
+    assert (
+        'trim=duration=60.000,fade=t=out:st=55.000:d=5.000,'
+        'tpad=stop_mode=add:color=black:stop_duration=20.000[gopro_v]'
+        in filter_str
+    )
+    assert '[merged_v]trim=duration=80.000[outv]' in filter_str
+    assert (
+        '[0:a]atrim=duration=60.000,afade=t=out:st=55.000:d=5.000[outa]'
+        in filter_str
+    )
 
 
 def test_build_filter_complex_different_resolution_with_audio():
