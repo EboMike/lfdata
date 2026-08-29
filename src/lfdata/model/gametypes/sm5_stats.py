@@ -46,6 +46,7 @@ class Sm5Stats(Base):
         missiled_opponent: Missiles hit against opponents count.
         missiled_team: Friendly fire missiles hit count.
         game: Parent LFGame ORM relationship.
+        hit_diff: Property returning ratio of opponent zaps to times zapped.
     """
 
     __tablename__ = 'sm5_stats'
@@ -83,6 +84,23 @@ class Sm5Stats(Base):
 
     # Relationships
     game: Mapped['LFGame'] = relationship('LFGame', back_populates='sm5_stats')
+
+    @property
+    def hit_diff(self) -> float | None:
+        """Returns the player's hit differential (hit diff).
+
+        The hit diff is the number of times the player zapped players on
+        other teams divided by the number of times the player got zapped.
+        Missiles, nukes, friendly fire, and base hits do not factor into this
+        equation. If the player was never zapped, the hit diff is None.
+
+        Returns:
+            float | None: The hit diff ratio, or None if the player was never
+                zapped.
+        """
+        if self.times_zapped == 0:
+            return None
+        return self.shot_opponent / self.times_zapped
 
     def __repr__(self) -> str:
         """Returns a string representation of the SM5 stats.

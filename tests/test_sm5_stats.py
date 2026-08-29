@@ -60,7 +60,39 @@ def test_create_sm5_stats() -> None:
         assert retrieved.life_boost == 1
         assert retrieved.shots_left == 30
         assert retrieved.shot_opponent == 4
+        assert retrieved.hit_diff == 4 / 11
         assert retrieved.game.game_id == 'test_game_123'
         assert repr(retrieved) == (
             "Sm5Stats(id=1, game_id='test_game_123', entity_id='#fwqiZ')"
         )
+
+
+def test_sm5_stats_hit_diff() -> None:
+    stats_never_zapped = Sm5Stats(
+        game_id='game_1',
+        entity_id='#P1',
+        shot_opponent=25,
+        shot_team=5,
+        times_zapped=0,
+        times_missiled=4,
+        missile_hits=6,
+        nukes_detonated=1,
+    )
+    assert stats_never_zapped.hit_diff is None
+
+    # shot_opponent=40, shot_team=5 (friendly fire excluded),
+    # shots_hit=55 (bases excluded), times_zapped=20 -> 40 / 20 = 2.0
+    stats_zapped = Sm5Stats(
+        game_id='game_1',
+        entity_id='#P2',
+        shots_hit=55,
+        shot_opponent=40,
+        shot_team=5,
+        times_zapped=20,
+        times_missiled=10,
+        missile_hits=5,
+        nukes_detonated=3,
+    )
+    assert stats_zapped.hit_diff == 2.0
+
+

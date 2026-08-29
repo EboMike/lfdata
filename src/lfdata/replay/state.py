@@ -36,6 +36,10 @@ class LFReplayPlayerState:
         nuke_activated_at_ms: Optional timestamp in milliseconds when nuke was activated.
         nuke_cancel_details: Optional LFNukeCancelDetails instance.
         state_history: List of PlayerStateHistory entries.
+        times_zapped: Times player was zapped.
+        times_zapped_opponents: Times player zapped players on other teams.
+        times_zapped_someone: Deprecated alias for times_zapped_opponents.
+        hit_diff: Property returning ratio of opponent zaps to times zapped.
     """
 
     def __init__(
@@ -74,6 +78,8 @@ class LFReplayPlayerState:
         self.nuke_cancels: int = 0
         self.own_nuke_cancels: int = 0
         self.penalties: int = 0
+        self.times_zapped: int = 0
+        self.times_zapped_opponents: int = 0
         self.state_history: list[PlayerStateHistory] | None = state_history
 
     @property
@@ -248,6 +254,33 @@ class LFReplayPlayerState:
             value: The new special points value.
         """
         self._special_points = max(0, min(99, value))
+
+    @property
+    def times_zapped_someone(self) -> int:
+        """Alias for times_zapped_opponents."""
+        return self.times_zapped_opponents
+
+    @times_zapped_someone.setter
+    def times_zapped_someone(self, value: int) -> None:
+        """Setter for times_zapped_someone alias."""
+        self.times_zapped_opponents = value
+
+    @property
+    def hit_diff(self) -> float | None:
+        """Returns the player's hit differential (hit diff).
+
+        The hit diff is the number of times the player zapped players on
+        other teams divided by the number of times the player got zapped.
+        Missiles, nukes, friendly fire, and base hits do not factor into this
+        equation. If the player was never zapped, the hit diff is None.
+
+        Returns:
+            float | None: The hit diff ratio, or None if the player was never
+                zapped.
+        """
+        if self.times_zapped == 0:
+            return None
+        return self.times_zapped_opponents / self.times_zapped
 
 
 class LFReplayTeamState:

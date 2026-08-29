@@ -195,6 +195,19 @@ def test_configurable_boost_grace_period() -> None:
     # Custom 500ms grace period: 650ms > 500ms -> False
     assert not p.can_receive_resupply(1650, grace_period_ms=500)
 
-    # Custom 1000ms grace period: at t=1900 (elapsed = 900ms): 900ms <= 1000ms -> True
+    # Custom 1000ms grace period: at t=1900 (elapsed = 900ms):
+    # 900ms <= 1000ms -> True
     assert p.can_receive_resupply(1900, grace_period_ms=1000)
     assert not p.can_receive_resupply(1900, grace_period_ms=700)
+
+
+def test_replay_player_state_hit_diff() -> None:
+    p = LFReplayPlayerState(entity_id='#1', role=LFRole.SCOUT, team_index=0)
+    assert p.times_zapped == 0
+    assert p.times_zapped_opponents == 0
+    assert p.hit_diff is None
+
+    p.times_zapped_opponents = 15
+    p.times_zapped = 5
+    assert p.hit_diff == 3.0
+

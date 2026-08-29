@@ -51,10 +51,12 @@ class LFReplayHandlersMixin:
             and not actor.is_eliminated()
             and not target.is_eliminated()
         ):
+            target.times_zapped += 1
             if actor.team_index == target.team_index:
                 # Friendly fire: penalize actor
                 actor.score -= 100
             else:
+                actor.times_zapped_opponents += 1
                 actor.score += 100
                 if (
                     not (actor.role == LFRole.SCOUT and actor.has_rapid_fire)

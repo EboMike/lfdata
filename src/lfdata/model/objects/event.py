@@ -16,7 +16,7 @@ from lfdata.model.base import Base
 
 
 class GameEvent(Base):
-    """Database model for a timestamped Laserforce game event log line.
+    """Database model for a timestamped LF game event log line.
 
     Attributes:
         id: Primary key integer ID.

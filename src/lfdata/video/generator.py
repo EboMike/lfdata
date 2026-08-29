@@ -226,6 +226,8 @@ class VisualElementGenerator:
         new_p.nuke_cancels = p.nuke_cancels
         new_p.own_nuke_cancels = p.own_nuke_cancels
         new_p.penalties = p.penalties
+        new_p.times_zapped = p.times_zapped
+        new_p.times_zapped_opponents = p.times_zapped_opponents
         return new_p
 
     def _copy_team_state(self, t: LFReplayTeamState) -> LFReplayTeamState:

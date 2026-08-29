@@ -46,3 +46,13 @@ In most game types, the team with the highest combined score wins.
 Some game types have missiles. A player can lock a target with a missile, and then
 fire the missile.
 
+## Hit diff
+
+In all game modes, players have an accessor for their "hit diff". This is the
+number of times the player zapped players on other teams divided by the number
+of times the player got zapped. It only includes hits against players on other
+teams; it does not include own teams (friendly fire) or bases. Missiles or
+nukes do not factor into this equation. If a player was never zapped, the hit
+diff is None.
+
+

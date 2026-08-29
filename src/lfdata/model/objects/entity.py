@@ -1,6 +1,6 @@
 """SQLAlchemy model for game entities.
 
-This module defines database ORM models for Laserforce game participants and arena objects
+This module defines database ORM models for LF game participants and arena objects
 (including human players, referees, targets, and generator bases).
 
 Usage example:
@@ -16,7 +16,7 @@ from lfdata.model.base import Base
 
 
 class GameEntity(Base):
-    """Database model for a Laserforce game entity participant or target object.
+    """Database model for an LF game entity participant or target object.
 
     Attributes:
         id: Primary key integer ID.
@@ -32,6 +32,7 @@ class GameEntity(Base):
         player_id: Optional foreign key integer referencing a persistent Player.
         game: Parent LFGame ORM relationship.
         player: Linked persistent Player ORM relationship.
+        hit_diff: Property returning ratio of zaps hit to times zapped.
     """
 
     __tablename__ = 'game_entities'
@@ -55,6 +56,28 @@ class GameEntity(Base):
     # Relationships
     game: Mapped['LFGame'] = relationship('LFGame', back_populates='entities')
     player: Mapped['Player | None'] = relationship('Player')
+
+    @property
+    def hit_diff(self) -> float | None:
+        """Returns the player's hit differential (hit diff) for this game.
+
+        The hit diff is the number of times the player zapped players on
+        other teams divided by the number of times the player got zapped.
+        Missiles, nukes, friendly fire, and base hits do not factor into this
+        equation. If the player was never zapped, or if no game-mode statistics
+        are available, the hit diff is None.
+
+        Returns:
+            float | None: The hit diff ratio, or None if the player was never
+                zapped or statistics are not available.
+        """
+        if self.type != 'player' or not self.game:
+            return None
+        if self.game.sm5_stats:
+            for stat in self.game.sm5_stats:
+                if stat.entity_id == self.entity_id:
+                    return stat.hit_diff
+        return None
 
     def __repr__(self) -> str:
         """Returns a string representation of the entity.

@@ -2,7 +2,7 @@ from datetime import datetime
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from lfdata.model import Base, GameEntity, LFGame, Player
+from lfdata.model import Base, GameEntity, LFGame, Player, Sm5Stats
 
 
 def test_create_entity() -> None:
@@ -53,3 +53,57 @@ def test_create_entity() -> None:
         assert repr(retrieved) == (
             "GameEntity(id=1, entity_id='#dJevxws', type='player', desc='Sqnfdcp')"
         )
+
+
+def test_entity_hit_diff() -> None:
+    # Entity without game or stats
+    standalone_entity = GameEntity(
+        game_id='g1',
+        entity_id='#1',
+        type='player',
+        desc='Alpha',
+        team_index=0,
+    )
+    assert standalone_entity.hit_diff is None
+
+    # Base entity (not player)
+    base_entity = GameEntity(
+        game_id='g1',
+        entity_id='@base1',
+        type='base',
+        desc='Red Base',
+        team_index=0,
+    )
+    assert base_entity.hit_diff is None
+
+    # Player entity linked to a game with SM5 stats
+    game = LFGame(
+        game_id='g1',
+        timestamp=datetime.now(),
+        game_type='SM5',
+    )
+    player_ent = GameEntity(
+        game_id='g1',
+        entity_id='#P1',
+        type='player',
+        desc='Bravo',
+        team_index=1,
+    )
+    player_ent.game = game
+
+    stat_p1 = Sm5Stats(
+        game_id='g1',
+        entity_id='#P1',
+        shot_opponent=30,
+        shot_team=2,
+        times_zapped=15,
+    )
+    game.sm5_stats = [stat_p1]
+
+    # 30 / 15 = 2.0 (shot_team is excluded)
+    assert player_ent.hit_diff == 2.0
+
+    # Never zapped
+    stat_p1.times_zapped = 0
+    assert player_ent.hit_diff is None
+
