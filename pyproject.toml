@@ -28,6 +28,7 @@ dependencies = [
 lfdata = "lfdata.__main__:main"
 lfdata_ui = "lfdata.ui.__main__:main"
 hudmerge = "lfdata.video.hudmerge:main"
+match-audio = "lfdata.video.audio_matcher:main"
 
 
 [project.optional-dependencies]
@@ -35,6 +36,9 @@ video = [
     "Pillow>=9.0.0",
     "PyYAML>=6.0",
     "jinja2",
+    "numpy>=1.20.0",
+    "scipy>=1.7.0",
+    "opencv-python>=4.5.0",
 ]
 all = [
     "lfdata[video]",
