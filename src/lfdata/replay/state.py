@@ -266,20 +266,19 @@ class LFReplayPlayerState:
         self.times_zapped_opponents = value
 
     @property
-    def hit_diff(self) -> float | None:
+    def hit_diff(self) -> float:
         """Returns the player's hit differential (hit diff).
 
         The hit diff is the number of times the player zapped players on
         other teams divided by the number of times the player got zapped.
         Missiles, nukes, friendly fire, and base hits do not factor into this
-        equation. If the player was never zapped, the hit diff is None.
+        equation. If the player was never zapped, the hit diff is 1.0.
 
         Returns:
-            float | None: The hit diff ratio, or None if the player was never
-                zapped.
+            float: The hit diff ratio, or 1.0 if the player was never zapped.
         """
         if self.times_zapped == 0:
-            return None
+            return 1.0
         return self.times_zapped_opponents / self.times_zapped
 
 

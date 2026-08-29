@@ -105,5 +105,5 @@ def test_entity_hit_diff() -> None:
 
     # Never zapped
     stat_p1.times_zapped = 0
-    assert player_ent.hit_diff is None
+    assert player_ent.hit_diff == 1.0
 

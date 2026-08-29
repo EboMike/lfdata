@@ -78,7 +78,7 @@ def test_sm5_stats_hit_diff() -> None:
         missile_hits=6,
         nukes_detonated=1,
     )
-    assert stats_never_zapped.hit_diff is None
+    assert stats_never_zapped.hit_diff == 1.0
 
     # shot_opponent=40, shot_team=5 (friendly fire excluded),
     # shots_hit=55 (bases excluded), times_zapped=20 -> 40 / 20 = 2.0

@@ -205,7 +205,7 @@ def test_replay_player_state_hit_diff() -> None:
     p = LFReplayPlayerState(entity_id='#1', role=LFRole.SCOUT, team_index=0)
     assert p.times_zapped == 0
     assert p.times_zapped_opponents == 0
-    assert p.hit_diff is None
+    assert p.hit_diff == 1.0
 
     p.times_zapped_opponents = 15
     p.times_zapped = 5

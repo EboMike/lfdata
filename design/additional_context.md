@@ -10,7 +10,7 @@ Rules:
 * It only includes hits against players in other teams. It does not include
   own teams (friendly fire), or bases.
 * Missiles or nukes do not factor into this equation.
-* If a player was never zapped (times zapped is 0), the hit diff is None.
+* If a player was never zapped (times zapped is 0), the hit diff is 1.
 * In SM5, this corresponds to `shot_opponent / times_zapped`.
 * Accessible via `hit_diff` property on player game mode stats (e.g.
   `Sm5Stats.hit_diff`), on `GameEntity.hit_diff`, and on

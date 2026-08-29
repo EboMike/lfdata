@@ -53,6 +53,7 @@ number of times the player zapped players on other teams divided by the number
 of times the player got zapped. It only includes hits against players on other
 teams; it does not include own teams (friendly fire) or bases. Missiles or
 nukes do not factor into this equation. If a player was never zapped, the hit
-diff is None.
+diff is 1.
+
 
 

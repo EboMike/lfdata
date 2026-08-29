@@ -113,9 +113,9 @@ def test_process_event_zap_hit_diff() -> None:
     state_p2 = replay.game_state.players['P2']
     state_p3 = replay.game_state.players['P3']
 
-    assert state_p1.hit_diff is None
-    assert state_p2.hit_diff is None
-    assert state_p3.hit_diff is None
+    assert state_p1.hit_diff == 1.0
+    assert state_p2.hit_diff == 1.0
+    assert state_p3.hit_diff == 1.0
 
     # P1 zaps P2 (opponent)
     ev1 = GameEvent(
@@ -131,7 +131,7 @@ def test_process_event_zap_hit_diff() -> None:
 
     assert state_p1.times_zapped_opponents == 1
     assert state_p1.times_zapped == 0
-    assert state_p1.hit_diff is None
+    assert state_p1.hit_diff == 1.0
 
     assert state_p2.times_zapped_opponents == 0
     assert state_p2.times_zapped == 1

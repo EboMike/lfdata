@@ -64,12 +64,13 @@ class GameEntity(Base):
         The hit diff is the number of times the player zapped players on
         other teams divided by the number of times the player got zapped.
         Missiles, nukes, friendly fire, and base hits do not factor into this
-        equation. If the player was never zapped, or if no game-mode statistics
-        are available, the hit diff is None.
+        equation. If the player was never zapped, the hit diff is 1.0.
+        If this entity is not a player or has no associated statistics, the
+        hit diff is None.
 
         Returns:
-            float | None: The hit diff ratio, or None if the player was never
-                zapped or statistics are not available.
+            float | None: The hit diff ratio, 1.0 if never zapped, or None if
+                not a player or statistics are not available.
         """
         if self.type != 'player' or not self.game:
             return None
