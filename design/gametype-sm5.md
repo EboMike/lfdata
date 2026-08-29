@@ -181,3 +181,36 @@ checked until one of these events is found:
 Penalties are shown as game events. If a player is penalized, they're beginning
 a new downtime. They will also incur the penalty specified in the mission data
 type. The game keeps track of how many penalties each player has.
+
+## Game notability
+
+In order of priority (most notable to least notable), here are some conditions
+that could mark a game notable. Some of these conditions assume that there is a
+"focus player", i.e. one player from whose point of view the notability is
+assessed.
+
+* The game ended in a draw. Both teams have an identical score.
+* The two teams ended with a score within 200 points of each other.
+* The focus player is a commander and nuked more than 5 times.
+* The focus player has a hit diff of 1.9 or more.
+* The focus player has 190 or more medic hits.
+* The focus player is the only person on the team to survive, with only 1 or 2
+  lives left.
+* A team was eliminated in less than 8 minutes.
+
+If no condition applies, the game is not notable.
+
+## Game highlight tagline
+
+The game highlight tagline is a string of 3-5 words that describes the most
+interesting element of a game. It will consider the conditions in the "Game
+notability" section and create a string based on the most notable condition, if
+there is one.
+
+For example, if the focus player is the only person on the team to survive, with
+only 1 or 2 lives left, the tagline could be "Lone survivor with 1 life".
+
+If no notable conditions were found, the tagline will simply be
+"{rounded_score} {role} game". The score is the player's score rounded to a
+thousand, with "K" to indicate thousands. E.g. 5708 would be "6K". A tagline
+might be "13K Commander Game".

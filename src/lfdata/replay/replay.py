@@ -50,6 +50,8 @@ class LFReplaySystem(LFReplayHandlersMixin):
         game_state: Active LFReplayGameState snapshot object.
         records: List of generated LFReplayEventRecord entries.
         game_ended_at_ms: Optional timestamp in milliseconds when game ended.
+        first_team_elimination_time_ms: Optional timestamp in milliseconds
+            when any team was first eliminated.
         resolved_ambiguities: List of resolved resupply ambiguity decision dicts.
     """
 
@@ -85,6 +87,7 @@ class LFReplaySystem(LFReplayHandlersMixin):
         self.records: list[LFReplayEventRecord] = []
         self.game_ended_at_ms: int | None = None
         self._team_elimination_processed = False
+        self.first_team_elimination_time_ms: int | None = None
         self.resolved_ambiguities: list[dict[str, Any]] = []
 
         if self.game.sm5_stats and align_stats:
@@ -102,6 +105,7 @@ class LFReplaySystem(LFReplayHandlersMixin):
         self.records = []
         self.game_ended_at_ms = None
         self._team_elimination_processed = False
+        self.first_team_elimination_time_ms = None
         self._encountered_points = []
         self.resolved_ambiguities = []
 
@@ -723,6 +727,8 @@ class LFReplaySystem(LFReplayHandlersMixin):
 
         if eliminated_teams:
             self._team_elimination_processed = True
+            if self.first_team_elimination_time_ms is None:
+                self.first_team_elimination_time_ms = event_time
             all_bases = [
                 e
                 for e in self.game.entities

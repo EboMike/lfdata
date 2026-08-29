@@ -1,6 +1,6 @@
 """SQLAlchemy model for LF games.
 
-This module defines database ORM models for Laserforce game session metadata (game ID,
+This module defines database ORM models for LF game session metadata (game ID,
 timestamp, game type, duration, centre, arena name) and parent ORM relationships.
 
 Usage example:
@@ -11,15 +11,20 @@ Usage example:
 """
 
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from sqlalchemy import DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from lfdata.model.base import Base
 
+if TYPE_CHECKING:
+    from lfdata.model.gametypes.sm5_notability import Sm5NotabilityCondition
+    from lfdata.model.objects.entity import GameEntity
+    from lfdata.model.objects.player import Player
+
 
 class LFGame(Base):
-    """Database model for a Laserforce game session metadata container.
+    """Database model for an LF game session metadata container.
 
     Attributes:
         game_id: Primary key string identifying the game.
@@ -28,7 +33,7 @@ class LFGame(Base):
         normalized_game_type: Optional normalized game type string (e.g. 'SM5').
         start: Optional start timestamp string from TDF header.
         file_version: Optional TDF file format version string.
-        program_version: Optional Laserforce software version string.
+        program_version: Optional LF software version string.
         centre: Optional centre code string (e.g. '4-43').
         arena_name: Optional arena location name string.
         duration: Optional game duration in milliseconds.
@@ -99,6 +104,62 @@ class LFGame(Base):
                 self.normalized_game_type = GameTypeNormalizer().normalize(
                     game_type_val
                 )
+
+    def get_notability(
+        self,
+        focus_player: 'GameEntity | Player | str | None' = None,
+    ) -> 'Sm5NotabilityCondition | None':
+        """Returns the most notable condition for this game, if any.
+
+        Evaluates the game's notability conditions in priority order.
+
+        Args:
+            focus_player: Optional focus player entity, Player, or identifier.
+
+        Returns:
+            Sm5NotabilityCondition | None: The most notable condition, or None
+                if the game is not notable.
+
+        Raises:
+            NotImplementedError: If the game is not an SM5 game.
+        """
+        if self.normalized_game_type != 'SM5':
+            raise NotImplementedError(
+                'Notability is only implemented for SM5 games.'
+            )
+        from lfdata.model.gametypes.sm5_notability import Sm5NotabilityEvaluator
+
+        evaluator = Sm5NotabilityEvaluator()
+        result = evaluator.evaluate(self, focus_player=focus_player)
+        return result.condition
+
+    def get_highlight_tagline(
+        self,
+        focus_player: 'GameEntity | Player | str | None' = None,
+    ) -> str:
+        """Returns the highlight tagline describing the game's key element.
+
+        Generates a concise 3-5 word tagline based on the most notable
+        condition, or falls back to a score and role summary.
+
+        Args:
+            focus_player: Optional focus player entity, Player, or identifier.
+
+        Returns:
+            str: The 3-5 word highlight tagline.
+
+        Raises:
+            NotImplementedError: If the game is not an SM5 game.
+        """
+        if self.normalized_game_type != 'SM5':
+            raise NotImplementedError(
+                'Highlight tagline is only implemented for SM5 games.'
+            )
+        from lfdata.model.gametypes.sm5_notability import Sm5NotabilityEvaluator
+
+        evaluator = Sm5NotabilityEvaluator()
+        result = evaluator.evaluate(self, focus_player=focus_player)
+        return result.tagline
 
     def __repr__(self) -> str:
         """Returns a string representation of the game.
