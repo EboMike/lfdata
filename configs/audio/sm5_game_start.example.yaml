@@ -1,0 +1,13 @@
+name: sm5_game_start
+description: SM5 pre-game countdown klaxon / General Quarters alert
+reference_sound_path: path/to/General Quarters.wav
+freq_min_hz: 1400.0
+freq_max_hz: 2400.0
+threshold: 0.2
+test_cases:
+  - video_path: path/to/game_pov.mp4
+    expected_timestamp_ms: 20200
+    tolerance_ms: 500
+    search_start_ms: 0
+    search_end_ms: 60000
+    description: Example POV video game 1 start

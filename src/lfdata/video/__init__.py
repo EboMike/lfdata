@@ -19,6 +19,14 @@ from lfdata.video.chapter import LFChapter, LFChapterGenerator
 
 if TYPE_CHECKING:
     from lfdata.video.audio_matcher import AudioMatcher, AudioMatchResult
+    from lfdata.video.audio_benchmark import (
+        AudioBenchmarkRunner,
+        AudioTestCase,
+        BenchmarkSummary,
+        SoundDefinition,
+        TestCaseEvaluationResult,
+        TuningResult,
+    )
 
 __all__ = [
     'VideoGenerator',
@@ -29,11 +37,17 @@ __all__ = [
     'LFChapterGenerator',
     'AudioMatcher',
     'AudioMatchResult',
+    'AudioBenchmarkRunner',
+    'AudioTestCase',
+    'BenchmarkSummary',
+    'SoundDefinition',
+    'TestCaseEvaluationResult',
+    'TuningResult',
 ]
 
 
 def __getattr__(name: str) -> Any:
-    """Lazy imports audio matcher classes on first access.
+    """Lazy imports audio matching and benchmark classes on first access.
 
     Args:
         name: Name of the attribute being requested.
@@ -52,4 +66,17 @@ def __getattr__(name: str) -> Any:
         from lfdata.video.audio_matcher import AudioMatchResult
 
         return AudioMatchResult
+    benchmark_attrs = {
+        'AudioBenchmarkRunner',
+        'AudioTestCase',
+        'BenchmarkSummary',
+        'SoundDefinition',
+        'TestCaseEvaluationResult',
+        'TuningResult',
+    }
+    if name in benchmark_attrs:
+        import lfdata.video.audio_benchmark as ab
+
+        return getattr(ab, name)
+
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")

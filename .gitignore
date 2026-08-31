@@ -124,3 +124,7 @@ private.AGENTS.md
 
 # Fonts
 fonts/
+
+# Local audio benchmark configs
+configs/audio/sm5_game_start.yaml
+
