@@ -74,6 +74,14 @@ def build_argument_parser() -> argparse.ArgumentParser:
         help='Encoding preset for x264 (default: medium).',
     )
     parser.add_argument(
+        '--lut',
+        '--cube',
+        dest='lut',
+        type=str,
+        default=None,
+        help='Path to a 3D LUT (.cube) file to apply to the GoPro video.',
+    )
+    parser.add_argument(
         '--dry-run',
         action='store_true',
         help='Print the FFmpeg command without executing it.',
@@ -93,6 +101,7 @@ def parse_options(args: argparse.Namespace) -> HudMergeOptions:
     gopro_path = Path(args.gopro)
     hud_path = Path(args.hud)
     hud_alpha_path = Path(args.hud_alpha)
+    lut_path = Path(args.lut) if args.lut else None
 
     if args.output:
         output_path = Path(args.output)
@@ -109,6 +118,7 @@ def parse_options(args: argparse.Namespace) -> HudMergeOptions:
         fade_duration_ms=args.fade_duration_ms,
         crf=args.crf,
         preset=args.preset,
+        lut_path=lut_path,
     )
 
 

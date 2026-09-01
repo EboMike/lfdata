@@ -35,6 +35,25 @@ def test_hud_merge_options_defaults():
     assert options.crf == 18
     assert options.preset == 'medium'
     assert options.overwrite is True
+    assert options.lut_path is None
+
+
+def test_hud_merge_options_custom_lut():
+    options = HudMergeOptions(
+        gopro_path=Path('gopro.mp4'),
+        hud_path=Path('hud.mp4'),
+        hud_alpha_path=Path('alpha.mp4'),
+        output_path=Path('out.mp4'),
+        lut_path=Path('luts/grade.cube'),
+    )
+    assert options.lut_path == Path('luts/grade.cube')
+
+
+def test_escape_filter_path():
+    merger = HudMerger()
+    escaped = merger._escape_filter_path(path=Path("color:lut's/test.cube"))
+    assert r'\:' in escaped
+    assert r'\'' in escaped
 
 
 def test_probe_video_file_not_found():
@@ -379,3 +398,105 @@ def test_merge_failure():
     ):
         with pytest.raises(RuntimeError, match='FFmpeg merge failed'):
             merger.merge(options=options)
+
+
+def test_build_filter_complex_with_lut():
+    merger = HudMerger()
+    gopro = VideoMetadata(
+        width=1920,
+        height=1080,
+        duration_ms=50000,
+        has_audio=False,
+    )
+    hud = VideoMetadata(
+        width=1920,
+        height=1080,
+        duration_ms=50000,
+        has_audio=False,
+    )
+
+    filter_str = merger.build_filter_complex(
+        gopro_meta=gopro,
+        hud_meta=hud,
+        final_duration_ms=50000,
+        fade_duration_ms=5000,
+        fade_start_ms=45000,
+        lut_path=Path('luts/grade.cube'),
+    )
+
+    assert (
+        "[0:v]lut3d=file='luts/grade.cube',"
+        'trim=duration=50.000,fade=t=out:st=45.000:d=5.000[gopro_v]'
+        in filter_str
+    )
+    assert '[1:v][2:v]alphamerge[ovr]' in filter_str
+
+
+def test_build_ffmpeg_command_with_lut():
+    merger = HudMerger()
+    options = HudMergeOptions(
+        gopro_path=Path('gopro.mp4'),
+        hud_path=Path('hud.mp4'),
+        hud_alpha_path=Path('alpha.mp4'),
+        output_path=Path('out.mp4'),
+        lut_path=Path('grade.cube'),
+    )
+    gopro = VideoMetadata(
+        width=1920,
+        height=1080,
+        duration_ms=40000,
+        has_audio=False,
+    )
+    hud = VideoMetadata(
+        width=1920,
+        height=1080,
+        duration_ms=40000,
+        has_audio=False,
+    )
+
+    cmd = merger.build_ffmpeg_command(
+        options=options,
+        gopro_meta=gopro,
+        hud_meta=hud,
+    )
+    filter_complex_arg = cmd[cmd.index('-filter_complex') + 1]
+    assert "lut3d=file='grade.cube'" in filter_complex_arg
+
+
+def test_merge_lut_file_not_found():
+    merger = HudMerger()
+    options = HudMergeOptions(
+        gopro_path=Path('gopro.mp4'),
+        hud_path=Path('hud.mp4'),
+        hud_alpha_path=Path('alpha.mp4'),
+        output_path=Path('merged.mp4'),
+        lut_path=Path('non_existent.cube'),
+    )
+    with pytest.raises(FileNotFoundError, match='LUT file not found'):
+        merger.merge(options=options)
+
+
+def test_merge_with_lut_success():
+    merger = HudMerger()
+    options = HudMergeOptions(
+        gopro_path=Path('gopro.mp4'),
+        hud_path=Path('hud.mp4'),
+        hud_alpha_path=Path('alpha.mp4'),
+        output_path=Path('merged.mp4'),
+        lut_path=Path('grade.cube'),
+    )
+    dummy_meta = VideoMetadata(
+        width=1920,
+        height=1080,
+        duration_ms=30000,
+        has_audio=False,
+    )
+
+    with (
+        patch('pathlib.Path.exists', return_value=True),
+        patch.object(merger, 'probe_video', return_value=dummy_meta),
+        patch('pathlib.Path.mkdir'),
+        patch('subprocess.run') as mock_run,
+    ):
+        merger.merge(options=options)
+        mock_run.assert_called_once()

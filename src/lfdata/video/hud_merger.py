@@ -54,6 +54,7 @@ class HudMergeOptions:
         crf: Constant rate factor for libx264 encoding.
         preset: Encoding preset for libx264.
         overwrite: Whether to overwrite existing output files.
+        lut_path: Path to a 3D LUT (.cube) file to apply to the GoPro video.
     """
 
     gopro_path: Path
@@ -64,6 +65,7 @@ class HudMergeOptions:
     crf: int = 18
     preset: str = 'medium'
     overwrite: bool = True
+    lut_path: Path | None = None
 
 
 class HudMerger:
@@ -237,6 +239,24 @@ class HudMerger:
         fade_start_ms = max(0, gopro_active_ms - fade_duration_ms)
         return final_duration_ms, fade_duration_ms, fade_start_ms
 
+    def _escape_filter_path(self, path: Path) -> str:
+        """Escape a filesystem path for inclusion in FFmpeg filter expressions.
+
+        Replaces backslashes with forward slashes and escapes colons and single
+        quotes which have syntactic meaning in FFmpeg filtergraphs.
+
+        Args:
+            path: Path to escape.
+
+        Returns:
+            Escaped path string suitable for FFmpeg filter value.
+        """
+        escaped = path.as_posix()
+        escaped = escaped.replace('\\', '/')
+        escaped = escaped.replace(':', r'\:')
+        escaped = escaped.replace("'", r'\'')
+        return escaped
+
     def build_filter_complex(
         self,
         gopro_meta: VideoMetadata,
@@ -244,6 +264,7 @@ class HudMerger:
         final_duration_ms: int,
         fade_duration_ms: int,
         fade_start_ms: int,
+        lut_path: Path | None = None,
     ) -> str:
         """Build the FFmpeg filter_complex graph string.
 
@@ -253,6 +274,7 @@ class HudMerger:
             final_duration_ms: Total duration of final output in ms.
             fade_duration_ms: Duration of fade out in ms.
             fade_start_ms: Start time for fade out in ms.
+            lut_path: Optional path to a 3D LUT (.cube) file for GoPro video.
 
         Returns:
             FFmpeg filter complex string.
@@ -263,10 +285,17 @@ class HudMerger:
         fade_st_s = fade_start_ms / 1000.0
         gopro_active_s = (fade_start_ms + fade_duration_ms) / 1000.0
 
-        gopro_filters: list[str] = [
-            f'trim=duration={gopro_active_s:.3f}',
-            f'fade=t=out:st={fade_st_s:.3f}:d={fade_dur_s:.3f}',
-        ]
+        gopro_filters: list[str] = []
+        if lut_path:
+            escaped_lut = self._escape_filter_path(path=lut_path)
+            gopro_filters.append(f"lut3d=file='{escaped_lut}'")
+
+        gopro_filters.extend(
+            [
+                f'trim=duration={gopro_active_s:.3f}',
+                f'fade=t=out:st={fade_st_s:.3f}:d={fade_dur_s:.3f}',
+            ]
+        )
         if gopro_meta.duration_ms < final_duration_ms:
             pad_dur_s = (final_duration_ms - gopro_meta.duration_ms) / 1000.0
             gopro_filters.append(
@@ -331,6 +360,7 @@ class HudMerger:
             final_duration_ms=final_ms,
             fade_duration_ms=fade_dur_ms,
             fade_start_ms=fade_st_ms,
+            lut_path=options.lut_path,
         )
 
         cmd: list[str] = [
@@ -376,9 +406,12 @@ class HudMerger:
             options: Configuration options for the merge.
 
         Raises:
-            FileNotFoundError: If any input video file does not exist.
+            FileNotFoundError: If any input video file or LUT file does not exist.
             RuntimeError: If FFmpeg execution encounters an error.
         """
+        if options.lut_path and not options.lut_path.exists():
+            raise FileNotFoundError(f'LUT file not found: {options.lut_path}')
+
         gopro_meta = self.probe_video(file_path=options.gopro_path)
         hud_meta = self.probe_video(file_path=options.hud_path)
 

@@ -21,6 +21,7 @@ def test_build_argument_parser_required_arguments():
     assert args.fade_duration_ms == 5000
     assert args.crf == 18
     assert args.preset == 'medium'
+    assert args.lut is None
     assert args.dry_run is False
 
 
@@ -39,6 +40,8 @@ def test_build_argument_parser_custom_options():
             '22',
             '--preset',
             'veryslow',
+            '--lut',
+            'color/grade.cube',
             '--dry-run',
         ]
     )
@@ -46,7 +49,16 @@ def test_build_argument_parser_custom_options():
     assert args.fade_duration_ms == 3000
     assert args.crf == 22
     assert args.preset == 'veryslow'
+    assert args.lut == 'color/grade.cube'
     assert args.dry_run is True
+
+
+def test_build_argument_parser_cube_alias():
+    parser = build_argument_parser()
+    args = parser.parse_args(
+        ['gopro.mp4', 'hud.mp4', 'alpha.mp4', '--cube', 'my_grade.cube']
+    )
+    assert args.lut == 'my_grade.cube'
 
 
 def test_parse_options_default_output():
@@ -58,6 +70,17 @@ def test_parse_options_default_output():
     assert options.hud_path == Path('hud.mp4')
     assert options.hud_alpha_path == Path('alpha.mp4')
     assert options.output_path == Path('videos/gopro-merged.mp4')
+    assert options.lut_path is None
+
+
+def test_parse_options_with_lut():
+    parser = build_argument_parser()
+    args = parser.parse_args(
+        ['gopro.mp4', 'hud.mp4', 'alpha.mp4', '--lut', 'grades/lut.cube']
+    )
+    options = parse_options(args=args)
+
+    assert options.lut_path == Path('grades/lut.cube')
 
 
 def test_parse_options_custom_output():
