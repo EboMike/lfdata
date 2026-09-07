@@ -131,6 +131,33 @@ class AudioMatchResult:
         return self.timestamp_ms / 1000.0
 
 
+@dataclasses.dataclass(frozen=True)
+class AudioMatchDiagnostic:
+    """Detailed diagnostic information about detection around expected time.
+
+    Attributes:
+        expected_timestamp_ms: Target timestamp being verified in ms.
+        tolerance_ms: Tolerance window around target in ms.
+        expected_peak_timestamp_ms: Peak time in tolerance, or None.
+        expected_peak_confidence: Peak score in tolerance, or None.
+        expected_peak_raw_correlation: Raw correlation before vocal penalty.
+        expected_peak_vocal_penalty: Vocal penalty factor (0.0 to 1.0) applied.
+        top_false_positive_timestamp_ms: Time of top out-of-tolerance peak.
+        top_false_positive_confidence: Score of top out-of-tolerance peak.
+        margin: Difference (expected_peak_confidence - top_fp_confidence).
+    """
+
+    expected_timestamp_ms: int
+    tolerance_ms: int
+    expected_peak_timestamp_ms: int | None = None
+    expected_peak_confidence: float | None = None
+    expected_peak_raw_correlation: float | None = None
+    expected_peak_vocal_penalty: float | None = None
+    top_false_positive_timestamp_ms: int | None = None
+    top_false_positive_confidence: float | None = None
+    margin: float | None = None
+
+
 class AudioMatcher:
     """Matches reference sound effects within video or audio recordings.
 
@@ -199,6 +226,199 @@ class AudioMatcher:
             FileNotFoundError: If the video or reference sound file is missing.
             ValueError: If audio duration is shorter than the reference sound.
         """
+        scores, _, _, ms_per_frame, offset_ms, ref_dur_ms = (
+            self._compute_correlation_scores(
+                video_or_audio_path=video_or_audio_path,
+                reference_sound_path=reference_sound_path,
+                start_ms=start_ms,
+                end_ms=end_ms,
+                freq_min_hz=freq_min_hz,
+                freq_max_hz=freq_max_hz,
+            )
+        )
+
+        eff_interval_ms = (
+            min_interval_ms if min_interval_ms is not None else int(ref_dur_ms)
+        )
+        min_dist_frames = max(1, int(eff_interval_ms / ms_per_frame))
+
+        raw_peaks = self._find_peaks_nms(
+            correlation_series=scores,
+            threshold=threshold,
+            min_dist_frames=min_dist_frames,
+        )
+
+        results: list[AudioMatchResult] = []
+        for frame_idx, conf in raw_peaks:
+            match_time_ms = int(round(offset_ms + frame_idx * ms_per_frame))
+            results.append(
+                AudioMatchResult(
+                    timestamp_ms=match_time_ms,
+                    confidence=float(conf),
+                )
+            )
+
+        if max_matches is not None and max_matches > 0:
+            results = results[:max_matches]
+
+        return results
+
+    def match_diagnostic(
+        self,
+        video_or_audio_path: str | Path,
+        reference_sound_path: str | Path,
+        expected_timestamp_ms: int,
+        tolerance_ms: int = 500,
+        threshold: float = 0.2,
+        min_interval_ms: int | None = None,
+        start_ms: int | None = None,
+        end_ms: int | None = None,
+        max_matches: int | None = None,
+        freq_min_hz: float | None = None,
+        freq_max_hz: float | None = None,
+    ) -> tuple[list[AudioMatchResult], AudioMatchDiagnostic]:
+        """Matches a reference sound and extracts detailed diagnostics.
+
+        Extracts audio, computes spectrograms, runs cross-correlation, and
+        analyzes detection performance at and around the expected timestamp.
+
+        Args:
+            video_or_audio_path: Path to the target video or audio file.
+            reference_sound_path: Path to reference sound effect WAV/audio.
+            expected_timestamp_ms: Expected ground-truth timestamp in ms.
+            tolerance_ms: Acceptable error window in ms around expected time.
+            threshold: Minimum correlation score threshold (0.0 to 1.0).
+            min_interval_ms: Minimum ms between detections.
+            start_ms: Optional start offset in ms to restrict search.
+            end_ms: Optional end offset in ms to restrict search.
+            max_matches: Optional limit on returned matches.
+            freq_min_hz: Optional lower frequency bound in Hz.
+            freq_max_hz: Optional upper frequency bound in Hz.
+
+        Returns:
+            tuple[list[AudioMatchResult], AudioMatchDiagnostic]: Matches and
+                diagnostic analysis around the target timestamp.
+
+        Raises:
+            FileNotFoundError: If media file or reference sound is missing.
+            ValueError: If audio duration is shorter than reference sound.
+        """
+        scores, raw_corr, penalty, ms_per_frame, offset_ms, ref_dur_ms = (
+            self._compute_correlation_scores(
+                video_or_audio_path=video_or_audio_path,
+                reference_sound_path=reference_sound_path,
+                start_ms=start_ms,
+                end_ms=end_ms,
+                freq_min_hz=freq_min_hz,
+                freq_max_hz=freq_max_hz,
+            )
+        )
+
+        eff_interval_ms = (
+            min_interval_ms if min_interval_ms is not None else int(ref_dur_ms)
+        )
+        min_dist_frames = max(1, int(eff_interval_ms / ms_per_frame))
+
+        raw_peaks = self._find_peaks_nms(
+            correlation_series=scores,
+            threshold=threshold,
+            min_dist_frames=min_dist_frames,
+        )
+
+        results: list[AudioMatchResult] = []
+        for frame_idx, conf in raw_peaks:
+            match_time_ms = int(round(offset_ms + frame_idx * ms_per_frame))
+            results.append(
+                AudioMatchResult(
+                    timestamp_ms=match_time_ms,
+                    confidence=float(conf),
+                )
+            )
+
+        if max_matches is not None and max_matches > 0:
+            results = results[:max_matches]
+
+        # Extract diagnostic metrics
+        num_scores = len(scores)
+        frame_indices = np.arange(num_scores)
+        frame_times_ms = offset_ms + frame_indices * ms_per_frame
+
+        tol_start = expected_timestamp_ms - tolerance_ms
+        tol_end = expected_timestamp_ms + tolerance_ms
+
+        in_tol_mask = (
+            (frame_times_ms >= tol_start) & (frame_times_ms <= tol_end)
+        )
+        in_tol_indices = np.where(in_tol_mask)[0]
+        out_tol_indices = np.where(~in_tol_mask)[0]
+
+        exp_peak_time: int | None = None
+        exp_peak_conf: float | None = None
+        exp_peak_raw: float | None = None
+        exp_peak_vocal: float | None = None
+
+        if len(in_tol_indices) > 0:
+            best_in = in_tol_indices[np.argmax(scores[in_tol_indices])]
+            exp_peak_time = int(round(frame_times_ms[best_in]))
+            exp_peak_conf = float(scores[best_in])
+            exp_peak_raw = float(raw_corr[best_in])
+            exp_peak_vocal = float(penalty[best_in])
+
+        top_fp_time: int | None = None
+        top_fp_conf: float | None = None
+
+        if len(out_tol_indices) > 0:
+            best_out = out_tol_indices[np.argmax(scores[out_tol_indices])]
+            top_fp_time = int(round(frame_times_ms[best_out]))
+            top_fp_conf = float(scores[best_out])
+
+        margin = (
+            (exp_peak_conf - top_fp_conf)
+            if (exp_peak_conf is not None and top_fp_conf is not None)
+            else None
+        )
+
+        diagnostic = AudioMatchDiagnostic(
+            expected_timestamp_ms=expected_timestamp_ms,
+            tolerance_ms=tolerance_ms,
+            expected_peak_timestamp_ms=exp_peak_time,
+            expected_peak_confidence=exp_peak_conf,
+            expected_peak_raw_correlation=exp_peak_raw,
+            expected_peak_vocal_penalty=exp_peak_vocal,
+            top_false_positive_timestamp_ms=top_fp_time,
+            top_false_positive_confidence=top_fp_conf,
+            margin=margin,
+        )
+
+        return results, diagnostic
+
+    def _compute_correlation_scores(
+        self,
+        video_or_audio_path: str | Path,
+        reference_sound_path: str | Path,
+        start_ms: int | None = None,
+        end_ms: int | None = None,
+        freq_min_hz: float | None = None,
+        freq_max_hz: float | None = None,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, float, int, float]:
+        """Extracts audio and calculates correlation series and vocal penalty.
+
+        Args:
+            video_or_audio_path: Path to target media file.
+            reference_sound_path: Path to reference audio WAV file.
+            start_ms: Optional start offset in milliseconds.
+            end_ms: Optional end offset in milliseconds.
+            freq_min_hz: Optional lower frequency bound in Hz.
+            freq_max_hz: Optional upper frequency bound in Hz.
+
+        Returns:
+            tuple: (final_scores, raw_correlation_series, vocal_penalty,
+                ms_per_frame, offset_ms, ref_duration_ms).
+
+        Raises:
+            FileNotFoundError: If target or reference media is missing.
+            ValueError: If target audio is shorter than reference audio.
+        """
         target_path = Path(video_or_audio_path)
         ref_path = Path(reference_sound_path)
 
@@ -228,13 +448,11 @@ class AudioMatcher:
         mag_target = np.sqrt(s_target[band_mask, :]).astype(np.float32)
         mag_ref = np.sqrt(s_ref[band_mask, :]).astype(np.float32)
 
-        # 2D Normalized cross-correlation on cropped magnitude band
         correlation_matrix = cv2.matchTemplate(
             mag_target, mag_ref, cv2.TM_CCOEFF_NORMED
         )
         correlation_series = correlation_matrix[0]
 
-        # Penalize human vocal/speech fundamentals outside the target band
         penalty = self._compute_vocal_penalty(
             freqs, s_target, s_ref, band_mask, mag_ref.shape[1]
         )
@@ -242,37 +460,16 @@ class AudioMatcher:
 
         ms_per_frame = (self.hop_length / self.sample_rate) * 1000.0
         ref_duration_ms = (len(ref_audio) / self.sample_rate) * 1000.0
-
-        effective_min_interval_ms = (
-            min_interval_ms
-            if min_interval_ms is not None
-            else int(ref_duration_ms)
-        )
-        min_dist_frames = max(
-            1, int(effective_min_interval_ms / ms_per_frame)
-        )
-
         offset_ms = start_ms if start_ms is not None else 0
-        raw_peaks = self._find_peaks_nms(
-            correlation_series=final_scores,
-            threshold=threshold,
-            min_dist_frames=min_dist_frames,
+
+        return (
+            final_scores,
+            correlation_series,
+            penalty,
+            ms_per_frame,
+            offset_ms,
+            ref_duration_ms,
         )
-
-        results: list[AudioMatchResult] = []
-        for frame_idx, conf in raw_peaks:
-            match_time_ms = int(round(offset_ms + frame_idx * ms_per_frame))
-            results.append(
-                AudioMatchResult(
-                    timestamp_ms=match_time_ms,
-                    confidence=float(conf),
-                )
-            )
-
-        if max_matches is not None and max_matches > 0:
-            results = results[:max_matches]
-
-        return results
 
     def match_with_config(
         self,

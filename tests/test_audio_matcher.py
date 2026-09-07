@@ -7,6 +7,7 @@ from scipy.io import wavfile
 
 from lfdata.video import (
     AudioMatchConfig,
+    AudioMatchDiagnostic,
     AudioMatchResult,
     AudioMatcher,
     load_sound_config,
@@ -472,4 +473,44 @@ def test_cli_main_error_without_ref_or_config() -> None:
     with patch('sys.argv', test_args):
         with pytest.raises(SystemExit):
             main()
+
+
+def test_audio_match_diagnostic() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        target_wav = os.path.join(tmpdir, 'target_diag.wav')
+        ref_wav = os.path.join(tmpdir, 'ref_diag.wav')
+
+        sample_rate = 22050
+        duration = 0.3
+        t = np.linspace(0, duration, int(duration * sample_rate))
+        chirp = np.sin(2 * np.pi * (1200.0 * t + 800.0 * (t**2)))
+        wavfile.write(ref_wav, sample_rate, np.int16(chirp * 32767))
+
+        target = np.zeros(int(3.0 * sample_rate), dtype=np.float32)
+        chirp_start = int(1.2 * sample_rate)
+        target[chirp_start : chirp_start + len(chirp)] = chirp
+        wavfile.write(target_wav, sample_rate, np.int16(target * 32767))
+
+        matcher = AudioMatcher(sample_rate=22050, hop_length=256)
+        matches, diag = matcher.match_diagnostic(
+            video_or_audio_path=target_wav,
+            reference_sound_path=ref_wav,
+            expected_timestamp_ms=1200,
+            tolerance_ms=100,
+            threshold=0.3,
+        )
+
+        assert isinstance(diag, AudioMatchDiagnostic)
+        assert len(matches) >= 1
+        assert abs(matches[0].timestamp_ms - 1200) < 30
+        assert diag.expected_peak_raw_correlation is not None
+        assert diag.expected_peak_confidence is not None
+        assert diag.expected_peak_confidence > 0.5
+        if diag.top_false_positive_confidence is not None:
+            assert (
+                diag.top_false_positive_confidence
+                < diag.expected_peak_confidence
+            )
+
+
 

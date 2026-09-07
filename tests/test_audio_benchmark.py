@@ -10,13 +10,10 @@ from scipy.io import wavfile
 from lfdata.video.audio_benchmark import (
     AudioBenchmarkRunner,
     AudioTestCase,
-    BenchmarkSummary,
     SoundDefinition,
     TestCaseEvaluationResult,
-    TuningResult,
     main,
 )
-from lfdata.video.audio_matcher import AudioMatchResult, AudioMatcher
 
 
 def _create_synthetic_chirp(
@@ -307,3 +304,246 @@ def test_cli_evaluate_and_tune(capsys: pytest.CaptureFixture[str]) -> None:
         out_tune = capsys.readouterr().out
         assert 'Best freq_min:' in out_tune
         assert 'Accuracy: 100.0%' in out_tune
+
+
+def test_analyze_threshold_too_high() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ref_file = os.path.join(tmpdir, 'ref.wav')
+        target_file = os.path.join(tmpdir, 'target.wav')
+
+        _create_synthetic_chirp(ref_file)
+        _create_synthetic_target(
+            target_file, ref_file, insert_timestamps_ms=[1500]
+        )
+
+        sound_def = SoundDefinition(
+            name='siren',
+            reference_sound_path=ref_file,
+            freq_min_hz=1000.0,
+            freq_max_hz=2400.0,
+            threshold=0.999,
+            test_cases=[
+                AudioTestCase(
+                    video_path=target_file,
+                    expected_timestamp_ms=1500,
+                    tolerance_ms=100,
+                )
+            ],
+        )
+
+        runner = AudioBenchmarkRunner()
+        analysis = runner.analyze(sound_def)
+
+        assert analysis.passed_cases == 0
+        assert analysis.total_cases == 1
+        tc_an = analysis.case_analyses[0]
+        assert tc_an.evaluation.passed is False
+        assert tc_an.root_cause == 'THRESHOLD_TOO_HIGH'
+        assert tc_an.diagnostic is not None
+        assert tc_an.diagnostic.expected_peak_confidence is not None
+        assert tc_an.diagnostic.expected_peak_confidence > 0.4
+        assert analysis.reconciling_threshold is not None
+        assert analysis.reconciling_threshold < 0.999
+
+
+def test_analyze_diagnoses_vocal_penalty_and_false_positive() -> None:
+    from lfdata.video.audio_matcher import AudioMatchDiagnostic
+
+    runner = AudioBenchmarkRunner()
+    sound_def = SoundDefinition(
+        name='siren',
+        reference_sound_path='ref.wav',
+        threshold=0.5,
+    )
+
+    # 1. Vocal penalty suppression
+    tc1 = AudioTestCase(video_path='v1.mp4', expected_timestamp_ms=1000)
+    diag1 = AudioMatchDiagnostic(
+        expected_timestamp_ms=1000,
+        tolerance_ms=100,
+        expected_peak_timestamp_ms=1000,
+        expected_peak_confidence=0.35,
+        expected_peak_raw_correlation=0.75,
+        expected_peak_vocal_penalty=0.4,
+        top_false_positive_timestamp_ms=500,
+        top_false_positive_confidence=0.1,
+        margin=0.25,
+    )
+    eval1 = TestCaseEvaluationResult(
+        test_case=tc1,
+        passed=False,
+        detected_timestamp_ms=None,
+        error_ms=None,
+        confidence=None,
+        top_false_positive_confidence=0.1,
+        message='No match above threshold 0.5',
+        diagnostic=diag1,
+    )
+    with patch.object(runner, 'evaluate_test_case', return_value=eval1):
+        sound_def.test_cases = [tc1]
+        analysis = runner.analyze(sound_def)
+        assert analysis.case_analyses[0].root_cause == (
+            'VOCAL_PENALTY_SUPPRESSION'
+        )
+
+    # 2. False positive dominance
+    tc2 = AudioTestCase(
+        video_path='v2.mp4', expected_timestamp_ms=1000, tolerance_ms=100
+    )
+    diag2 = AudioMatchDiagnostic(
+        expected_timestamp_ms=1000,
+        tolerance_ms=100,
+        expected_peak_timestamp_ms=1000,
+        expected_peak_confidence=0.6,
+        expected_peak_raw_correlation=0.6,
+        expected_peak_vocal_penalty=1.0,
+        top_false_positive_timestamp_ms=5000,
+        top_false_positive_confidence=0.8,
+        margin=-0.2,
+    )
+    eval2 = TestCaseEvaluationResult(
+        test_case=tc2,
+        passed=False,
+        detected_timestamp_ms=5000,
+        error_ms=4000,
+        confidence=0.8,
+        top_false_positive_confidence=0.8,
+        message='Error 4000ms exceeds tolerance 100ms',
+        diagnostic=diag2,
+    )
+    with patch.object(runner, 'evaluate_test_case', return_value=eval2):
+        sound_def.test_cases = [tc2]
+        analysis = runner.analyze(sound_def)
+        assert analysis.case_analyses[0].root_cause == (
+            'FALSE_POSITIVE_DOMINANCE'
+        )
+
+    # 3. No signal
+    tc3 = AudioTestCase(video_path='v3.mp4', expected_timestamp_ms=1000)
+    diag3 = AudioMatchDiagnostic(
+        expected_timestamp_ms=1000,
+        tolerance_ms=100,
+        expected_peak_timestamp_ms=None,
+        expected_peak_confidence=None,
+    )
+    eval3 = TestCaseEvaluationResult(
+        test_case=tc3,
+        passed=False,
+        detected_timestamp_ms=None,
+        error_ms=None,
+        confidence=None,
+        top_false_positive_confidence=None,
+        message='No match',
+        diagnostic=diag3,
+    )
+    with patch.object(runner, 'evaluate_test_case', return_value=eval3):
+        sound_def.test_cases = [tc3]
+        analysis = runner.analyze(sound_def)
+        assert analysis.case_analyses[0].root_cause == 'NO_SIGNAL'
+
+
+def test_tune_adaptive_reconciliation() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ref_file = os.path.join(tmpdir, 'ref.wav')
+        target1 = os.path.join(tmpdir, 'target1.wav')
+        target2 = os.path.join(tmpdir, 'target2.wav')
+
+        _create_synthetic_chirp(
+            ref_file, start_freq_hz=1400.0, end_freq_hz=2200.0
+        )
+        _create_synthetic_target(
+            target1, ref_file, insert_timestamps_ms=[1000], noise_level=0.02
+        )
+        _create_synthetic_target(
+            target2, ref_file, insert_timestamps_ms=[2000], noise_level=0.02
+        )
+
+        sound_def = SoundDefinition(
+            name='adaptive_sound',
+            reference_sound_path=ref_file,
+            freq_min_hz=1400.0,
+            freq_max_hz=2200.0,
+            threshold=0.999,
+            test_cases=[
+                AudioTestCase(
+                    video_path=target1,
+                    expected_timestamp_ms=1000,
+                    tolerance_ms=100,
+                ),
+                AudioTestCase(
+                    video_path=target2,
+                    expected_timestamp_ms=2000,
+                    tolerance_ms=100,
+                ),
+            ],
+        )
+
+        runner = AudioBenchmarkRunner()
+        # Candidate threshold is intentionally higher than chirp correlation
+        # (~0.995). Adaptive reconciliation discovers reconciling threshold
+        # (< 0.99) and successfully passes both cases.
+        tuning = runner.tune(
+            sound_def=sound_def,
+            min_freq_candidates=[1400.0],
+            max_freq_candidates=[2200.0],
+            threshold_candidates=[0.999],
+        )
+
+        assert tuning.best_accuracy == 1.0
+        assert tuning.best_threshold < 0.99
+        assert tuning.best_mean_error_ms is not None
+        assert tuning.best_mean_error_ms < 50.0
+
+
+def test_cli_analyze_human_and_json(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ref_file = os.path.join(tmpdir, 'ref.wav')
+        target = os.path.join(tmpdir, 'target.wav')
+        config_path = os.path.join(tmpdir, 'config.yaml')
+
+        _create_synthetic_chirp(ref_file)
+        _create_synthetic_target(
+            target, ref_file, insert_timestamps_ms=[1000]
+        )
+
+        sound_def = SoundDefinition(
+            name='cli_analyze_sound',
+            reference_sound_path=ref_file,
+            freq_min_hz=1000.0,
+            freq_max_hz=2400.0,
+            threshold=0.999,
+            test_cases=[
+                AudioTestCase(
+                    video_path=target,
+                    expected_timestamp_ms=1000,
+                    tolerance_ms=100,
+                    description='POV Test',
+                )
+            ],
+        )
+        runner = AudioBenchmarkRunner()
+        runner.save_to_yaml(sound_def, config_path)
+
+        # Test CLI analyze
+        with patch('sys.argv', ['audio_benchmark.py', 'analyze', config_path]):
+            main()
+
+        out_text = capsys.readouterr().out
+        assert 'Root Cause:' in out_text
+        assert 'THRESHOLD_TOO_HIGH' in out_text
+        assert 'Reconciling Threshold:' in out_text
+
+        # Test CLI analyze --json
+        with patch(
+            'sys.argv',
+            ['audio_benchmark.py', 'analyze', config_path, '--json'],
+        ):
+            main()
+
+        out_json = capsys.readouterr().out
+        assert '"passed_cases": 0' in out_json
+        assert '"THRESHOLD_TOO_HIGH"' in out_json
+
+

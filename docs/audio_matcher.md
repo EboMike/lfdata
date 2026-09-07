@@ -349,6 +349,56 @@ Case Details:
      (err: +42ms, conf: 0.6120) - Match detected within tolerance.
 ```
 
+### Diagnostic Failure Analysis (`analyze`)
+
+When test cases fail during evaluation or tuning, the `analyze` command performs
+in-depth diagnostics to determine why detection failed and recommends parameter
+adjustments:
+
+* **PowerShell (Windows)**:
+  ```powershell
+  .\tune-audio.ps1 analyze configs/audio/my_sound.yaml
+  ```
+* **Bash (Linux / macOS / WSL)**:
+  ```bash
+  ./tune-audio.sh analyze configs/audio/my_sound.yaml
+  ```
+* **JSON Output**:
+  ```powershell
+  .\tune-audio.ps1 analyze configs/audio/my_sound.yaml --json
+  ```
+
+#### What It Analyzes
+
+1. **True Signal Peak**: Measures correlation confidence directly within the
+   ground-truth window (`expected_timestamp_ms ± tolerance_ms`).
+2. **Vocal Penalty Effect**: Compares raw correlation against penalized
+   correlation to determine if player speech or shouting suppressed the signal.
+3. **False Positive Ceiling**: Measures the highest confidence spike outside
+   the ground-truth window across the entire search interval.
+4. **Reconciling Threshold**: Determines if a universal threshold exists where:
+   $$\min(\text{True Peaks}) > \max(\text{False Positives})$$
+   If so, it calculates the optimal reconciling threshold:
+   $$
+   T_{\text{rec}} =
+     \frac{\min(\text{True Peaks}) + \max(\text{False Positives})}{2}
+   $$
+   which guarantees 100% test case pass rate with maximum safety margin.
+
+#### Failure Classifications
+
+* `THRESHOLD_TOO_HIGH`: A valid correlation peak exists at the expected time,
+  but the configured threshold is set too high. The runner recommends lowering
+  the threshold to pass all cases without admitting false positives.
+* `VOCAL_PENALTY_SUPPRESSION`: High raw correlation was attenuated below the
+  threshold by the vocal rejection filter. The runner recommends raising
+  `freq_min_hz` to bypass speech fundamental frequencies.
+* `FALSE_POSITIVE_DOMINANCE`: An out-of-tolerance background noise or shout
+  produced a higher peak than the sound effect. The runner recommends narrowing
+  the frequency bounds or restricting the search window.
+* `NO_SIGNAL`: No correlation peak was detected near the expected time. Verify
+  the ground-truth timestamp or expand the frequency band.
+
 ### Automated Parameter Tuning (`tune`)
 
 The `tune` command executes an automated grid search across candidate
@@ -378,6 +428,18 @@ composite scoring formula:
    (+10 points per confidence score).
 4. **False Positive Margin**: Rewards configurations with a wide safety margin
    between true detections and out-of-tolerance noise (+20 points per margin).
+
+#### Adaptive Reconciliation and Failure Recovery
+
+In addition to evaluating predefined parameter candidates, `tune` dynamically
+analyzes failures:
+* If candidate combinations fail on any test case, the tuner invokes failure
+  analysis across all test cases.
+* If a reconciling threshold exists that satisfies all test cases
+  simultaneously, the tuner evaluates it and adopts it if it achieves 100%
+  pass rate.
+* If failures are caused by vocal penalty suppression or false positives, the
+  tuner adaptively expands frequency sweeps to find viable operating bands.
 
 ---
 

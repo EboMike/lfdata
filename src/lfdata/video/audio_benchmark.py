@@ -19,12 +19,15 @@ Usage example:
 import argparse
 import dataclasses
 import json
-import os
 from pathlib import Path
 from typing import Any
 import yaml
 
-from lfdata.video.audio_matcher import AudioMatchResult, AudioMatcher
+from lfdata.video.audio_matcher import (
+    AudioMatchDiagnostic,
+    AudioMatchResult,
+    AudioMatcher,
+)
 
 
 @dataclasses.dataclass
@@ -83,6 +86,7 @@ class TestCaseEvaluationResult:
         confidence: Confidence score of the match, or None.
         top_false_positive_confidence: Highest score outside tolerance, or None.
         message: Informative status or error message.
+        diagnostic: Optional detailed diagnostic information.
     """
 
     __test__ = False
@@ -94,6 +98,28 @@ class TestCaseEvaluationResult:
     confidence: float | None
     top_false_positive_confidence: float | None
     message: str = ''
+    diagnostic: AudioMatchDiagnostic | None = None
+    __test__ = False
+
+
+@dataclasses.dataclass
+class TestCaseAnalysis:
+    """Detailed diagnostic analysis for a single test case.
+
+    Attributes:
+        test_case: The analyzed test case.
+        evaluation: Evaluation result with passed status.
+        diagnostic: AudioMatchDiagnostic with peak and penalty breakdown.
+        root_cause: Identified cause for failure (or 'PASS').
+        recommendation: Actionable suggestion to achieve detection.
+    """
+
+    test_case: AudioTestCase
+    evaluation: TestCaseEvaluationResult
+    diagnostic: AudioMatchDiagnostic | None
+    root_cause: str
+    recommendation: str
+    __test__ = False
 
 
 @dataclasses.dataclass
@@ -115,6 +141,29 @@ class BenchmarkSummary:
     accuracy: float
     mean_error_ms: float | None
     case_results: list[TestCaseEvaluationResult]
+
+
+@dataclasses.dataclass
+class BenchmarkAnalysis:
+    """Summary of comprehensive benchmark analysis across all test cases.
+
+    Attributes:
+        sound_name: Name of evaluated sound.
+        total_cases: Total number of test cases.
+        passed_cases: Number of passing test cases.
+        min_true_peak_confidence: Lowest true hit confidence across all cases.
+        max_false_positive_confidence: Highest false positive confidence.
+        reconciling_threshold: Threshold passing all cases (if margin > 0).
+        case_analyses: Detailed analysis for each test case.
+    """
+
+    sound_name: str
+    total_cases: int
+    passed_cases: int
+    min_true_peak_confidence: float | None
+    max_false_positive_confidence: float | None
+    reconciling_threshold: float | None
+    case_analyses: list[TestCaseAnalysis]
 
 
 @dataclasses.dataclass
@@ -301,9 +350,11 @@ class AudioBenchmarkRunner:
         )
 
         try:
-            matches = self._matcher.match(
+            matches, diag = self._matcher.match_diagnostic(
                 video_or_audio_path=test_case.video_path,
                 reference_sound_path=sound_def.reference_sound_path,
+                expected_timestamp_ms=test_case.expected_timestamp_ms,
+                tolerance_ms=test_case.tolerance_ms,
                 threshold=eff_thresh,
                 start_ms=test_case.search_start_ms,
                 end_ms=test_case.search_end_ms,
@@ -319,9 +370,10 @@ class AudioBenchmarkRunner:
                 confidence=None,
                 top_false_positive_confidence=None,
                 message=f'Matcher failed: {err}',
+                diagnostic=None,
             )
 
-        return self._evaluate_matches(test_case, matches)
+        return self._evaluate_matches(test_case, matches, diagnostic=diag)
 
     def evaluate(
         self,
@@ -372,6 +424,130 @@ class AudioBenchmarkRunner:
             case_results=results,
         )
 
+    def analyze(
+        self,
+        sound_def: SoundDefinition,
+        freq_min_hz: float | None = None,
+        freq_max_hz: float | None = None,
+        threshold: float | None = None,
+    ) -> BenchmarkAnalysis:
+        """Analyzes test cases with detailed failure diagnostics.
+
+        Evaluates each test case, computes true-positive peaks and
+        false-positive ceilings, identifies failure root causes, and
+        calculates reconciling thresholds.
+
+        Args:
+            sound_def: Sound definition containing reference and test cases.
+            freq_min_hz: Optional lower frequency cutoff in Hz override.
+            freq_max_hz: Optional upper frequency cutoff in Hz override.
+            threshold: Optional threshold override.
+
+        Returns:
+            BenchmarkAnalysis: Comprehensive analysis across all test cases.
+        """
+        eff_thresh = (
+            threshold if threshold is not None else sound_def.threshold
+        )
+        case_analyses: list[TestCaseAnalysis] = []
+        true_peaks: list[float] = []
+        false_positives: list[float] = []
+
+        for tc in sound_def.test_cases:
+            res = self.evaluate_test_case(
+                sound_def=sound_def,
+                test_case=tc,
+                freq_min_hz=freq_min_hz,
+                freq_max_hz=freq_max_hz,
+                threshold=threshold,
+            )
+            diag = res.diagnostic
+            root_cause = 'PASS'
+            recommendation = 'Detection successful within tolerance.'
+
+            if not res.passed:
+                if diag is None or diag.expected_peak_confidence is None:
+                    root_cause = 'NO_SIGNAL'
+                    recommendation = (
+                        'No peak detected near expected timestamp. Verify '
+                        'timestamp or widen search window/frequency bounds.'
+                    )
+                else:
+                    exp_conf = diag.expected_peak_confidence
+                    top_fp = diag.top_false_positive_confidence
+                    raw_corr = diag.expected_peak_raw_correlation or 0.0
+                    vocal_pen = diag.expected_peak_vocal_penalty or 1.0
+
+                    if (
+                        raw_corr >= 0.25
+                        and vocal_pen < 0.6
+                        and exp_conf < eff_thresh
+                    ):
+                        root_cause = 'VOCAL_PENALTY_SUPPRESSION'
+                        recommendation = (
+                            f'Raw correlation was {raw_corr:.3f}, but vocal '
+                            f'penalty {vocal_pen:.3f} reduced confidence to '
+                            f'{exp_conf:.3f}. Try increasing freq_min_hz.'
+                        )
+                    elif top_fp is not None and top_fp >= exp_conf:
+                        root_cause = 'FALSE_POSITIVE_DOMINANCE'
+                        fp_ts = diag.top_false_positive_timestamp_ms
+                        recommendation = (
+                            f'Out-of-tolerance noise at {fp_ts}ms '
+                            f'({top_fp:.3f}) exceeds true peak '
+                            f'({exp_conf:.3f}). Restrict search window or '
+                            f'adjust frequency band.'
+                        )
+                    else:
+                        root_cause = 'THRESHOLD_TOO_HIGH'
+                        recom = (
+                            round((exp_conf + top_fp) / 2.0, 3)
+                            if top_fp is not None
+                            else round(exp_conf * 0.9, 3)
+                        )
+                        recommendation = (
+                            f'Peak exists at expected time with confidence '
+                            f'{exp_conf:.3f} (threshold is {eff_thresh:.3f}). '
+                            f'Lower threshold to ~{recom:.3f} to pass.'
+                        )
+
+            if diag is not None:
+                if diag.expected_peak_confidence is not None:
+                    true_peaks.append(diag.expected_peak_confidence)
+                if diag.top_false_positive_confidence is not None:
+                    false_positives.append(diag.top_false_positive_confidence)
+
+            case_analyses.append(
+                TestCaseAnalysis(
+                    test_case=tc,
+                    evaluation=res,
+                    diagnostic=diag,
+                    root_cause=root_cause,
+                    recommendation=recommendation,
+                )
+            )
+
+        min_tp = min(true_peaks) if true_peaks else None
+        max_fp = max(false_positives) if false_positives else None
+        reconciling_thresh: float | None = None
+
+        if min_tp is not None:
+            if max_fp is None:
+                reconciling_thresh = round(min_tp * 0.85, 3)
+            elif min_tp > max_fp:
+                reconciling_thresh = round((min_tp + max_fp) / 2.0, 3)
+
+        passed_count = sum(1 for c in case_analyses if c.evaluation.passed)
+        return BenchmarkAnalysis(
+            sound_name=sound_def.name,
+            total_cases=len(case_analyses),
+            passed_cases=passed_count,
+            min_true_peak_confidence=min_tp,
+            max_false_positive_confidence=max_fp,
+            reconciling_threshold=reconciling_thresh,
+            case_analyses=case_analyses,
+        )
+
     def tune(
         self,
         sound_def: SoundDefinition,
@@ -381,55 +557,122 @@ class AudioBenchmarkRunner:
     ) -> TuningResult:
         """Finds optimal frequency bounds and thresholds across test cases.
 
-        Evaluates parameter combinations and selects the one with highest
-        accuracy, lowest timing error, and highest false-positive margin.
+        Evaluates parameter combinations, performs failure analysis to
+        discover reconciling thresholds that maintain passes across all cases,
+        and adaptively expands search boundaries when test cases fail.
 
         Args:
             sound_def: Sound definition with test cases.
-            min_freq_candidates: List of lower frequency cutoffs to evaluate.
-            max_freq_candidates: List of upper frequency cutoffs to evaluate.
-            threshold_candidates: List of thresholds to evaluate.
+            min_freq_candidates: Optional lower frequency cutoffs to evaluate.
+            max_freq_candidates: Optional upper frequency cutoffs to evaluate.
+            threshold_candidates: Optional thresholds to evaluate.
 
         Returns:
             TuningResult: Optimal parameter values and benchmark summary.
         """
-        min_freqs = min_freq_candidates or [
+        min_freqs = list(min_freq_candidates) if min_freq_candidates else [
             sound_def.freq_min_hz or 1000.0,
             1200.0,
             1400.0,
             1600.0,
         ]
-        max_freqs = max_freq_candidates or [
+        max_freqs = list(max_freq_candidates) if max_freq_candidates else [
             sound_def.freq_max_hz or 2500.0,
             2200.0,
             2400.0,
             2600.0,
         ]
-        thresholds = threshold_candidates or [0.15, 0.20, 0.25]
+        thresholds = list(threshold_candidates) if threshold_candidates else [
+            0.15,
+            0.20,
+            0.25,
+        ]
 
         best_tuple: tuple[float, float, float] | None = None
         best_summary: BenchmarkSummary | None = None
         best_score = -1e9
+        evaluated_pairs: set[tuple[float, float]] = set()
 
+        def _eval_pair(f_min: float, f_max: float) -> None:
+            nonlocal best_tuple, best_summary, best_score
+            pair = (f_min, f_max)
+            if pair in evaluated_pairs or f_min >= f_max:
+                return
+            evaluated_pairs.add(pair)
+
+            analysis = self.analyze(
+                sound_def=sound_def,
+                freq_min_hz=f_min,
+                freq_max_hz=f_max,
+            )
+
+            tested_thresh = list(thresholds)
+            if analysis.reconciling_threshold is not None:
+                tested_thresh.append(analysis.reconciling_threshold)
+
+            for thresh in tested_thresh:
+                summary = self.evaluate(
+                    sound_def=sound_def,
+                    freq_min_hz=f_min,
+                    freq_max_hz=f_max,
+                    threshold=thresh,
+                )
+                score = self._compute_tuning_score(summary)
+                if score > best_score or best_summary is None:
+                    best_score = score
+                    best_tuple = (f_min, f_max, thresh)
+                    best_summary = summary
+
+        # 1. Initial grid sweep
         for f_min in min_freqs:
             for f_max in max_freqs:
-                if f_min >= f_max:
+                _eval_pair(f_min, f_max)
+
+        # 2. Adaptive sweep if any test case is failing
+        if (
+            best_summary is not None
+            and best_summary.accuracy < 1.0
+            and not min_freq_candidates
+            and not max_freq_candidates
+        ):
+            cur_fmin = best_tuple[0] if best_tuple else None
+            cur_fmax = best_tuple[1] if best_tuple else None
+            cur_th = best_tuple[2] if best_tuple else None
+
+            adaptive_analysis = self.analyze(
+                sound_def=sound_def,
+                freq_min_hz=cur_fmin,
+                freq_max_hz=cur_fmax,
+                threshold=cur_th,
+            )
+
+            adaptive_min: list[float] = []
+            adaptive_max: list[float] = []
+
+            for ca in adaptive_analysis.case_analyses:
+                if ca.evaluation.passed:
                     continue
-                for thresh in thresholds:
-                    summary = self.evaluate(
-                        sound_def=sound_def,
-                        freq_min_hz=f_min,
-                        freq_max_hz=f_max,
-                        threshold=thresh,
-                    )
-                    score = self._compute_tuning_score(summary)
-                    if score > best_score or best_summary is None:
-                        best_score = score
-                        best_tuple = (f_min, f_max, thresh)
-                        best_summary = summary
+                if ca.root_cause == 'VOCAL_PENALTY_SUPPRESSION':
+                    adaptive_min.extend([1600.0, 1800.0, 2000.0])
+                elif ca.root_cause == 'FALSE_POSITIVE_DOMINANCE':
+                    adaptive_min.extend([1300.0, 1500.0])
+                    adaptive_max.extend([2100.0, 2300.0])
+                elif ca.root_cause == 'NO_SIGNAL':
+                    adaptive_min.extend([800.0, 1000.0])
+                    adaptive_max.extend([2800.0, 3000.0])
+
+            base_min = cur_fmin or 1400.0
+            base_max = cur_fmax or 2400.0
+
+            for f_min in set(adaptive_min):
+                _eval_pair(f_min, base_max)
+            for f_max in set(adaptive_max):
+                _eval_pair(base_min, f_max)
+            for f_min in set(adaptive_min):
+                for f_max in set(adaptive_max):
+                    _eval_pair(f_min, f_max)
 
         if best_tuple is None or best_summary is None:
-            # Fallback to current parameters
             best_summary = self.evaluate(sound_def)
             best_tuple = (
                 sound_def.freq_min_hz or 0.0,
@@ -450,12 +693,14 @@ class AudioBenchmarkRunner:
         self,
         test_case: AudioTestCase,
         matches: list[AudioMatchResult],
+        diagnostic: AudioMatchDiagnostic | None = None,
     ) -> TestCaseEvaluationResult:
         """Determines if matches satisfy ground-truth tolerance criteria.
 
         Args:
             test_case: Test case containing expected timestamp and tolerance.
             matches: List of match results returned by the audio matcher.
+            diagnostic: Optional diagnostic information.
 
         Returns:
             TestCaseEvaluationResult: Outcome details.
@@ -469,6 +714,7 @@ class AudioBenchmarkRunner:
                 confidence=None,
                 top_false_positive_confidence=None,
                 message='No matches detected above threshold.',
+                diagnostic=diagnostic,
             )
 
         expected = test_case.expected_timestamp_ms
@@ -500,6 +746,7 @@ class AudioBenchmarkRunner:
                 confidence=best_fp.confidence,
                 top_false_positive_confidence=top_fp_conf,
                 message=f'Match at {best_fp.timestamp_ms}ms outside tolerance.',
+                diagnostic=diagnostic,
             )
 
         best_hit = in_tolerance[0]
@@ -512,6 +759,7 @@ class AudioBenchmarkRunner:
             confidence=best_hit.confidence,
             top_false_positive_confidence=top_fp_conf,
             message='Match detected within tolerance.',
+            diagnostic=diagnostic,
         )
 
     def _compute_tuning_score(self, summary: BenchmarkSummary) -> float:
@@ -576,6 +824,25 @@ def main() -> None:
     )
     tune_parser.add_argument('--json', action='store_true', help='Output JSON.')
 
+    analyze_parser = subparsers.add_parser(
+        'analyze', help='Diagnose failures and analyze test cases in a config.'
+    )
+    analyze_parser.add_argument(
+        'config', help='Path to sound config YAML file.'
+    )
+    analyze_parser.add_argument(
+        '--json', action='store_true', help='Output JSON.'
+    )
+    analyze_parser.add_argument(
+        '--freq-min', type=float, help='Override freq_min'
+    )
+    analyze_parser.add_argument(
+        '--freq-max', type=float, help='Override freq_max'
+    )
+    analyze_parser.add_argument(
+        '--threshold', type=float, help='Override thresh'
+    )
+
     args = parser.parse_args()
     runner = AudioBenchmarkRunner()
     sound_def = runner.load_from_yaml(args.config)
@@ -605,6 +872,18 @@ def main() -> None:
             print(json.dumps(dataclasses.asdict(tuning), indent=2))
         else:
             _print_tuning(tuning)
+
+    elif args.command == 'analyze':
+        analysis = runner.analyze(
+            sound_def=sound_def,
+            freq_min_hz=args.freq_min,
+            freq_max_hz=args.freq_max,
+            threshold=args.threshold,
+        )
+        if args.json:
+            print(json.dumps(dataclasses.asdict(analysis), indent=2))
+        else:
+            _print_analysis(analysis)
 
 
 def _print_summary(summary: BenchmarkSummary) -> None:
@@ -646,6 +925,83 @@ def _print_tuning(tuning: TuningResult) -> None:
     print(f'Accuracy: {tuning.best_accuracy * 100:.1f}%')
     if tuning.best_mean_error_ms is not None:
         print(f'Mean Error: {tuning.best_mean_error_ms:.1f} ms')
+
+
+def _print_analysis(analysis: BenchmarkAnalysis) -> None:
+    """Prints a formatted failure diagnosis and analysis report to stdout.
+
+    Args:
+        analysis: BenchmarkAnalysis instance to print.
+    """
+    print(f'Sound: {analysis.sound_name}')
+    accuracy = (
+        (analysis.passed_cases / analysis.total_cases * 100.0)
+        if analysis.total_cases > 0
+        else 0.0
+    )
+    print(
+        f'Passed: {analysis.passed_cases}/{analysis.total_cases} '
+        f'({accuracy:.1f}%)'
+    )
+    if analysis.min_true_peak_confidence is not None:
+        min_tp = analysis.min_true_peak_confidence
+        print(f'Min True Peak Confidence: {min_tp:.4f}')
+    if analysis.max_false_positive_confidence is not None:
+        max_fp = analysis.max_false_positive_confidence
+        print(f'Max False Positive Confidence: {max_fp:.4f}')
+    if analysis.reconciling_threshold is not None:
+        rec_th = analysis.reconciling_threshold
+        print(f'Reconciling Threshold: {rec_th:.3f} (passes all cases)')
+    else:
+        print(
+            'Reconciling Threshold: None (false positive ceiling >= true peak)'
+        )
+
+    print('\nCase Analyses:')
+    for i, a in enumerate(analysis.case_analyses, 1):
+        status = 'PASS' if a.evaluation.passed else 'FAIL'
+        exp_ms = a.test_case.expected_timestamp_ms
+        det_ms = a.evaluation.detected_timestamp_ms
+        det_str = f'{det_ms}ms' if det_ms is not None else 'None'
+        print(f'  {i}. [{status}] expected: {exp_ms}ms, detected: {det_str}')
+        if not a.evaluation.passed:
+            print(f'     Root Cause: {a.root_cause}')
+            if (
+                a.diagnostic
+                and a.diagnostic.expected_peak_timestamp_ms is not None
+            ):
+                d = a.diagnostic
+                raw_s = (
+                    f'{d.expected_peak_raw_correlation:.3f}'
+                    if d.expected_peak_raw_correlation is not None
+                    else 'N/A'
+                )
+                voc_s = (
+                    f'{d.expected_peak_vocal_penalty:.3f}'
+                    if d.expected_peak_vocal_penalty is not None
+                    else 'N/A'
+                )
+                conf_s = (
+                    f'{d.expected_peak_confidence:.4f}'
+                    if d.expected_peak_confidence is not None
+                    else 'N/A'
+                )
+                print(
+                    f'     Target Peak: {d.expected_peak_timestamp_ms}ms '
+                    f'(conf: {conf_s}, raw: {raw_s}, vocal_penalty: {voc_s})'
+                )
+            if (
+                a.diagnostic
+                and a.diagnostic.top_false_positive_confidence is not None
+            ):
+                d = a.diagnostic
+                fp_conf = d.top_false_positive_confidence
+                print(
+                    f'     Top False Positive: '
+                    f'{d.top_false_positive_timestamp_ms}ms '
+                    f'(conf: {fp_conf:.4f})'
+                )
+            print(f'     Recommendation: {a.recommendation}')
 
 
 if __name__ == '__main__':

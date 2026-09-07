@@ -20,6 +20,7 @@ from lfdata.video.chapter import LFChapter, LFChapterGenerator
 if TYPE_CHECKING:
     from lfdata.video.audio_matcher import (
         AudioMatchConfig,
+        AudioMatchDiagnostic,
         AudioMatchResult,
         AudioMatcher,
         load_sound_config,
@@ -27,8 +28,10 @@ if TYPE_CHECKING:
     from lfdata.video.audio_benchmark import (
         AudioBenchmarkRunner,
         AudioTestCase,
+        BenchmarkAnalysis,
         BenchmarkSummary,
         SoundDefinition,
+        TestCaseAnalysis,
         TestCaseEvaluationResult,
         TuningResult,
     )
@@ -42,12 +45,15 @@ __all__ = [
     'LFChapterGenerator',
     'AudioMatcher',
     'AudioMatchResult',
+    'AudioMatchDiagnostic',
     'AudioMatchConfig',
     'load_sound_config',
     'AudioBenchmarkRunner',
     'AudioTestCase',
+    'BenchmarkAnalysis',
     'BenchmarkSummary',
     'SoundDefinition',
+    'TestCaseAnalysis',
     'TestCaseEvaluationResult',
     'TuningResult',
 ]
@@ -68,6 +74,7 @@ def __getattr__(name: str) -> Any:
     matcher_attrs = {
         'AudioMatcher',
         'AudioMatchResult',
+        'AudioMatchDiagnostic',
         'AudioMatchConfig',
         'load_sound_config',
     }
@@ -78,8 +85,10 @@ def __getattr__(name: str) -> Any:
     benchmark_attrs = {
         'AudioBenchmarkRunner',
         'AudioTestCase',
+        'BenchmarkAnalysis',
         'BenchmarkSummary',
         'SoundDefinition',
+        'TestCaseAnalysis',
         'TestCaseEvaluationResult',
         'TuningResult',
     }
