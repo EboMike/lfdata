@@ -18,7 +18,12 @@ from lfdata.video.renderer import VideoGenerator
 from lfdata.video.chapter import LFChapter, LFChapterGenerator
 
 if TYPE_CHECKING:
-    from lfdata.video.audio_matcher import AudioMatcher, AudioMatchResult
+    from lfdata.video.audio_matcher import (
+        AudioMatchConfig,
+        AudioMatchResult,
+        AudioMatcher,
+        load_sound_config,
+    )
     from lfdata.video.audio_benchmark import (
         AudioBenchmarkRunner,
         AudioTestCase,
@@ -37,6 +42,8 @@ __all__ = [
     'LFChapterGenerator',
     'AudioMatcher',
     'AudioMatchResult',
+    'AudioMatchConfig',
+    'load_sound_config',
     'AudioBenchmarkRunner',
     'AudioTestCase',
     'BenchmarkSummary',
@@ -58,14 +65,16 @@ def __getattr__(name: str) -> Any:
     Raises:
         AttributeError: If attribute is not recognized.
     """
-    if name == 'AudioMatcher':
-        from lfdata.video.audio_matcher import AudioMatcher
+    matcher_attrs = {
+        'AudioMatcher',
+        'AudioMatchResult',
+        'AudioMatchConfig',
+        'load_sound_config',
+    }
+    if name in matcher_attrs:
+        import lfdata.video.audio_matcher as am
 
-        return AudioMatcher
-    if name == 'AudioMatchResult':
-        from lfdata.video.audio_matcher import AudioMatchResult
-
-        return AudioMatchResult
+        return getattr(am, name)
     benchmark_attrs = {
         'AudioBenchmarkRunner',
         'AudioTestCase',

@@ -30,11 +30,83 @@ try:
     import numpy as np
     from scipy.io import wavfile
     from scipy.signal import spectrogram
+    import yaml
 except ImportError as err:
     raise ImportError(
-        'Audio matching requires numpy, scipy, and opencv-python. '
+        'Audio matching requires numpy, scipy, opencv-python, and PyYAML. '
         'Install them using `pip install lfdata[video]`.'
     ) from err
+
+
+@dataclasses.dataclass(frozen=True)
+class AudioMatchConfig:
+    """Configuration parameters loaded from a sound definition YAML file.
+
+    Attributes:
+        reference_sound_path: Path to the reference sound effect audio file.
+        freq_min_hz: Optional lower frequency cutoff in Hz.
+        freq_max_hz: Optional upper frequency cutoff in Hz.
+        threshold: Minimum confidence score threshold (default: 0.2).
+    """
+
+    reference_sound_path: str
+    freq_min_hz: float | None = None
+    freq_max_hz: float | None = None
+    threshold: float = 0.2
+
+
+def load_sound_config(config_path: str | Path) -> AudioMatchConfig:
+    """Loads sound configuration parameters from a YAML file.
+
+    Resolves relative reference sound paths against the directory containing
+    the configuration file.
+
+    Args:
+        config_path: Path to the YAML sound configuration file.
+
+    Returns:
+        AudioMatchConfig: Parsed configuration parameters.
+
+    Raises:
+        FileNotFoundError: If the configuration file does not exist.
+        ValueError: If required fields are missing or the file is invalid YAML.
+    """
+    path = Path(config_path).resolve()
+    if not path.exists():
+        raise FileNotFoundError(f'Config file not found: {path}')
+
+    with open(path, 'r', encoding='utf-8') as file_obj:
+        raw_data = yaml.safe_load(file_obj)
+
+    if not isinstance(raw_data, dict):
+        raise ValueError(f'Invalid YAML configuration in {path}')
+
+    ref_path = raw_data.get('reference_sound_path')
+    if not ref_path:
+        raise ValueError(
+            "Missing required field 'reference_sound_path' in config."
+        )
+
+    ref_path_obj = Path(ref_path)
+    if not ref_path_obj.is_absolute():
+        resolved_ref_path = str((path.parent / ref_path_obj).resolve())
+    else:
+        resolved_ref_path = str(ref_path_obj)
+
+    raw_freq_min = raw_data.get('freq_min_hz')
+    freq_min = float(raw_freq_min) if raw_freq_min is not None else None
+
+    raw_freq_max = raw_data.get('freq_max_hz')
+    freq_max = float(raw_freq_max) if raw_freq_max is not None else None
+
+    threshold = float(raw_data.get('threshold', 0.2))
+
+    return AudioMatchConfig(
+        reference_sound_path=resolved_ref_path,
+        freq_min_hz=freq_min,
+        freq_max_hz=freq_max,
+        threshold=threshold,
+    )
 
 
 @dataclasses.dataclass(frozen=True)
@@ -201,6 +273,70 @@ class AudioMatcher:
             results = results[:max_matches]
 
         return results
+
+    def match_with_config(
+        self,
+        video_or_audio_path: str | Path,
+        config: AudioMatchConfig | str | Path,
+        threshold: float | None = None,
+        min_interval_ms: int | None = None,
+        start_ms: int | None = None,
+        end_ms: int | None = None,
+        max_matches: int | None = None,
+        freq_min_hz: float | None = None,
+        freq_max_hz: float | None = None,
+    ) -> list[AudioMatchResult]:
+        """Matches a reference sound using a configuration object or file.
+
+        Loads reference sound path and frequency settings from the
+        configuration, allowing explicit arguments to override configuration
+        defaults.
+
+        Args:
+            video_or_audio_path: Path to the target video or audio file.
+            config: AudioMatchConfig instance or path to a YAML config file.
+            threshold: Optional threshold override. Defaults to config value.
+            min_interval_ms: Optional minimum interval between detections in ms.
+            start_ms: Optional start offset in milliseconds.
+            end_ms: Optional end offset in milliseconds.
+            max_matches: Optional limit on the number of returned matches.
+            freq_min_hz: Optional lower frequency bound override in Hz.
+            freq_max_hz: Optional upper frequency bound override in Hz.
+
+        Returns:
+            list[AudioMatchResult]: Candidate matches sorted by confidence.
+
+        Raises:
+            FileNotFoundError: If the media file, config, or sound is missing.
+            ValueError: If audio duration is shorter than the reference sound.
+        """
+        match_cfg = (
+            config
+            if isinstance(config, AudioMatchConfig)
+            else load_sound_config(config)
+        )
+
+        eff_threshold = (
+            threshold if threshold is not None else match_cfg.threshold
+        )
+        eff_freq_min = (
+            freq_min_hz if freq_min_hz is not None else match_cfg.freq_min_hz
+        )
+        eff_freq_max = (
+            freq_max_hz if freq_max_hz is not None else match_cfg.freq_max_hz
+        )
+
+        return self.match(
+            video_or_audio_path=video_or_audio_path,
+            reference_sound_path=match_cfg.reference_sound_path,
+            threshold=eff_threshold,
+            min_interval_ms=min_interval_ms,
+            start_ms=start_ms,
+            end_ms=end_ms,
+            max_matches=max_matches,
+            freq_min_hz=eff_freq_min,
+            freq_max_hz=eff_freq_max,
+        )
 
     def _load_audio(
         self,
@@ -441,13 +577,21 @@ def main() -> None:
     parser.add_argument(
         'reference',
         type=str,
-        help='Path to reference sound effect WAV file.',
+        nargs='?',
+        default=None,
+        help='Path to reference sound WAV (optional if --config is provided).',
+    )
+    parser.add_argument(
+        '--config',
+        type=str,
+        default=None,
+        help='Path to sound definition YAML file (e.g. sm5_game_start.yaml).',
     )
     parser.add_argument(
         '--threshold',
         type=float,
-        default=0.2,
-        help='Minimum confidence threshold (default: 0.2).',
+        default=None,
+        help='Minimum confidence threshold (overrides config or defaults 0.2).',
     )
     parser.add_argument(
         '--min-interval-ms',
@@ -492,17 +636,42 @@ def main() -> None:
     )
 
     args = parser.parse_args()
+
+    if not args.reference and not args.config:
+        parser.error(
+            'Either a reference sound WAV path or --config must be provided.'
+        )
+
+    ref_path = args.reference
+    eff_threshold = args.threshold
+    eff_freq_min = args.freq_min
+    eff_freq_max = args.freq_max
+
+    if args.config:
+        cfg = load_sound_config(args.config)
+        if not ref_path:
+            ref_path = cfg.reference_sound_path
+        if eff_threshold is None:
+            eff_threshold = cfg.threshold
+        if eff_freq_min is None:
+            eff_freq_min = cfg.freq_min_hz
+        if eff_freq_max is None:
+            eff_freq_max = cfg.freq_max_hz
+
+    if eff_threshold is None:
+        eff_threshold = 0.2
+
     matcher = AudioMatcher()
     results = matcher.match(
         video_or_audio_path=args.video,
-        reference_sound_path=args.reference,
-        threshold=args.threshold,
+        reference_sound_path=ref_path,
+        threshold=eff_threshold,
         min_interval_ms=args.min_interval_ms,
         start_ms=args.start_ms,
         end_ms=args.end_ms,
         max_matches=args.max_matches,
-        freq_min_hz=args.freq_min,
-        freq_max_hz=args.freq_max,
+        freq_min_hz=eff_freq_min,
+        freq_max_hz=eff_freq_max,
     )
 
     if args.json:

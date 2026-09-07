@@ -127,4 +127,4 @@ fonts/
 
 # Local audio benchmark configs
 configs/audio/sm5_game_start.yaml
-
+configs/audio/sm5_game_start_last_good.yaml

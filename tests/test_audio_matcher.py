@@ -5,7 +5,12 @@ import numpy as np
 import pytest
 from scipy.io import wavfile
 
-from lfdata.video import AudioMatcher, AudioMatchResult
+from lfdata.video import (
+    AudioMatchConfig,
+    AudioMatchResult,
+    AudioMatcher,
+    load_sound_config,
+)
 
 
 def _create_synthetic_wav(
@@ -306,3 +311,165 @@ def test_cli_main(capsys: pytest.CaptureFixture[str]) -> None:
         captured = capsys.readouterr()
         assert 'timestamp_ms' in captured.out
         assert '1000' in captured.out or '998' in captured.out
+
+
+def test_load_sound_config_valid() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        config_file = os.path.join(tmpdir, 'sound.yaml')
+        ref_wav = os.path.join(tmpdir, 'ref.wav')
+        with open(ref_wav, 'w') as f:
+            f.write('')
+
+        with open(config_file, 'w', encoding='utf-8') as f:
+            f.write(
+                f'name: test_sound\n'
+                f'reference_sound_path: {ref_wav}\n'
+                f'freq_min_hz: 1200.0\n'
+                f'freq_max_hz: 2400.0\n'
+                f'threshold: 0.35\n'
+            )
+
+        cfg = load_sound_config(config_file)
+        assert cfg.reference_sound_path == str(Path(ref_wav).resolve())
+        assert cfg.freq_min_hz == 1200.0
+        assert cfg.freq_max_hz == 2400.0
+        assert cfg.threshold == 0.35
+
+
+def test_load_sound_config_relative_path() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        config_file = os.path.join(tmpdir, 'sound.yaml')
+        with open(config_file, 'w', encoding='utf-8') as f:
+            f.write(
+                'name: test_sound\n'
+                'reference_sound_path: sounds/alert.wav\n'
+            )
+
+        cfg = load_sound_config(config_file)
+        expected_ref = str((Path(tmpdir) / 'sounds' / 'alert.wav').resolve())
+        assert cfg.reference_sound_path == expected_ref
+        assert cfg.threshold == 0.2
+        assert cfg.freq_min_hz is None
+        assert cfg.freq_max_hz is None
+
+
+def test_load_sound_config_errors() -> None:
+    with pytest.raises(FileNotFoundError):
+        load_sound_config('non_existent_config.yaml')
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        invalid_yaml = os.path.join(tmpdir, 'invalid.yaml')
+        with open(invalid_yaml, 'w', encoding='utf-8') as f:
+            f.write('- just\n- a\n- list\n')
+        with pytest.raises(ValueError, match='Invalid YAML configuration'):
+            load_sound_config(invalid_yaml)
+
+        missing_ref = os.path.join(tmpdir, 'missing_ref.yaml')
+        with open(missing_ref, 'w', encoding='utf-8') as f:
+            f.write('name: alert\nfreq_min_hz: 1000\n')
+        with pytest.raises(ValueError, match='Missing required field'):
+            load_sound_config(missing_ref)
+
+
+def test_match_with_config() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        target_wav = os.path.join(tmpdir, 'target.wav')
+        ref_wav = os.path.join(tmpdir, 'ref.wav')
+        config_file = os.path.join(tmpdir, 'sound.yaml')
+
+        sample_rate = 22050
+        duration = 0.4
+        t = np.linspace(0, duration, int(duration * sample_rate))
+        chirp = np.sin(2 * np.pi * (1200.0 * t + 800.0 * (t**2)))
+        wavfile.write(ref_wav, sample_rate, np.int16(chirp * 32767))
+
+        target = np.zeros(int(2.5 * sample_rate), dtype=np.float32)
+        target[int(0.8 * sample_rate) : int(0.8 * sample_rate) + len(chirp)] = (
+            chirp
+        )
+        wavfile.write(target_wav, sample_rate, np.int16(target * 32767))
+
+        with open(config_file, 'w', encoding='utf-8') as f:
+            f.write(
+                f'name: test_chirp\n'
+                f'reference_sound_path: {ref_wav}\n'
+                f'freq_min_hz: 1000.0\n'
+                f'freq_max_hz: 2500.0\n'
+                f'threshold: 0.3\n'
+            )
+
+        matcher = AudioMatcher()
+        # Test passing path string
+        results_from_path = matcher.match_with_config(target_wav, config_file)
+        assert len(results_from_path) >= 1
+        assert abs(results_from_path[0].timestamp_ms - 800) < 30
+
+        # Test passing AudioMatchConfig instance with override
+        cfg_obj = AudioMatchConfig(
+            reference_sound_path=ref_wav,
+            freq_min_hz=1000.0,
+            freq_max_hz=2500.0,
+            threshold=0.2,
+        )
+        results_from_obj = matcher.match_with_config(
+            target_wav, cfg_obj, threshold=0.4
+        )
+        assert len(results_from_obj) >= 1
+        assert abs(results_from_obj[0].timestamp_ms - 800) < 30
+
+
+def test_cli_main_with_config(capsys: pytest.CaptureFixture[str]) -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        target_wav = os.path.join(tmpdir, 'cli_target.wav')
+        ref_wav = os.path.join(tmpdir, 'cli_ref.wav')
+        config_file = os.path.join(tmpdir, 'sound.yaml')
+
+        sample_rate = 22050
+        duration = 0.4
+        t = np.linspace(0, duration, int(duration * sample_rate))
+        chirp = np.sin(2 * np.pi * (1000.0 * t + 1000.0 * (t**2)))
+        wavfile.write(ref_wav, sample_rate, np.int16(chirp * 32767))
+
+        target = np.zeros(int(3.0 * sample_rate), dtype=np.float32)
+        target[int(1.0 * sample_rate) : int(1.0 * sample_rate) + len(chirp)] = (
+            chirp
+        )
+        wavfile.write(target_wav, sample_rate, np.int16(target * 32767))
+
+        with open(config_file, 'w', encoding='utf-8') as f:
+            f.write(
+                f'name: test_sound\n'
+                f'reference_sound_path: {ref_wav}\n'
+                f'freq_min_hz: 800.0\n'
+                f'freq_max_hz: 2500.0\n'
+                f'threshold: 0.3\n'
+            )
+
+        from unittest.mock import patch
+        from lfdata.video.audio_matcher import main
+
+        # Invoke CLI with --config instead of reference WAV positional argument
+        test_args = [
+            'audio_matcher.py',
+            target_wav,
+            '--config',
+            config_file,
+            '--json',
+        ]
+        with patch('sys.argv', test_args):
+            main()
+
+        captured = capsys.readouterr()
+        assert 'timestamp_ms' in captured.out
+        assert '1000' in captured.out or '998' in captured.out
+
+
+def test_cli_main_error_without_ref_or_config() -> None:
+    from unittest.mock import patch
+    from lfdata.video.audio_matcher import main
+
+    test_args = ['audio_matcher.py', 'video.mp4']
+    with patch('sys.argv', test_args):
+        with pytest.raises(SystemExit):
+            main()
+
