@@ -500,3 +500,62 @@ def test_merge_with_lut_success():
     ):
         merger.merge(options=options)
         mock_run.assert_called_once()
+
+
+def test_hud_merge_options_custom_start_ms():
+    options = HudMergeOptions(
+        gopro_path=Path('gopro.mp4'),
+        hud_path=Path('hud.mp4'),
+        hud_alpha_path=Path('alpha.mp4'),
+        output_path=Path('out.mp4'),
+        start_ms=13000,
+    )
+    assert options.start_ms == 13000
+
+
+def test_calculate_sync_parameters_with_start_ms():
+    merger = HudMerger()
+    # GoPro total duration 60000ms, start_ms 13000ms -> effective duration 47000ms
+    # HUD duration 50000ms. GoPro active = 47000ms.
+    final_dur, fade_dur, fade_st = merger.calculate_sync_parameters(
+        gopro_duration_ms=60000,
+        hud_duration_ms=50000,
+        requested_fade_duration_ms=5000,
+        start_ms=13000,
+    )
+    assert final_dur == 50000
+    assert fade_dur == 5000
+    assert fade_st == 42000
+
+
+def test_build_filter_complex_with_start_ms():
+    merger = HudMerger()
+    gopro = VideoMetadata(
+        width=1920,
+        height=1080,
+        duration_ms=60000,
+        has_audio=True,
+    )
+    hud = VideoMetadata(
+        width=1920,
+        height=1080,
+        duration_ms=50000,
+        has_audio=True,
+    )
+
+    filter_str = merger.build_filter_complex(
+        gopro_meta=gopro,
+        hud_meta=hud,
+        final_duration_ms=50000,
+        fade_duration_ms=5000,
+        fade_start_ms=42000,
+        start_ms=13000,
+    )
+
+    assert 'trim=start=13.000:duration=47.000,setpts=PTS-STARTPTS' in filter_str
+    assert 'fade=t=out:st=42.000:d=5.000' in filter_str
+    assert 'tpad=stop_mode=add:color=black:stop_duration=3.000' in filter_str
+    assert (
+        'atrim=start=13.000:duration=47.000,asetpts=PTS-STARTPTS,'
+        'afade=t=out:st=42.000:d=5.000[outa]' in filter_str
+    )

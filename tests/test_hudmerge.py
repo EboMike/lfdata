@@ -150,3 +150,28 @@ def test_main_error_handling(capsys):
         assert exit_code == 1
         captured = capsys.readouterr()
         assert 'Error: Probing failed' in captured.err
+
+
+def test_build_argument_parser_start_ms():
+    parser = build_argument_parser()
+    args = parser.parse_args(
+        ['gopro.mp4', 'hud.mp4', 'alpha.mp4', '--start_ms', '13000']
+    )
+    assert args.start_ms == 13000
+
+
+def test_build_argument_parser_gopro_start_ms_alias():
+    parser = build_argument_parser()
+    args = parser.parse_args(
+        ['gopro.mp4', 'hud.mp4', 'alpha.mp4', '--gopro_start_ms', '15000']
+    )
+    assert args.start_ms == 15000
+
+
+def test_parse_options_with_start_ms():
+    parser = build_argument_parser()
+    args = parser.parse_args(
+        ['gopro.mp4', 'hud.mp4', 'alpha.mp4', '--start_ms', '13000']
+    )
+    options = parse_options(args=args)
+    assert options.start_ms == 13000

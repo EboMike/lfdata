@@ -82,6 +82,14 @@ def build_argument_parser() -> argparse.ArgumentParser:
         help='Path to a 3D LUT (.cube) file to apply to the GoPro video.',
     )
     parser.add_argument(
+        '--start_ms',
+        '--gopro_start_ms',
+        dest='start_ms',
+        type=int,
+        default=0,
+        help='Start offset in milliseconds for the base GoPro video.',
+    )
+    parser.add_argument(
         '--dry-run',
         action='store_true',
         help='Print the FFmpeg command without executing it.',
@@ -119,6 +127,7 @@ def parse_options(args: argparse.Namespace) -> HudMergeOptions:
         crf=args.crf,
         preset=args.preset,
         lut_path=lut_path,
+        start_ms=args.start_ms,
     )
 
 
