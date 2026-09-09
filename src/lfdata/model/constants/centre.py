@@ -61,6 +61,10 @@ class LFCentre(enum.Enum):
     SYDNEY_UNDERWORLD = LFCentreStats(1, 64, 'Sydney Underworld')
     CHELTANHAM = LFCentreStats(7, 13, 'Cheltanham')
     WOLLONGONG_REVOLUTION = LFCentreStats(1, 58, 'Wollongong Revolution')
+    RICANY = LFCentreStats(20, 7, 'Lasergame Říčany')
+    STUTTGART = LFCentreStats(21, 8, 'PowerLaser Stuttgart')
+    LOST_WORLDS = LFCentreStats(4, 80, 'Lost Worlds')
+    LEEDS = LFCentreStats(7, 20, 'Leeds')
 
     def __init__(self, stats: LFCentreStats) -> None:
         """Initializes the centre.

@@ -29,6 +29,34 @@ def test_lf_centre_all_lookup() -> None:
     assert wollongong.arena_name == 'Wollongong Revolution'
     assert wollongong.centre_code == '1-58'
 
+    ricany = LFCentre.from_code('20-7')
+    assert ricany == LFCentre.RICANY
+    assert ricany.country_code == 20
+    assert ricany.location_code == 7
+    assert ricany.arena_name == 'Lasergame Říčany'
+    assert ricany.centre_code == '20-7'
+
+    stuttgart = LFCentre.from_code('21-8')
+    assert stuttgart == LFCentre.STUTTGART
+    assert stuttgart.country_code == 21
+    assert stuttgart.location_code == 8
+    assert stuttgart.arena_name == 'PowerLaser Stuttgart'
+    assert stuttgart.centre_code == '21-8'
+
+    lost_worlds = LFCentre.from_code('4-80')
+    assert lost_worlds == LFCentre.LOST_WORLDS
+    assert lost_worlds.country_code == 4
+    assert lost_worlds.location_code == 80
+    assert lost_worlds.arena_name == 'Lost Worlds'
+    assert lost_worlds.centre_code == '4-80'
+
+    leeds = LFCentre.from_code('7-20')
+    assert leeds == LFCentre.LEEDS
+    assert leeds.country_code == 7
+    assert leeds.location_code == 20
+    assert leeds.arena_name == 'Leeds'
+    assert leeds.centre_code == '7-20'
+
 
 def test_lf_centre_invalid_lookup() -> None:
     with pytest.raises(ValueError) as exc_info:
