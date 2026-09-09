@@ -75,16 +75,20 @@ def test_audio_test_case_dataclass() -> None:
 def test_sound_definition_yaml_roundtrip() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         config_path = Path(tmpdir) / 'test_config.yaml'
+        ref_path = Path(tmpdir) / 'buzzer.wav'
+        ref_path.touch()
+        v1_path = Path(tmpdir) / 'v1.mp4'
+        v1_path.touch()
         sound_def = SoundDefinition(
             name='game_start',
-            reference_sound_path='buzzer.wav',
+            reference_sound_path=str(ref_path),
             freq_min_hz=1400.0,
             freq_max_hz=2400.0,
             threshold=0.25,
             description='Game start siren',
             test_cases=[
                 AudioTestCase(
-                    video_path='v1.mp4',
+                    video_path=str(v1_path),
                     expected_timestamp_ms=20000,
                     tolerance_ms=400,
                     description='POV 1',
@@ -109,6 +113,40 @@ def test_yaml_load_missing_file_raises() -> None:
     runner = AudioBenchmarkRunner()
     with pytest.raises(FileNotFoundError):
         runner.load_from_yaml('non_existent_path.yaml')
+
+
+def test_yaml_load_missing_reference_sound_raises() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cfg = Path(tmpdir) / 'config.yaml'
+        cfg.write_text(
+            'name: siren\nreference_sound_path: non_existent_ref.wav\n',
+            encoding='utf-8',
+        )
+        runner = AudioBenchmarkRunner()
+        with pytest.raises(
+            FileNotFoundError, match='Reference sound file not found'
+        ):
+            runner.load_from_yaml(cfg)
+
+
+def test_yaml_load_missing_test_case_video_raises() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ref_file = Path(tmpdir) / 'ref.wav'
+        ref_file.touch()
+        cfg = Path(tmpdir) / 'config.yaml'
+        cfg.write_text(
+            f'name: siren\n'
+            f'reference_sound_path: {ref_file.name}\n'
+            f'test_cases:\n'
+            f'  - video_path: missing_case.mp4\n'
+            f'    expected_timestamp_ms: 1000\n',
+            encoding='utf-8',
+        )
+        runner = AudioBenchmarkRunner()
+        with pytest.raises(
+            FileNotFoundError, match='Test case video file not found'
+        ):
+            runner.load_from_yaml(cfg)
 
 
 def test_yaml_load_missing_fields_raises() -> None:
@@ -156,7 +194,7 @@ def test_evaluate_single_test_case_success() -> None:
         assert result.confidence > 0.5
 
 
-def test_evaluate_missing_video_fails_gracefully() -> None:
+def test_evaluate_missing_video_raises_filenotfound() -> None:
     sound_def = SoundDefinition(
         name='siren',
         reference_sound_path='dummy_ref.wav',
@@ -166,11 +204,30 @@ def test_evaluate_missing_video_fails_gracefully() -> None:
         expected_timestamp_ms=5000,
     )
     runner = AudioBenchmarkRunner()
-    result = runner.evaluate_test_case(sound_def, test_case)
+    with pytest.raises(FileNotFoundError, match='Video file not found'):
+        runner.evaluate_test_case(sound_def, test_case)
 
-    assert result.passed is False
-    assert result.detected_timestamp_ms is None
-    assert 'not found' in result.message.lower()
+
+def test_evaluate_matcher_failure_raises() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ref_file = os.path.join(tmpdir, 'ref.wav')
+        target_file = os.path.join(tmpdir, 'target.wav')
+        _create_synthetic_chirp(ref_file)
+        # Create corrupted / invalid target file
+        with open(target_file, 'w', encoding='utf-8') as f:
+            f.write('not a real audio file')
+
+        sound_def = SoundDefinition(
+            name='siren',
+            reference_sound_path=ref_file,
+        )
+        test_case = AudioTestCase(
+            video_path=target_file,
+            expected_timestamp_ms=1000,
+        )
+        runner = AudioBenchmarkRunner()
+        with pytest.raises(RuntimeError):
+            runner.evaluate_test_case(sound_def, test_case)
 
 
 def test_evaluate_multiple_test_cases_summary() -> None:
@@ -350,97 +407,101 @@ def test_analyze_threshold_too_high() -> None:
 def test_analyze_diagnoses_vocal_penalty_and_false_positive() -> None:
     from lfdata.video.audio_matcher import AudioMatchDiagnostic
 
-    runner = AudioBenchmarkRunner()
-    sound_def = SoundDefinition(
-        name='siren',
-        reference_sound_path='ref.wav',
-        threshold=0.5,
-    )
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ref_file = os.path.join(tmpdir, 'ref.wav')
+        _create_synthetic_chirp(ref_file)
 
-    # 1. Vocal penalty suppression
-    tc1 = AudioTestCase(video_path='v1.mp4', expected_timestamp_ms=1000)
-    diag1 = AudioMatchDiagnostic(
-        expected_timestamp_ms=1000,
-        tolerance_ms=100,
-        expected_peak_timestamp_ms=1000,
-        expected_peak_confidence=0.35,
-        expected_peak_raw_correlation=0.75,
-        expected_peak_vocal_penalty=0.4,
-        top_false_positive_timestamp_ms=500,
-        top_false_positive_confidence=0.1,
-        margin=0.25,
-    )
-    eval1 = TestCaseEvaluationResult(
-        test_case=tc1,
-        passed=False,
-        detected_timestamp_ms=None,
-        error_ms=None,
-        confidence=None,
-        top_false_positive_confidence=0.1,
-        message='No match above threshold 0.5',
-        diagnostic=diag1,
-    )
-    with patch.object(runner, 'evaluate_test_case', return_value=eval1):
-        sound_def.test_cases = [tc1]
-        analysis = runner.analyze(sound_def)
-        assert analysis.case_analyses[0].root_cause == (
-            'VOCAL_PENALTY_SUPPRESSION'
+        runner = AudioBenchmarkRunner()
+        sound_def = SoundDefinition(
+            name='siren',
+            reference_sound_path=ref_file,
+            threshold=0.5,
         )
 
-    # 2. False positive dominance
-    tc2 = AudioTestCase(
-        video_path='v2.mp4', expected_timestamp_ms=1000, tolerance_ms=100
-    )
-    diag2 = AudioMatchDiagnostic(
-        expected_timestamp_ms=1000,
-        tolerance_ms=100,
-        expected_peak_timestamp_ms=1000,
-        expected_peak_confidence=0.6,
-        expected_peak_raw_correlation=0.6,
-        expected_peak_vocal_penalty=1.0,
-        top_false_positive_timestamp_ms=5000,
-        top_false_positive_confidence=0.8,
-        margin=-0.2,
-    )
-    eval2 = TestCaseEvaluationResult(
-        test_case=tc2,
-        passed=False,
-        detected_timestamp_ms=5000,
-        error_ms=4000,
-        confidence=0.8,
-        top_false_positive_confidence=0.8,
-        message='Error 4000ms exceeds tolerance 100ms',
-        diagnostic=diag2,
-    )
-    with patch.object(runner, 'evaluate_test_case', return_value=eval2):
-        sound_def.test_cases = [tc2]
-        analysis = runner.analyze(sound_def)
-        assert analysis.case_analyses[0].root_cause == (
-            'FALSE_POSITIVE_DOMINANCE'
+        # 1. Vocal penalty suppression
+        tc1 = AudioTestCase(video_path='v1.mp4', expected_timestamp_ms=1000)
+        diag1 = AudioMatchDiagnostic(
+            expected_timestamp_ms=1000,
+            tolerance_ms=100,
+            expected_peak_timestamp_ms=1000,
+            expected_peak_confidence=0.35,
+            expected_peak_raw_correlation=0.75,
+            expected_peak_vocal_penalty=0.4,
+            top_false_positive_timestamp_ms=500,
+            top_false_positive_confidence=0.1,
+            margin=0.25,
         )
+        eval1 = TestCaseEvaluationResult(
+            test_case=tc1,
+            passed=False,
+            detected_timestamp_ms=None,
+            error_ms=None,
+            confidence=None,
+            top_false_positive_confidence=0.1,
+            message='No match above threshold 0.5',
+            diagnostic=diag1,
+        )
+        with patch.object(runner, 'evaluate_test_case', return_value=eval1):
+            sound_def.test_cases = [tc1]
+            analysis = runner.analyze(sound_def)
+            assert analysis.case_analyses[0].root_cause == (
+                'VOCAL_PENALTY_SUPPRESSION'
+            )
 
-    # 3. No signal
-    tc3 = AudioTestCase(video_path='v3.mp4', expected_timestamp_ms=1000)
-    diag3 = AudioMatchDiagnostic(
-        expected_timestamp_ms=1000,
-        tolerance_ms=100,
-        expected_peak_timestamp_ms=None,
-        expected_peak_confidence=None,
-    )
-    eval3 = TestCaseEvaluationResult(
-        test_case=tc3,
-        passed=False,
-        detected_timestamp_ms=None,
-        error_ms=None,
-        confidence=None,
-        top_false_positive_confidence=None,
-        message='No match',
-        diagnostic=diag3,
-    )
-    with patch.object(runner, 'evaluate_test_case', return_value=eval3):
-        sound_def.test_cases = [tc3]
-        analysis = runner.analyze(sound_def)
-        assert analysis.case_analyses[0].root_cause == 'NO_SIGNAL'
+        # 2. False positive dominance
+        tc2 = AudioTestCase(
+            video_path='v2.mp4', expected_timestamp_ms=1000, tolerance_ms=100
+        )
+        diag2 = AudioMatchDiagnostic(
+            expected_timestamp_ms=1000,
+            tolerance_ms=100,
+            expected_peak_timestamp_ms=1000,
+            expected_peak_confidence=0.6,
+            expected_peak_raw_correlation=0.6,
+            expected_peak_vocal_penalty=1.0,
+            top_false_positive_timestamp_ms=5000,
+            top_false_positive_confidence=0.8,
+            margin=-0.2,
+        )
+        eval2 = TestCaseEvaluationResult(
+            test_case=tc2,
+            passed=False,
+            detected_timestamp_ms=5000,
+            error_ms=4000,
+            confidence=0.8,
+            top_false_positive_confidence=0.8,
+            message='Error 4000ms exceeds tolerance 100ms',
+            diagnostic=diag2,
+        )
+        with patch.object(runner, 'evaluate_test_case', return_value=eval2):
+            sound_def.test_cases = [tc2]
+            analysis = runner.analyze(sound_def)
+            assert analysis.case_analyses[0].root_cause == (
+                'FALSE_POSITIVE_DOMINANCE'
+            )
+
+        # 3. No signal
+        tc3 = AudioTestCase(video_path='v3.mp4', expected_timestamp_ms=1000)
+        diag3 = AudioMatchDiagnostic(
+            expected_timestamp_ms=1000,
+            tolerance_ms=100,
+            expected_peak_timestamp_ms=None,
+            expected_peak_confidence=None,
+        )
+        eval3 = TestCaseEvaluationResult(
+            test_case=tc3,
+            passed=False,
+            detected_timestamp_ms=None,
+            error_ms=None,
+            confidence=None,
+            top_false_positive_confidence=None,
+            message='No match',
+            diagnostic=diag3,
+        )
+        with patch.object(runner, 'evaluate_test_case', return_value=eval3):
+            sound_def.test_cases = [tc3]
+            analysis = runner.analyze(sound_def)
+            assert analysis.case_analyses[0].root_cause == 'NO_SIGNAL'
 
 
 def test_tune_adaptive_reconciliation() -> None:

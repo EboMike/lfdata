@@ -266,7 +266,8 @@ class AudioBenchmarkRunner:
             SoundDefinition: Parsed sound definition and test cases.
 
         Raises:
-            FileNotFoundError: If the YAML file does not exist.
+            FileNotFoundError: If the YAML file, reference sound, or any test
+                case video does not exist.
             ValueError: If required fields are missing in the YAML file.
         """
         yaml_path = Path(path).resolve()
@@ -291,6 +292,10 @@ class AudioBenchmarkRunner:
 
         base_dir = yaml_path.parent
         resolved_ref_path = self._resolve_path(base_dir, ref_path)
+        if not Path(resolved_ref_path).exists():
+            raise FileNotFoundError(
+                f'Reference sound file not found: {resolved_ref_path}'
+            )
 
         test_cases: list[AudioTestCase] = []
         raw_cases = raw_data.get('test_cases', [])
@@ -301,6 +306,10 @@ class AudioBenchmarkRunner:
             if not video_p:
                 continue
             resolved_video_p = self._resolve_path(base_dir, video_p)
+            if not Path(resolved_video_p).exists():
+                raise FileNotFoundError(
+                    f'Test case video file not found: {resolved_video_p}'
+                )
             test_cases.append(
                 AudioTestCase(
                     video_path=resolved_video_p,
@@ -398,18 +407,15 @@ class AudioBenchmarkRunner:
 
         Returns:
             TestCaseEvaluationResult: Detailed outcome of the test case.
+
+        Raises:
+            FileNotFoundError: If the video or reference sound file is missing.
+            RuntimeError: If audio decoding or extraction fails.
+            ValueError: If audio duration is shorter than the reference sound.
         """
         video_path = Path(test_case.video_path)
         if not video_path.exists():
-            return TestCaseEvaluationResult(
-                test_case=test_case,
-                passed=False,
-                detected_timestamp_ms=None,
-                error_ms=None,
-                confidence=None,
-                top_false_positive_confidence=None,
-                message=f'Video file not found: {video_path}',
-            )
+            raise FileNotFoundError(f'Video file not found: {video_path}')
 
         eff_min = (
             freq_min_hz if freq_min_hz is not None else sound_def.freq_min_hz
@@ -431,31 +437,19 @@ class AudioBenchmarkRunner:
             else sound_def.min_energy_ratio
         )
 
-        try:
-            matches, diag = self._matcher.match_diagnostic(
-                video_or_audio_path=test_case.video_path,
-                reference_sound_path=sound_def.reference_sound_path,
-                expected_timestamp_ms=test_case.expected_timestamp_ms,
-                tolerance_ms=test_case.tolerance_ms,
-                threshold=eff_thresh,
-                start_ms=test_case.search_start_ms,
-                end_ms=test_case.search_end_ms,
-                freq_min_hz=eff_min,
-                freq_max_hz=eff_max,
-                template_duration_ms=eff_duration_ms,
-                min_energy_ratio=eff_energy_ratio,
-            )
-        except Exception as err:
-            return TestCaseEvaluationResult(
-                test_case=test_case,
-                passed=False,
-                detected_timestamp_ms=None,
-                error_ms=None,
-                confidence=None,
-                top_false_positive_confidence=None,
-                message=f'Matcher failed: {err}',
-                diagnostic=None,
-            )
+        matches, diag = self._matcher.match_diagnostic(
+            video_or_audio_path=test_case.video_path,
+            reference_sound_path=sound_def.reference_sound_path,
+            expected_timestamp_ms=test_case.expected_timestamp_ms,
+            tolerance_ms=test_case.tolerance_ms,
+            threshold=eff_thresh,
+            start_ms=test_case.search_start_ms,
+            end_ms=test_case.search_end_ms,
+            freq_min_hz=eff_min,
+            freq_max_hz=eff_max,
+            template_duration_ms=eff_duration_ms,
+            min_energy_ratio=eff_energy_ratio,
+        )
 
         return self._evaluate_matches(test_case, matches, diagnostic=diag)
 
@@ -653,15 +647,12 @@ class AudioBenchmarkRunner:
                 reconciling_thresh = round((min_tp + max_fp) / 2.0, 3)
 
         ref_duration_ms: float = 0.0
-        try:
-            ref_audio = self._matcher._load_audio(
-                sound_def.reference_sound_path
-            )
-            ref_duration_ms = (
-                len(ref_audio) / self._matcher.sample_rate
-            ) * 1000.0
-        except Exception:
-            pass
+        ref_audio = self._matcher._load_audio(
+            sound_def.reference_sound_path
+        )
+        ref_duration_ms = (
+            len(ref_audio) / self._matcher.sample_rate
+        ) * 1000.0
 
         suggestions: list[ConfigurationSuggestion] = []
         has_vocal_pen = any(

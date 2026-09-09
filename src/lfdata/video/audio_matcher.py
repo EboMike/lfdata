@@ -97,6 +97,11 @@ def load_sound_config(config_path: str | Path) -> AudioMatchConfig:
     else:
         resolved_ref_path = str(ref_path_obj)
 
+    if not Path(resolved_ref_path).exists():
+        raise FileNotFoundError(
+            f'Reference sound file not found: {resolved_ref_path}'
+        )
+
     raw_freq_min = raw_data.get('freq_min_hz')
     freq_min = float(raw_freq_min) if raw_freq_min is not None else None
 
@@ -906,10 +911,16 @@ def main() -> None:
             'Either a reference sound WAV path or --config must be provided.'
         )
 
+    video_path = Path(args.video)
+    if not video_path.exists():
+        raise FileNotFoundError(f'Video file not found: {args.video}')
+
     ref_path = args.reference
     eff_threshold = args.threshold
     eff_freq_min = args.freq_min
     eff_freq_max = args.freq_max
+    eff_template_duration: int | None = None
+    eff_min_energy_ratio: float | None = None
 
     if args.config:
         cfg = load_sound_config(args.config)
@@ -921,6 +932,11 @@ def main() -> None:
             eff_freq_min = cfg.freq_min_hz
         if eff_freq_max is None:
             eff_freq_max = cfg.freq_max_hz
+        eff_template_duration = cfg.template_duration_ms
+        eff_min_energy_ratio = cfg.min_energy_ratio
+
+    if not ref_path or not Path(ref_path).exists():
+        raise FileNotFoundError(f'Reference sound not found: {ref_path}')
 
     if eff_threshold is None:
         eff_threshold = 0.2
@@ -936,6 +952,8 @@ def main() -> None:
         max_matches=args.max_matches,
         freq_min_hz=eff_freq_min,
         freq_max_hz=eff_freq_max,
+        template_duration_ms=eff_template_duration,
+        min_energy_ratio=eff_min_energy_ratio,
     )
 
     if args.json:

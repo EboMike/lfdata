@@ -339,6 +339,9 @@ def test_load_sound_config_valid() -> None:
 
 def test_load_sound_config_relative_path() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
+        sounds_dir = Path(tmpdir) / 'sounds'
+        sounds_dir.mkdir(parents=True, exist_ok=True)
+        (sounds_dir / 'alert.wav').touch()
         config_file = os.path.join(tmpdir, 'sound.yaml')
         with open(config_file, 'w', encoding='utf-8') as f:
             f.write(
@@ -370,6 +373,17 @@ def test_load_sound_config_errors() -> None:
             f.write('name: alert\nfreq_min_hz: 1000\n')
         with pytest.raises(ValueError, match='Missing required field'):
             load_sound_config(missing_ref)
+
+        missing_sound_file = os.path.join(tmpdir, 'missing_sound.yaml')
+        with open(missing_sound_file, 'w', encoding='utf-8') as f:
+            f.write(
+                'name: alert\n'
+                'reference_sound_path: non_existent_sound.wav\n'
+            )
+        with pytest.raises(
+            FileNotFoundError, match='Reference sound file not found'
+        ):
+            load_sound_config(missing_sound_file)
 
 
 def test_match_with_config() -> None:
@@ -472,6 +486,40 @@ def test_cli_main_error_without_ref_or_config() -> None:
     test_args = ['audio_matcher.py', 'video.mp4']
     with patch('sys.argv', test_args):
         with pytest.raises(SystemExit):
+            main()
+
+
+def test_cli_main_error_video_not_found(tmp_path: Path) -> None:
+    from unittest.mock import patch
+    from lfdata.video.audio_matcher import main
+
+    ref_file = tmp_path / 'ref.wav'
+    ref_file.touch()
+    test_args = [
+        'audio_matcher.py',
+        str(tmp_path / 'missing_video.mp4'),
+        str(ref_file),
+    ]
+    with patch('sys.argv', test_args):
+        with pytest.raises(FileNotFoundError, match='Video file not found'):
+            main()
+
+
+def test_cli_main_error_ref_not_found(tmp_path: Path) -> None:
+    from unittest.mock import patch
+    from lfdata.video.audio_matcher import main
+
+    video_file = tmp_path / 'video.mp4'
+    video_file.touch()
+    test_args = [
+        'audio_matcher.py',
+        str(video_file),
+        str(tmp_path / 'missing_ref.wav'),
+    ]
+    with patch('sys.argv', test_args):
+        with pytest.raises(
+            FileNotFoundError, match='Reference sound not found'
+        ):
             main()
 
 
