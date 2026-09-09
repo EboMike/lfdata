@@ -10,6 +10,7 @@ from scipy.io import wavfile
 from lfdata.video.audio_benchmark import (
     AudioBenchmarkRunner,
     AudioTestCase,
+    ConfigurationSuggestion,
     SoundDefinition,
     TestCaseEvaluationResult,
     main,
@@ -545,5 +546,276 @@ def test_cli_analyze_human_and_json(
         out_json = capsys.readouterr().out
         assert '"passed_cases": 0' in out_json
         assert '"THRESHOLD_TOO_HIGH"' in out_json
+
+
+def test_analyze_suggestions_generated() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ref_file = os.path.join(tmpdir, 'ref.wav')
+        target = os.path.join(tmpdir, 'target.wav')
+
+        _create_synthetic_chirp(ref_file)
+        _create_synthetic_target(
+            target, ref_file, insert_timestamps_ms=[1000]
+        )
+
+        sound_def = SoundDefinition(
+            name='sug_sound',
+            reference_sound_path=ref_file,
+            freq_min_hz=1000.0,
+            freq_max_hz=2400.0,
+            threshold=0.999,
+            test_cases=[
+                AudioTestCase(
+                    video_path=target,
+                    expected_timestamp_ms=1000,
+                    tolerance_ms=100,
+                )
+            ],
+        )
+        runner = AudioBenchmarkRunner()
+        analysis = runner.analyze(sound_def)
+
+        assert len(analysis.suggestions) >= 1
+        sug = analysis.suggestions[0]
+        assert sug.name == 'Reconciling Threshold'
+        assert sug.threshold is not None
+        assert sug.threshold < 0.999
+        assert 'Discovered threshold' in sug.rationale
+
+
+def test_analyze_iterate_mode() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ref_file = os.path.join(tmpdir, 'ref.wav')
+        target1 = os.path.join(tmpdir, 'target1.wav')
+        target2 = os.path.join(tmpdir, 'target2.wav')
+
+        _create_synthetic_chirp(ref_file)
+        _create_synthetic_target(
+            target1, ref_file, insert_timestamps_ms=[1000]
+        )
+        _create_synthetic_target(
+            target2, ref_file, insert_timestamps_ms=[2000]
+        )
+
+        sound_def = SoundDefinition(
+            name='iter_sound',
+            reference_sound_path=ref_file,
+            freq_min_hz=1000.0,
+            freq_max_hz=2400.0,
+            threshold=0.999,
+            test_cases=[
+                AudioTestCase(
+                    video_path=target1,
+                    expected_timestamp_ms=1000,
+                    tolerance_ms=100,
+                ),
+                AudioTestCase(
+                    video_path=target2,
+                    expected_timestamp_ms=2000,
+                    tolerance_ms=100,
+                ),
+            ],
+        )
+        runner = AudioBenchmarkRunner()
+        analysis = runner.analyze(sound_def, iterate=True)
+
+        assert analysis.iteration_results is not None
+        assert len(analysis.iteration_results) >= 2
+        assert analysis.best_iteration is not None
+        assert analysis.best_iteration.summary.accuracy == 1.0
+        assert analysis.best_iteration.suggestion.threshold is not None
+        assert analysis.best_iteration.suggestion.threshold < 0.999
+
+
+def test_cli_analyze_iterate_and_save(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ref_file = os.path.join(tmpdir, 'ref.wav')
+        target = os.path.join(tmpdir, 'target.wav')
+        config_path = os.path.join(tmpdir, 'config.yaml')
+
+        _create_synthetic_chirp(ref_file)
+        _create_synthetic_target(
+            target, ref_file, insert_timestamps_ms=[1000]
+        )
+
+        sound_def = SoundDefinition(
+            name='cli_iter_sound',
+            reference_sound_path=ref_file,
+            freq_min_hz=1000.0,
+            freq_max_hz=2400.0,
+            threshold=0.999,
+            test_cases=[
+                AudioTestCase(
+                    video_path=target,
+                    expected_timestamp_ms=1000,
+                    tolerance_ms=100,
+                )
+            ],
+        )
+        runner = AudioBenchmarkRunner()
+        runner.save_to_yaml(sound_def, config_path)
+
+        # 1. Test CLI analyze --iterate
+        with patch(
+            'sys.argv',
+            ['audio_benchmark.py', 'analyze', config_path, '--iterate'],
+        ):
+            main()
+
+        out_text = capsys.readouterr().out
+        assert 'Suggested Configuration Changes:' in out_text
+        assert 'Iteration Mode Results:' in out_text
+        assert 'Recommended Best Configuration:' in out_text
+
+        # 2. Test CLI analyze --iterate --save
+        with patch(
+            'sys.argv',
+            [
+                'audio_benchmark.py',
+                'analyze',
+                config_path,
+                '--iterate',
+                '--save',
+            ],
+        ):
+            main()
+
+        out_save = capsys.readouterr().out
+        assert 'Updated config saved to' in out_save
+
+        # Verify file was updated on disk
+        updated_def = runner.load_from_yaml(config_path)
+        assert updated_def.threshold < 0.999
+
+
+def test_sound_definition_yaml_persistence_with_new_fields() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ref_file = os.path.join(tmpdir, 'ref.wav')
+        config_path = os.path.join(tmpdir, 'config.yaml')
+        _create_synthetic_chirp(ref_file)
+
+        sound_def = SoundDefinition(
+            name='new_fields_sound',
+            reference_sound_path=ref_file,
+            freq_min_hz=1400.0,
+            freq_max_hz=2400.0,
+            threshold=0.25,
+            template_duration_ms=800,
+            min_energy_ratio=0.1,
+            description='Test description',
+        )
+        runner = AudioBenchmarkRunner()
+        runner.save_to_yaml(sound_def, config_path)
+
+        loaded_def = runner.load_from_yaml(config_path)
+        assert loaded_def.name == 'new_fields_sound'
+        assert loaded_def.template_duration_ms == 800
+        assert loaded_def.min_energy_ratio == 0.1
+        assert loaded_def.threshold == 0.25
+
+
+def test_configuration_suggestion_with_new_fields() -> None:
+    sug = ConfigurationSuggestion(
+        name='Crop and Gate',
+        rationale='Testing new fields',
+        template_duration_ms=800,
+        min_energy_ratio=0.15,
+    )
+    assert sug.name == 'Crop and Gate'
+    assert sug.template_duration_ms == 800
+    assert sug.min_energy_ratio == 0.15
+
+
+def test_benchmark_analyze_suggests_template_crop_for_long_reference() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ref_file = os.path.join(tmpdir, 'long_ref.wav')
+        target = os.path.join(tmpdir, 'target.wav')
+
+        # Create a 2.0s long reference audio (duration > 1.5s)
+        sample_rate = 22050
+        duration = 2.0
+        t = np.linspace(0, duration, int(duration * sample_rate))
+        audio = np.sin(2 * np.pi * 1500.0 * t)
+        wavfile.write(ref_file, sample_rate, np.int16(audio * 32767))
+
+        _create_synthetic_target(
+            target, ref_file, insert_timestamps_ms=[1000]
+        )
+
+        sound_def = SoundDefinition(
+            name='long_sound',
+            reference_sound_path=ref_file,
+            freq_min_hz=1200.0,
+            freq_max_hz=2000.0,
+            threshold=0.2,
+            test_cases=[
+                AudioTestCase(
+                    video_path=target,
+                    expected_timestamp_ms=1000,
+                    tolerance_ms=100,
+                )
+            ],
+        )
+        runner = AudioBenchmarkRunner()
+        analysis = runner.analyze(sound_def)
+
+        # Verify Crop Template to 800ms suggestion is produced
+        crop_sug = [
+            s
+            for s in analysis.suggestions
+            if 'Crop Template to 800ms' in s.name
+        ]
+        assert len(crop_sug) >= 1
+        assert crop_sug[0].template_duration_ms == 800
+
+
+def test_cli_evaluate_and_analyze_with_duration_flags(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ref_file = os.path.join(tmpdir, 'ref.wav')
+        target = os.path.join(tmpdir, 'target.wav')
+        config_path = os.path.join(tmpdir, 'config.yaml')
+
+        _create_synthetic_chirp(ref_file)
+        _create_synthetic_target(
+            target, ref_file, insert_timestamps_ms=[1000]
+        )
+
+        sound_def = SoundDefinition(
+            name='flag_test_sound',
+            reference_sound_path=ref_file,
+            threshold=0.2,
+            test_cases=[
+                AudioTestCase(
+                    video_path=target,
+                    expected_timestamp_ms=1000,
+                    tolerance_ms=100,
+                )
+            ],
+        )
+        runner = AudioBenchmarkRunner()
+        runner.save_to_yaml(sound_def, config_path)
+
+        with patch(
+            'sys.argv',
+            [
+                'audio_benchmark.py',
+                'evaluate',
+                config_path,
+                '--template-duration',
+                '300',
+                '--min-energy-ratio',
+                '0.05',
+            ],
+        ):
+            main()
+
+        out = capsys.readouterr().out
+        assert 'Passed: 1/1' in out
+
+
 
 

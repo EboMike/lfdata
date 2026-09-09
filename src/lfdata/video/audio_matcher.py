@@ -47,12 +47,16 @@ class AudioMatchConfig:
         freq_min_hz: Optional lower frequency cutoff in Hz.
         freq_max_hz: Optional upper frequency cutoff in Hz.
         threshold: Minimum confidence score threshold (default: 0.2).
+        template_duration_ms: Optional template duration in ms to crop to.
+        min_energy_ratio: Optional minimum in-band energy ratio for gating.
     """
 
     reference_sound_path: str
     freq_min_hz: float | None = None
     freq_max_hz: float | None = None
     threshold: float = 0.2
+    template_duration_ms: int | None = None
+    min_energy_ratio: float | None = None
 
 
 def load_sound_config(config_path: str | Path) -> AudioMatchConfig:
@@ -101,11 +105,19 @@ def load_sound_config(config_path: str | Path) -> AudioMatchConfig:
 
     threshold = float(raw_data.get('threshold', 0.2))
 
+    raw_dur = raw_data.get('template_duration_ms')
+    template_duration_ms = int(raw_dur) if raw_dur is not None else None
+
+    raw_energy = raw_data.get('min_energy_ratio')
+    min_energy_ratio = float(raw_energy) if raw_energy is not None else None
+
     return AudioMatchConfig(
         reference_sound_path=resolved_ref_path,
         freq_min_hz=freq_min,
         freq_max_hz=freq_max,
         threshold=threshold,
+        template_duration_ms=template_duration_ms,
+        min_energy_ratio=min_energy_ratio,
     )
 
 
@@ -199,6 +211,8 @@ class AudioMatcher:
         max_matches: int | None = None,
         freq_min_hz: float | None = None,
         freq_max_hz: float | None = None,
+        template_duration_ms: int | None = None,
+        min_energy_ratio: float | None = None,
     ) -> list[AudioMatchResult]:
         """Finds timestamps where the reference sound effect occurs.
 
@@ -217,6 +231,8 @@ class AudioMatcher:
             max_matches: Optional limit on the number of returned matches.
             freq_min_hz: Optional lower frequency bound in Hz for filtering.
             freq_max_hz: Optional upper frequency bound in Hz for filtering.
+            template_duration_ms: Optional duration in ms to crop template to.
+            min_energy_ratio: Optional minimum in-band energy ratio for gating.
 
         Returns:
             list[AudioMatchResult]: Candidate matches sorted by highest
@@ -234,6 +250,8 @@ class AudioMatcher:
                 end_ms=end_ms,
                 freq_min_hz=freq_min_hz,
                 freq_max_hz=freq_max_hz,
+                template_duration_ms=template_duration_ms,
+                min_energy_ratio=min_energy_ratio,
             )
         )
 
@@ -276,6 +294,8 @@ class AudioMatcher:
         max_matches: int | None = None,
         freq_min_hz: float | None = None,
         freq_max_hz: float | None = None,
+        template_duration_ms: int | None = None,
+        min_energy_ratio: float | None = None,
     ) -> tuple[list[AudioMatchResult], AudioMatchDiagnostic]:
         """Matches a reference sound and extracts detailed diagnostics.
 
@@ -294,6 +314,8 @@ class AudioMatcher:
             max_matches: Optional limit on returned matches.
             freq_min_hz: Optional lower frequency bound in Hz.
             freq_max_hz: Optional upper frequency bound in Hz.
+            template_duration_ms: Optional duration in ms to crop template to.
+            min_energy_ratio: Optional minimum in-band energy ratio for gating.
 
         Returns:
             tuple[list[AudioMatchResult], AudioMatchDiagnostic]: Matches and
@@ -311,6 +333,8 @@ class AudioMatcher:
                 end_ms=end_ms,
                 freq_min_hz=freq_min_hz,
                 freq_max_hz=freq_max_hz,
+                template_duration_ms=template_duration_ms,
+                min_energy_ratio=min_energy_ratio,
             )
         )
 
@@ -400,6 +424,8 @@ class AudioMatcher:
         end_ms: int | None = None,
         freq_min_hz: float | None = None,
         freq_max_hz: float | None = None,
+        template_duration_ms: int | None = None,
+        min_energy_ratio: float | None = None,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, float, int, float]:
         """Extracts audio and calculates correlation series and vocal penalty.
 
@@ -410,6 +436,8 @@ class AudioMatcher:
             end_ms: Optional end offset in milliseconds.
             freq_min_hz: Optional lower frequency bound in Hz.
             freq_max_hz: Optional upper frequency bound in Hz.
+            template_duration_ms: Optional duration in ms to crop template to.
+            min_energy_ratio: Optional minimum in-band energy ratio for gating.
 
         Returns:
             tuple: (final_scores, raw_correlation_series, vocal_penalty,
@@ -431,6 +459,13 @@ class AudioMatcher:
             target_path, start_ms=start_ms, end_ms=end_ms
         )
         ref_audio = self._load_audio(ref_path)
+
+        if template_duration_ms is not None and template_duration_ms > 0:
+            max_samples = int(
+                (template_duration_ms / 1000.0) * self.sample_rate
+            )
+            if max_samples < len(ref_audio):
+                ref_audio = ref_audio[:max_samples]
 
         if len(target_audio) < len(ref_audio):
             raise ValueError(
@@ -458,6 +493,22 @@ class AudioMatcher:
         )
         final_scores = np.maximum(0.0, correlation_series) * penalty
 
+        if min_energy_ratio is not None and min_energy_ratio > 0.0:
+            band_energy = np.sum(s_target[band_mask, :], axis=0)
+            kernel_energy = np.convolve(
+                band_energy,
+                np.ones(mag_ref.shape[1]) / mag_ref.shape[1],
+                mode='valid',
+            )
+            peak_energy = float(np.max(kernel_energy))
+            if peak_energy > 0.0:
+                energy_scale = np.clip(
+                    kernel_energy / (peak_energy * min_energy_ratio),
+                    0.0,
+                    1.0,
+                )
+                final_scores = final_scores * energy_scale
+
         ms_per_frame = (self.hop_length / self.sample_rate) * 1000.0
         ref_duration_ms = (len(ref_audio) / self.sample_rate) * 1000.0
         offset_ms = start_ms if start_ms is not None else 0
@@ -482,6 +533,8 @@ class AudioMatcher:
         max_matches: int | None = None,
         freq_min_hz: float | None = None,
         freq_max_hz: float | None = None,
+        template_duration_ms: int | None = None,
+        min_energy_ratio: float | None = None,
     ) -> list[AudioMatchResult]:
         """Matches a reference sound using a configuration object or file.
 
@@ -499,6 +552,8 @@ class AudioMatcher:
             max_matches: Optional limit on the number of returned matches.
             freq_min_hz: Optional lower frequency bound override in Hz.
             freq_max_hz: Optional upper frequency bound override in Hz.
+            template_duration_ms: Optional duration in ms to crop template to.
+            min_energy_ratio: Optional minimum in-band energy ratio for gating.
 
         Returns:
             list[AudioMatchResult]: Candidate matches sorted by confidence.
@@ -522,6 +577,16 @@ class AudioMatcher:
         eff_freq_max = (
             freq_max_hz if freq_max_hz is not None else match_cfg.freq_max_hz
         )
+        eff_template_dur = (
+            template_duration_ms
+            if template_duration_ms is not None
+            else match_cfg.template_duration_ms
+        )
+        eff_energy_ratio = (
+            min_energy_ratio
+            if min_energy_ratio is not None
+            else match_cfg.min_energy_ratio
+        )
 
         return self.match(
             video_or_audio_path=video_or_audio_path,
@@ -533,6 +598,8 @@ class AudioMatcher:
             max_matches=max_matches,
             freq_min_hz=eff_freq_min,
             freq_max_hz=eff_freq_max,
+            template_duration_ms=eff_template_dur,
+            min_energy_ratio=eff_energy_ratio,
         )
 
     def _load_audio(

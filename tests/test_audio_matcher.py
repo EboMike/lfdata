@@ -513,4 +513,110 @@ def test_audio_match_diagnostic() -> None:
             )
 
 
+def test_template_duration_ms_cropping() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        target_wav = os.path.join(tmpdir, 'target_crop.wav')
+        ref_wav = os.path.join(tmpdir, 'ref_crop.wav')
+
+        sample_rate = 22050
+        # Reference is 1.0s: first 400ms is chirp, remaining 600ms is silence
+        t_ref = np.linspace(0, 1.0, int(1.0 * sample_rate))
+        chirp = np.sin(2 * np.pi * 1500.0 * t_ref[: int(0.4 * sample_rate)])
+        ref_data = np.zeros_like(t_ref)
+        ref_data[: len(chirp)] = chirp
+        wavfile.write(ref_wav, sample_rate, np.int16(ref_data * 32767))
+
+        # Target only contains the 400ms chirp at 1000ms
+        target = np.zeros(int(3.0 * sample_rate), dtype=np.float32)
+        target[sample_rate : sample_rate + len(chirp)] = chirp
+        wavfile.write(target_wav, sample_rate, np.int16(target * 32767))
+
+        matcher = AudioMatcher(sample_rate=22050, hop_length=256)
+        # Without crop, full 1.0s template includes silence, lowering match
+        # With crop to 400ms, only the chirp is matched
+        matches = matcher.match(
+            video_or_audio_path=target_wav,
+            reference_sound_path=ref_wav,
+            threshold=0.5,
+            template_duration_ms=400,
+        )
+
+        assert len(matches) >= 1
+        assert abs(matches[0].timestamp_ms - 1000) < 30
+        assert matches[0].confidence > 0.7
+
+
+def test_min_energy_ratio_gating() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        target_wav = os.path.join(tmpdir, 'target_gate.wav')
+        ref_wav = os.path.join(tmpdir, 'ref_gate.wav')
+
+        sample_rate = 22050
+        dur = 0.3
+        t = np.linspace(0, dur, int(dur * sample_rate))
+        chirp = np.sin(2 * np.pi * 1800.0 * t)
+        wavfile.write(ref_wav, sample_rate, np.int16(chirp * 32767))
+
+        # High energy chirp at 1500ms, low energy quiet noise at 500ms
+        target = np.zeros(int(3.0 * sample_rate), dtype=np.float32)
+        # Tiny chirp amplitude 0.005 at 500ms
+        tiny_start = int(0.5 * sample_rate)
+        target[tiny_start : tiny_start + len(chirp)] = chirp * 0.005
+        # Full chirp at 1500ms
+        full_start = int(1.5 * sample_rate)
+        target[full_start : full_start + len(chirp)] = chirp * 1.0
+        wavfile.write(target_wav, sample_rate, np.int16(target * 32767))
+
+        matcher = AudioMatcher(sample_rate=22050, hop_length=256)
+        # Without energy ratio, tiny chirp may yield high normalized corr
+        # With min_energy_ratio=0.1, the tiny chirp is heavily scaled down
+        matches_gated = matcher.match(
+            video_or_audio_path=target_wav,
+            reference_sound_path=ref_wav,
+            threshold=0.3,
+            min_energy_ratio=0.1,
+        )
+
+        assert len(matches_gated) == 1
+        assert abs(matches_gated[0].timestamp_ms - 1500) < 30
+
+
+def test_match_config_yaml_with_template_duration_and_energy_ratio() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        target_wav = os.path.join(tmpdir, 'target_cfg.wav')
+        ref_wav = os.path.join(tmpdir, 'ref_cfg.wav')
+        cfg_file = os.path.join(tmpdir, 'sound.yaml')
+
+        sample_rate = 22050
+        dur = 0.4
+        t = np.linspace(0, dur, int(dur * sample_rate))
+        chirp = np.sin(2 * np.pi * 1600.0 * t)
+        wavfile.write(ref_wav, sample_rate, np.int16(chirp * 32767))
+
+        target = np.zeros(int(2.0 * sample_rate), dtype=np.float32)
+        target[sample_rate : sample_rate + len(chirp)] = chirp
+        wavfile.write(target_wav, sample_rate, np.int16(target * 32767))
+
+        with open(cfg_file, 'w', encoding='utf-8') as f:
+            f.write(
+                f"reference_sound_path: '{ref_wav}'\n"
+                f'threshold: 0.3\n'
+                f'template_duration_ms: 400\n'
+                f'min_energy_ratio: 0.05\n'
+            )
+
+        cfg = load_sound_config(cfg_file)
+        assert cfg.template_duration_ms == 400
+        assert cfg.min_energy_ratio == 0.05
+
+        matcher = AudioMatcher(sample_rate=22050, hop_length=256)
+        matches = matcher.match_with_config(
+            video_or_audio_path=target_wav,
+            config=cfg,
+        )
+        assert len(matches) >= 1
+        assert abs(matches[0].timestamp_ms - 1000) < 30
+
+
+
 

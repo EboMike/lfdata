@@ -61,6 +61,8 @@ class SoundDefinition:
         freq_min_hz: Optional lower frequency bound in Hz.
         freq_max_hz: Optional upper frequency bound in Hz.
         threshold: Minimum confidence threshold (default: 0.2).
+        template_duration_ms: Optional template duration in ms to crop to.
+        min_energy_ratio: Optional minimum in-band energy ratio for gating.
         description: Optional description of this sound effect.
         test_cases: List of example video test cases.
     """
@@ -70,6 +72,8 @@ class SoundDefinition:
     freq_min_hz: float | None = None
     freq_max_hz: float | None = None
     threshold: float = 0.2
+    template_duration_ms: int | None = None
+    min_energy_ratio: float | None = None
     description: str = ''
     test_cases: list[AudioTestCase] = dataclasses.field(default_factory=list)
 
@@ -143,6 +147,46 @@ class BenchmarkSummary:
     case_results: list[TestCaseEvaluationResult]
 
 
+@dataclasses.dataclass(frozen=True)
+class ConfigurationSuggestion:
+    """A concrete configuration adjustment suggested by failure analysis.
+
+    Attributes:
+        name: Short descriptive name for the suggestion.
+        rationale: Detailed rationale explaining why this change is suggested.
+        freq_min_hz: Suggested freq_min_hz, or None if unchanged.
+        freq_max_hz: Suggested freq_max_hz, or None if unchanged.
+        threshold: Suggested threshold, or None if unchanged.
+        template_duration_ms: Suggested template duration, or None if unchanged.
+        min_energy_ratio: Suggested min energy ratio, or None if unchanged.
+    """
+
+    name: str
+    rationale: str
+    freq_min_hz: float | None = None
+    freq_max_hz: float | None = None
+    threshold: float | None = None
+    template_duration_ms: int | None = None
+    min_energy_ratio: float | None = None
+    __test__ = False
+
+
+@dataclasses.dataclass
+class IterationCandidateResult:
+    """Outcome of evaluating a suggested configuration candidate.
+
+    Attributes:
+        suggestion: The candidate configuration that was evaluated.
+        summary: Benchmark evaluation summary with candidate parameters.
+        score: Calculated composite ranking score.
+    """
+
+    suggestion: ConfigurationSuggestion
+    summary: BenchmarkSummary
+    score: float
+    __test__ = False
+
+
 @dataclasses.dataclass
 class BenchmarkAnalysis:
     """Summary of comprehensive benchmark analysis across all test cases.
@@ -155,6 +199,9 @@ class BenchmarkAnalysis:
         max_false_positive_confidence: Highest false positive confidence.
         reconciling_threshold: Threshold passing all cases (if margin > 0).
         case_analyses: Detailed analysis for each test case.
+        suggestions: Concrete suggested configuration adjustments.
+        iteration_results: Evaluated suggestion results if iterate was run.
+        best_iteration: Winning candidate result if iterate was run.
     """
 
     sound_name: str
@@ -164,6 +211,11 @@ class BenchmarkAnalysis:
     max_false_positive_confidence: float | None
     reconciling_threshold: float | None
     case_analyses: list[TestCaseAnalysis]
+    suggestions: list[ConfigurationSuggestion] = dataclasses.field(
+        default_factory=list
+    )
+    iteration_results: list[IterationCandidateResult] | None = None
+    best_iteration: IterationCandidateResult | None = None
 
 
 @dataclasses.dataclass
@@ -268,6 +320,18 @@ class AudioBenchmarkRunner:
             freq_min_hz=raw_data.get('freq_min_hz'),
             freq_max_hz=raw_data.get('freq_max_hz'),
             threshold=float(raw_data.get('threshold', 0.2)),
+            template_duration_ms=(
+                int(raw_data['template_duration_ms'])
+                if 'template_duration_ms' in raw_data
+                and raw_data['template_duration_ms'] is not None
+                else None
+            ),
+            min_energy_ratio=(
+                float(raw_data['min_energy_ratio'])
+                if 'min_energy_ratio' in raw_data
+                and raw_data['min_energy_ratio'] is not None
+                else None
+            ),
             description=raw_data.get('description', ''),
             test_cases=test_cases,
         )
@@ -291,18 +355,22 @@ class AudioBenchmarkRunner:
             'freq_min_hz': sound_def.freq_min_hz,
             'freq_max_hz': sound_def.freq_max_hz,
             'threshold': sound_def.threshold,
-            'test_cases': [
-                {
-                    'video_path': tc.video_path,
-                    'expected_timestamp_ms': tc.expected_timestamp_ms,
-                    'tolerance_ms': tc.tolerance_ms,
-                    'search_start_ms': tc.search_start_ms,
-                    'search_end_ms': tc.search_end_ms,
-                    'description': tc.description,
-                }
-                for tc in sound_def.test_cases
-            ],
         }
+        if sound_def.template_duration_ms is not None:
+            data['template_duration_ms'] = sound_def.template_duration_ms
+        if sound_def.min_energy_ratio is not None:
+            data['min_energy_ratio'] = sound_def.min_energy_ratio
+        data['test_cases'] = [
+            {
+                'video_path': tc.video_path,
+                'expected_timestamp_ms': tc.expected_timestamp_ms,
+                'tolerance_ms': tc.tolerance_ms,
+                'search_start_ms': tc.search_start_ms,
+                'search_end_ms': tc.search_end_ms,
+                'description': tc.description,
+            }
+            for tc in sound_def.test_cases
+        ]
 
         with open(dest_path, 'w', encoding='utf-8') as file_obj:
             yaml.dump(data, file_obj, sort_keys=False, indent=2)
@@ -314,6 +382,8 @@ class AudioBenchmarkRunner:
         freq_min_hz: float | None = None,
         freq_max_hz: float | None = None,
         threshold: float | None = None,
+        template_duration_ms: int | None = None,
+        min_energy_ratio: float | None = None,
     ) -> TestCaseEvaluationResult:
         """Evaluates audio matching on a single test case.
 
@@ -323,6 +393,8 @@ class AudioBenchmarkRunner:
             freq_min_hz: Optional lower frequency bound override.
             freq_max_hz: Optional upper frequency bound override.
             threshold: Optional confidence threshold override.
+            template_duration_ms: Optional template duration in ms override.
+            min_energy_ratio: Optional min energy ratio override.
 
         Returns:
             TestCaseEvaluationResult: Detailed outcome of the test case.
@@ -348,6 +420,16 @@ class AudioBenchmarkRunner:
         eff_thresh = (
             threshold if threshold is not None else sound_def.threshold
         )
+        eff_duration_ms = (
+            template_duration_ms
+            if template_duration_ms is not None
+            else sound_def.template_duration_ms
+        )
+        eff_energy_ratio = (
+            min_energy_ratio
+            if min_energy_ratio is not None
+            else sound_def.min_energy_ratio
+        )
 
         try:
             matches, diag = self._matcher.match_diagnostic(
@@ -360,6 +442,8 @@ class AudioBenchmarkRunner:
                 end_ms=test_case.search_end_ms,
                 freq_min_hz=eff_min,
                 freq_max_hz=eff_max,
+                template_duration_ms=eff_duration_ms,
+                min_energy_ratio=eff_energy_ratio,
             )
         except Exception as err:
             return TestCaseEvaluationResult(
@@ -381,6 +465,8 @@ class AudioBenchmarkRunner:
         freq_min_hz: float | None = None,
         freq_max_hz: float | None = None,
         threshold: float | None = None,
+        template_duration_ms: int | None = None,
+        min_energy_ratio: float | None = None,
     ) -> BenchmarkSummary:
         """Evaluates all test cases in a sound definition.
 
@@ -389,6 +475,8 @@ class AudioBenchmarkRunner:
             freq_min_hz: Optional lower frequency bound override.
             freq_max_hz: Optional upper frequency bound override.
             threshold: Optional confidence threshold override.
+            template_duration_ms: Optional template duration in ms override.
+            min_energy_ratio: Optional min energy ratio override.
 
         Returns:
             BenchmarkSummary: Aggregated benchmark summary and case results.
@@ -401,6 +489,8 @@ class AudioBenchmarkRunner:
                 freq_min_hz=freq_min_hz,
                 freq_max_hz=freq_max_hz,
                 threshold=threshold,
+                template_duration_ms=template_duration_ms,
+                min_energy_ratio=min_energy_ratio,
             )
             results.append(res)
 
@@ -430,24 +520,47 @@ class AudioBenchmarkRunner:
         freq_min_hz: float | None = None,
         freq_max_hz: float | None = None,
         threshold: float | None = None,
+        template_duration_ms: int | None = None,
+        min_energy_ratio: float | None = None,
+        iterate: bool = False,
     ) -> BenchmarkAnalysis:
         """Analyzes test cases with detailed failure diagnostics.
 
         Evaluates each test case, computes true-positive peaks and
-        false-positive ceilings, identifies failure root causes, and
-        calculates reconciling thresholds.
+        false-positive ceilings, identifies failure root causes, calculates
+        reconciling thresholds, generates suggested configuration changes, and
+        optionally iterates through suggestions to find the best configuration.
 
         Args:
             sound_def: Sound definition containing reference and test cases.
             freq_min_hz: Optional lower frequency cutoff in Hz override.
             freq_max_hz: Optional upper frequency cutoff in Hz override.
             threshold: Optional threshold override.
+            template_duration_ms: Optional template duration in ms override.
+            min_energy_ratio: Optional min energy ratio override.
+            iterate: If True, evaluates each suggested configuration change.
 
         Returns:
             BenchmarkAnalysis: Comprehensive analysis across all test cases.
         """
         eff_thresh = (
             threshold if threshold is not None else sound_def.threshold
+        )
+        eff_fmin = (
+            freq_min_hz if freq_min_hz is not None else sound_def.freq_min_hz
+        )
+        eff_fmax = (
+            freq_max_hz if freq_max_hz is not None else sound_def.freq_max_hz
+        )
+        eff_duration_ms = (
+            template_duration_ms
+            if template_duration_ms is not None
+            else sound_def.template_duration_ms
+        )
+        eff_energy_ratio = (
+            min_energy_ratio
+            if min_energy_ratio is not None
+            else sound_def.min_energy_ratio
         )
         case_analyses: list[TestCaseAnalysis] = []
         true_peaks: list[float] = []
@@ -457,9 +570,11 @@ class AudioBenchmarkRunner:
             res = self.evaluate_test_case(
                 sound_def=sound_def,
                 test_case=tc,
-                freq_min_hz=freq_min_hz,
-                freq_max_hz=freq_max_hz,
-                threshold=threshold,
+                freq_min_hz=eff_fmin,
+                freq_max_hz=eff_fmax,
+                threshold=eff_thresh,
+                template_duration_ms=eff_duration_ms,
+                min_energy_ratio=eff_energy_ratio,
             )
             diag = res.diagnostic
             root_cause = 'PASS'
@@ -537,6 +652,239 @@ class AudioBenchmarkRunner:
             elif min_tp > max_fp:
                 reconciling_thresh = round((min_tp + max_fp) / 2.0, 3)
 
+        ref_duration_ms: float = 0.0
+        try:
+            ref_audio = self._matcher._load_audio(
+                sound_def.reference_sound_path
+            )
+            ref_duration_ms = (
+                len(ref_audio) / self._matcher.sample_rate
+            ) * 1000.0
+        except Exception:
+            pass
+
+        suggestions: list[ConfigurationSuggestion] = []
+        has_vocal_pen = any(
+            c.root_cause == 'VOCAL_PENALTY_SUPPRESSION' for c in case_analyses
+        )
+        has_fp_dom = any(
+            c.root_cause == 'FALSE_POSITIVE_DOMINANCE' for c in case_analyses
+        )
+        has_thresh_high = any(
+            c.root_cause == 'THRESHOLD_TOO_HIGH' for c in case_analyses
+        )
+
+        if reconciling_thresh is not None and reconciling_thresh != eff_thresh:
+            margin_info = (
+                f' (margin: {min_tp - max_fp:+.3f})'
+                if min_tp is not None and max_fp is not None
+                else ''
+            )
+            fp_info = f'{max_fp:.3f}' if max_fp is not None else '0.000'
+            suggestions.append(
+                ConfigurationSuggestion(
+                    name='Reconciling Threshold',
+                    freq_min_hz=eff_fmin,
+                    freq_max_hz=eff_fmax,
+                    threshold=reconciling_thresh,
+                    template_duration_ms=eff_duration_ms,
+                    min_energy_ratio=eff_energy_ratio,
+                    rationale=(
+                        f'Discovered threshold between min true peak '
+                        f'({min_tp:.3f}) and false positive ceiling '
+                        f'({fp_info}){margin_info} that passes all cases.'
+                    ),
+                )
+            )
+
+        if has_vocal_pen:
+            curr_fmin = eff_fmin or 1000.0
+            raised_fmin = round(max(curr_fmin + 200.0, 1400.0), 1)
+            suggestions.append(
+                ConfigurationSuggestion(
+                    name='Mitigate Vocal Suppression',
+                    freq_min_hz=raised_fmin,
+                    freq_max_hz=eff_fmax,
+                    threshold=reconciling_thresh or eff_thresh,
+                    template_duration_ms=eff_duration_ms,
+                    min_energy_ratio=eff_energy_ratio,
+                    rationale=(
+                        f'Increases freq_min_hz from {curr_fmin} to '
+                        f'{raised_fmin} to reduce vocal penalty suppression.'
+                    ),
+                )
+            )
+
+        if has_fp_dom:
+            curr_fmax = eff_fmax or 2500.0
+            narrowed_fmax = round(max(curr_fmax - 200.0, 2000.0), 1)
+            suggestions.append(
+                ConfigurationSuggestion(
+                    name='Narrow Upper Frequency Band',
+                    freq_min_hz=eff_fmin,
+                    freq_max_hz=narrowed_fmax,
+                    threshold=reconciling_thresh or eff_thresh,
+                    template_duration_ms=eff_duration_ms,
+                    min_energy_ratio=eff_energy_ratio,
+                    rationale=(
+                        f'Restricts freq_max_hz from {curr_fmax} to '
+                        f'{narrowed_fmax} to filter out out-of-band energy.'
+                    ),
+                )
+            )
+
+        if (
+            min_tp is not None
+            and max_fp is not None
+            and min_tp > max_fp
+            and (min_tp - max_fp) > 0.08
+        ):
+            safe_th = round(min_tp * 0.75 + max_fp * 0.25, 3)
+            if safe_th != reconciling_thresh:
+                suggestions.append(
+                    ConfigurationSuggestion(
+                        name='High-Margin Safe Threshold',
+                        freq_min_hz=eff_fmin,
+                        freq_max_hz=eff_fmax,
+                        threshold=safe_th,
+                        template_duration_ms=eff_duration_ms,
+                        min_energy_ratio=eff_energy_ratio,
+                        rationale=(
+                            f'Sets threshold at {safe_th:.3f} closer to false '
+                            f'positive floor ({max_fp:.3f}) for extra margin.'
+                        ),
+                    )
+                )
+
+        if (
+            has_thresh_high
+            and max_fp is None
+            and min_tp is not None
+            and reconciling_thresh is None
+        ):
+            lowered_th = round(min_tp * 0.85, 3)
+            suggestions.append(
+                ConfigurationSuggestion(
+                    name='Lower Threshold',
+                    freq_min_hz=eff_fmin,
+                    freq_max_hz=eff_fmax,
+                    threshold=lowered_th,
+                    template_duration_ms=eff_duration_ms,
+                    min_energy_ratio=eff_energy_ratio,
+                    rationale=(
+                        f'Lowers threshold from {eff_thresh:.3f} to '
+                        f'{lowered_th:.3f} below observed peak ({min_tp:.3f}).'
+                    ),
+                )
+            )
+
+        if ref_duration_ms > 1500.0 and eff_duration_ms is None:
+            suggestions.append(
+                ConfigurationSuggestion(
+                    name='Crop Template to 800ms',
+                    freq_min_hz=eff_fmin,
+                    freq_max_hz=eff_fmax,
+                    threshold=eff_thresh,
+                    template_duration_ms=800,
+                    min_energy_ratio=eff_energy_ratio,
+                    rationale=(
+                        f'Reference audio is {ref_duration_ms:.0f}ms long. '
+                        'Cropping template to the initial 800ms blast avoids '
+                        'reverberation and echo decay mismatches.'
+                    ),
+                )
+            )
+
+        if eff_energy_ratio is None:
+            suggestions.append(
+                ConfigurationSuggestion(
+                    name='Apply In-Band Energy Gating',
+                    freq_min_hz=eff_fmin,
+                    freq_max_hz=eff_fmax,
+                    threshold=eff_thresh,
+                    template_duration_ms=eff_duration_ms,
+                    min_energy_ratio=0.1,
+                    rationale=(
+                        'Gates correlation scores by relative in-band energy '
+                        'to suppress phantom matches during quiet sections.'
+                    ),
+                )
+            )
+
+        if (
+            ref_duration_ms > 1500.0
+            and eff_duration_ms is None
+            and eff_energy_ratio is None
+        ):
+            suggestions.append(
+                ConfigurationSuggestion(
+                    name='Crop Template to 800ms with Energy Gating',
+                    freq_min_hz=eff_fmin,
+                    freq_max_hz=eff_fmax,
+                    threshold=eff_thresh,
+                    template_duration_ms=800,
+                    min_energy_ratio=0.1,
+                    rationale=(
+                        'Combines 800ms template cropping with in-band energy '
+                        'gating to reject reverberation and quiet room noise.'
+                    ),
+                )
+            )
+
+        iteration_results: list[IterationCandidateResult] | None = None
+        best_iteration: IterationCandidateResult | None = None
+
+        if iterate and suggestions:
+            iteration_results = []
+            best_score = -1e9
+
+            base_sug = ConfigurationSuggestion(
+                name='Current Configuration',
+                freq_min_hz=eff_fmin,
+                freq_max_hz=eff_fmax,
+                threshold=eff_thresh,
+                template_duration_ms=eff_duration_ms,
+                min_energy_ratio=eff_energy_ratio,
+                rationale='Existing configuration settings before change.',
+            )
+            candidates_to_eval = [base_sug] + list(suggestions)
+
+            for cand_sug in candidates_to_eval:
+                cand_def = SoundDefinition(
+                    name=sound_def.name,
+                    reference_sound_path=sound_def.reference_sound_path,
+                    freq_min_hz=cand_sug.freq_min_hz,
+                    freq_max_hz=cand_sug.freq_max_hz,
+                    threshold=(
+                        cand_sug.threshold
+                        if cand_sug.threshold is not None
+                        else eff_thresh
+                    ),
+                    template_duration_ms=(
+                        cand_sug.template_duration_ms
+                        if cand_sug.template_duration_ms is not None
+                        else eff_duration_ms
+                    ),
+                    min_energy_ratio=(
+                        cand_sug.min_energy_ratio
+                        if cand_sug.min_energy_ratio is not None
+                        else eff_energy_ratio
+                    ),
+                    description=sound_def.description,
+                    test_cases=sound_def.test_cases,
+                )
+                summary = self.evaluate(cand_def)
+                score = self._compute_tuning_score(summary)
+                cand_res = IterationCandidateResult(
+                    suggestion=cand_sug,
+                    summary=summary,
+                    score=score,
+                )
+                iteration_results.append(cand_res)
+                if score > best_score:
+                    best_score = score
+                    best_iteration = cand_res
+
         passed_count = sum(1 for c in case_analyses if c.evaluation.passed)
         return BenchmarkAnalysis(
             sound_name=sound_def.name,
@@ -546,7 +894,11 @@ class AudioBenchmarkRunner:
             max_false_positive_confidence=max_fp,
             reconciling_threshold=reconciling_thresh,
             case_analyses=case_analyses,
+            suggestions=suggestions,
+            iteration_results=iteration_results,
+            best_iteration=best_iteration,
         )
+
 
     def tune(
         self,
@@ -814,6 +1166,12 @@ def main() -> None:
     eval_parser.add_argument('--freq-min', type=float, help='Override freq_min')
     eval_parser.add_argument('--freq-max', type=float, help='Override freq_max')
     eval_parser.add_argument('--threshold', type=float, help='Override thresh')
+    eval_parser.add_argument(
+        '--template-duration', type=int, help='Override template duration ms'
+    )
+    eval_parser.add_argument(
+        '--min-energy-ratio', type=float, help='Override min energy ratio'
+    )
 
     tune_parser = subparsers.add_parser(
         'tune', help='Fine-tune frequency bounds and thresholds.'
@@ -834,6 +1192,16 @@ def main() -> None:
         '--json', action='store_true', help='Output JSON.'
     )
     analyze_parser.add_argument(
+        '--iterate',
+        action='store_true',
+        help='Evaluate suggested changes and find the best configuration.',
+    )
+    analyze_parser.add_argument(
+        '--save',
+        action='store_true',
+        help='Save best parameters from iteration to config file.',
+    )
+    analyze_parser.add_argument(
         '--freq-min', type=float, help='Override freq_min'
     )
     analyze_parser.add_argument(
@@ -841,6 +1209,12 @@ def main() -> None:
     )
     analyze_parser.add_argument(
         '--threshold', type=float, help='Override thresh'
+    )
+    analyze_parser.add_argument(
+        '--template-duration', type=int, help='Override template duration ms'
+    )
+    analyze_parser.add_argument(
+        '--min-energy-ratio', type=float, help='Override min energy ratio'
     )
 
     args = parser.parse_args()
@@ -853,6 +1227,8 @@ def main() -> None:
             freq_min_hz=args.freq_min,
             freq_max_hz=args.freq_max,
             threshold=args.threshold,
+            template_duration_ms=args.template_duration,
+            min_energy_ratio=args.min_energy_ratio,
         )
         if args.json:
             print(json.dumps(dataclasses.asdict(summary), indent=2))
@@ -879,7 +1255,25 @@ def main() -> None:
             freq_min_hz=args.freq_min,
             freq_max_hz=args.freq_max,
             threshold=args.threshold,
+            template_duration_ms=args.template_duration,
+            min_energy_ratio=args.min_energy_ratio,
+            iterate=args.iterate,
         )
+        if args.save and analysis.best_iteration is not None:
+            best_s = analysis.best_iteration.suggestion
+            if best_s.freq_min_hz is not None:
+                sound_def.freq_min_hz = best_s.freq_min_hz
+            if best_s.freq_max_hz is not None:
+                sound_def.freq_max_hz = best_s.freq_max_hz
+            if best_s.threshold is not None:
+                sound_def.threshold = best_s.threshold
+            if best_s.template_duration_ms is not None:
+                sound_def.template_duration_ms = best_s.template_duration_ms
+            if best_s.min_energy_ratio is not None:
+                sound_def.min_energy_ratio = best_s.min_energy_ratio
+            runner.save_to_yaml(sound_def, args.config)
+            print(f'Updated config saved to {args.config}')
+
         if args.json:
             print(json.dumps(dataclasses.asdict(analysis), indent=2))
         else:
@@ -1002,6 +1396,76 @@ def _print_analysis(analysis: BenchmarkAnalysis) -> None:
                     f'(conf: {fp_conf:.4f})'
                 )
             print(f'     Recommendation: {a.recommendation}')
+
+    if analysis.suggestions:
+        print('\nSuggested Configuration Changes:')
+        for i, sug in enumerate(analysis.suggestions, 1):
+            print(f'  {i}. [{sug.name}]')
+            params: list[str] = []
+            if sug.freq_min_hz is not None:
+                params.append(f'freq_min_hz: {sug.freq_min_hz}')
+            if sug.freq_max_hz is not None:
+                params.append(f'freq_max_hz: {sug.freq_max_hz}')
+            if sug.threshold is not None:
+                params.append(f'threshold: {sug.threshold}')
+            if sug.template_duration_ms is not None:
+                params.append(
+                    f'template_duration_ms: {sug.template_duration_ms}'
+                )
+            if sug.min_energy_ratio is not None:
+                params.append(f'min_energy_ratio: {sug.min_energy_ratio}')
+            for p in params:
+                print(f'     {p}')
+            print(f'     Rationale: {sug.rationale}')
+
+    if analysis.iteration_results is not None:
+        print('\nIteration Mode Results:')
+        for i, it in enumerate(analysis.iteration_results, 1):
+            s = it.suggestion
+            sum_ = it.summary
+            is_best = ' [BEST]' if analysis.best_iteration is it else ''
+            p_parts: list[str] = []
+            if s.freq_min_hz is not None:
+                p_parts.append(f'fmin={s.freq_min_hz}')
+            if s.freq_max_hz is not None:
+                p_parts.append(f'fmax={s.freq_max_hz}')
+            if s.threshold is not None:
+                p_parts.append(f'thresh={s.threshold}')
+            if s.template_duration_ms is not None:
+                p_parts.append(f'dur={s.template_duration_ms}ms')
+            if s.min_energy_ratio is not None:
+                p_parts.append(f'min_energy={s.min_energy_ratio}')
+            p_str = ', '.join(p_parts)
+            err_str = (
+                f'{sum_.mean_error_ms:.1f}ms'
+                if sum_.mean_error_ms is not None
+                else 'N/A'
+            )
+            print(
+                f'  {i}. [{s.name}] ({p_str}) -> '
+                f'Passed: {sum_.passed_cases}/{sum_.total_cases} '
+                f'({sum_.accuracy * 100:.1f}%), err: {err_str}{is_best}'
+            )
+
+        if analysis.best_iteration is not None:
+            b_sug = analysis.best_iteration.suggestion
+            b_sum = analysis.best_iteration.summary
+            print('\nRecommended Best Configuration:')
+            if b_sug.freq_min_hz is not None:
+                print(f'  freq_min_hz: {b_sug.freq_min_hz}')
+            if b_sug.freq_max_hz is not None:
+                print(f'  freq_max_hz: {b_sug.freq_max_hz}')
+            if b_sug.threshold is not None:
+                print(f'  threshold: {b_sug.threshold}')
+            if b_sug.template_duration_ms is not None:
+                print(f'  template_duration_ms: {b_sug.template_duration_ms}')
+            if b_sug.min_energy_ratio is not None:
+                print(f'  min_energy_ratio: {b_sug.min_energy_ratio}')
+            print(
+                f'  Accuracy: {b_sum.passed_cases}/{b_sum.total_cases} '
+                f'({b_sum.accuracy * 100:.1f}%)'
+            )
+
 
 
 if __name__ == '__main__':

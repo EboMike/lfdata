@@ -58,7 +58,7 @@ between 1,400 Hz and 2,400 Hz.
 Restricting matching to the relevant frequency band filters out low-frequency
 rumble, bass music, and high-frequency noise.
 
-### 4. 2D Normalized Cross-Correlation
+### 4. 2D Normalized Cross-Correlation and Template Cropping
 
 Once cropped to the target frequency band, magnitude spectrograms are
 compared using OpenCV template matching:
@@ -72,24 +72,39 @@ correlation_matrix = cv2.matchTemplate(
 This slides the 2D reference template across the target spectrogram over time,
 generating a correlation series where scores range from -1.0 to 1.0.
 
-### 5. Vocal and Speech Rejection (Vocal Penalty)
+For multi-blast or reverberant sounds, `template_duration_ms` can crop the
+reference template to match only the initial sharp blast (e.g. 800 ms),
+eliminating decaying echoes and subsequent blasts that may degrade alignment.
+
+### 5. Vocal Rejection and In-Band Energy Gating
 
 POV recordings frequently contain shouting, teammate call-outs, and heavy
 breathing close to the microphone. Even within a filtered frequency band,
-energetic shouts can produce correlation spikes.
+energetic shouts or quiet chatter fluctuations can produce correlation spikes.
 
-To reject false positives caused by human speech, the matcher computes a
-vocal penalty factor (0.0 to 1.0):
-* Human vocal fundamentals and formant energy concentrate heavily between
-  150 Hz and the lower bound of the target frequency band (`freq_min_hz`).
-* The matcher computes the ratio of in-band energy to low-frequency energy
-  for each temporal window in the target audio.
-* If a window is dominated by low-frequency vocal energy relative to the
-  reference sound, a penalty factor scales down the correlation score:
+Two suppression mechanisms ensure signal purity:
 
-$$\text{final\_score} = \max(0, \text{correlation}) \times \text{penalty}$$
+1. **Vocal Penalty Factor**:
+   * Human vocal fundamentals and formant energy concentrate heavily between
+     150 Hz and `freq_min_hz`.
+   * The matcher computes the ratio of in-band energy to low-frequency energy
+     for each temporal window. If dominated by low-frequency vocal energy,
+     a penalty factor scales down the correlation score:
 
-This suppresses false peaks caused by players shouting during the countdown.
+$$\text{score} = \max(0, \text{correlation}) \times \text{penalty}$$
+
+2. **In-Band Energy Gating (`min_energy_ratio`)**:
+   * Normalized cross-correlation normalizes by local patch variance, which can
+     cause small noise fluctuations in quiet sections to yield phantom matches.
+   * If `min_energy_ratio` is enabled, the matcher calculates the average
+     in-band energy across the template window and smoothly gates the score
+     if the local energy falls below the specified fraction of the peak energy:
+$$
+\text{energy\_scale} = \min\left(
+  1.0,
+  \frac{E_{\text{window}}}{E_{\text{peak}} \times \text{min\_energy\_ratio}}
+)
+$$
 
 ### 6. Peak Detection via Non-Maximum Suppression (NMS)
 
@@ -298,6 +313,10 @@ test_cases:
 * `freq_min_hz`: Lower frequency cutoff in Hz (e.g. `1400.0`).
 * `freq_max_hz`: Upper frequency cutoff in Hz (e.g. `2400.0`).
 * `threshold`: Detection confidence threshold (0.0 to 1.0, e.g. `0.2`).
+* `template_duration_ms`: Optional duration in ms to crop reference audio to
+  (e.g. `800` to match only the initial blast of a repeating sound).
+* `min_energy_ratio`: Optional minimum in-band energy ratio (e.g. `0.1`) to
+  gate and suppress quiet background room noise matches.
 * `test_cases`: List of test recordings:
   * `video_path`: Path to example video or audio file.
   * `expected_timestamp_ms`: Ground-truth sound onset time in milliseconds.
@@ -329,7 +348,8 @@ You can test parameter adjustments without modifying the YAML file:
 
 ```bash
 ./tune-audio.sh evaluate configs/audio/my_sound.yaml \
-  --freq-min 1200 --freq-max 2200 --threshold 0.25
+  --freq-min 1200 --freq-max 2200 --threshold 0.25 \
+  --template-duration 800 --min-energy-ratio 0.1
 ```
 
 #### Evaluation Output
@@ -398,6 +418,38 @@ adjustments:
   the frequency bounds or restricting the search window.
 * `NO_SIGNAL`: No correlation peak was detected near the expected time. Verify
   the ground-truth timestamp or expand the frequency band.
+
+#### Suggested Configuration Changes
+
+Based on the diagnostic findings, `analyze` formulates concrete configuration
+adjustments (such as adjusting `threshold`, `freq_min_hz`, or `freq_max_hz`),
+accompanied by detailed rationales.
+
+#### Iteration Mode (`--iterate`)
+
+To automatically test the suggested configuration adjustments against all
+test cases and determine which one yields the highest overall accuracy and
+timing precision:
+
+* **PowerShell (Windows)**:
+  ```powershell
+  .\tune-audio.ps1 analyze configs/audio/my_sound.yaml --iterate
+  ```
+* **Bash (Linux / macOS / WSL)**:
+  ```bash
+  ./tune-audio.sh analyze configs/audio/my_sound.yaml --iterate
+  ```
+
+Iteration mode evaluates each candidate suggestion across every test case and
+prints a comparative table alongside the **Recommended Best Configuration**.
+
+To update the YAML configuration file directly with the winning parameters,
+add the `--save` flag:
+
+```powershell
+.\tune-audio.ps1 analyze configs/audio/my_sound.yaml --iterate --save
+```
+
 
 ### Automated Parameter Tuning (`tune`)
 
