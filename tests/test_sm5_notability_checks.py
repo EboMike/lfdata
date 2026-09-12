@@ -344,7 +344,7 @@ def test_checks_medic_zapped_medic() -> None:
     res = checks.check_medic_zapped_medic(game, m1)
     assert res is not None
     assert res.condition == Sm5NotabilityCondition.MEDIC_ZAPPED_MEDIC
-    assert res.tagline == 'Zapped enemy medic 3 times'
+    assert res.tagline == '3 medic-on-medic hits'
 
     # Non-medic or target non-medic
     assert checks.check_medic_zapped_medic(game, None) is None
@@ -368,7 +368,7 @@ def test_checks_never_zapped_and_low_times_zapped() -> None:
     never = checks.check_never_zapped(game, p1)
     assert never is not None
     assert never.condition == Sm5NotabilityCondition.NEVER_ZAPPED
-    assert never.tagline == 'Never zapped in game'
+    assert never.tagline == 'Never zapped'
 
     # Low zapped (1 time)
     game.sm5_stats[0].times_zapped = 1
@@ -376,7 +376,7 @@ def test_checks_never_zapped_and_low_times_zapped() -> None:
     low1 = checks.check_low_times_zapped(game, p1)
     assert low1 is not None
     assert low1.condition == Sm5NotabilityCondition.LOW_TIMES_ZAPPED
-    assert low1.tagline == 'Zapped only 1 time'
+    assert low1.tagline == 'Zapped only once'
 
     # Low zapped (4 times)
     game.sm5_stats[0].times_zapped = 4

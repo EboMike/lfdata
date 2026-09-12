@@ -555,8 +555,7 @@ def test_medic_zapped_medic_condition() -> None:
         == Sm5NotabilityCondition.MEDIC_ZAPPED_MEDIC
     )
     assert (
-        game.get_highlight_tagline(focus_player=m1)
-        == 'Zapped enemy medic 3 times'
+        game.get_highlight_tagline(focus_player=m1) == '3 medic-on-medic hits'
     )
 
 
@@ -600,7 +599,7 @@ def test_never_zapped_condition() -> None:
         game.get_notability(focus_player=p1)
         == Sm5NotabilityCondition.NEVER_ZAPPED
     )
-    assert game.get_highlight_tagline(focus_player=p1) == 'Never zapped in game'
+    assert game.get_highlight_tagline(focus_player=p1) == 'Never zapped'
 
 
 def test_low_times_zapped_condition() -> None:
@@ -686,7 +685,7 @@ def test_low_times_zapped_condition_singular() -> None:
         game.get_notability(focus_player=p1)
         == Sm5NotabilityCondition.LOW_TIMES_ZAPPED
     )
-    assert game.get_highlight_tagline(focus_player=p1) == 'Zapped only 1 time'
+    assert game.get_highlight_tagline(focus_player=p1) == 'Zapped only once'
 
 
 def test_priority_order_never_zapped_vs_low_zapped() -> None:

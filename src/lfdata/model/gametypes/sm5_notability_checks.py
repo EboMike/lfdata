@@ -423,7 +423,7 @@ class Sm5NotabilityChecks:
         if zaps >= 3:
             return Sm5NotabilityResult(
                 condition=Sm5NotabilityCondition.MEDIC_ZAPPED_MEDIC,
-                tagline=f'Zapped enemy medic {zaps} times',
+                tagline=f'{zaps} medic-on-medic hits',
                 details={'medic_zaps': zaps},
             )
         return None
@@ -447,7 +447,7 @@ class Sm5NotabilityChecks:
                 if (stat.times_zapped or 0) == 0:
                     return Sm5NotabilityResult(
                         condition=Sm5NotabilityCondition.NEVER_ZAPPED,
-                        tagline='Never zapped in game',
+                        tagline='Never zapped',
                         details={'times_zapped': 0},
                     )
         return None
@@ -471,7 +471,7 @@ class Sm5NotabilityChecks:
                 zapped = stat.times_zapped or 0
                 if zapped < 5:
                     tag = (
-                        'Zapped only 1 time'
+                        'Zapped only once'
                         if zapped == 1
                         else f'Zapped only {zapped} times'
                     )
