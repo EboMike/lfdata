@@ -1,7 +1,8 @@
 """LF replay system package for simulating game playback and verifying state.
 
-Provides state simulation (`LFReplaySystem`), event records (`LFReplayEventRecord`),
-game state snapshot containers, and integrity verifiers (`LFReplayVerifier`).
+Provides state simulation (`LFReplaySystem`), event records
+(`LFReplayEventRecord`), game state snapshot containers, and integrity
+verifiers (`LFReplayVerifier`).
 
 Usage example:
     from lfdata.replay import LFReplaySystem
@@ -10,7 +11,10 @@ Usage example:
     replay.process_all_events()
 """
 
-from lfdata.replay.diagnostics import LFReplayDiagnostics
+from lfdata.replay.diagnostics import (
+    GameTerminationInfo,
+    LFReplayDiagnostics,
+)
 from lfdata.replay.record import LFReplayEventRecord
 from lfdata.replay.replay import LFReplaySystem
 from lfdata.replay.state import (
@@ -28,5 +32,5 @@ __all__ = [
     'LFReplayGameState',
     'LFReplayVerifier',
     'LFReplayDiagnostics',
+    'GameTerminationInfo',
 ]
-

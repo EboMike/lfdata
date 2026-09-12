@@ -14,7 +14,7 @@ Usage example:
 
 import dataclasses
 
-from lfdata.model import GameEvent, LFGame
+from lfdata.model import GameEvent, LFGame, LFRole
 from lfdata.replay.replay import LFReplaySystem
 from lfdata.replay.state import LFReplayPlayerState
 
@@ -88,6 +88,73 @@ class PlayerMismatchInfo:
     codename: str
     lives_discrepancy: PlayerDiscrepancy | None = None
     shots_discrepancy: PlayerDiscrepancy | None = None
+
+
+@dataclasses.dataclass(frozen=True)
+class GameTerminationInfo:
+    """Information regarding game termination and duration completion.
+
+    Attributes:
+        scheduled_duration_ms: Scheduled mission duration from header, or None.
+        game_ended_at_ms: Actual millisecond timestamp when game ended.
+        ran_full_distance: True if game completed its full scheduled duration.
+        elimination_time_ms: Timestamp if ended by team elimination, or None.
+        eliminated_team_indices: List of eliminated team indices.
+        reason: Explanation string for termination.
+    """
+
+    scheduled_duration_ms: int | None
+    game_ended_at_ms: int
+    ran_full_distance: bool
+    elimination_time_ms: int | None
+    eliminated_team_indices: list[int]
+    reason: str
+
+
+def describe_player_state_at_ms(
+    player: LFReplayPlayerState, current_time_ms: int
+) -> tuple[str, bool]:
+    """Describes player state at timestamp and whether they can be up soon.
+
+    Args:
+        player: Replay player state instance.
+        current_time_ms: Millisecond timestamp to inspect.
+
+    Returns:
+        tuple[str, bool]: State description string and boolean indicating if
+            player is Up or can be Up within a few seconds (<= 5000ms).
+
+    Usage:
+        desc, can_be_up = describe_player_state_at_ms(player, 680952)
+    """
+    if player.is_eliminated():
+        return f'Eliminated ({player.lives} lives)', False
+
+    if player.has_authoritative_state:
+        st = player.get_state_at(current_time_ms)
+        if st == 0:
+            return 'Up (State 0)', True
+        if st == 2:
+            return 'Resettable (State 2) - can reset immediately', True
+        down_start = player.get_down_start_time_ms(current_time_ms)
+        if down_start is not None:
+            elapsed_ms = current_time_ms - down_start
+            if elapsed_ms >= 4000:
+                return 'Resettable (State 3, safe time elapsed)', True
+            rem_ms = 4000 - elapsed_ms
+            if rem_ms <= 5000:
+                return f'Down (State 3, {rem_ms} ms until resettable)', True
+            return f'Down (State 3, {rem_ms} ms until resettable)', False
+        return 'Down (State 3)', False
+
+    if not player.is_down(current_time_ms):
+        return 'Up', True
+    if player.is_resettable(current_time_ms):
+        return 'Resettable - can reset immediately', True
+    rem_ms = max(0, player.downtime_ends_at_ms - current_time_ms)
+    if rem_ms <= 5000:
+        return f'Down ({rem_ms} ms remaining)', True
+    return f'Down ({rem_ms} ms remaining)', False
 
 
 class LFReplayDiagnostics:
@@ -168,6 +235,123 @@ class LFReplayDiagnostics:
                 )
         return results
 
+    def analyze_game_termination(self) -> GameTerminationInfo:
+        """Analyzes how the game ended and whether it ran its full distance.
+
+        Returns:
+            GameTerminationInfo: Data object summarizing termination details.
+
+        Usage:
+            term_info = diag.analyze_game_termination()
+        """
+        end_ms = getattr(self.replay, 'game_ended_at_ms', None)
+        if not isinstance(end_ms, int):
+            end_ms = None
+        if end_ms is None:
+            for ev in self.game.events:
+                if ev.event_type == '0101':
+                    end_ms = ev.time
+                    break
+            if end_ms is None and self.game.events:
+                end_ms = max(e.time for e in self.game.events)
+            if end_ms is None:
+                end_ms = self.game.duration or 0
+
+        scheduled_ms = self.game.duration
+        elim_ms = getattr(self.replay, 'first_team_elimination_time_ms', None)
+        if not isinstance(elim_ms, int):
+            elim_ms = None
+
+        eliminated_teams: list[int] = []
+        all_teams = {
+            p.team_index for p in self.replay.game_state.players.values()
+        }
+        for team_idx in all_teams:
+            team_players = [
+                p
+                for p in self.replay.game_state.players.values()
+                if p.team_index == team_idx
+            ]
+            if team_players and all(p.is_eliminated() for p in team_players):
+                eliminated_teams.append(team_idx)
+
+        tolerance_ms = 5000
+        if scheduled_ms is not None and scheduled_ms > 0:
+            if elim_ms is not None or eliminated_teams:
+                ran_full = False
+                reason = (
+                    f'Ended short due to team elimination at '
+                    f'{elim_ms or end_ms} ms'
+                )
+            elif end_ms >= scheduled_ms - tolerance_ms:
+                ran_full = True
+                reason = 'Ran full distance (completed scheduled duration)'
+            else:
+                ran_full = False
+                reason = (
+                    'Ended short (early termination without team elimination)'
+                )
+        else:
+            ran_full = False
+            reason = 'Game duration not specified in header'
+
+        return GameTerminationInfo(
+            scheduled_duration_ms=scheduled_ms,
+            game_ended_at_ms=end_ms,
+            ran_full_distance=ran_full,
+            elimination_time_ms=elim_ms,
+            eliminated_team_indices=sorted(eliminated_teams),
+            reason=reason,
+        )
+
+    def _dump_game_termination(self, info: GameTerminationInfo) -> None:
+        """Prints game termination summary.
+
+        Args:
+            info: GameTerminationInfo record to print.
+        """
+        print('\nGame Termination Analysis:')
+        end_str = format_timestamp_ms(info.game_ended_at_ms)
+        if info.scheduled_duration_ms:
+            sched_str = format_timestamp_ms(info.scheduled_duration_ms)
+            print(
+                f'  Scheduled Duration: {info.scheduled_duration_ms} ms '
+                f'({sched_str})'
+            )
+            print(
+                f'  Actual Game End:    {info.game_ended_at_ms} ms ({end_str})'
+            )
+            if info.ran_full_distance:
+                print('  Result: The game ran its full distance.')
+            else:
+                diff_ms = max(
+                    0, info.scheduled_duration_ms - info.game_ended_at_ms
+                )
+                diff_str = format_timestamp_ms(diff_ms)
+                print(
+                    f'  Result: The game ended short by {diff_ms} ms '
+                    f'({diff_str}).'
+                )
+                if info.eliminated_team_indices:
+                    teams_str = ', '.join(
+                        f'Team {t}' for t in info.eliminated_team_indices
+                    )
+                    elim_time_str = ''
+                    if info.elimination_time_ms:
+                        et_str = format_timestamp_ms(info.elimination_time_ms)
+                        elim_time_str = (
+                            f' at {info.elimination_time_ms} ms ({et_str})'
+                        )
+                    print(
+                        f'  Reason: Team elimination{elim_time_str} '
+                        f'({teams_str} eliminated).'
+                    )
+                else:
+                    print(f'  Reason: {info.reason}.')
+        else:
+            print(f'  Actual Game End: {info.game_ended_at_ms} ms ({end_str})')
+            print(f'  Result: {info.reason}.')
+
     def dump_mismatches(
         self, discrepancies: dict[str, list[PlayerDiscrepancy]]
     ) -> None:
@@ -191,8 +375,14 @@ class LFReplayDiagnostics:
         print('DISCREPANCY DIAGNOSTICS & AMBIGUOUS EVENT ANALYSIS')
         print(separator)
 
+        term_info = self.analyze_game_termination()
+        self._dump_game_termination(term_info)
+
         for info in mismatches:
             self._dump_player_diagnostics(info)
+            self._dump_post_game_eligibility(
+                info, end_time_ms=term_info.game_ended_at_ms
+            )
 
     def _dump_player_diagnostics(self, info: PlayerMismatchInfo) -> None:
         """Dumps diagnostics for a specific mismatched player.
@@ -466,3 +656,208 @@ class LFReplayDiagnostics:
                     f'    - Computed {field_name} are higher than expected '
                     f'(+{diff_amount}).'
                 )
+
+    def _dump_post_game_lives_eligibility(
+        self,
+        player: LFReplayPlayerState,
+        diff: int,
+        p_desc: str,
+        p_can_up: bool,
+        end_time_ms: int,
+    ) -> None:
+        """Evaluates and prints post-game lives reconciliation eligibility.
+
+        Args:
+            player: The player state.
+            diff: Lives difference (computed - expected).
+            p_desc: Player state description.
+            p_can_up: Whether player can be Up within seconds of game end.
+            end_time_ms: Game end timestamp in milliseconds.
+        """
+        if diff >= 0:
+            return
+
+        medics = [
+            p
+            for p in self.replay.game_state.players.values()
+            if p.team_index == player.team_index and p.role == LFRole.MEDIC
+        ]
+        if not medics:
+            print("    - No Medic found on player's team.")
+            return
+
+        gain = player.role.medic_lives_gain
+        needed_lives = abs(diff)
+
+        for medic in medics:
+            m_entity = next(
+                (
+                    e
+                    for e in self.game.entities
+                    if e.entity_id == medic.entity_id
+                ),
+                None,
+            )
+            m_name = m_entity.desc if m_entity else medic.entity_id
+            m_desc, m_can_up = describe_player_state_at_ms(medic, end_time_ms)
+
+            print(
+                f'    - Teammate Medic {m_name} ({medic.entity_id}): {m_desc}'
+            )
+            if not medic.is_eliminated() and m_can_up and p_can_up:
+                print(
+                    '    - Both player and Medic were eligible to be Up '
+                    'in the seconds after game end: YES'
+                )
+                print(
+                    f'    - Medic resupply gain for {player.role.name}: '
+                    f'+{gain} lives'
+                )
+                if gain == needed_lives:
+                    print(
+                        f'    - ELIGIBLE: A single medic resupply (+{gain} '
+                        'lives) in the seconds after game end would exactly '
+                        f'account for the {diff} lives discrepancy.'
+                    )
+                else:
+                    print(
+                        f'    - PARTIALLY ELIGIBLE: Medic resupply (+{gain} '
+                        f'lives) was possible, but discrepancy is {diff} lives.'
+                    )
+            elif medic.is_eliminated():
+                print(
+                    f'    - NOT ELIGIBLE: Medic {m_name} was eliminated at '
+                    'game end.'
+                )
+            else:
+                print(
+                    '    - NOT ELIGIBLE: Player or Medic was down and could '
+                    'not be Up within seconds of game end.'
+                )
+
+    def _dump_post_game_ammo_eligibility(
+        self,
+        player: LFReplayPlayerState,
+        diff: int,
+        p_desc: str,
+        p_can_up: bool,
+        end_time_ms: int,
+    ) -> None:
+        """Evaluates and prints post-game ammo reconciliation eligibility.
+
+        Args:
+            player: The player state.
+            diff: Shots difference (computed - expected).
+            p_desc: Player state description.
+            p_can_up: Whether player can be Up within seconds of game end.
+            end_time_ms: Game end timestamp in milliseconds.
+        """
+        if diff > 0:
+            print(f'    - Player remaining shots at game end: {player.shots}')
+            if not player.is_eliminated() and p_can_up and player.shots >= diff:
+                print(
+                    f'    - ELIGIBLE: Player was alive with {player.shots} '
+                    f'shots remaining and could be Up ({p_desc}). The player '
+                    f'could easily have fired {diff} shot(s) in the seconds '
+                    'after game end to account for the discrepancy.'
+                )
+            elif player.shots < diff:
+                print(
+                    f'    - NOT ELIGIBLE: Player had only {player.shots} shots '
+                    f'remaining, but needed {diff} shots.'
+                )
+            else:
+                print(
+                    '    - NOT ELIGIBLE: Player was eliminated or down and '
+                    'could not fire shots after game end.'
+                )
+        elif diff < 0:
+            ammo_carriers = [
+                p
+                for p in self.replay.game_state.players.values()
+                if p.team_index == player.team_index and p.role == LFRole.AMMO
+            ]
+            if not ammo_carriers:
+                print("    - No Ammo Carrier found on player's team.")
+                return
+
+            gain = player.role.ammo_shots_gain
+            for ac in ammo_carriers:
+                ac_entity = next(
+                    (
+                        e
+                        for e in self.game.entities
+                        if e.entity_id == ac.entity_id
+                    ),
+                    None,
+                )
+                ac_name = ac_entity.desc if ac_entity else ac.entity_id
+                ac_desc, ac_can_up = describe_player_state_at_ms(
+                    ac, end_time_ms
+                )
+
+                print(
+                    f'    - Teammate Ammo Carrier {ac_name} ({ac.entity_id}): '
+                    f'{ac_desc}'
+                )
+                if not ac.is_eliminated() and ac_can_up and p_can_up:
+                    print(
+                        f'    - ELIGIBLE: Ammo Carrier resupply (+{gain} '
+                        f'shots) was possible (discrepancy is {diff} shots).'
+                    )
+                else:
+                    print(
+                        '    - NOT ELIGIBLE: Ammo Carrier was eliminated or '
+                        'could not resupply after game end.'
+                    )
+
+    def _dump_post_game_eligibility(
+        self, info: PlayerMismatchInfo, end_time_ms: int
+    ) -> None:
+        """Prints post-game discrepancy reconciliation eligibility.
+
+        Args:
+            info: Player mismatch record.
+            end_time_ms: Timestamp in ms when game ended.
+        """
+        player = self.replay.game_state.players.get(info.entity_id)
+        if not player:
+            return
+
+        end_str = format_timestamp_ms(end_time_ms)
+        p_desc, p_can_up = describe_player_state_at_ms(player, end_time_ms)
+
+        print(
+            '\n  Post-Game Discrepancy Reconciliation '
+            '(within seconds of game end):'
+        )
+        print(
+            f'    - Player state at game end ({end_time_ms} ms [{end_str}]): '
+            f'{p_desc}'
+        )
+
+        if info.lives_discrepancy:
+            diff = (
+                info.lives_discrepancy.computed
+                - info.lives_discrepancy.expected
+            )
+            self._dump_post_game_lives_eligibility(
+                player=player,
+                diff=diff,
+                p_desc=p_desc,
+                p_can_up=p_can_up,
+                end_time_ms=end_time_ms,
+            )
+
+        if info.shots_discrepancy:
+            diff = (
+                info.shots_discrepancy.computed
+                - info.shots_discrepancy.expected
+            )
+            self._dump_post_game_ammo_eligibility(
+                player=player,
+                diff=diff,
+                p_desc=p_desc,
+                p_can_up=p_can_up,
+                end_time_ms=end_time_ms,
+            )
