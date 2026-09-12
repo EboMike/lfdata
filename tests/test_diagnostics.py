@@ -13,6 +13,7 @@ from lfdata.replay.diagnostics import (
     format_timestamp_ms,
     get_state_label,
 )
+from lfdata.replay.record import LFReplayEventRecord
 from lfdata.replay.state import LFReplayPlayerState
 from lfdata.replay.verification import PlayerDiscrepancy
 
@@ -424,3 +425,153 @@ def test_post_game_eligibility_ammo(capsys: object) -> None:
         in captured.out
     )
     assert 'could easily have fired 2 shot(s)' in captured.out
+
+
+def test_analyze_late_event_cutoff_shots_match() -> None:
+    game = LFGame(game_id='late_shots_match', game_type='SM5', duration=600000)
+    p1 = LFReplayPlayerState('p1', role=LFRole.SCOUT, team_index=0)
+    rec0 = LFReplayEventRecord(
+        event_id=0,
+        time_ms=1000,
+        description='baseline',
+        player_changes={'p1': {'shots': 10}},
+        team_changes={},
+    )
+    rec1 = LFReplayEventRecord(
+        event_id=1,
+        time_ms=598500,
+        description='p1 zaps opponent',
+        player_changes={'p1': {'shots': 9}},
+        team_changes={},
+    )
+    rec2 = LFReplayEventRecord(
+        event_id=2,
+        time_ms=599200,
+        description='p1 misses',
+        player_changes={'p1': {'shots': 8}},
+        team_changes={},
+    )
+
+    replay = MagicMock()
+    replay.game_ended_at_ms = 600000
+    replay.game_state.players = {'p1': p1}
+    replay.records = [rec0, rec1, rec2]
+
+    diag = LFReplayDiagnostics(game=game, replay=replay)
+    res = diag.analyze_late_event_cutoff(
+        entity_id='p1', field='shots', diff=-2, end_time_ms=600000
+    )
+
+    assert res.can_be_prevented is True
+    assert len(res.events) == 2
+    assert res.window_ms == 1500
+    assert res.events[0].time_ms == 599200
+    assert res.events[0].delta == -1
+    assert res.events[1].time_ms == 598500
+    assert res.events[1].delta == -1
+
+
+def test_analyze_late_event_cutoff_lives_match() -> None:
+    game = LFGame(game_id='late_lives_match', game_type='SM5', duration=600000)
+    p1 = LFReplayPlayerState('p1', role=LFRole.COMMANDER, team_index=0)
+    rec = LFReplayEventRecord(
+        event_id=1,
+        time_ms=597500,
+        description='opponent zaps p1',
+        player_changes={'p1': {'lives': 14}},
+        team_changes={},
+    )
+
+    replay = MagicMock()
+    replay.game_ended_at_ms = 600000
+    replay.game_state.players = {'p1': p1}
+    replay.records = [rec]
+
+    diag = LFReplayDiagnostics(game=game, replay=replay)
+    res = diag.analyze_late_event_cutoff(
+        entity_id='p1', field='lives', diff=-1, end_time_ms=600000
+    )
+
+    assert res.can_be_prevented is True
+    assert len(res.events) == 1
+    assert res.window_ms == 2500
+    assert res.events[0].delta == -1
+
+
+def test_analyze_late_event_cutoff_not_preventable() -> None:
+    game = LFGame(game_id='late_not_prevent', game_type='SM5', duration=600000)
+    p1 = LFReplayPlayerState('p1', role=LFRole.SCOUT, team_index=0)
+    rec0 = LFReplayEventRecord(
+        event_id=0,
+        time_ms=1000,
+        description='baseline',
+        player_changes={'p1': {'shots': 26}},
+        team_changes={},
+    )
+    rec = LFReplayEventRecord(
+        event_id=1,
+        time_ms=599000,
+        description='p1 misses',
+        player_changes={'p1': {'shots': 25}},
+        team_changes={},
+    )
+
+    replay = MagicMock()
+    replay.game_ended_at_ms = 600000
+    replay.game_state.players = {'p1': p1}
+    replay.records = [rec0, rec]
+
+    diag = LFReplayDiagnostics(game=game, replay=replay)
+    res = diag.analyze_late_event_cutoff(
+        entity_id='p1', field='shots', diff=-5, end_time_ms=600000
+    )
+
+    assert res.can_be_prevented is False
+
+
+def test_dump_mismatches_late_event_output(capsys: object) -> None:
+    game = LFGame(game_id='dump_late', game_type='SM5', duration=600000)
+    p1_entity = GameEntity(
+        game_id='dump_late',
+        entity_id='p1',
+        type='player',
+        desc='Shooter',
+        team_index=0,
+    )
+    game.entities = [p1_entity]
+    game.events = []
+    game.state_history = []
+
+    p1 = LFReplayPlayerState('p1', role=LFRole.SCOUT, team_index=0)
+    rec0 = LFReplayEventRecord(
+        event_id=0,
+        time_ms=1000,
+        description='baseline',
+        player_changes={'p1': {'shots': 9}},
+        team_changes={},
+    )
+    rec = LFReplayEventRecord(
+        event_id=1,
+        time_ms=598500,
+        description='Shooter misses',
+        player_changes={'p1': {'shots': 8}},
+        team_changes={},
+    )
+
+    replay = MagicMock()
+    replay.game_ended_at_ms = 600000
+    replay.first_team_elimination_time_ms = None
+    replay.game_state.players = {'p1': p1}
+    replay.records = [rec0, rec]
+
+    diag = LFReplayDiagnostics(game=game, replay=replay)
+    discrepancies = {
+        'p1': [PlayerDiscrepancy(field='shots', computed=8, expected=9)]
+    }
+    diag.dump_mismatches(discrepancies)
+    captured = capsys.readouterr()
+
+    assert 'Late-Game Event Cutoff Analysis:' in captured.out
+    assert 'LIKELY RESOLUTION' in captured.out
+    assert 'final 1.5 seconds' in captured.out
+    assert 'Shooter misses (delta: -1 shots)' in captured.out

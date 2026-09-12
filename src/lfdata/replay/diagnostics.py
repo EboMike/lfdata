@@ -15,6 +15,7 @@ Usage example:
 import dataclasses
 
 from lfdata.model import GameEvent, LFGame, LFRole
+from lfdata.replay.record import LFReplayEventRecord
 from lfdata.replay.replay import LFReplaySystem
 from lfdata.replay.state import LFReplayPlayerState
 
@@ -111,6 +112,42 @@ class GameTerminationInfo:
     reason: str
 
 
+@dataclasses.dataclass(frozen=True)
+class LateEventRecord:
+    """An event near game end that changed a player's metric.
+
+    Attributes:
+        time_ms: Timestamp in milliseconds when the event occurred.
+        delta_to_end_ms: Relative delta in ms to game end (negative before end).
+        description: Printable description of the event action.
+        delta: Value change caused by the event (e.g. -1 for shot/zap).
+    """
+
+    time_ms: int
+    delta_to_end_ms: int
+    description: str
+    delta: int
+
+
+@dataclasses.dataclass(frozen=True)
+class LateEventCutoffAnalysis:
+    """Analysis of whether discounting late events resolves a discrepancy.
+
+    Attributes:
+        field: Metric name string ('shots' or 'lives').
+        diff: Discrepancy amount (computed - expected).
+        events: List of late events that would need to be discounted.
+        window_ms: Milliseconds before game end of earliest event, or None.
+        can_be_prevented: True if discounting these events resolves discrepancy.
+    """
+
+    field: str
+    diff: int
+    events: list[LateEventRecord]
+    window_ms: int | None
+    can_be_prevented: bool
+
+
 def describe_player_state_at_ms(
     player: LFReplayPlayerState, current_time_ms: int
 ) -> tuple[str, bool]:
@@ -191,6 +228,160 @@ class LFReplayDiagnostics:
         self.game = game
         self.replay = replay
         self.boost_grace_period_ms = boost_grace_period_ms
+        self._metric_deltas: (
+            dict[tuple[str, str], list[tuple[LFReplayEventRecord, int]]] | None
+        ) = None
+
+    def _build_player_metric_deltas(
+        self,
+    ) -> dict[tuple[str, str], list[tuple[LFReplayEventRecord, int]]]:
+        """Calculates per-record metric deltas for each player.
+
+        Returns:
+            dict[tuple[str, str], list[tuple[LFReplayEventRecord, int]]]:
+                Mapping of (entity_id, field) to list of (record, delta) pairs.
+        """
+        if self._metric_deltas is not None:
+            return self._metric_deltas
+
+        curr_vals: dict[str, dict[str, int]] = {}
+        for p in self.replay.game_state.players.values():
+            curr_vals[p.entity_id] = {
+                'shots': p.role.start_shots,
+                'lives': p.role.start_lives,
+            }
+
+        result: dict[
+            tuple[str, str], list[tuple[LFReplayEventRecord, int]]
+        ] = {}
+        for rec in self.replay.records:
+            for pid, ch in rec.player_changes.items():
+                if pid not in curr_vals:
+                    continue
+                for field in ('shots', 'lives'):
+                    if field in ch:
+                        delta = ch[field] - curr_vals[pid][field]
+                        curr_vals[pid][field] = ch[field]
+                        if delta != 0:
+                            key = (pid, field)
+                            result.setdefault(key, []).append((rec, delta))
+
+        self._metric_deltas = result
+        return result
+
+    def analyze_late_event_cutoff(
+        self,
+        entity_id: str,
+        field: str,
+        diff: int,
+        end_time_ms: int,
+        max_window_ms: int = 15000,
+    ) -> LateEventCutoffAnalysis:
+        """Analyzes if discounting late events could resolve the discrepancy.
+
+        Args:
+            entity_id: Player entity ID.
+            field: Metric name ('shots' or 'lives').
+            diff: Difference (computed - expected).
+            end_time_ms: Timestamp in milliseconds when the game ended.
+            max_window_ms: Window in milliseconds before game end to inspect
+                (defaults to 15000 ms / 15 seconds).
+
+        Returns:
+            LateEventCutoffAnalysis: Result of the late cutoff analysis.
+
+        Usage:
+            res = diag.analyze_late_event_cutoff('p1', 'shots', -2, 680000)
+        """
+        all_deltas = self._build_player_metric_deltas()
+        records_and_deltas = all_deltas.get((entity_id, field), [])
+
+        matching_events: list[LateEventRecord] = []
+        accumulated = 0
+        target_amount = abs(diff)
+
+        for rec, delta in reversed(records_and_deltas):
+            if rec.time_ms > end_time_ms:
+                continue
+            time_before_end_ms = end_time_ms - rec.time_ms
+            if time_before_end_ms > max_window_ms:
+                break
+
+            if (diff < 0 and delta < 0) or (diff > 0 and delta > 0):
+                change_mag = abs(delta)
+                matching_events.append(
+                    LateEventRecord(
+                        time_ms=rec.time_ms,
+                        delta_to_end_ms=-time_before_end_ms,
+                        description=rec.description,
+                        delta=delta,
+                    )
+                )
+                accumulated += change_mag
+                if accumulated >= target_amount:
+                    break
+
+        can_prevent = accumulated == target_amount
+        window_ms = None
+        if matching_events:
+            window_ms = end_time_ms - matching_events[-1].time_ms
+
+        return LateEventCutoffAnalysis(
+            field=field,
+            diff=diff,
+            events=matching_events,
+            window_ms=window_ms,
+            can_be_prevented=can_prevent,
+        )
+
+    def _dump_late_event_cutoff(
+        self, analysis: LateEventCutoffAnalysis, end_time_ms: int
+    ) -> None:
+        """Prints late-game event cutoff diagnostic analysis.
+
+        Args:
+            analysis: LateEventCutoffAnalysis result record.
+            end_time_ms: Timestamp in milliseconds when the game ended.
+        """
+        field_name = analysis.field
+        diff = analysis.diff
+
+        print('\n  Late-Game Event Cutoff Analysis:')
+        if analysis.can_be_prevented and analysis.window_ms is not None:
+            count = len(analysis.events)
+            seconds = analysis.window_ms / 1000.0
+            earliest_ms = analysis.events[-1].time_ms
+            earliest_str = format_timestamp_ms(earliest_ms)
+            noun = 'event' if count == 1 else 'events'
+            print(
+                f'    - LIKELY RESOLUTION: If the last {count} {field_name} '
+                f'{noun} in the final {seconds:.1f} seconds '
+                f'(after {earliest_ms} ms [{earliest_str}]) were NOT counted, '
+                f'the {diff:+d} {field_name} discrepancy would be '
+                'completely prevented.'
+            )
+            print('    - Events that would be discounted:')
+            for ev in reversed(analysis.events):
+                ev_str = format_timestamp_ms(ev.time_ms)
+                print(
+                    f'      * {ev.time_ms} ms ({ev_str}) '
+                    f'[{ev.delta_to_end_ms} ms before game end]: '
+                    f'{ev.description} (delta: {ev.delta:+d} {field_name})'
+                )
+        elif analysis.events:
+            count = len(analysis.events)
+            print(
+                f'    - In the final 15.0 seconds of the game, {count} '
+                f'event(s) affected {field_name}, but discounting them does '
+                f'not match the discrepancy of {diff:+d} {field_name}.'
+            )
+        else:
+            print(
+                f'    - No {field_name}-modifying events occurred for this '
+                'player in the final 15.0 seconds of the game. The '
+                'discrepancy cannot be explained by discounting late-game '
+                'events.'
+            )
 
     def build_mismatch_infos(
         self, discrepancies: dict[str, list[PlayerDiscrepancy]]
@@ -380,6 +571,36 @@ class LFReplayDiagnostics:
 
         for info in mismatches:
             self._dump_player_diagnostics(info)
+            if info.lives_discrepancy:
+                diff = (
+                    info.lives_discrepancy.computed
+                    - info.lives_discrepancy.expected
+                )
+                lives_cutoff = self.analyze_late_event_cutoff(
+                    entity_id=info.entity_id,
+                    field='lives',
+                    diff=diff,
+                    end_time_ms=term_info.game_ended_at_ms,
+                )
+                self._dump_late_event_cutoff(
+                    analysis=lives_cutoff,
+                    end_time_ms=term_info.game_ended_at_ms,
+                )
+            if info.shots_discrepancy:
+                diff = (
+                    info.shots_discrepancy.computed
+                    - info.shots_discrepancy.expected
+                )
+                shots_cutoff = self.analyze_late_event_cutoff(
+                    entity_id=info.entity_id,
+                    field='shots',
+                    diff=diff,
+                    end_time_ms=term_info.game_ended_at_ms,
+                )
+                self._dump_late_event_cutoff(
+                    analysis=shots_cutoff,
+                    end_time_ms=term_info.game_ended_at_ms,
+                )
             self._dump_post_game_eligibility(
                 info, end_time_ms=term_info.game_ended_at_ms
             )

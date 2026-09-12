@@ -14,6 +14,8 @@ Usage example:
 from lfdata.replay.diagnostics import (
     GameTerminationInfo,
     LFReplayDiagnostics,
+    LateEventCutoffAnalysis,
+    LateEventRecord,
 )
 from lfdata.replay.record import LFReplayEventRecord
 from lfdata.replay.replay import LFReplaySystem
@@ -33,4 +35,6 @@ __all__ = [
     'LFReplayVerifier',
     'LFReplayDiagnostics',
     'GameTerminationInfo',
+    'LateEventRecord',
+    'LateEventCutoffAnalysis',
 ]
