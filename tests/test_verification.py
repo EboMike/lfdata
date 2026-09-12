@@ -126,6 +126,111 @@ def test_verifier_with_discrepancies_resolved() -> None:
         ]
         mock_inst_aligned.entity_names = {'player_1': 'PlayerOne'}
 
-        mock_replay_class.side_effect = [mock_inst_no_align, mock_inst_aligned]
+        mock_replay_class.side_effect = [
+            mock_inst_no_align,
+            mock_inst_aligned,
+            mock_inst_aligned,
+        ]
+        verifier.candidate_grace_periods_ms = [500]
 
         assert verifier.verify() is False
+
+
+def test_check_grace_periods_working_and_failing() -> None:
+    game = LFGame(game_id='test_gp_game', game_type='SM5')
+    entity = GameEntity(
+        game_id='test_gp_game',
+        entity_id='player_1',
+        type='player',
+        desc='PlayerOne',
+        team_index=1,
+        end_score=1000,
+    )
+    game.entities = [entity]
+
+    stats = Sm5Stats(
+        game_id='test_gp_game',
+        entity_id='player_1',
+        lives_left=15,
+        shots_left=30,
+    )
+    game.sm5_stats = [stats]
+
+    verifier = LFReplayVerifier(game, candidate_grace_periods_ms=[500, 950])
+
+    mock_state_fail = MagicMock()
+    mock_state_fail.score = 800
+    mock_state_fail.lives = 10
+    mock_state_fail.shots = 25
+
+    mock_state_pass = MagicMock()
+    mock_state_pass.score = 1000
+    mock_state_pass.lives = 15
+    mock_state_pass.shots = 30
+
+    inst_fail = MagicMock()
+    inst_fail.game_state.players = {'player_1': mock_state_fail}
+
+    inst_pass = MagicMock()
+    inst_pass.game_state.players = {'player_1': mock_state_pass}
+
+    with patch('lfdata.replay.verification.LFReplaySystem') as mock_rep_cls:
+        mock_rep_cls.side_effect = [inst_fail, inst_pass]
+        working, failing = verifier.check_grace_periods()
+
+        assert working == [950]
+        assert failing == [500]
+
+
+def test_verify_prints_grace_period_results(capsys: object) -> None:
+    game = LFGame(game_id='test_gp_print', game_type='SM5')
+    entity = GameEntity(
+        game_id='test_gp_print',
+        entity_id='player_1',
+        type='player',
+        desc='PlayerOne',
+        team_index=1,
+        end_score=1000,
+    )
+    game.entities = [entity]
+
+    stats = Sm5Stats(
+        game_id='test_gp_print',
+        entity_id='player_1',
+        lives_left=15,
+        shots_left=30,
+    )
+    game.sm5_stats = [stats]
+
+    verifier = LFReplayVerifier(game, candidate_grace_periods_ms=[700, 950])
+
+    mock_state_fail = MagicMock()
+    mock_state_fail.score = 800
+    mock_state_fail.lives = 10
+    mock_state_fail.shots = 25
+
+    mock_state_pass = MagicMock()
+    mock_state_pass.score = 1000
+    mock_state_pass.lives = 15
+    mock_state_pass.shots = 30
+
+    inst_fail = MagicMock()
+    inst_fail.game_state.players = {'player_1': mock_state_fail}
+    inst_fail.resolved_ambiguities = []
+
+    inst_pass = MagicMock()
+    inst_pass.game_state.players = {'player_1': mock_state_pass}
+
+    with patch('lfdata.replay.verification.LFReplaySystem') as mock_rep_cls:
+        mock_rep_cls.side_effect = [
+            inst_fail,
+            inst_fail,
+            inst_fail,
+            inst_pass,
+        ]
+        assert verifier.verify() is False
+
+    captured = capsys.readouterr()
+    assert 'Evaluating different grace period values...' in captured.out
+    assert 'Grace period values that worked: 950 ms' in captured.out
+    assert "Grace period values that didn't work: 700 ms" in captured.out

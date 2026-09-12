@@ -34,6 +34,8 @@ class TdfDirectoryVerifier:
 
     Attributes:
         target_path: The target Path object pointing to a directory or TDF file.
+        boost_grace_period_ms: Grace period in milliseconds for boost
+            eligibility.
     """
 
     def __init__(
@@ -41,6 +43,7 @@ class TdfDirectoryVerifier:
         target_path: str = '.',
         *,
         directory_path: str | None = None,
+        boost_grace_period_ms: int = 700,
     ) -> None:
         """Initializes the TDF verifier with a target path.
 
@@ -51,14 +54,19 @@ class TdfDirectoryVerifier:
             target_path: Path to the directory or single TDF file to verify.
                 Defaults to '.'.
             directory_path: Optional legacy alias for target_path.
+            boost_grace_period_ms: Grace period in milliseconds for boost
+                eligibility (defaults to 700).
 
         Usage:
-            verifier = TdfDirectoryVerifier('tdf_files/')
+            verifier = TdfDirectoryVerifier(
+                'tdf_files/', boost_grace_period_ms=950
+            )
             single_verifier = TdfDirectoryVerifier('game.tdf')
         """
         raw_path = directory_path if directory_path is not None else target_path
         self._target_path = Path(raw_path)
         self._directory = self._target_path
+        self.boost_grace_period_ms = boost_grace_period_ms
 
     @property
     def target_path(self) -> Path:
@@ -117,7 +125,9 @@ class TdfDirectoryVerifier:
         try:
             importer = TdfImporter(str(file_path))
             game = importer.parse()
-            verifier = LFReplayVerifier(game)
+            verifier = LFReplayVerifier(
+                game, boost_grace_period_ms=self.boost_grace_period_ms
+            )
             return verifier.verify()
         except Exception as exc:
             print(f'Error verifying {file_path.name}: {exc}')
@@ -207,9 +217,23 @@ def main() -> None:
         default='.',
         help='Directory or single TDF file to verify (defaults to .).',
     )
+    parser.add_argument(
+        '--boost_grace_period_ms',
+        '--boost_grace_period',
+        type=int,
+        default=700,
+        dest='boost_grace_period_ms',
+        help=(
+            'Grace period in milliseconds for boost eligibility (defaults to'
+            ' 700).'
+        ),
+    )
 
     args = parser.parse_args()
-    verifier = TdfDirectoryVerifier(target_path=args.path)
+    verifier = TdfDirectoryVerifier(
+        target_path=args.path,
+        boost_grace_period_ms=args.boost_grace_period_ms,
+    )
     success = verifier.verify_all()
     if not success:
         sys.exit(1)

@@ -172,3 +172,81 @@ def test_main_single_file(tmp_path: Path) -> None:
         with pytest.raises(SystemExit) as exc_info:
             main()
         assert exc_info.value.code == 0
+
+
+def test_boost_grace_period_ms_defaults_and_options(tmp_path: Path) -> None:
+    verifier_default = TdfDirectoryVerifier(str(tmp_path))
+    assert verifier_default.boost_grace_period_ms == 700
+
+    verifier_custom = TdfDirectoryVerifier(
+        str(tmp_path), boost_grace_period_ms=950
+    )
+    assert verifier_custom.boost_grace_period_ms == 950
+
+
+def test_verify_file_passes_boost_grace_period_ms(tmp_path: Path) -> None:
+    tdf_file = tmp_path / 'game.tdf'
+    tdf_file.write_text('dummy')
+
+    verifier = TdfDirectoryVerifier(str(tmp_path), boost_grace_period_ms=950)
+    with (
+        patch('lfdata.verify_all.TdfImporter'),
+        patch('lfdata.verify_all.LFReplayVerifier') as mock_verifier_cls,
+    ):
+        mock_verifier = MagicMock()
+        mock_verifier.verify.return_value = True
+        mock_verifier_cls.return_value = mock_verifier
+
+        assert verifier.verify_file(tdf_file) is True
+        mock_verifier_cls.assert_called_once_with(
+            mock_verifier_cls.call_args[0][0],
+            boost_grace_period_ms=950,
+        )
+
+
+def test_main_with_boost_grace_period_arg(tmp_path: Path) -> None:
+    test_args = [
+        'verify_all.py',
+        str(tmp_path),
+        '--boost_grace_period_ms',
+        '950',
+    ]
+    with (
+        patch('sys.argv', test_args),
+        patch('lfdata.verify_all.TdfDirectoryVerifier') as mock_verifier_cls,
+    ):
+        mock_verifier = MagicMock()
+        mock_verifier.verify_all.return_value = True
+        mock_verifier_cls.return_value = mock_verifier
+
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+        assert exc_info.value.code == 0
+        mock_verifier_cls.assert_called_once_with(
+            target_path=str(tmp_path),
+            boost_grace_period_ms=950,
+        )
+
+
+def test_main_with_boost_grace_period_alias_arg(tmp_path: Path) -> None:
+    test_args = [
+        'verify_all.py',
+        str(tmp_path),
+        '--boost_grace_period',
+        '950',
+    ]
+    with (
+        patch('sys.argv', test_args),
+        patch('lfdata.verify_all.TdfDirectoryVerifier') as mock_verifier_cls,
+    ):
+        mock_verifier = MagicMock()
+        mock_verifier.verify_all.return_value = True
+        mock_verifier_cls.return_value = mock_verifier
+
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+        assert exc_info.value.code == 0
+        mock_verifier_cls.assert_called_once_with(
+            target_path=str(tmp_path),
+            boost_grace_period_ms=950,
+        )

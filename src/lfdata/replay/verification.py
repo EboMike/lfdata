@@ -1,7 +1,8 @@
 """Verification of replay simulation final states against TDF values.
 
-This module provides validation logic (`LFReplayVerifier`) that compares simulated end-of-game
-player scores, lives, and SM5 stats against official values recorded in TDF headers and stat records.
+This module provides validation logic (LFReplayVerifier) that compares
+simulated end-of-game player scores, lives, and SM5 stats against official
+values recorded in TDF headers and stat records.
 
 Usage example:
     from lfdata.replay import LFReplayVerifier
@@ -38,19 +39,35 @@ class LFReplayVerifier:
 
     Attributes:
         game: Input LFGame database model instance to verify.
-        boost_grace_period_ms: Grace period in milliseconds for boost eligibility.
+        boost_grace_period_ms: Grace period in milliseconds for boost
+            eligibility.
+        candidate_grace_periods_ms: List of grace period values in milliseconds
+            to evaluate if discrepancies occur.
     """
 
-    def __init__(self, game: LFGame, boost_grace_period_ms: int = 700) -> None:
+    def __init__(
+        self,
+        game: LFGame,
+        boost_grace_period_ms: int = 700,
+        candidate_grace_periods_ms: list[int] | None = None,
+    ) -> None:
         """Initializes the verifier.
 
         Args:
             game: The game to verify.
             boost_grace_period_ms: Grace period in milliseconds for boost
                 eligibility (defaults to 700, representing 0.7 seconds).
+            candidate_grace_periods_ms: Optional list of grace period values
+                in milliseconds to evaluate if discrepancies are encountered.
+                Defaults to 0ms to 2000ms in increments of 50ms.
         """
         self.game = game
         self.boost_grace_period_ms = boost_grace_period_ms
+        self.candidate_grace_periods_ms: list[int] = (
+            candidate_grace_periods_ms
+            if candidate_grace_periods_ms is not None
+            else list(range(0, 2050, 50))
+        )
 
     def get_discrepancies(
         self, replay: LFReplaySystem
@@ -63,6 +80,9 @@ class LFReplayVerifier:
         Returns:
             dict[str, list[PlayerDiscrepancy]]: A dictionary mapping player
                 entity IDs to their list of discrepancies.
+
+        Usage:
+            discrepancies = verifier.get_discrepancies(replay)
         """
         discrepancies: dict[str, list[PlayerDiscrepancy]] = {}
 
@@ -79,7 +99,7 @@ class LFReplayVerifier:
             if not p_state:
                 continue
 
-            p_discrepancies = []
+            p_discrepancies: list[PlayerDiscrepancy] = []
 
             if entity.end_score is not None:
                 if p_state.score != entity.end_score:
@@ -115,11 +135,57 @@ class LFReplayVerifier:
 
         return discrepancies
 
+    def check_grace_periods(
+        self, candidate_grace_periods_ms: list[int] | None = None
+    ) -> tuple[list[int], list[int]]:
+        """Tests different grace period values to check if any resolve issues.
+
+        Runs simulations with each candidate grace period without alignment
+        and evaluates whether final stats match TDF data without discrepancies.
+
+        Args:
+            candidate_grace_periods_ms: Optional list of grace period values in
+                milliseconds to evaluate. Defaults to
+                self.candidate_grace_periods_ms.
+
+        Returns:
+            tuple[list[int], list[int]]: A tuple containing:
+                - List of grace periods in milliseconds that worked.
+                - List of grace periods in milliseconds that didn't work.
+
+        Usage:
+            worked, failed = verifier.check_grace_periods()
+        """
+        candidates = (
+            candidate_grace_periods_ms
+            if candidate_grace_periods_ms is not None
+            else self.candidate_grace_periods_ms
+        )
+        working_gps: list[int] = []
+        failing_gps: list[int] = []
+
+        for gp_ms in candidates:
+            replay = LFReplaySystem(
+                self.game,
+                align_stats=False,
+                boost_grace_period_ms=gp_ms,
+            )
+            replay.run()
+            if not self.get_discrepancies(replay):
+                working_gps.append(gp_ms)
+            else:
+                failing_gps.append(gp_ms)
+
+        return working_gps, failing_gps
+
     def verify(self) -> bool:
         """Runs the verification process and prints results.
 
         Returns:
             bool: True if there were no initial discrepancies, False otherwise.
+
+        Usage:
+            is_valid = verifier.verify()
         """
         print('Running initial replay simulation (no alignment)...')
         replay_no_align = LFReplaySystem(
@@ -187,5 +253,19 @@ class LFReplayVerifier:
                 )
         else:
             print('\nNo specific boost override events could be determined.')
+
+        print('\nEvaluating different grace period values...')
+        worked_gps, failed_gps = self.check_grace_periods()
+        if worked_gps:
+            worked_str = ', '.join(f'{v} ms' for v in worked_gps)
+            print(f'Grace period values that worked: {worked_str}')
+        else:
+            print('Grace period values that worked: none')
+
+        if failed_gps:
+            failed_str = ', '.join(f'{v} ms' for v in failed_gps)
+            print(f"Grace period values that didn't work: {failed_str}")
+        else:
+            print("Grace period values that didn't work: none")
 
         return False

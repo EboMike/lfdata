@@ -3,6 +3,7 @@
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 TARGET_PATH="${1:-.}"
+BOOST_GRACE_PERIOD="$2"
 
 export PYTHONPATH="$DIR/src"
 
@@ -29,4 +30,15 @@ if [ -z "$PYTHON_EXE" ]; then
     fi
 fi
 
-"$PYTHON_EXE" -m lfdata.verify_all "$TARGET_PATH"
+EXTRA_ARGS=()
+if [ -n "$BOOST_GRACE_PERIOD" ]; then
+    if [[ "$BOOST_GRACE_PERIOD" =~ ^[0-9]+$ ]]; then
+        EXTRA_ARGS+=("--boost_grace_period_ms" "$BOOST_GRACE_PERIOD")
+    else
+        shift 1
+        EXTRA_ARGS+=("$@")
+    fi
+fi
+
+"$PYTHON_EXE" -m lfdata.verify_all "$TARGET_PATH" "${EXTRA_ARGS[@]}"
+
