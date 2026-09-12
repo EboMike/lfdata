@@ -30,6 +30,7 @@ lfdata_ui = "lfdata.ui.__main__:main"
 hudmerge = "lfdata.video.hudmerge:main"
 match-audio = "lfdata.video.audio_matcher:main"
 tune-audio = "lfdata.video.audio_benchmark:main"
+dump-tdf = "lfdata.dump_tdf:main"
 
 
 [project.optional-dependencies]
