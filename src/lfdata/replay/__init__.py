@@ -10,6 +10,7 @@ Usage example:
     replay.process_all_events()
 """
 
+from lfdata.replay.diagnostics import LFReplayDiagnostics
 from lfdata.replay.record import LFReplayEventRecord
 from lfdata.replay.replay import LFReplaySystem
 from lfdata.replay.state import (
@@ -26,4 +27,6 @@ __all__ = [
     'LFReplayTeamState',
     'LFReplayGameState',
     'LFReplayVerifier',
+    'LFReplayDiagnostics',
 ]
+

@@ -13,25 +13,9 @@ Usage example:
         print('Verification discrepancies detected.')
 """
 
-import dataclasses
-
 from lfdata.model import LFGame, Sm5Stats
+from lfdata.replay.diagnostics import LFReplayDiagnostics, PlayerDiscrepancy
 from lfdata.replay.replay import LFReplaySystem
-
-
-@dataclasses.dataclass(frozen=True)
-class PlayerDiscrepancy:
-    """Discrepancy container between simulated and expected TDF player metrics.
-
-    Attributes:
-        field: Metric attribute name string (e.g. 'score', 'lives', 'shots').
-        computed: Simulated value integer computed by replay system.
-        expected: Official expected value integer from TDF file.
-    """
-
-    field: str
-    computed: int
-    expected: int
 
 
 class LFReplayVerifier:
@@ -217,6 +201,13 @@ class LFReplayVerifier:
                     f'  - {d.field}: computed {d.computed} '
                     f'(expected {d.expected})'
                 )
+
+        diagnostics = LFReplayDiagnostics(
+            game=self.game,
+            replay=replay_no_align,
+            boost_grace_period_ms=self.boost_grace_period_ms,
+        )
+        diagnostics.dump_mismatches(discrepancies=discrepancies)
 
         print('\nAttempting to resolve discrepancies using replay alignment...')
         replay_aligned = LFReplaySystem(
