@@ -97,9 +97,9 @@ class Sm5Stats(Base):
         Returns:
             float: The hit diff ratio, or 1.0 if the player was never zapped.
         """
-        if self.times_zapped == 0:
+        if (self.times_zapped or 0) == 0:
             return 1.0
-        return self.shot_opponent / self.times_zapped
+        return (self.shot_opponent or 0) / self.times_zapped
 
     def __repr__(self) -> str:
         """Returns a string representation of the SM5 stats.

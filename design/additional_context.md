@@ -25,3 +25,19 @@ Rules:
   configurations must not be swallowed or treated as benchmark test failures;
   they must abort execution immediately.
 
+## SM5 Game Notability Conditions
+
+SM5 notability conditions evaluate games in priority order:
+1. `DRAW`: Game ended in a draw with identical scores.
+2. `CLOSE_GAME`: Teams ended within 200 points of each other.
+3. `COMMANDER_NUKES`: Focus player was a commander with > 5 nukes.
+4. `HIGH_HIT_DIFF`: Focus player had a hit diff of 1.9 or more.
+5. `HIGH_MEDIC_HITS`: Focus player had 9 or more medic hits.
+6. `LONE_SURVIVOR_CRITICAL`: Focus player lone survivor with 1-2 lives left.
+7. `LONE_SURVIVOR`: Focus player lone survivor with >= 3 lives left.
+8. `FAST_TEAM_ELIMINATION`: Team was eliminated in less than 8 minutes.
+9. `ALMOST_ELIMINATED_OPPONENTS`: Opponents had 1-5 combined lives left.
+10. `MEDIC_ZAPPED_MEDIC`: Focus medic zapped enemy medic 3 or more times.
+11. `NEVER_ZAPPED`: Focus player was never zapped (0 times).
+12. `LOW_TIMES_ZAPPED`: Focus player was zapped less than 5 times.
+

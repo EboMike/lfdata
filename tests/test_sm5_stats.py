@@ -96,3 +96,10 @@ def test_sm5_stats_hit_diff() -> None:
     assert stats_zapped.hit_diff == 2.0
 
 
+def test_sm5_stats_hit_diff_none_values() -> None:
+    stats_none = Sm5Stats(
+        game_id='game_1',
+        entity_id='#P3',
+        times_zapped=10,
+    )
+    assert stats_none.hit_diff == 0.0

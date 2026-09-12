@@ -193,10 +193,16 @@ assessed.
 * The two teams ended with a score within 200 points of each other.
 * The focus player is a commander and nuked more than 5 times.
 * The focus player has a hit diff of 1.9 or more.
-* The focus player has 190 or more medic hits.
+* The focus player has 9 or more medic hits.
+* The focus player is the only person on the team to survive.
 * The focus player is the only person on the team to survive, with only 1 or 2
   lives left.
 * A team was eliminated in less than 8 minutes.
+* The other team only has a combined 5 lives or left yet and was thus almost
+  eliminated.
+* The focus player is a medic and zapped the other medic 3 or more times.
+* The focus player was never zapped.
+* The focus player was zapped less than 5 times the entire game.
 
 If no condition applies, the game is not notable.
 

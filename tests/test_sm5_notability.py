@@ -10,7 +10,6 @@ from lfdata.model import (
     LFGame,
     Player,
     Sm5NotabilityCondition,
-    Sm5NotabilityEvaluator,
     Sm5Stats,
 )
 
@@ -203,7 +202,7 @@ def test_high_medic_hits_condition() -> None:
     stat_p1 = Sm5Stats(
         game_id=game.game_id,
         entity_id='P1',
-        medic_hits=195,
+        medic_hits=10,  # >= 9 hits
         shot_opponent=10,
         times_zapped=10,
     )
@@ -214,12 +213,11 @@ def test_high_medic_hits_condition() -> None:
         == Sm5NotabilityCondition.HIGH_MEDIC_HITS
     )
     assert (
-        game.get_highlight_tagline(focus_player='SuperMedic')
-        == '195 medic hits'
+        game.get_highlight_tagline(focus_player='SuperMedic') == '10 medic hits'
     )
 
 
-def test_lone_survivor_condition_1_life() -> None:
+def test_lone_survivor_critical_condition_1_life() -> None:
     game = _create_sm5_game()
     p1 = GameEntity(
         game_id=game.game_id,
@@ -271,7 +269,7 @@ def test_lone_survivor_condition_1_life() -> None:
 
     assert (
         game.get_notability(focus_player=p1)
-        == Sm5NotabilityCondition.LONE_SURVIVOR
+        == Sm5NotabilityCondition.LONE_SURVIVOR_CRITICAL
     )
     assert (
         game.get_highlight_tagline(focus_player=p1)
@@ -279,7 +277,7 @@ def test_lone_survivor_condition_1_life() -> None:
     )
 
 
-def test_lone_survivor_condition_2_lives() -> None:
+def test_lone_survivor_critical_condition_2_lives() -> None:
     game = _create_sm5_game()
     p1 = GameEntity(
         game_id=game.game_id,
@@ -299,17 +297,8 @@ def test_lone_survivor_condition_2_lives() -> None:
         category=4,
         end_score=4000,
     )
-    enemy = GameEntity(
-        game_id=game.game_id,
-        entity_id='P3',
-        type='player',
-        desc='Enemy',
-        team_index=1,
-        category=2,
-        end_score=3000,
-    )
     p1.game = game
-    game.entities = [p1, p2, enemy]
+    game.entities = [p1, p2]
     stat_p1 = Sm5Stats(
         game_id=game.game_id,
         entity_id='P1',
@@ -326,11 +315,56 @@ def test_lone_survivor_condition_2_lives() -> None:
 
     assert (
         game.get_notability(focus_player=p1)
-        == Sm5NotabilityCondition.LONE_SURVIVOR
+        == Sm5NotabilityCondition.LONE_SURVIVOR_CRITICAL
     )
     assert (
         game.get_highlight_tagline(focus_player=p1)
         == 'Lone survivor with 2 lives'
+    )
+
+
+def test_lone_survivor_general_condition() -> None:
+    game = _create_sm5_game()
+    p1 = GameEntity(
+        game_id=game.game_id,
+        entity_id='P1',
+        type='player',
+        desc='Survivor',
+        team_index=0,
+        category=3,
+        end_score=8000,
+    )
+    p2 = GameEntity(
+        game_id=game.game_id,
+        entity_id='P2',
+        type='player',
+        desc='DownTeammate',
+        team_index=0,
+        category=4,
+        end_score=4000,
+    )
+    p1.game = game
+    game.entities = [p1, p2]
+    stat_p1 = Sm5Stats(
+        game_id=game.game_id,
+        entity_id='P1',
+        lives_left=6,  # > 2 lives
+        shot_opponent=10,
+        times_zapped=10,
+    )
+    stat_p2 = Sm5Stats(
+        game_id=game.game_id,
+        entity_id='P2',
+        lives_left=0,
+    )
+    game.sm5_stats = [stat_p1, stat_p2]
+
+    assert (
+        game.get_notability(focus_player=p1)
+        == Sm5NotabilityCondition.LONE_SURVIVOR
+    )
+    assert (
+        game.get_highlight_tagline(focus_player=p1) == 'Lone survivor on team'
     )
 
 
@@ -374,8 +408,386 @@ def test_fast_team_elimination_condition() -> None:
     assert game.get_highlight_tagline() == 'Elim in 7 minutes'
 
 
+def test_almost_eliminated_opponents_condition() -> None:
+    game = _create_sm5_game()
+    p1 = GameEntity(
+        game_id=game.game_id,
+        entity_id='P1',
+        type='player',
+        desc='Hero',
+        team_index=0,
+        category=1,
+        end_score=8000,
+    )
+    enemy = GameEntity(
+        game_id=game.game_id,
+        entity_id='E1',
+        type='player',
+        desc='Enemy',
+        team_index=1,
+        category=2,
+        end_score=2000,
+    )
+    p1.game = game
+    game.entities = [p1, enemy]
+    stat_p1 = Sm5Stats(
+        game_id=game.game_id,
+        entity_id='P1',
+        lives_left=12,
+        shot_opponent=10,
+        times_zapped=10,
+    )
+    stat_enemy = Sm5Stats(
+        game_id=game.game_id,
+        entity_id='E1',
+        lives_left=3,  # 3 lives <= 5
+    )
+    game.sm5_stats = [stat_p1, stat_enemy]
+
+    assert (
+        game.get_notability(focus_player=p1)
+        == Sm5NotabilityCondition.ALMOST_ELIMINATED_OPPONENTS
+    )
+    assert (
+        game.get_highlight_tagline(focus_player=p1)
+        == 'Opponents down to 3 lives'
+    )
+
+
+def test_almost_eliminated_opponents_no_focus_player() -> None:
+    game = _create_sm5_game()
+    p1 = GameEntity(
+        game_id=game.game_id,
+        entity_id='P1',
+        type='player',
+        desc='P1',
+        team_index=0,
+        end_score=8000,
+    )
+    enemy = GameEntity(
+        game_id=game.game_id,
+        entity_id='E1',
+        type='player',
+        desc='Enemy',
+        team_index=1,
+        end_score=2000,
+    )
+    game.entities = [p1, enemy]
+    game.sm5_stats = [
+        Sm5Stats(game_id=game.game_id, entity_id='P1', lives_left=10),
+        Sm5Stats(game_id=game.game_id, entity_id='E1', lives_left=1),
+    ]
+
+    assert (
+        game.get_notability()
+        == Sm5NotabilityCondition.ALMOST_ELIMINATED_OPPONENTS
+    )
+    assert game.get_highlight_tagline() == 'Team down to 1 life'
+
+
+def test_medic_zapped_medic_condition() -> None:
+    game = _create_sm5_game()
+    m1 = GameEntity(
+        game_id=game.game_id,
+        entity_id='M1',
+        type='player',
+        desc='Medic1',
+        team_index=0,
+        category=5,  # Medic
+        end_score=7000,
+    )
+    m2 = GameEntity(
+        game_id=game.game_id,
+        entity_id='M2',
+        type='player',
+        desc='Medic2',
+        team_index=1,
+        category=5,  # Medic
+        end_score=4000,
+    )
+    m1.game = game
+    game.entities = [m1, m2]
+    stat_m1 = Sm5Stats(
+        game_id=game.game_id,
+        entity_id='M1',
+        times_zapped=10,
+        lives_left=10,
+    )
+    stat_m2 = Sm5Stats(
+        game_id=game.game_id,
+        entity_id='M2',
+        times_zapped=10,
+        lives_left=10,
+    )
+    game.sm5_stats = [stat_m1, stat_m2]
+    game.events = [
+        GameEvent(
+            game_id=game.game_id,
+            time=1000,
+            event_type='0205',
+            actor_entity_id='M1',
+            target_entity_id='M2',
+            action='zaps',
+            raw_message='',
+        ),
+        GameEvent(
+            game_id=game.game_id,
+            time=2000,
+            event_type='0206',
+            actor_entity_id='M1',
+            target_entity_id='M2',
+            action='zaps',
+            raw_message='',
+        ),
+        GameEvent(
+            game_id=game.game_id,
+            time=3000,
+            event_type='0205',
+            actor_entity_id='M1',
+            target_entity_id='M2',
+            action='zaps',
+            raw_message='',
+        ),
+    ]
+
+    assert (
+        game.get_notability(focus_player=m1)
+        == Sm5NotabilityCondition.MEDIC_ZAPPED_MEDIC
+    )
+    assert (
+        game.get_highlight_tagline(focus_player=m1)
+        == 'Zapped enemy medic 3 times'
+    )
+
+
+def test_never_zapped_condition() -> None:
+    game = _create_sm5_game()
+    p1 = GameEntity(
+        game_id=game.game_id,
+        entity_id='P1',
+        type='player',
+        desc='Ninja',
+        team_index=0,
+        category=2,  # Heavy
+        end_score=7500,
+    )
+    enemy = GameEntity(
+        game_id=game.game_id,
+        entity_id='E1',
+        type='player',
+        desc='Enemy',
+        team_index=1,
+        category=2,
+        end_score=2000,
+    )
+    p1.game = game
+    game.entities = [p1, enemy]
+    stat_p1 = Sm5Stats(
+        game_id=game.game_id,
+        entity_id='P1',
+        times_zapped=0,
+        lives_left=15,
+    )
+    stat_enemy = Sm5Stats(
+        game_id=game.game_id,
+        entity_id='E1',
+        times_zapped=10,
+        lives_left=10,
+    )
+    game.sm5_stats = [stat_p1, stat_enemy]
+
+    assert (
+        game.get_notability(focus_player=p1)
+        == Sm5NotabilityCondition.NEVER_ZAPPED
+    )
+    assert game.get_highlight_tagline(focus_player=p1) == 'Never zapped in game'
+
+
+def test_low_times_zapped_condition() -> None:
+    game = _create_sm5_game()
+    p1 = GameEntity(
+        game_id=game.game_id,
+        entity_id='P1',
+        type='player',
+        desc='Dodger',
+        team_index=0,
+        category=3,  # Scout
+        end_score=7500,
+    )
+    enemy = GameEntity(
+        game_id=game.game_id,
+        entity_id='E1',
+        type='player',
+        desc='Enemy',
+        team_index=1,
+        category=2,
+        end_score=2000,
+    )
+    p1.game = game
+    game.entities = [p1, enemy]
+    stat_p1 = Sm5Stats(
+        game_id=game.game_id,
+        entity_id='P1',
+        times_zapped=2,  # < 5 and > 0
+        lives_left=15,
+    )
+    stat_enemy = Sm5Stats(
+        game_id=game.game_id,
+        entity_id='E1',
+        times_zapped=10,
+        lives_left=10,
+    )
+    game.sm5_stats = [stat_p1, stat_enemy]
+
+    assert (
+        game.get_notability(focus_player=p1)
+        == Sm5NotabilityCondition.LOW_TIMES_ZAPPED
+    )
+    assert game.get_highlight_tagline(focus_player=p1) == 'Zapped only 2 times'
+
+
+def test_low_times_zapped_condition_singular() -> None:
+    game = _create_sm5_game()
+    p1 = GameEntity(
+        game_id=game.game_id,
+        entity_id='P1',
+        type='player',
+        desc='Dodger',
+        team_index=0,
+        category=3,
+        end_score=7500,
+    )
+    enemy = GameEntity(
+        game_id=game.game_id,
+        entity_id='E1',
+        type='player',
+        desc='Enemy',
+        team_index=1,
+        category=2,
+        end_score=2000,
+    )
+    p1.game = game
+    game.entities = [p1, enemy]
+    stat_p1 = Sm5Stats(
+        game_id=game.game_id,
+        entity_id='P1',
+        times_zapped=1,
+        lives_left=15,
+    )
+    stat_enemy = Sm5Stats(
+        game_id=game.game_id,
+        entity_id='E1',
+        times_zapped=10,
+        lives_left=10,
+    )
+    game.sm5_stats = [stat_p1, stat_enemy]
+
+    assert (
+        game.get_notability(focus_player=p1)
+        == Sm5NotabilityCondition.LOW_TIMES_ZAPPED
+    )
+    assert game.get_highlight_tagline(focus_player=p1) == 'Zapped only 1 time'
+
+
+def test_priority_order_never_zapped_vs_low_zapped() -> None:
+    game = _create_sm5_game()
+    p1 = GameEntity(
+        game_id=game.game_id,
+        entity_id='P1',
+        type='player',
+        desc='Ghost',
+        team_index=0,
+        category=2,
+        end_score=7000,
+    )
+    enemy = GameEntity(
+        game_id=game.game_id,
+        entity_id='E1',
+        type='player',
+        desc='Enemy',
+        team_index=1,
+        category=2,
+        end_score=2000,
+    )
+    p1.game = game
+    game.entities = [p1, enemy]
+    stat_p1 = Sm5Stats(
+        game_id=game.game_id,
+        entity_id='P1',
+        times_zapped=0,
+        lives_left=15,
+    )
+    stat_enemy = Sm5Stats(
+        game_id=game.game_id,
+        entity_id='E1',
+        times_zapped=10,
+        lives_left=10,
+    )
+    game.sm5_stats = [stat_p1, stat_enemy]
+
+    # NEVER_ZAPPED (11) beats LOW_TIMES_ZAPPED (12)
+    assert (
+        game.get_notability(focus_player=p1)
+        == Sm5NotabilityCondition.NEVER_ZAPPED
+    )
+
+
+def test_priority_order_medic_zapped_vs_never_zapped() -> None:
+    game = _create_sm5_game()
+    m1 = GameEntity(
+        game_id=game.game_id,
+        entity_id='M1',
+        type='player',
+        desc='Medic1',
+        team_index=0,
+        category=5,  # Medic
+        end_score=7000,
+    )
+    m2 = GameEntity(
+        game_id=game.game_id,
+        entity_id='M2',
+        type='player',
+        desc='Medic2',
+        team_index=1,
+        category=5,  # Medic
+        end_score=4000,
+    )
+    m1.game = game
+    game.entities = [m1, m2]
+    stat_m1 = Sm5Stats(
+        game_id=game.game_id,
+        entity_id='M1',
+        times_zapped=0,  # Never zapped
+        lives_left=10,
+    )
+    stat_m2 = Sm5Stats(
+        game_id=game.game_id,
+        entity_id='M2',
+        times_zapped=10,
+        lives_left=10,
+    )
+    game.sm5_stats = [stat_m1, stat_m2]
+    game.events = [
+        GameEvent(
+            game_id=game.game_id,
+            time=1000 * i,
+            event_type='0205',
+            actor_entity_id='M1',
+            target_entity_id='M2',
+            action='zaps',
+            raw_message='',
+        )
+        for i in range(1, 4)
+    ]
+
+    # MEDIC_ZAPPED_MEDIC (10) beats NEVER_ZAPPED (11)
+    assert (
+        game.get_notability(focus_player=m1)
+        == Sm5NotabilityCondition.MEDIC_ZAPPED_MEDIC
+    )
+
+
 def test_priority_order() -> None:
-    # Game where both DRAW and COMMANDER_NUKES are met
     game = _create_sm5_game()
     p1 = GameEntity(
         game_id=game.game_id,
@@ -438,10 +850,16 @@ def test_fallback_tagline() -> None:
         nukes_detonated=2,
         shot_opponent=10,
         times_zapped=10,  # hit diff 1.0 < 1.9
-        medic_hits=50,
+        medic_hits=5,  # < 9
         lives_left=10,
     )
-    game.sm5_stats = [stat_p1]
+    stat_p2 = Sm5Stats(
+        game_id=game.game_id,
+        entity_id='P2',
+        lives_left=10,  # > 5 opponent lives
+        times_zapped=10,
+    )
+    game.sm5_stats = [stat_p1, stat_p2]
 
     assert game.get_notability(focus_player=p1) is None
     assert game.get_highlight_tagline(focus_player=p1) == '13K Commander game'
@@ -476,7 +894,13 @@ def test_fallback_tagline_scout() -> None:
         times_zapped=10,
         lives_left=15,
     )
-    game.sm5_stats = [stat_p1]
+    stat_p2 = Sm5Stats(
+        game_id=game.game_id,
+        entity_id='P2',
+        times_zapped=10,
+        lives_left=10,
+    )
+    game.sm5_stats = [stat_p1, stat_p2]
 
     assert game.get_notability(focus_player=p1) is None
     assert game.get_highlight_tagline(focus_player=p1) == '6K Scout game'
