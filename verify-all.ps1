@@ -1,13 +1,13 @@
 # Parameters
 param (
     [Parameter(Position = 0, Mandatory = $false)]
-    [string]$Directory = "."
+    [string]$Path = "."
 )
 
-# Resolve full path to target directory
-$TargetDir = Resolve-Path $Directory -ErrorAction SilentlyContinue
-if (-not $TargetDir -or -not (Test-Path $TargetDir -PathType Container)) {
-    Write-Output "Directory does not exist: $Directory"
+# Resolve full path to target directory or file
+$TargetPath = Resolve-Path $Path -ErrorAction SilentlyContinue
+if (-not $TargetPath -or -not (Test-Path $TargetPath)) {
+    Write-Output "Path does not exist: $Path"
     exit 1
 }
 
@@ -28,4 +28,4 @@ foreach ($Path in $PythonPaths) {
 # Set PYTHONPATH to src folder to ensure local imports work
 $env:PYTHONPATH = Join-Path $PSScriptRoot "src"
 
-& $PythonCmd -m lfdata.verify_all $TargetDir
+& $PythonCmd -m lfdata.verify_all $TargetPath

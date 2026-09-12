@@ -118,3 +118,57 @@ def test_main_failure(tmp_path: Path) -> None:
         with pytest.raises(SystemExit) as exc_info:
             main()
         assert exc_info.value.code == 1
+
+
+def test_find_tdf_files_single_file(tmp_path: Path) -> None:
+    single_file = tmp_path / 'single.tdf'
+    single_file.write_text('dummy')
+
+    verifier = TdfDirectoryVerifier(str(single_file))
+    tdf_files = verifier.find_tdf_files()
+    assert tdf_files == [single_file]
+
+
+def test_verify_all_single_file_success(tmp_path: Path) -> None:
+    single_file = tmp_path / 'single.tdf'
+    single_file.write_text('dummy')
+
+    verifier = TdfDirectoryVerifier(str(single_file))
+    with patch.object(verifier, 'verify_file', return_value=True):
+        assert verifier.verify_all() is True
+
+
+def test_verify_all_single_file_failure(tmp_path: Path) -> None:
+    single_file = tmp_path / 'single.tdf'
+    single_file.write_text('dummy')
+
+    verifier = TdfDirectoryVerifier(str(single_file))
+    with patch.object(verifier, 'verify_file', return_value=False):
+        assert verifier.verify_all() is False
+
+
+def test_target_path_property(tmp_path: Path) -> None:
+    verifier = TdfDirectoryVerifier(str(tmp_path))
+    assert verifier.target_path == tmp_path
+
+
+def test_directory_path_legacy_kwarg(tmp_path: Path) -> None:
+    verifier = TdfDirectoryVerifier(directory_path=str(tmp_path))
+    assert verifier.target_path == tmp_path
+
+
+def test_main_single_file(tmp_path: Path) -> None:
+    single_file = tmp_path / 'single.tdf'
+    single_file.write_text('dummy')
+
+    test_args = ['verify_all.py', str(single_file)]
+    with (
+        patch('sys.argv', test_args),
+        patch(
+            'lfdata.verify_all.TdfDirectoryVerifier.verify_all',
+            return_value=True,
+        ),
+    ):
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+        assert exc_info.value.code == 0

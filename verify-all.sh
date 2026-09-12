@@ -1,8 +1,8 @@
 #!/bin/bash
-# Script to verify all TDF files in a directory using lfdata.
+# Script to verify TDF files in a directory or single TDF file using lfdata.
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-TARGET_DIR="${1:-.}"
+TARGET_PATH="${1:-.}"
 
 export PYTHONPATH="$DIR/src"
 
@@ -29,4 +29,4 @@ if [ -z "$PYTHON_EXE" ]; then
     fi
 fi
 
-"$PYTHON_EXE" -m lfdata.verify_all "$TARGET_DIR"
+"$PYTHON_EXE" -m lfdata.verify_all "$TARGET_PATH"
