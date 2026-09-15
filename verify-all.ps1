@@ -25,11 +25,20 @@ if ($RemainingArgs) {
     }
 }
 
-# Resolve full path to target directory or file
-$TargetPath = Resolve-Path $Path -ErrorAction SilentlyContinue
-if (-not $TargetPath -or -not (Test-Path $TargetPath)) {
-    Write-Output "Path does not exist: $Path"
-    exit 1
+# Resolve full path to target directory, file, or wildcard pattern
+if ($Path.Contains('*') -or $Path.Contains('?')) {
+    $Resolved = Resolve-Path $Path -ErrorAction SilentlyContinue
+    if (-not $Resolved) {
+        Write-Output "Path does not exist: $Path"
+        exit 1
+    }
+    $TargetPath = @($Resolved | ForEach-Object { $_.Path })
+} else {
+    $TargetPath = Resolve-Path $Path -ErrorAction SilentlyContinue
+    if (-not $TargetPath -or -not (Test-Path $TargetPath)) {
+        Write-Output "Path does not exist: $Path"
+        exit 1
+    }
 }
 
 # Locate Python executable
