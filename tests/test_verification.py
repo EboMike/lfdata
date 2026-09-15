@@ -1,5 +1,5 @@
 from unittest.mock import MagicMock, patch
-from lfdata.model import GameEntity, LFGame, Sm5Stats
+from lfdata.model import GameEntity, GameEvent, LFGame, Sm5Stats
 from lfdata.replay.verification import LFReplayVerifier, PlayerDiscrepancy
 
 
@@ -234,3 +234,60 @@ def test_verify_prints_grace_period_results(capsys: object) -> None:
     assert 'Evaluating different grace period values...' in captured.out
     assert 'Grace period values that worked: 950 ms' in captured.out
     assert "Grace period values that didn't work: 700 ms" in captured.out
+
+
+def test_verify_reports_unhandled_events_without_discrepancies(
+    capsys: object,
+) -> None:
+    game = LFGame(game_id='test_unhandled_verify', game_type='SM5')
+    entity = GameEntity(
+        game_id='test_unhandled_verify',
+        entity_id='player_1',
+        type='player',
+        desc='PlayerOne',
+        team_index=1,
+        end_score=1000,
+    )
+    game.entities = [entity]
+    game.events = [
+        GameEvent(
+            game_id='test_unhandled_verify',
+            time=2000,
+            event_type='0200',
+            action='empty shot',
+            actor_entity_id='player_1',
+            raw_message='',
+        )
+    ]
+
+    stats = Sm5Stats(
+        game_id='test_unhandled_verify',
+        entity_id='player_1',
+        lives_left=15,
+        shots_left=30,
+    )
+    game.sm5_stats = [stats]
+
+    verifier = LFReplayVerifier(game)
+
+    mock_player_state = MagicMock()
+    mock_player_state.score = 1000
+    mock_player_state.lives = 15
+    mock_player_state.shots = 30
+
+    with patch(
+        'lfdata.replay.verification.LFReplaySystem'
+    ) as mock_replay_class:
+        mock_replay_inst = MagicMock()
+        mock_replay_inst.game_state.players = {'player_1': mock_player_state}
+        mock_replay_class.return_value = mock_replay_inst
+
+        assert verifier.verify() is True
+
+    captured = capsys.readouterr()
+    assert (
+        'No discrepancies found between replay and TDF end states.'
+        in captured.out
+    )
+    assert 'UNHANDLED & IGNORED EVENT ANALYSIS' in captured.out
+    assert 'Type 0200' in captured.out

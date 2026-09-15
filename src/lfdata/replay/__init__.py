@@ -24,6 +24,11 @@ from lfdata.replay.state import (
     LFReplayPlayerState,
     LFReplayTeamState,
 )
+from lfdata.replay.unhandled_events import (
+    HANDLED_EVENT_TYPES,
+    LFUnhandledEventsAnalyzer,
+    UnhandledEventInfo,
+)
 from lfdata.replay.verification import LFReplayVerifier
 
 __all__ = [
@@ -37,4 +42,7 @@ __all__ = [
     'GameTerminationInfo',
     'LateEventRecord',
     'LateEventCutoffAnalysis',
+    'HANDLED_EVENT_TYPES',
+    'UnhandledEventInfo',
+    'LFUnhandledEventsAnalyzer',
 ]

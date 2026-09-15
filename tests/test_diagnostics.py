@@ -575,3 +575,61 @@ def test_dump_mismatches_late_event_output(capsys: object) -> None:
     assert 'LIKELY RESOLUTION' in captured.out
     assert 'final 1.5 seconds' in captured.out
     assert 'Shooter misses (delta: -1 shots)' in captured.out
+
+
+def test_dump_mismatches_unhandled_events(capsys: object) -> None:
+    game = LFGame(game_id='diag_unhandled_game', game_type='SM5')
+    p1_entity = GameEntity(
+        game_id='diag_unhandled_game',
+        entity_id='p1',
+        type='player',
+        desc='LaserTagPro',
+        team_index=0,
+    )
+    p2_entity = GameEntity(
+        game_id='diag_unhandled_game',
+        entity_id='p2',
+        type='player',
+        desc='Opponent',
+        team_index=1,
+    )
+    game.entities = [p1_entity, p2_entity]
+    game.events = [
+        GameEvent(
+            game_id='diag_unhandled_game',
+            time=45000,
+            event_type='0305',
+            action='missile damage opponent',
+            actor_entity_id='p1',
+            target_entity_id='p2',
+            raw_message='',
+        ),
+    ]
+    game.state_history = []
+
+    p1 = LFReplayPlayerState('p1', role=LFRole.SCOUT, team_index=0)
+    p2 = LFReplayPlayerState('p2', role=LFRole.SCOUT, team_index=1)
+
+    replay = MagicMock()
+    replay.game_ended_at_ms = 600000
+    replay.first_team_elimination_time_ms = None
+    replay.game_state.players = {'p1': p1, 'p2': p2}
+    replay.records = []
+
+    diag = LFReplayDiagnostics(game=game, replay=replay)
+    discrepancies = {
+        'p1': [PlayerDiscrepancy(field='lives', computed=14, expected=15)]
+    }
+    diag.dump_mismatches(discrepancies=discrepancies)
+    captured = capsys.readouterr()
+
+    assert 'UNHANDLED & IGNORED EVENT ANALYSIS' in captured.out
+    assert 'Type 0305' in captured.out
+    assert (
+        '*** HIGHLIGHT: PERTAINS TO PLAYER WITH DISCREPANCY ***' in captured.out
+    )
+    assert 'Unhandled/Ignored Events involving this player' in captured.out
+    assert (
+        'This event is ignored by lfdata and may explain the discrepancy'
+        in captured.out
+    )

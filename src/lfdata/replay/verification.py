@@ -16,6 +16,7 @@ Usage example:
 from lfdata.model import LFGame, Sm5Stats
 from lfdata.replay.diagnostics import LFReplayDiagnostics, PlayerDiscrepancy
 from lfdata.replay.replay import LFReplaySystem
+from lfdata.replay.unhandled_events import LFUnhandledEventsAnalyzer
 
 
 class LFReplayVerifier:
@@ -183,6 +184,10 @@ class LFReplayVerifier:
 
         if not discrepancies:
             print('No discrepancies found between replay and TDF end states.')
+            analyzer = LFUnhandledEventsAnalyzer(game=self.game)
+            unhandled = analyzer.find_unhandled_events()
+            if unhandled:
+                analyzer.dump_unhandled_events(unhandled_events=unhandled)
             return True
 
         print('Discrepancies found:')

@@ -18,6 +18,7 @@ from lfdata.model import GameEvent, LFGame, LFRole
 from lfdata.replay.record import LFReplayEventRecord
 from lfdata.replay.replay import LFReplaySystem
 from lfdata.replay.state import LFReplayPlayerState
+from lfdata.replay.unhandled_events import LFUnhandledEventsAnalyzer
 
 
 @dataclasses.dataclass(frozen=True)
@@ -569,8 +570,19 @@ class LFReplayDiagnostics:
         term_info = self.analyze_game_termination()
         self._dump_game_termination(term_info)
 
+        unhandled_analyzer = LFUnhandledEventsAnalyzer(
+            game=self.game, discrepancies=discrepancies
+        )
+        unhandled_events = unhandled_analyzer.find_unhandled_events()
+        if unhandled_events:
+            unhandled_analyzer.dump_unhandled_events(
+                unhandled_events=unhandled_events
+            )
+
         for info in mismatches:
-            self._dump_player_diagnostics(info)
+            self._dump_player_diagnostics(
+                info=info, unhandled_analyzer=unhandled_analyzer
+            )
             if info.lives_discrepancy:
                 diff = (
                     info.lives_discrepancy.computed
@@ -605,11 +617,16 @@ class LFReplayDiagnostics:
                 info, end_time_ms=term_info.game_ended_at_ms
             )
 
-    def _dump_player_diagnostics(self, info: PlayerMismatchInfo) -> None:
+    def _dump_player_diagnostics(
+        self,
+        info: PlayerMismatchInfo,
+        unhandled_analyzer: LFUnhandledEventsAnalyzer | None = None,
+    ) -> None:
         """Dumps diagnostics for a specific mismatched player.
 
         Args:
             info: Discrepancy info for the player.
+            unhandled_analyzer: Optional analyzer for unhandled event types.
         """
         player = self.replay.game_state.players.get(info.entity_id)
         if not player:
@@ -622,6 +639,43 @@ class LFReplayDiagnostics:
             f' - Team {player.team_index}'
         )
         print(sub_sep)
+
+        if unhandled_analyzer:
+            player_unhandled = unhandled_analyzer.get_events_for_player(
+                entity_id=info.entity_id
+            )
+            if player_unhandled:
+                count = len(player_unhandled)
+                noun = 'event' if count == 1 else 'events'
+                print(
+                    f'\n  Unhandled/Ignored Events involving this player '
+                    f'({count} {noun}):'
+                )
+                for ev in player_unhandled:
+                    t_str = format_timestamp_ms(ev.time_ms)
+                    role = (
+                        'Actor'
+                        if ev.actor_entity_id == info.entity_id
+                        else 'Target'
+                    )
+                    other_party = (
+                        f' (target={ev.target_name or ev.target_entity_id})'
+                        if role == 'Actor' and ev.target_entity_id
+                        else (
+                            f' (actor={ev.actor_name or ev.actor_entity_id})'
+                            if ev.actor_entity_id
+                            else ''
+                        )
+                    )
+                    print(
+                        f'    - {ev.time_ms} ms ({t_str}): '
+                        f'Type {ev.event_type} "{ev.action}" '
+                        f'[Role: {role}{other_party}]'
+                    )
+                    print(
+                        '      *** ATTENTION: This event is ignored by lfdata '
+                        'and may explain the discrepancy! ***'
+                    )
 
         if info.lives_discrepancy:
             d = info.lives_discrepancy
