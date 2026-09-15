@@ -41,3 +41,15 @@ SM5 notability conditions evaluate games in priority order:
 11. `NEVER_ZAPPED`: Focus player was never zapped (0 times).
 12. `LOW_TIMES_ZAPPED`: Focus player was zapped less than 5 times.
 
+## Event 0209 (Warbot Zap)
+
+* Event 0209 corresponds to a warbot zap.
+* The first entity is the entity of a warbot (a non-player entity), and the
+  second entity is the player being zapped.
+* There are no side effects to shots or lives.
+
+## Event 0B00 (Claim Beacon)
+
+* Event 0B00 corresponds to `<player> claims a beacon`.
+* The acting player loses three shots. There are no other state or score
+  effects.

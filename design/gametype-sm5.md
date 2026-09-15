@@ -132,6 +132,7 @@ The following events can happen in a TDF file:
 | DOWNED_OPPONENT         | 0206     | player zaps enemy, enemy is down                         | zapping player     | zapped player     |
 | DAMANGED_TEAM           | 0207     | player zaps own team member, member is not down          | zapping player     | zapped player     |
 | DOWNED_TEAM             | 0208     | player zaps own team member, member is down              | zapping player     | zapped player     |
+| WARBOT_ZAP              | 0209     | warbot zaps player                                       | warbot             | zapped player     |
 | LOCKING                 | 0300     | player locks on a target with a missile                  | locking player     | target            |
 | MISSILE_BASE_MISS       | 0301     | player locks missile at base and missed                  | missiling player   | target            |
 | MISSILE_BASE_DAMAGE     | 0302     | player fires missile at base, base not destroyed         | missiling player   | target            |
@@ -152,6 +153,7 @@ The following events can happen in a TDF file:
 | PENALTY                 | 0600     | is penalized                                             | entity 1           | -                 |
 | ACHIEVEMENT             | 0900     | player completes an achievement                          | player             | -                 |
 | REWARD                  | 0902     | player earns a reward                                    | entity 1           | -                 |
+| CLAIM_BEACON            | 0B00     | player claims a beacon                                   | player             | -                 |
 | BASE_AWARDED            | 0B03     | player is awarded a base                                 | player             | base              |
 
 ## Inferred events

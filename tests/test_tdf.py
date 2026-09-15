@@ -119,3 +119,56 @@ def test_tdf_importer_non_sm5(tmp_path: Path) -> None:
     game = importer.parse()
     assert game.mission_type == 2
     assert game.is_sm5 is False
+
+
+def test_tdf_importer_parse_event_0b00(tmp_path: Path) -> None:
+    tdf_file = tmp_path / 'beacon_event.tdf'
+    content = (
+        ';1/mission\ttype\tdesc\tstart\tduration\tpenalty\n'
+        '1\t5\tSpace Marines 5\t20240114205710\t900000\t-1000\n'
+        '4\t15000\t0B00\t#P1\t claims a beacon\n'
+        '4\t20000\t0B00\t#P2\t claims a beacon \t@B1\n'
+        '4\t25000\t0B00\t#P3\n'
+    )
+    tdf_file.write_text(content, encoding='utf-8')
+    importer = TdfImporter(tdf_file)
+    game = importer.parse()
+
+    assert len(game.events) == 3
+
+    assert game.events[0].time == 15000
+    assert game.events[0].event_type == '0B00'
+    assert game.events[0].actor_entity_id == '#P1'
+    assert game.events[0].action == 'claims a beacon'
+    assert game.events[0].target_entity_id is None
+
+    assert game.events[1].time == 20000
+    assert game.events[1].event_type == '0B00'
+    assert game.events[1].actor_entity_id == '#P2'
+    assert game.events[1].action == 'claims a beacon'
+    assert game.events[1].target_entity_id == '@B1'
+
+    assert game.events[2].time == 25000
+    assert game.events[2].event_type == '0B00'
+    assert game.events[2].actor_entity_id == '#P3'
+    assert game.events[2].action == 'claims a beacon'
+    assert game.events[2].target_entity_id is None
+
+
+def test_tdf_importer_parse_event_0209(tmp_path: Path) -> None:
+    tdf_file = tmp_path / 'warbot_zap_event.tdf'
+    content = (
+        ';1/mission\ttype\tdesc\tstart\tduration\tpenalty\n'
+        '1\t5\tSpace Marines 5\t20240114205710\t900000\t-1000\n'
+        '4\t12000\t0209\t#W1\tzaps\t#P1\n'
+    )
+    tdf_file.write_text(content, encoding='utf-8')
+    importer = TdfImporter(tdf_file)
+    game = importer.parse()
+
+    assert len(game.events) == 1
+    assert game.events[0].time == 12000
+    assert game.events[0].event_type == '0209'
+    assert game.events[0].actor_entity_id == '#W1'
+    assert game.events[0].action == 'zaps'
+    assert game.events[0].target_entity_id == '#P1'

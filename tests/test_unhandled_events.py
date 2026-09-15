@@ -13,11 +13,14 @@ def test_handled_event_types_contents() -> None:
     assert '0101' in HANDLED_EVENT_TYPES
     assert '0205' in HANDLED_EVENT_TYPES
     assert '0206' in HANDLED_EVENT_TYPES
+    assert '0208' in HANDLED_EVENT_TYPES
+    assert '0209' in HANDLED_EVENT_TYPES
     assert '0306' in HANDLED_EVENT_TYPES
     assert '0405' in HANDLED_EVENT_TYPES
     assert '0510' in HANDLED_EVENT_TYPES
     assert '0512' in HANDLED_EVENT_TYPES
     assert '0600' in HANDLED_EVENT_TYPES
+    assert '0B00' in HANDLED_EVENT_TYPES
     assert '0B03' in HANDLED_EVENT_TYPES
     assert 'nuke_cancel' in HANDLED_EVENT_TYPES
 

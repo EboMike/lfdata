@@ -54,6 +54,7 @@ HANDLED_EVENT_TYPES: frozenset[str] = frozenset(
         '0206',  # Downed opponent zap
         '0207',  # Damaged teammate zap
         '0208',  # Downed teammate zap
+        '0209',  # Warbot zap
         '0300',  # Missile locking
         '0301',  # Missile miss base
         '0302',  # Missile zap (shielded)
@@ -71,6 +72,7 @@ HANDLED_EVENT_TYPES: frozenset[str] = frozenset(
         '0600',  # Penalty
         '0900',  # Achievement
         '0902',  # Reward
+        '0B00',  # Claim beacon
         '0B03',  # Base awarded
         'nuke_cancel',  # Inferred nuke cancel
     }

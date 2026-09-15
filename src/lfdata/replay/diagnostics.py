@@ -579,6 +579,8 @@ class LFReplayDiagnostics:
                 unhandled_events=unhandled_events
             )
 
+        self._dump_warbot_and_beacon_events(discrepancies=discrepancies)
+
         for info in mismatches:
             self._dump_player_diagnostics(
                 info=info, unhandled_analyzer=unhandled_analyzer
@@ -616,6 +618,134 @@ class LFReplayDiagnostics:
             self._dump_post_game_eligibility(
                 info, end_time_ms=term_info.game_ended_at_ms
             )
+
+    def _get_player_warbot_zaps(self, entity_id: str) -> list[GameEvent]:
+        """Returns all warbot zap events (0209) involving a player.
+
+        Args:
+            entity_id: The entity ID of the player.
+
+        Returns:
+            list[GameEvent]: List of warbot zap events involving the player.
+        """
+        events: list[GameEvent] = []
+        if not self.game.events:
+            return events
+        for ev in self.game.events:
+            if ev.event_type == '0209' and (
+                ev.target_entity_id == entity_id
+                or ev.actor_entity_id == entity_id
+            ):
+                events.append(ev)
+        return events
+
+    def _get_player_beacon_claims(self, entity_id: str) -> list[GameEvent]:
+        """Returns all claimed beacon events (0B00) by a player.
+
+        Args:
+            entity_id: The entity ID of the player.
+
+        Returns:
+            list[GameEvent]: List of 0B00 events where player was the actor.
+        """
+        events: list[GameEvent] = []
+        if not self.game.events:
+            return events
+        for ev in self.game.events:
+            if ev.event_type == '0B00' and ev.actor_entity_id == entity_id:
+                events.append(ev)
+        return events
+
+    def _dump_warbot_and_beacon_events(
+        self, discrepancies: dict[str, list[PlayerDiscrepancy]]
+    ) -> None:
+        """Dumps warbot zaps and claimed beacons for players with discrepancies.
+
+        Args:
+            discrepancies: Mapping of player entity IDs to their discrepancies.
+        """
+        if not discrepancies:
+            return
+
+        separator = '-' * 72
+        print('\n' + separator)
+        print('WARBOT ZAPS & BEACON CLAIMS (PLAYERS WITH DISCREPANCIES)')
+        print(separator)
+
+        for entity_id in sorted(discrepancies.keys()):
+            self._dump_single_player_warbot_and_beacon_events(
+                entity_id=entity_id
+            )
+
+    def _dump_single_player_warbot_and_beacon_events(
+        self, entity_id: str
+    ) -> None:
+        """Prints warbot zaps and beacon claims for a specific player.
+
+        Args:
+            entity_id: The entity ID of the player.
+        """
+        codename = next(
+            (
+                e.desc
+                for e in self.game.entities
+                if e.entity_id == entity_id
+            ),
+            entity_id,
+        )
+        beacons = self._get_player_beacon_claims(entity_id=entity_id)
+        warbots = self._get_player_warbot_zaps(entity_id=entity_id)
+
+        if not beacons and not warbots:
+            print(
+                f'  Player {codename} ({entity_id}): '
+                'No warbot zaps or claimed beacons recorded.'
+            )
+            return
+
+        print(f'  Player {codename} ({entity_id}):')
+
+        if beacons:
+            shots_cost = len(beacons) * 3
+            count = len(beacons)
+            noun = 'claim' if count == 1 else 'claims'
+            print(
+                f'    - Beacon Claims (Event 0B00): {count} {noun} '
+                f'(total: {shots_cost} shots deducted)'
+            )
+            for ev in beacons:
+                t_str = format_timestamp_ms(time_ms=ev.time)
+                target_str = (
+                    f' (target: {ev.target_entity_id})'
+                    if ev.target_entity_id
+                    else ''
+                )
+                print(
+                    f'      * {ev.time} ms ({t_str}): claimed beacon'
+                    f'{target_str} [-3 shots]'
+                )
+
+        if warbots:
+            count = len(warbots)
+            noun = 'zap' if count == 1 else 'zaps'
+            print(
+                f'    - Warbot Zaps (Event 0209): {count} {noun} '
+                '[no effect on shots or lives]'
+            )
+            for ev in warbots:
+                t_str = format_timestamp_ms(time_ms=ev.time)
+                wb_name = next(
+                    (
+                        e.desc
+                        for e in self.game.entities
+                        if e.entity_id == ev.actor_entity_id
+                    ),
+                    ev.actor_entity_id or 'Warbot',
+                )
+                print(
+                    f'      * {ev.time} ms ({t_str}): zapped by warbot '
+                    f'{wb_name} ({ev.actor_entity_id})'
+                )
 
     def _dump_player_diagnostics(
         self,
@@ -677,12 +807,16 @@ class LFReplayDiagnostics:
                         'and may explain the discrepancy! ***'
                     )
 
+        self._dump_single_player_warbot_and_beacon_events(
+            entity_id=info.entity_id
+        )
+
         if info.lives_discrepancy:
             d = info.lives_discrepancy
             diff = d.computed - d.expected
             print(
-                f'Lives mismatch: computed={d.computed}, expected={d.expected} '
-                f'(difference: {diff:+d} lives)'
+                f'\nLives mismatch: computed={d.computed}, '
+                f'expected={d.expected} (difference: {diff:+d} lives)'
             )
             self._analyze_boost_type(
                 player=player,
@@ -696,8 +830,8 @@ class LFReplayDiagnostics:
             d = info.shots_discrepancy
             diff = d.computed - d.expected
             print(
-                f'Ammo mismatch: computed={d.computed}, expected={d.expected} '
-                f'(difference: {diff:+d} shots)'
+                f'\nAmmo mismatch: computed={d.computed}, '
+                f'expected={d.expected} (difference: {diff:+d} shots)'
             )
             self._analyze_boost_type(
                 player=player,

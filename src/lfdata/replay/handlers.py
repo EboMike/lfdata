@@ -427,6 +427,11 @@ class LFReplayHandlersMixin:
         if event.event_type == '0203':
             self._decrement_shots(event.actor_entity_id)
             return f'{actor_name} zaps {target_name}'
+        if event.event_type == '0209':
+            return f'{actor_name} zaps {target_name}'
+        if event.event_type == '0B00':
+            self._decrement_shots(event.actor_entity_id, count=3)
+            return f'{actor_name} claims a beacon'
         if event.event_type == '0300':
             return f'{actor_name} locking {target_name}'
         if event.event_type == '0301':

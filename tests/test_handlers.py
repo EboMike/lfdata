@@ -182,3 +182,141 @@ def test_process_event_zap_hit_diff() -> None:
     assert state_p2.times_zapped == 1
     assert state_p2.hit_diff == 2.0
 
+
+def test_process_event_0b00_claim_beacon() -> None:
+    game = LFGame(
+        game_id='test_beacon_game',
+        timestamp=datetime.now(),
+        game_type='SM5',
+    )
+    t1 = GameTeam(
+        game_id='test_beacon_game',
+        team_index=0,
+        desc='Fire Team',
+        color_enum=11,
+        color_desc='Fire',
+        color_rgb='#FF5000',
+    )
+    game.teams = [t1]
+
+    # P1 is Scout (category 3)
+    p1 = GameEntity(
+        game_id='test_beacon_game',
+        entity_id='P1',
+        type='player',
+        desc='ScoutPlayer',
+        team_index=0,
+        level=1,
+        category=3,
+        battlesuit='Suit1',
+    )
+    # P2 is Ammo carrier (category 4)
+    p2 = GameEntity(
+        game_id='test_beacon_game',
+        entity_id='P2',
+        type='player',
+        desc='AmmoPlayer',
+        team_index=0,
+        level=1,
+        category=4,
+        battlesuit='Suit2',
+    )
+    game.entities = [p1, p2]
+
+    beacon_ev1 = GameEvent(
+        game_id='test_beacon_game',
+        time=10000,
+        event_type='0B00',
+        actor_entity_id='P1',
+        action='claims a beacon',
+        raw_message='claims a beacon',
+    )
+    beacon_ev2 = GameEvent(
+        game_id='test_beacon_game',
+        time=20000,
+        event_type='0B00',
+        actor_entity_id='P2',
+        action='claims a beacon',
+        raw_message='claims a beacon',
+    )
+    game.events = [beacon_ev1, beacon_ev2]
+
+    replay = LFReplaySystem(game)
+    state_p1 = replay.game_state.players['P1']
+    state_p2 = replay.game_state.players['P2']
+
+    assert state_p1.shots == 30
+    assert state_p1.lives == 15
+    assert state_p1.score == 0
+
+    assert state_p2.shots == 15
+    assert state_p2.lives == 10
+
+    desc1 = replay._dispatch_event(beacon_ev1)
+    assert desc1 == 'ScoutPlayer claims a beacon'
+    assert state_p1.shots == 27
+    assert state_p1.lives == 15
+    assert state_p1.score == 0
+
+    desc2 = replay._dispatch_event(beacon_ev2)
+    assert desc2 == 'AmmoPlayer claims a beacon'
+    assert state_p2.shots == 15
+    assert state_p2.lives == 10
+
+
+def test_process_event_0209_warbot_zap() -> None:
+    game = LFGame(
+        game_id='test_warbot_game',
+        timestamp=datetime.now(),
+        game_type='SM5',
+    )
+    t1 = GameTeam(
+        game_id='test_warbot_game',
+        team_index=0,
+        desc='Fire Team',
+        color_enum=11,
+        color_desc='Fire',
+        color_rgb='#FF5000',
+    )
+    game.teams = [t1]
+
+    wb = GameEntity(
+        game_id='test_warbot_game',
+        entity_id='W1',
+        type='warbot',
+        desc='Warbot Alpha',
+        team_index=0,
+    )
+    p1 = GameEntity(
+        game_id='test_warbot_game',
+        entity_id='P1',
+        type='player',
+        desc='ScoutPlayer',
+        team_index=0,
+        level=1,
+        category=3,
+        battlesuit='Suit1',
+    )
+    game.entities = [wb, p1]
+
+    warbot_ev = GameEvent(
+        game_id='test_warbot_game',
+        time=15000,
+        event_type='0209',
+        actor_entity_id='W1',
+        target_entity_id='P1',
+        action='zaps',
+        raw_message='zaps',
+    )
+    game.events = [warbot_ev]
+
+    replay = LFReplaySystem(game)
+    state_p1 = replay.game_state.players['P1']
+
+    assert state_p1.shots == 30
+    assert state_p1.lives == 15
+
+    desc = replay._dispatch_event(warbot_ev)
+    assert desc == 'Warbot Alpha zaps ScoutPlayer'
+    assert state_p1.shots == 30
+    assert state_p1.lives == 15

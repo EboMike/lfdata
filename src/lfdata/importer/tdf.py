@@ -251,8 +251,36 @@ class TdfImporter:
             varies = parts[3:] if len(parts) > 3 else []
             actor_entity_id = None
             target_entity_id = None
-            action = ''
-            if len(varies) == 1:
+            if event_type == '0B00':
+                if len(varies) == 1:
+                    actor_entity_id = varies[0]
+                    action = 'claims a beacon'
+                elif len(varies) >= 2:
+                    actor_entity_id = varies[0]
+                    action = varies[1].strip() or 'claims a beacon'
+                    if len(varies) >= 3:
+                        target_entity_id = varies[2]
+                else:
+                    action = 'claims a beacon'
+            elif event_type == '0209':
+                if len(varies) >= 3:
+                    actor_entity_id = varies[0]
+                    action = varies[1].strip() or 'zaps'
+                    target_entity_id = varies[2]
+                elif len(varies) == 2:
+                    actor_entity_id = varies[0]
+                    v1 = varies[1].strip()
+                    if 'zap' in v1.lower() or ' ' in v1:
+                        action = v1
+                    else:
+                        action = 'zaps'
+                        target_entity_id = v1
+                elif len(varies) == 1:
+                    actor_entity_id = varies[0]
+                    action = 'zaps'
+                else:
+                    action = 'zaps'
+            elif len(varies) == 1:
                 action = varies[0].strip()
             elif len(varies) == 2:
                 actor_entity_id = varies[0]

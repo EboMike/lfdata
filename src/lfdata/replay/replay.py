@@ -608,16 +608,19 @@ class LFReplaySystem(LFReplayHandlersMixin):
 
         return description
 
-    def _decrement_shots(self, actor_id: str | None) -> None:
+    def _decrement_shots(
+        self, actor_id: str | None, count: int = 1
+    ) -> None:
         """Helper to decrement shots left for non-ammo players.
 
         Args:
             actor_id: The ID of the acting player.
+            count: Number of shots to decrement (defaults to 1).
         """
         if actor_id and actor_id in self.game_state.players:
             player = self.game_state.players[actor_id]
             if player.role != LFRole.AMMO:
-                player.shots = max(0, player.shots - 1)
+                player.shots = max(0, player.shots - count)
 
     def _decrement_missiles(self, actor_id: str | None) -> None:
         """Helper to decrement missiles left for player.

@@ -633,3 +633,89 @@ def test_dump_mismatches_unhandled_events(capsys: object) -> None:
         'This event is ignored by lfdata and may explain the discrepancy'
         in captured.out
     )
+
+
+def test_dump_mismatches_warbot_zaps_and_beacon_claims(
+    capsys: object,
+) -> None:
+    game = LFGame(game_id='diag_wb_beacon_game', game_type='SM5')
+    wb1 = GameEntity(
+        game_id='diag_wb_beacon_game',
+        entity_id='wb1',
+        type='warbot',
+        desc='WarbotAlpha',
+        team_index=0,
+    )
+    p1 = GameEntity(
+        game_id='diag_wb_beacon_game',
+        entity_id='p1',
+        type='player',
+        desc='ScoutOne',
+        team_index=0,
+    )
+    p2 = GameEntity(
+        game_id='diag_wb_beacon_game',
+        entity_id='p2',
+        type='player',
+        desc='ScoutTwo',
+        team_index=1,
+    )
+    game.entities = [wb1, p1, p2]
+    game.events = [
+        GameEvent(
+            game_id='diag_wb_beacon_game',
+            time=15000,
+            event_type='0209',
+            action='zaps',
+            actor_entity_id='wb1',
+            target_entity_id='p1',
+            raw_message='zaps',
+        ),
+        GameEvent(
+            game_id='diag_wb_beacon_game',
+            time=30000,
+            event_type='0B00',
+            action='claims a beacon',
+            actor_entity_id='p1',
+            raw_message='claims a beacon',
+        ),
+        GameEvent(
+            game_id='diag_wb_beacon_game',
+            time=45000,
+            event_type='0B00',
+            action='claims a beacon',
+            actor_entity_id='p2',
+            raw_message='claims a beacon',
+        ),
+    ]
+    game.state_history = []
+
+    p1_state = LFReplayPlayerState('p1', role=LFRole.SCOUT, team_index=0)
+    p2_state = LFReplayPlayerState('p2', role=LFRole.SCOUT, team_index=1)
+
+    replay = MagicMock()
+    replay.game_ended_at_ms = 600000
+    replay.first_team_elimination_time_ms = None
+    replay.game_state.players = {'p1': p1_state, 'p2': p2_state}
+    replay.records = []
+
+    diag = LFReplayDiagnostics(game=game, replay=replay)
+    discrepancies = {
+        'p1': [PlayerDiscrepancy(field='shots', computed=20, expected=23)]
+    }
+    diag.dump_mismatches(discrepancies=discrepancies)
+    captured = capsys.readouterr()
+
+    assert (
+        'WARBOT ZAPS & BEACON CLAIMS (PLAYERS WITH DISCREPANCIES)'
+        in captured.out
+    )
+    assert 'Player ScoutOne (p1):' in captured.out
+    assert 'Warbot Zaps (Event 0209): 1 zap' in captured.out
+    assert 'zapped by warbot WarbotAlpha (wb1)' in captured.out
+    assert (
+        'Beacon Claims (Event 0B00): 1 claim (total: 3 shots deducted)'
+        in captured.out
+    )
+    assert 'claimed beacon [-3 shots]' in captured.out
+    assert 'Player ScoutTwo' not in captured.out
