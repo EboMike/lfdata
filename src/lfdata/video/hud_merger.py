@@ -428,10 +428,11 @@ class HudMerger:
             options: Configuration options for the merge.
 
         Raises:
-            FileNotFoundError: If any input video file or LUT file does not exist.
+            FileNotFoundError: If any input video file or LUT file is invalid
+                or does not exist.
             RuntimeError: If FFmpeg execution encounters an error.
         """
-        if options.lut_path and not options.lut_path.exists():
+        if options.lut_path and not options.lut_path.is_file():
             raise FileNotFoundError(f'LUT file not found: {options.lut_path}')
 
         gopro_meta = self.probe_video(file_path=options.gopro_path)

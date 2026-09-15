@@ -476,6 +476,50 @@ def test_merge_lut_file_not_found():
         merger.merge(options=options)
 
 
+def test_merge_lut_path_is_directory(tmp_path: Path):
+    merger = HudMerger()
+    options = HudMergeOptions(
+        gopro_path=Path('gopro.mp4'),
+        hud_path=Path('hud.mp4'),
+        hud_alpha_path=Path('alpha.mp4'),
+        output_path=Path('merged.mp4'),
+        lut_path=tmp_path,
+    )
+    with pytest.raises(FileNotFoundError, match='LUT file not found'):
+        merger.merge(options=options)
+
+
+def test_merge_lut_file_unparseable_fails():
+    merger = HudMerger()
+    options = HudMergeOptions(
+        gopro_path=Path('gopro.mp4'),
+        hud_path=Path('hud.mp4'),
+        hud_alpha_path=Path('alpha.mp4'),
+        output_path=Path('merged.mp4'),
+        lut_path=Path('corrupt.cube'),
+    )
+    dummy_meta = VideoMetadata(
+        width=1920,
+        height=1080,
+        duration_ms=30000,
+        has_audio=False,
+    )
+
+    with (
+        patch('pathlib.Path.is_file', return_value=True),
+        patch.object(merger, 'probe_video', return_value=dummy_meta),
+        patch('pathlib.Path.mkdir'),
+        patch(
+            'subprocess.run',
+            side_effect=subprocess.CalledProcessError(1, ['ffmpeg']),
+        ),
+    ):
+        with pytest.raises(
+            RuntimeError, match='FFmpeg merge failed with code 1'
+        ):
+            merger.merge(options=options)
+
+
 def test_merge_with_lut_success():
     merger = HudMerger()
     options = HudMergeOptions(
@@ -493,7 +537,7 @@ def test_merge_with_lut_success():
     )
 
     with (
-        patch('pathlib.Path.exists', return_value=True),
+        patch('pathlib.Path.is_file', return_value=True),
         patch.object(merger, 'probe_video', return_value=dummy_meta),
         patch('pathlib.Path.mkdir'),
         patch('subprocess.run') as mock_run,
