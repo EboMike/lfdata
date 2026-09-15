@@ -38,6 +38,8 @@ class LFGame(Base):
         arena_name: Optional arena location name string.
         duration: Optional game duration in milliseconds.
         penalty: Optional penalty points value for team eliminations.
+        mission_type: Optional integer mission type from type 1 TDF header
+            (5 for SM5).
         teams: List of GameTeam ORM relationships.
         entities: List of GameEntity ORM relationships.
         events: List of GameEvent ORM relationships.
@@ -63,6 +65,7 @@ class LFGame(Base):
     arena_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     duration: Mapped[int | None] = mapped_column(Integer, nullable=True)
     penalty: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    mission_type: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # Relationships using string references to avoid circular imports.
     teams: Mapped[list['GameTeam']] = relationship(
@@ -104,6 +107,25 @@ class LFGame(Base):
                 self.normalized_game_type = GameTypeNormalizer().normalize(
                     game_type_val
                 )
+        if getattr(self, 'mission_type', None) is None:
+            if getattr(self, 'normalized_game_type', None) == 'SM5':
+                self.mission_type = 5
+
+    @property
+    def is_sm5(self) -> bool:
+        """Returns True if the game is an SM5 game.
+
+        Checks whether the mission type from the type 1 record is 5, or if
+        the normalized game type is 'SM5'.
+
+        Returns:
+            True if the game is SM5, False otherwise.
+        """
+        if self.mission_type == 5:
+            return True
+        if self.mission_type is not None:
+            return False
+        return self.normalized_game_type == 'SM5'
 
     def get_notability(
         self,

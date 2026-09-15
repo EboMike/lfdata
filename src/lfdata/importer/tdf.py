@@ -149,6 +149,11 @@ class TdfImporter:
             parts: The fields of the row.
             game: The game object to update.
         """
+        if len(parts) >= 2:
+            try:
+                game.mission_type = int(parts[1])
+            except ValueError:
+                game.mission_type = None
         if len(parts) >= 6:
             game.game_type = parts[2]
             from lfdata.importer.normalizer import GameTypeNormalizer

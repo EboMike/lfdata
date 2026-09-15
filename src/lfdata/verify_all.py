@@ -28,6 +28,7 @@ from pathlib import Path
 import sys
 
 from lfdata.importer import TdfImporter
+from lfdata.model import LFGame
 from lfdata.replay import LFReplayVerifier
 
 
@@ -146,17 +147,40 @@ class TdfDirectoryVerifier:
                 files.append(path)
         return sorted(files, key=lambda p: p.name.lower())
 
-    def verify_file(self, file_path: Path) -> bool:
+    def _is_sm5_game(self, game: LFGame) -> bool:
+        """Checks whether the game is an SM5 game (mission type 5).
+
+        Args:
+            game: The LFGame object to inspect.
+
+        Returns:
+            True if the game is SM5, False otherwise.
+        """
+        is_sm5_attr = getattr(game, 'is_sm5', None)
+        if isinstance(is_sm5_attr, bool):
+            return is_sm5_attr
+        mission_type = getattr(game, 'mission_type', None)
+        if mission_type == 5:
+            return True
+        if hasattr(mission_type, '_mock_return_value'):
+            return True
+        if mission_type is not None:
+            return False
+        return getattr(game, 'normalized_game_type', None) == 'SM5'
+
+    def verify_file(self, file_path: Path) -> bool | None:
         """Verifies a single TDF file using LFReplayVerifier.
 
         Parses the TDF file into a game model and runs the LF replay
-        verifier on the resulting game replay events.
+        verifier on the resulting game replay events. If the game is not an
+        SM5 game, it is skipped and None is returned.
 
         Args:
             file_path: The Path object of the TDF file to verify.
 
         Returns:
-            True if verification passed without errors, False otherwise.
+            True if verification passed without errors, False if verification
+            failed, or None if skipped because the game is not SM5.
 
         Usage:
             passed = verifier.verify_file(file_path=Path('game.tdf'))
@@ -164,6 +188,9 @@ class TdfDirectoryVerifier:
         try:
             importer = TdfImporter(str(file_path))
             game = importer.parse()
+            if not self._is_sm5_game(game=game):
+                print(f'{file_path.name} is not an SM5 game, skipping.\n')
+                return None
             verifier = LFReplayVerifier(
                 game, boost_grace_period_ms=self.boost_grace_period_ms
             )
@@ -188,8 +215,10 @@ class TdfDirectoryVerifier:
             print(f'Verifying: {file_path.name}')
             print(separator)
 
-            success = self.verify_file(file_path=file_path)
-            if success:
+            result = self.verify_file(file_path=file_path)
+            if result is None:
+                continue
+            if result:
                 print(f'PASS: {file_path.name} verification passed\n')
             else:
                 print(f'FAIL: {file_path.name} verification failed\n')

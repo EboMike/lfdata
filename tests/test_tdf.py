@@ -55,6 +55,8 @@ def test_tdf_importer_parse_real_file() -> None:
     assert game.game_id == 'sm5_sanitized'
     assert game.game_type == 'Space Marines 5 Tournament Edition'
     assert game.normalized_game_type == 'SM5'
+    assert game.mission_type == 5
+    assert game.is_sm5 is True
     assert game.start == '20240114205710'
     assert game.file_version == '2.005'
     assert game.program_version == '8.503'
@@ -104,3 +106,16 @@ def test_tdf_importer_encodings(tmp_path) -> None:
     importer4 = TdfImporter(f4)
     game4 = importer4.parse()
     assert game4.centre == '4-43'
+
+
+def test_tdf_importer_non_sm5(tmp_path: Path) -> None:
+    non_sm5_file = tmp_path / 'non_sm5.tdf'
+    content = (
+        ';1/mission\ttype\tdesc\tstart\tduration\tpenalty\n'
+        '1\t2\tTeam Elimination\t20240114205710\t900000\t-1000\n'
+    )
+    non_sm5_file.write_text(content, encoding='utf-8')
+    importer = TdfImporter(non_sm5_file)
+    game = importer.parse()
+    assert game.mission_type == 2
+    assert game.is_sm5 is False

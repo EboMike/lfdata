@@ -39,6 +39,19 @@ def test_create_game() -> None:
         assert retrieved.centre == '4-43'
         assert retrieved.duration == 900000
         assert retrieved.penalty == -1000
+        assert retrieved.mission_type == 5
+        assert retrieved.is_sm5 is True
         assert repr(retrieved) == (
             "LFGame(game_id='test_game_123', game_type='SM5')"
         )
+
+
+def test_game_non_sm5() -> None:
+    game = LFGame(
+        game_id='non_sm5',
+        timestamp=datetime.now(),
+        game_type='Laserball',
+        mission_type=2,
+    )
+    assert game.mission_type == 2
+    assert game.is_sm5 is False

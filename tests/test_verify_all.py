@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from lfdata.model import LFGame
 from lfdata.verify_all import TdfDirectoryVerifier, main
 
 
@@ -384,3 +385,110 @@ def test_main_multiple_paths_one_failed(tmp_path: Path) -> None:
         with pytest.raises(SystemExit) as exc_info:
             main()
         assert exc_info.value.code == 1
+
+
+def test_is_sm5_game_checks() -> None:
+    verifier = TdfDirectoryVerifier('.')
+    sm5_game = LFGame(game_id='g1', game_type='SM5', mission_type=5)
+    assert verifier._is_sm5_game(sm5_game) is True
+
+    non_sm5_game = LFGame(game_id='g2', game_type='Other', mission_type=2)
+    assert verifier._is_sm5_game(non_sm5_game) is False
+
+    inferred_sm5 = LFGame(game_id='g3', game_type='Space Marines 5')
+    assert verifier._is_sm5_game(inferred_sm5) is True
+
+    unknown_game = LFGame(game_id='g4', game_type='Unknown Game')
+    assert verifier._is_sm5_game(unknown_game) is False
+
+
+def test_verify_file_skips_non_sm5(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    non_sm5_file = tmp_path / 'other.tdf'
+    content = (
+        ';1/mission\ttype\tdesc\tstart\tduration\tpenalty\n'
+        '1\t2\tTeam Elimination\t20240114205710\t900000\t-1000\n'
+    )
+    non_sm5_file.write_text(content, encoding='utf-8')
+
+    verifier = TdfDirectoryVerifier(str(tmp_path))
+    with patch('lfdata.verify_all.LFReplayVerifier') as mock_replay_cls:
+        result = verifier.verify_file(non_sm5_file)
+        assert result is None
+        mock_replay_cls.assert_not_called()
+
+    captured = capsys.readouterr()
+    assert 'other.tdf is not an SM5 game, skipping.' in captured.out
+
+
+def test_verify_file_sm5_verified(tmp_path: Path) -> None:
+    sm5_file = tmp_path / 'sm5.tdf'
+    content = (
+        ';1/mission\ttype\tdesc\tstart\tduration\tpenalty\n'
+        '1\t5\tSpace Marines 5\t20240114205710\t900000\t-1000\n'
+    )
+    sm5_file.write_text(content, encoding='utf-8')
+
+    verifier = TdfDirectoryVerifier(str(tmp_path))
+    with patch('lfdata.verify_all.LFReplayVerifier') as mock_replay_cls:
+        mock_instance = MagicMock()
+        mock_instance.verify.return_value = True
+        mock_replay_cls.return_value = mock_instance
+
+        result = verifier.verify_file(sm5_file)
+        assert result is True
+        mock_instance.verify.assert_called_once()
+
+
+def test_verify_all_skips_non_sm5_and_passes(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    non_sm5_file = tmp_path / 'game1_non_sm5.tdf'
+    non_sm5_file.write_text(
+        ';1/mission\ttype\tdesc\tstart\tduration\tpenalty\n'
+        '1\t2\tTeam\t20240114205710\t900000\t-1000\n',
+        encoding='utf-8',
+    )
+    sm5_file = tmp_path / 'game2_sm5.tdf'
+    sm5_file.write_text(
+        ';1/mission\ttype\tdesc\tstart\tduration\tpenalty\n'
+        '1\t5\tSpace Marines 5\t20240114205710\t900000\t-1000\n',
+        encoding='utf-8',
+    )
+
+    verifier = TdfDirectoryVerifier(str(tmp_path))
+    with patch('lfdata.verify_all.LFReplayVerifier') as mock_replay_cls:
+        mock_instance = MagicMock()
+        mock_instance.verify.return_value = True
+        mock_replay_cls.return_value = mock_instance
+
+        assert verifier.verify_all() is True
+
+    captured = capsys.readouterr()
+    assert 'game1_non_sm5.tdf is not an SM5 game, skipping.' in captured.out
+    assert 'PASS: game2_sm5.tdf verification passed' in captured.out
+
+
+def test_verify_all_only_non_sm5_files(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    file1 = tmp_path / 'game1.tdf'
+    file1.write_text(
+        ';1/mission\ttype\tdesc\tstart\tduration\tpenalty\n'
+        '1\t1\tSolo\t20240114205710\t900000\t-1000\n',
+        encoding='utf-8',
+    )
+    file2 = tmp_path / 'game2.tdf'
+    file2.write_text(
+        ';1/mission\ttype\tdesc\tstart\tduration\tpenalty\n'
+        '1\t3\tLaserball\t20240114205710\t900000\t-1000\n',
+        encoding='utf-8',
+    )
+
+    verifier = TdfDirectoryVerifier(str(tmp_path))
+    assert verifier.verify_all() is True
+
+    captured = capsys.readouterr()
+    assert 'game1.tdf is not an SM5 game, skipping.' in captured.out
+    assert 'game2.tdf is not an SM5 game, skipping.' in captured.out
