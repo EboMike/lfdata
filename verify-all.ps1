@@ -32,7 +32,17 @@ if ($Path.Contains('*') -or $Path.Contains('?')) {
         Write-Output "Path does not exist: $Path"
         exit 1
     }
-    $TargetPath = @($Resolved | ForEach-Object { $_.Path })
+    $ParentDir = Split-Path -Parent $Path
+    if (-not $ParentDir) {
+        $ParentDir = "."
+    }
+    $Leaf = Split-Path -Leaf $Path
+    $ResolvedParent = Resolve-Path $ParentDir -ErrorAction SilentlyContinue
+    if ($ResolvedParent) {
+        $TargetPath = Join-Path $ResolvedParent.Path $Leaf
+    } else {
+        $TargetPath = $Path
+    }
 } else {
     $TargetPath = Resolve-Path $Path -ErrorAction SilentlyContinue
     if (-not $TargetPath -or -not (Test-Path $TargetPath)) {
