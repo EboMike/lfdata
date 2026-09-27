@@ -53,3 +53,15 @@ SM5 notability conditions evaluate games in priority order:
 * Event 0B00 corresponds to `<player> claims a beacon`.
 * The acting player loses three shots. There are no other state or score
   effects.
+
+## Penalty Player Event
+
+* If the focus player receives a penalty (event `0600`), it is considered a
+  player event: `"Received a penalty"`.
+* A penalty immediately puts the player down for 8 seconds (4 seconds safe,
+  4 seconds resettable), as if they were zapped with shield left (no lives
+  lost).
+* When rendering the animation for a player getting zapped (the border around
+  the image / hit border), a yellow color is used if the player got penalized.
+
+

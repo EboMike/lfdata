@@ -410,6 +410,7 @@ def test_properties_hit_border(manager: UIConfigManager) -> None:
     manager.update_element('hit_border', 'color_zapped_hp', '#ffff00')
     manager.update_element('hit_border', 'color_resupplied', '#ffffff')
     manager.update_element('hit_border', 'color_other', '#ff0000')
+    manager.update_element('hit_border', 'color_penalty', '#ffff00')
 
     parent = MagicMock()
     panel = PropertiesPanel(parent, manager, lambda: None)
@@ -424,11 +425,13 @@ def test_properties_hit_border(manager: UIConfigManager) -> None:
     assert panel.hb_col_zap_var.get() == '#ffff00'
     assert panel.hb_col_resup_var.get() == '#ffffff'
     assert panel.hb_col_other_var.get() == '#ff0000'
+    assert panel.hb_col_penalty_var.get() == '#ffff00'
 
     # 2. Modify and apply
     panel.hb_dur_hp_var.set('0.8')
     panel.hb_max_scale_var.set('1.5')
     panel.hb_col_zap_var.set('#00ff00')
+    panel.hb_col_penalty_var.set('#ffff88')
     panel._apply_properties()
 
     el = manager.get_element('hit_border')
@@ -436,9 +439,11 @@ def test_properties_hit_border(manager: UIConfigManager) -> None:
     assert el.get('duration_hp_s') == 0.8
     assert el.get('max_scale') == 1.5
     assert el.get('color_zapped_hp') == '#00ff00'
+    assert el.get('color_penalty') == '#ffff88'
 
     # 3. Clear panel
     panel.clear()
     assert panel.hb_dur_hp_var.get() == ''
     assert panel.hb_max_scale_var.get() == ''
     assert panel.hb_col_zap_var.get() == ''
+    assert panel.hb_col_penalty_var.get() == ''

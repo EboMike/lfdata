@@ -2001,7 +2001,16 @@ def test_hit_borders_rendering() -> None:
         action='nuke',
         raw_message='',
     )
-    game.events = [e1, e2, e3]
+    # Event 4: Penalty on focus player (time = 4000)
+    e4 = GameEvent(
+        game_id='test_hit_borders',
+        time=4000,
+        event_type='0600',
+        actor_entity_id='p1',
+        action='penalty',
+        raw_message='',
+    )
+    game.events = [e1, e2, e3, e4]
 
     # Prepopulate VisualElementGenerator
     hud_gen = VisualElementGenerator(game, player_name='Player1')
@@ -2020,16 +2029,21 @@ def test_hit_borders_rendering() -> None:
     p_state_e3.hp = 0
     p_state_e3.max_hp = 1
 
+    p_state_e4 = MagicMock()
+    p_state_e4.hp = 0
+    p_state_e4.max_hp = 1
+
     hud_gen.snapshots = [
         (1000, {'p1': p_state_e1}, {}),
         (2000, {'p1': p_state_e2}, {}),
         (3000, {'p1': p_state_e3}, {}),
+        (4000, {'p1': p_state_e4}, {}),
     ]
 
     # Run detection
     hud_gen._detect_hit_borders()
 
-    assert len(hud_gen.hit_borders) == 3
+    assert len(hud_gen.hit_borders) == 4
 
     hb1 = hud_gen.hit_borders[0]
     assert hb1.start_ms == 1000
@@ -2045,6 +2059,11 @@ def test_hit_borders_rendering() -> None:
     assert hb3.start_ms == 3000
     assert hb3.duration_ms == 1000
     assert hb3.tint_hex == '#ff0000'
+
+    hb4 = hud_gen.hit_borders[3]
+    assert hb4.start_ms == 4000
+    assert hb4.duration_ms == 1000
+    assert hb4.tint_hex == '#ffff00'
 
     # Test drawing
     vg = VideoGenerator(game)

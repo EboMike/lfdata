@@ -50,6 +50,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
             'color_zapped_hp': '#ffff00',
             'color_resupplied': '#ffffff',
             'color_other': '#ff0000',
+            'color_penalty': '#ffff00',
         },
         'game_type': {
             'enabled': True,

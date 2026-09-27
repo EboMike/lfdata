@@ -759,6 +759,10 @@ class VisualElementGenerator:
                     replay=replay,
                 )
 
+            elif et == '0600':
+                if actor_id == self.entity_id:
+                    msg = 'Received a penalty'
+
             if msg:
                 log_entry = LFPlayerEventLogEntry(
                     time=event.time,
@@ -2233,6 +2237,7 @@ class VisualElementGenerator:
         color_zapped_hp = hb_config.get('color_zapped_hp', '#ffff00')
         color_resupplied = hb_config.get('color_resupplied', '#ffffff')
         color_other = hb_config.get('color_other', '#ff0000')
+        color_penalty = hb_config.get('color_penalty', '#ffff00')
 
         for event in self.game.events:
             event_type = event.event_type
@@ -2240,11 +2245,14 @@ class VisualElementGenerator:
             is_missile = event_type in ('0306', '0308')
             is_resupply = event_type in ('0500', '0502')
             is_nuke = event_type == '0405'
+            is_penalty = event_type == '0600'
 
             is_hit = False
             if (is_zap or is_missile or is_resupply) and (
                 event.target_entity_id == self.entity_id
             ):
+                is_hit = True
+            elif is_penalty and event.actor_entity_id == self.entity_id:
                 is_hit = True
             elif is_nuke:
                 actor_id = event.actor_entity_id
@@ -2277,7 +2285,9 @@ class VisualElementGenerator:
             else:
                 dur_ms = int(dur_hp_s * 1000)
 
-            if is_resupply:
+            if is_penalty:
+                tint_hex = color_penalty
+            elif is_resupply:
                 tint_hex = color_resupplied
             elif is_zap and not is_down:
                 tint_hex = color_zapped_hp

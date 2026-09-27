@@ -2199,3 +2199,145 @@ def test_generator_player_events_max_lines_and_fade_duration() -> None:
     # elapsed < total_ms - fade_duration_ms (600 < 3000 - 2000 = 1000):
     # it must have alpha = 1.0!
     assert player_evs[4].alpha == 1.0
+
+
+def test_penalty_player_event_and_downtime() -> None:
+    """Verifies focus player penalty player event, downtime bar, and lives."""
+    game = LFGame(
+        game_id='test_penalty_game',
+        timestamp=datetime.now(),
+        game_type='SM5',
+        duration=20000,
+    )
+    game.penalty = -1000
+
+    t1 = GameTeam(
+        game_id='test_penalty_game',
+        team_index=0,
+        desc='Fire Team',
+        color_enum=11,
+        color_desc='Fire',
+        color_rgb='#FF5000',
+    )
+    t2 = GameTeam(
+        game_id='test_penalty_game',
+        team_index=1,
+        desc='Earth Team',
+        color_enum=1,
+        color_desc='Earth',
+        color_rgb='#00FF00',
+    )
+    game.teams = [t1, t2]
+
+    p1 = GameEntity(
+        game_id='test_penalty_game',
+        entity_id='P1',
+        type='player',
+        desc='Player1',
+        team_index=0,
+        level=1,
+        category=3,
+        battlesuit='Suit1',
+    )
+    p2 = GameEntity(
+        game_id='test_penalty_game',
+        entity_id='P2',
+        type='player',
+        desc='Player2',
+        team_index=1,
+        level=1,
+        category=1,
+        battlesuit='Suit2',
+    )
+    game.entities = [p1, p2]
+
+    events = [
+        # Other player receives penalty at 1000 ms
+        GameEvent(
+            game_id='test_penalty_game',
+            time=1000,
+            event_type='0600',
+            actor_entity_id='P2',
+            action='penalty',
+            raw_message='',
+        ),
+        # Focus player receives penalty at 3000 ms
+        GameEvent(
+            game_id='test_penalty_game',
+            time=3000,
+            event_type='0600',
+            actor_entity_id='P1',
+            action='penalty',
+            raw_message='',
+        ),
+    ]
+    game.events = events
+
+    hud_gen = VisualElementGenerator(game, player_name='Player1')
+
+    # Focus player's event log should only have P1's penalty
+    assert len(hud_gen.player_event_log) == 1
+    pen_event = hud_gen.player_event_log[0]
+    assert pen_event.time == 3000
+    assert pen_event.desc == 'Received a penalty'
+    assert pen_event.event_type == '0600'
+    assert pen_event.actor_id == 'P1'
+
+    # Focus player's hit borders should have yellow border for penalty at 3000ms
+    assert len(hud_gen.hit_borders) == 1
+    hb = hud_gen.hit_borders[0]
+    assert hb.start_ms == 3000
+    assert hb.duration_ms == 1000
+    assert hb.tint_hex == '#ffff00'
+
+    # At 2000 ms: P1 is active (not down)
+    elements_at_2000 = hud_gen.generate_at(2000)
+    assert not any(el.element_type == 'downtime_bar' for el in elements_at_2000)
+    assert not any(
+        el.element_type == 'text' and el.text == 'Received a penalty'
+        for el in elements_at_2000
+    )
+
+    # At 5000 ms (2000 ms into 8s downtime):
+    # P1 is down: safe for 2000 ms more, resettable for 4000 ms
+    elements_at_5000 = hud_gen.generate_at(5000)
+    dt_bar = next(
+        (el for el in elements_at_5000 if el.element_type == 'downtime_bar'),
+        None,
+    )
+    assert dt_bar is not None
+    assert dt_bar.safe_ms == 2000
+    assert dt_bar.resettable_ms == 4000
+
+    # "Received a penalty" text element should be present
+    text_el = next(
+        (
+            el
+            for el in elements_at_5000
+            if el.element_type == 'text' and el.text == 'Received a penalty'
+        ),
+        None,
+    )
+    assert text_el is not None
+
+    # Lives counter should not be decremented (Scout starts with 15 lives)
+    lives_counter = next(
+        (
+            el
+            for el in elements_at_5000
+            if el.element_type == 'counter' and el.icon == 'lives'
+        ),
+        None,
+    )
+    assert lives_counter is not None
+    assert lives_counter.current_value == 15
+
+    # At 12000 ms (downtime ended at 11000 ms):
+    elements_at_12000 = hud_gen.generate_at(12000)
+    assert not any(
+        el.element_type == 'downtime_bar' for el in elements_at_12000
+    )
+    assert not any(
+        el.element_type == 'text' and el.text == 'Received a penalty'
+        for el in elements_at_12000
+    )

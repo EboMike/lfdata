@@ -129,6 +129,7 @@ class PropertiesPanel(ttk.LabelFrame):
         self.hb_col_zap_var = tk.StringVar()
         self.hb_col_resup_var = tk.StringVar()
         self.hb_col_other_var = tk.StringVar()
+        self.hb_col_penalty_var = tk.StringVar()
 
         # Animation states checkboxes variables
         self.x_anim_var = tk.BooleanVar()
@@ -287,6 +288,8 @@ class PropertiesPanel(ttk.LabelFrame):
         self._add_hb_row(hb_row, 'Tint Resupplied:', self.hb_col_resup_var)
         hb_row += 1
         self._add_hb_row(hb_row, 'Tint Other:', self.hb_col_other_var)
+        hb_row += 1
+        self._add_hb_row(hb_row, 'Tint Penalized:', self.hb_col_penalty_var)
 
     def _add_row(
         self,
@@ -380,6 +383,7 @@ class PropertiesPanel(ttk.LabelFrame):
             col_zap = el.get('color_zapped_hp', '#ffff00')
             col_resup = el.get('color_resupplied', '#ffffff')
             col_other = el.get('color_other', '#ff0000')
+            col_penalty = el.get('color_penalty', '#ffff00')
 
             self.hb_dur_hp_var.set(str(dur_hp))
             self.hb_dur_down_var.set(str(dur_down))
@@ -387,6 +391,7 @@ class PropertiesPanel(ttk.LabelFrame):
             self.hb_col_zap_var.set(str(col_zap))
             self.hb_col_resup_var.set(str(col_resup))
             self.hb_col_other_var.set(str(col_other))
+            self.hb_col_penalty_var.set(str(col_penalty))
         else:
             self.hit_border_frame.grid_remove()
             self.default_frame.grid(
@@ -505,6 +510,7 @@ class PropertiesPanel(ttk.LabelFrame):
         self.hb_col_zap_var.set('')
         self.hb_col_resup_var.set('')
         self.hb_col_other_var.set('')
+        self.hb_col_penalty_var.set('')
 
         self.x_anim_var.set(False)
         self.y_anim_var.set(False)
@@ -611,6 +617,11 @@ class PropertiesPanel(ttk.LabelFrame):
             if col_other:
                 self.config_manager.update_element(
                     'hit_border', 'color_other', col_other
+                )
+            col_penalty = self.hb_col_penalty_var.get().strip()
+            if col_penalty:
+                self.config_manager.update_element(
+                    'hit_border', 'color_penalty', col_penalty
                 )
 
             self.on_update()
