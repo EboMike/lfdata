@@ -72,7 +72,8 @@ class LFReplaySystem(LFReplayHandlersMixin):
         """
         self.game = game
         self.boost_grace_period_ms = boost_grace_period_ms
-        self._detect_and_inject_nuke_cancels()
+        if not self.game.is_laserball:
+            self._detect_and_inject_nuke_cancels()
         self.player_states: list[LFReplayPlayerState] = []
         self.team_states: list[LFReplayTeamState] = []
         self.entity_names: dict[str, str] = {
@@ -82,7 +83,9 @@ class LFReplaySystem(LFReplayHandlersMixin):
         self._encountered_points: list[tuple[int, str]] = []
         self._init_states()
         self.game_state = LFReplayGameState(
-            self.player_states, self.team_states
+            self.player_states,
+            self.team_states,
+            is_laserball=self.game.is_laserball,
         )
         self.records: list[LFReplayEventRecord] = []
         self.game_ended_at_ms: int | None = None
@@ -100,7 +103,9 @@ class LFReplaySystem(LFReplayHandlersMixin):
         self.team_states = []
         self._init_states()
         self.game_state = LFReplayGameState(
-            self.player_states, self.team_states
+            self.player_states,
+            self.team_states,
+            is_laserball=self.game.is_laserball,
         )
         self.records = []
         self.game_ended_at_ms = None
@@ -139,11 +144,29 @@ class LFReplaySystem(LFReplayHandlersMixin):
         return False
 
     def _verify_final_stats(self) -> bool:
-        """Verifies if the final player states match the expected sm5_stats.
+        """Verifies if the final player states match the expected stats.
 
         Returns:
             bool: True if all stats match, False otherwise.
         """
+        if self.game.is_laserball:
+            if not getattr(self.game, 'laserball_stats', None):
+                return True
+            matched = True
+            for lstats in self.game.laserball_stats:
+                player = self.game_state.players.get(lstats.entity_id)
+                if not player:
+                    continue
+                if (
+                    player.goals != lstats.goals
+                    or player.assists != lstats.assists
+                    or player.steals != lstats.steals
+                    or player.clears != lstats.clears
+                    or player.blocks != lstats.blocks
+                ):
+                    matched = False
+            return matched
+
         if not self.game.sm5_stats:
             return True
 
@@ -290,10 +313,13 @@ class LFReplaySystem(LFReplayHandlersMixin):
 
         for entity in self.game.entities:
             if entity.type == 'player':
-                try:
-                    role = LFRole.from_id(entity.category)
-                except ValueError:
-                    role = LFRole.SCOUT
+                if self.game.is_laserball:
+                    role = None
+                else:
+                    try:
+                        role = LFRole.from_id(entity.category)
+                    except ValueError:
+                        role = LFRole.SCOUT
                 history = state_history_by_entity.get(entity.entity_id)
                 self.player_states.append(
                     LFReplayPlayerState(
@@ -600,6 +626,20 @@ class LFReplaySystem(LFReplayHandlersMixin):
             description = self._process_event_nuke_cancel(event)
         elif ev_type in ['0500', '0502', '0510', '0512']:
             description = self._process_event_resupply(event)
+        elif ev_type in [
+            '1100',
+            '1101',
+            '1102',
+            '1103',
+            '1104',
+            '1105',
+            '1106',
+            '1107',
+            '1109',
+            '110A',
+            '110B',
+        ]:
+            description = self._process_event_laserball(event)
         else:
             description = self._process_event_other(event)
 
@@ -608,9 +648,7 @@ class LFReplaySystem(LFReplayHandlersMixin):
 
         return description
 
-    def _decrement_shots(
-        self, actor_id: str | None, count: int = 1
-    ) -> None:
+    def _decrement_shots(self, actor_id: str | None, count: int = 1) -> None:
         """Helper to decrement shots left for non-ammo players.
 
         Args:
@@ -619,7 +657,7 @@ class LFReplaySystem(LFReplayHandlersMixin):
         """
         if actor_id and actor_id in self.game_state.players:
             player = self.game_state.players[actor_id]
-            if player.role != LFRole.AMMO:
+            if player.role and player.role != LFRole.AMMO:
                 player.shots = max(0, player.shots - count)
 
     def _decrement_missiles(self, actor_id: str | None) -> None:
@@ -630,7 +668,7 @@ class LFReplaySystem(LFReplayHandlersMixin):
         """
         if actor_id and actor_id in self.game_state.players:
             player = self.game_state.players[actor_id]
-            if not player.is_eliminated():
+            if player.role and not player.is_eliminated():
                 player.missiles = max(0, player.missiles - 1)
 
     def _take_snapshot(
@@ -711,7 +749,7 @@ class LFReplaySystem(LFReplayHandlersMixin):
         Args:
             event_time: The current event timestamp in milliseconds.
         """
-        if self._team_elimination_processed:
+        if self._team_elimination_processed or self.game.is_laserball:
             return
 
         active_teams = set()

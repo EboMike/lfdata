@@ -55,3 +55,16 @@ def test_game_non_sm5() -> None:
     )
     assert game.mission_type == 2
     assert game.is_sm5 is False
+    assert game.is_laserball is False
+
+
+def test_game_laserball() -> None:
+    game = LFGame(
+        game_id='lb_game',
+        timestamp=datetime.now(),
+        game_type='Laserball',
+    )
+    assert game.normalized_game_type == 'Laserball'
+    assert game.mission_type == 3
+    assert game.is_sm5 is False
+    assert game.is_laserball is True

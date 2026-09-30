@@ -85,6 +85,7 @@ class DatabaseStorage:
                     ),
                     selectinload(LFGame.events),
                     selectinload(LFGame.sm5_stats),
+                    selectinload(LFGame.laserball_stats),
                     selectinload(LFGame.score_history),
                     selectinload(LFGame.state_history),
                 )

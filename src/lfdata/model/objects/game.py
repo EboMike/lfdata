@@ -18,6 +18,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from lfdata.model.base import Base
 
 if TYPE_CHECKING:
+    from lfdata.model.gametypes.laserball_stats import LaserballStats
     from lfdata.model.gametypes.sm5_notability import Sm5NotabilityCondition
     from lfdata.model.objects.entity import GameEntity
     from lfdata.model.objects.player import Player
@@ -39,11 +40,12 @@ class LFGame(Base):
         duration: Optional game duration in milliseconds.
         penalty: Optional penalty points value for team eliminations.
         mission_type: Optional integer mission type from type 1 TDF header
-            (5 for SM5).
+            (5 for SM5, 3 for Laserball).
         teams: List of GameTeam ORM relationships.
         entities: List of GameEntity ORM relationships.
         events: List of GameEvent ORM relationships.
         sm5_stats: List of Sm5Stats ORM relationships.
+        laserball_stats: List of LaserballStats ORM relationships.
         score_history: List of ScoreHistory ORM relationships.
         state_history: List of PlayerStateHistory ORM relationships.
     """
@@ -80,6 +82,11 @@ class LFGame(Base):
     sm5_stats: Mapped[list['Sm5Stats']] = relationship(
         'Sm5Stats', back_populates='game', cascade='all, delete-orphan'
     )
+    laserball_stats: Mapped[list['LaserballStats']] = relationship(
+        'LaserballStats',
+        back_populates='game',
+        cascade='all, delete-orphan',
+    )
     score_history: Mapped[list['ScoreHistory']] = relationship(
         'ScoreHistory', back_populates='game', cascade='all, delete-orphan'
     )
@@ -110,6 +117,8 @@ class LFGame(Base):
         if getattr(self, 'mission_type', None) is None:
             if getattr(self, 'normalized_game_type', None) == 'SM5':
                 self.mission_type = 5
+            elif getattr(self, 'normalized_game_type', None) == 'Laserball':
+                self.mission_type = 3
 
     @property
     def is_sm5(self) -> bool:
@@ -126,6 +135,22 @@ class LFGame(Base):
         if self.mission_type is not None:
             return False
         return self.normalized_game_type == 'SM5'
+
+    @property
+    def is_laserball(self) -> bool:
+        """Returns True if the game is a Laserball game.
+
+        Checks whether the mission type from the type 1 record is 3, or if
+        the normalized game type is 'Laserball'.
+
+        Returns:
+            True if the game is Laserball, False otherwise.
+        """
+        if self.mission_type == 3:
+            return True
+        if self.mission_type is not None:
+            return False
+        return self.normalized_game_type == 'Laserball'
 
     def get_notability(
         self,

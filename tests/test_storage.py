@@ -50,3 +50,37 @@ def test_database_storage_real_game() -> None:
     assert player_entity is not None
     assert player_entity.player is not None
     assert player_entity.player.codename == player_entity.desc
+
+
+def test_database_storage_laserball_game() -> None:
+    from lfdata.model import LaserballStats
+
+    storage = DatabaseStorage('sqlite:///:memory:')
+    game = LFGame(
+        game_id='laserball_game_001',
+        timestamp=datetime.now(),
+        game_type='Laserball',
+        arena_name='Brisbane',
+    )
+    stat = LaserballStats(
+        game_id='laserball_game_001',
+        entity_id='P1',
+        goals=3,
+        assists=2,
+        steals=1,
+        clears=4,
+        blocks=12,
+        times_zapped=3,
+    )
+    game.laserball_stats.append(stat)
+
+    assert storage.save_game(game) is True
+
+    retrieved = storage.get_game('laserball_game_001')
+    assert retrieved is not None
+    assert retrieved.game_id == 'laserball_game_001'
+    assert retrieved.is_laserball is True
+    assert len(retrieved.laserball_stats) == 1
+    assert retrieved.laserball_stats[0].goals == 3
+    assert retrieved.laserball_stats[0].assists == 2
+    assert retrieved.laserball_stats[0].score == 50512

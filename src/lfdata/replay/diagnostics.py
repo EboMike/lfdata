@@ -686,11 +686,7 @@ class LFReplayDiagnostics:
             entity_id: The entity ID of the player.
         """
         codename = next(
-            (
-                e.desc
-                for e in self.game.entities
-                if e.entity_id == entity_id
-            ),
+            (e.desc for e in self.game.entities if e.entity_id == entity_id),
             entity_id,
         )
         beacons = self._get_player_beacon_claims(entity_id=entity_id)

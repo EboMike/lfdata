@@ -74,6 +74,17 @@ HANDLED_EVENT_TYPES: frozenset[str] = frozenset(
         '0902',  # Reward
         '0B00',  # Claim beacon
         '0B03',  # Base awarded
+        '1100',  # Laserball pass
+        '1101',  # Laserball goal
+        '1102',  # Laserball assist
+        '1103',  # Laserball steal
+        '1104',  # Laserball block
+        '1105',  # Laserball round start
+        '1106',  # Laserball round end
+        '1107',  # Laserball gets ball
+        '1109',  # Laserball clear
+        '110A',  # Laserball fail clear
+        '110B',  # Laserball reset on base
         'nuke_cancel',  # Inferred nuke cancel
     }
 )

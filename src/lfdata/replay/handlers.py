@@ -563,3 +563,221 @@ class LFReplayHandlersMixin:
 
         suffix = self._get_nuke_cancel_suffix(event.action)
         return f'{actor_name} {suffix}'
+
+    def _apply_laserball_downtime(
+        self: 'LFReplaySystem',
+        target: 'LFReplayPlayerState',
+        event_time: int,
+    ) -> None:
+        """Applies downtime to a player tagged in Laserball.
+
+        Downtime is 8 seconds: 4 seconds safe, 4 seconds resettable.
+
+        Args:
+            target: The player entity state being downed.
+            event_time: Millisecond timestamp when the tag occurred.
+        """
+        was_already_down = target.is_down(event_time)
+        if target.has_authoritative_state:
+            target.update_downtime(event_time)
+        else:
+            target.hp = 0
+            target.downtime_ends_at_ms = event_time + 8000
+            target.resettable_starts_at_ms = event_time + 4000
+            if not was_already_down:
+                target.just_went_down_at_ms = event_time
+
+    def _process_laserball_round_events(
+        self: 'LFReplaySystem', event: GameEvent
+    ) -> str | None:
+        """Processes round start, round end, and gets-ball events.
+
+        Args:
+            event: The Laserball round event.
+
+        Returns:
+            str | None: Description string, or None if not a round event.
+        """
+        if event.event_type == '1105':
+            return '* Round Start *'
+        if event.event_type == '1106':
+            for p in self.game_state.players.values():
+                p.has_ball = False
+            return '* Round End *'
+        if event.event_type == '1107':
+            actor = self.game_state.players.get(event.actor_entity_id)
+            actor_name = self.entity_names.get(
+                event.actor_entity_id, event.actor_entity_id
+            )
+            for p in self.game_state.players.values():
+                p.has_ball = False
+            if actor:
+                actor.has_ball = True
+            return f'{actor_name} gets ball'
+        return None
+
+    def _process_laserball_carrier_events(
+        self: 'LFReplaySystem', event: GameEvent
+    ) -> str | None:
+        """Processes pass, clear, and fail-clear events.
+
+        Args:
+            event: The Laserball carrier event.
+
+        Returns:
+            str | None: Description string, or None if not a carrier event.
+        """
+        actor = self.game_state.players.get(event.actor_entity_id)
+        target = self.game_state.players.get(event.target_entity_id)
+        actor_name = self.entity_names.get(
+            event.actor_entity_id, event.actor_entity_id
+        )
+        target_name = self.entity_names.get(
+            event.target_entity_id, event.target_entity_id
+        )
+
+        if event.event_type == '1100':
+            if actor:
+                actor.has_ball = False
+                actor.passes += 1
+            if target:
+                target.has_ball = True
+            return f'{actor_name} passes to {target_name}'
+
+        if event.event_type == '1109':
+            if actor:
+                actor.has_ball = False
+                actor.clears += 1
+                gp = self.game.penalty or 0
+                actor.score = actor.calculate_laserball_score(gp)
+            if target:
+                target.has_ball = True
+                return f'{actor_name} clears to {target_name}'
+            return f'{actor_name} clears the ball'
+
+        if event.event_type == '110A':
+            return f'{actor_name} fails clear'
+
+        return None
+
+    def _process_laserball_scoring_events(
+        self: 'LFReplaySystem', event: GameEvent
+    ) -> str | None:
+        """Processes goal and assist events.
+
+        Args:
+            event: The Laserball scoring event.
+
+        Returns:
+            str | None: Description string, or None if not a scoring event.
+        """
+        actor = self.game_state.players.get(event.actor_entity_id)
+        actor_name = self.entity_names.get(
+            event.actor_entity_id, event.actor_entity_id
+        )
+
+        if event.event_type == '1101':
+            if actor:
+                actor.goals += 1
+                actor.has_ball = False
+                gp = self.game.penalty or 0
+                actor.score = actor.calculate_laserball_score(gp)
+            return f'{actor_name} scores a goal'
+
+        if event.event_type == '1102':
+            target_name = self.entity_names.get(
+                event.target_entity_id, event.target_entity_id
+            )
+            if actor:
+                actor.assists += 1
+                gp = self.game.penalty or 0
+                actor.score = actor.calculate_laserball_score(gp)
+            return f'{actor_name} assists {target_name}'
+
+        return None
+
+    def _process_laserball_combat_events(
+        self: 'LFReplaySystem', event: GameEvent
+    ) -> str | None:
+        """Processes steal, block, and reset-on-base events.
+
+        Args:
+            event: The Laserball combat/action event.
+
+        Returns:
+            str | None: Description string, or None if not a combat event.
+        """
+        actor = self.game_state.players.get(event.actor_entity_id)
+        target = self.game_state.players.get(event.target_entity_id)
+        actor_name = self.entity_names.get(
+            event.actor_entity_id, event.actor_entity_id
+        )
+        target_name = self.entity_names.get(
+            event.target_entity_id, event.target_entity_id
+        )
+
+        if event.event_type == '1103':
+            if actor:
+                actor.steals += 1
+                actor.has_ball = True
+                actor.times_zapped_opponents += 1
+                gp = self.game.penalty or 0
+                actor.score = actor.calculate_laserball_score(gp)
+            if target:
+                target.has_ball = False
+                target.times_zapped += 1
+                target.times_blocked += 1
+                self._apply_laserball_downtime(target, event.time)
+            return f'{actor_name} steals from {target_name}'
+
+        if event.event_type == '1104':
+            if actor:
+                actor.blocks += 1
+                actor.times_zapped_opponents += 1
+                gp = self.game.penalty or 0
+                actor.score = actor.calculate_laserball_score(gp)
+            if target:
+                target.times_zapped += 1
+                target.times_blocked += 1
+                self._apply_laserball_downtime(target, event.time)
+            return f'{actor_name} blocks {target_name}'
+
+        if event.event_type == '110B':
+            if actor:
+                actor.downtime_ends_at_ms = event.time
+                actor.resettable_starts_at_ms = event.time
+                actor.just_went_down_at_ms = None
+            return f'{actor_name} resets on base'
+
+        return None
+
+    def _process_event_laserball(
+        self: 'LFReplaySystem', event: GameEvent
+    ) -> str:
+        """Processes Laserball game events.
+
+        Dispatches to round, carrier, scoring, or combat handlers.
+
+        Args:
+            event: The Laserball game event.
+
+        Returns:
+            str: The event description string.
+        """
+        res = self._process_laserball_round_events(event)
+        if res is not None:
+            return res
+
+        res = self._process_laserball_carrier_events(event)
+        if res is not None:
+            return res
+
+        res = self._process_laserball_scoring_events(event)
+        if res is not None:
+            return res
+
+        res = self._process_laserball_combat_events(event)
+        if res is not None:
+            return res
+
+        return event.action

@@ -258,7 +258,7 @@ class TdfStateDumper:
                 name=codename,
                 team_index=p.team_index,
                 team_name=team_name,
-                role=p.role.display_name,
+                role=p.role.display_name if p.role else '',
                 score=p.score,
                 lives=p.lives,
                 shots=p.shots,

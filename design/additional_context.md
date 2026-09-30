@@ -12,9 +12,19 @@ Rules:
 * Missiles or nukes do not factor into this equation.
 * If a player was never zapped (times zapped is 0), the hit diff is 1.
 * In SM5, this corresponds to `shot_opponent / times_zapped`.
+* In Laserball, this corresponds to `(blocks + steals) / times_zapped`.
 * Accessible via `hit_diff` property on player game mode stats (e.g.
-  `Sm5Stats.hit_diff`), on `GameEntity.hit_diff`, and on
-  `LFReplayPlayerState.hit_diff`.
+  `Sm5Stats.hit_diff`, `LaserballStats.hit_diff`), on `GameEntity.hit_diff`, and
+  on `LFReplayPlayerState.hit_diff`.
+
+## Laserball Scoring and Team Rankings
+
+* In Laserball, team score is the cumulative number of goals scored by that
+  team (1 point per goal).
+* Player score is used only for roster ranking:
+  `score = (goals + assists) * 10000 + min(99, clears + steals) * 100`
+  `+ min(99, blocks)` plus penalty points if applicable.
+* Laserball players have unlimited lives and shots and are never eliminated.
 
 ## Audio File Validation and Error Handling
 

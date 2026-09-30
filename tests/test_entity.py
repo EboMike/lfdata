@@ -107,3 +107,29 @@ def test_entity_hit_diff() -> None:
     stat_p1.times_zapped = 0
     assert player_ent.hit_diff == 1.0
 
+    # Player entity linked to a game with Laserball stats
+    lb_game = LFGame(
+        game_id='lb1',
+        timestamp=datetime.now(),
+        game_type='Laserball',
+    )
+    from lfdata.model import LaserballStats
+
+    lb_player = GameEntity(
+        game_id='lb1',
+        entity_id='#LB1',
+        type='player',
+        desc='LaserPlayer',
+        team_index=0,
+    )
+    lb_player.game = lb_game
+    lb_stats = LaserballStats(
+        game_id='lb1',
+        entity_id='#LB1',
+        blocks=5,
+        steals=3,
+        times_zapped=4,
+    )
+    lb_game.laserball_stats = [lb_stats]
+    # (5 + 3) / 4 = 2.0
+    assert lb_player.hit_diff == 2.0

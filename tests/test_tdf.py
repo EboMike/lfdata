@@ -172,3 +172,68 @@ def test_tdf_importer_parse_event_0209(tmp_path: Path) -> None:
     assert game.events[0].actor_entity_id == '#W1'
     assert game.events[0].action == 'zaps'
     assert game.events[0].target_entity_id == '#P1'
+
+
+def test_tdf_importer_parse_laserball(tmp_path: Path) -> None:
+    tdf_file = tmp_path / 'laserball_test.tdf'
+    content = (
+        ';0/info\tfile_version\tprogram_version\tcentre\n'
+        '0\t2.005\t8.503\t4-43\n'
+        ';1/mission\ttype\tdesc\tstart\tduration\tpenalty\n'
+        '1\t3\tLaserball\t20240114205710\t900000\t-1000\n'
+        ';2/team\tindex\tdesc\tcolor_enum\tcolor_desc\tcolor_rgb\n'
+        '2\t0\tFire\t11\tFire\t#FF5000\n'
+        '2\t1\tEarth\t13\tEarth\t#A0FF00\n'
+        ';3/entity\n'
+        '3\t0\t#P1\tplayer\tRedCarrier\t0\t1\t0\tSuit1\n'
+        '3\t0\t#P2\tplayer\tGreenDefender\t1\t1\t0\tSuit2\n'
+        ';4/event\ttime\ttype\tactor\taction\ttarget\n'
+        '4\t1000\t1105\tRound Start\n'
+        '4\t2000\t1107\t#P1\tgets ball\n'
+        '4\t3000\t1104\t#P2\tblocks\t#P1\n'
+        '4\t4000\t1103\t#P2\tsteals\t#P1\n'
+        '4\t5000\t1101\t#P2\tscores a goal\n'
+        ';7/stats\n'
+        '7\t#P2\t1\t0\t1\t0\t1\t0\t0\t0\n'
+    )
+    tdf_file.write_text(content, encoding='utf-8')
+    importer = TdfImporter(tdf_file)
+    game = importer.parse()
+
+    assert game.is_laserball is True
+    assert game.is_sm5 is False
+    assert game.mission_type == 3
+    assert game.normalized_game_type == 'Laserball'
+    assert len(game.teams) == 2
+    assert len(game.entities) == 2
+    assert len(game.events) == 5
+
+    # Event 1105
+    assert game.events[0].event_type == '1105'
+
+    # Event 1107
+    assert game.events[1].event_type == '1107'
+    assert game.events[1].actor_entity_id == '#P1'
+
+    # Event 1104
+    assert game.events[2].event_type == '1104'
+    assert game.events[2].actor_entity_id == '#P2'
+    assert game.events[2].target_entity_id == '#P1'
+
+    # Event 1103
+    assert game.events[3].event_type == '1103'
+    assert game.events[3].actor_entity_id == '#P2'
+    assert game.events[3].target_entity_id == '#P1'
+
+    # Event 1101
+    assert game.events[4].event_type == '1101'
+    assert game.events[4].actor_entity_id == '#P2'
+
+    # Type 7 stats
+    assert len(game.laserball_stats) == 1
+    stats = game.laserball_stats[0]
+    assert stats.entity_id == '#P2'
+    assert stats.goals == 1
+    assert stats.steals == 1
+    assert stats.blocks == 1
+    assert stats.score == 10101

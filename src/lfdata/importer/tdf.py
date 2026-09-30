@@ -22,6 +22,7 @@ from lfdata.model import (
     GameEntity,
     GameEvent,
     GameTeam,
+    LaserballStats,
     LFCentre,
     LFGame,
     Player,
@@ -75,7 +76,10 @@ class TdfImporter:
         elif rec_type == '6':
             self._parse_entity_end(parts, game)
         elif rec_type == '7':
-            self._parse_sm5_stats(parts, game)
+            if game.is_laserball:
+                self._parse_laserball_stats(parts, game)
+            else:
+                self._parse_sm5_stats(parts, game)
         elif rec_type == '9':
             self._parse_player_state(parts, game)
 
@@ -280,6 +284,38 @@ class TdfImporter:
                     action = 'zaps'
                 else:
                     action = 'zaps'
+            elif event_type in (
+                '1100',
+                '1102',
+                '1103',
+                '1104',
+                '1109',
+                '110B',
+            ):
+                if len(varies) >= 3:
+                    actor_entity_id = varies[0]
+                    action = varies[1].strip()
+                    target_entity_id = varies[2]
+                elif len(varies) == 2:
+                    actor_entity_id = varies[0]
+                    target_entity_id = varies[1]
+                    action = varies[1].strip()
+                elif len(varies) == 1:
+                    actor_entity_id = varies[0]
+                    action = varies[0].strip()
+                else:
+                    action = ''
+            elif event_type in ('1101', '1107', '110A'):
+                if len(varies) >= 2:
+                    actor_entity_id = varies[0]
+                    action = varies[1].strip()
+                elif len(varies) == 1:
+                    actor_entity_id = varies[0]
+                    action = varies[0].strip()
+                else:
+                    action = ''
+            elif event_type in ('1105', '1106'):
+                action = varies[0].strip() if varies else ''
             elif len(varies) == 1:
                 action = varies[0].strip()
             elif len(varies) == 2:
@@ -380,6 +416,41 @@ class TdfImporter:
                     missiled_team=int(parts[24]),
                 )
                 game.sm5_stats.append(stats)
+            except ValueError:
+                return
+
+    def _parse_laserball_stats(self, parts: list[str], game: LFGame) -> None:
+        """Parses record type 7 (Laserball Stats).
+
+        Args:
+            parts: The fields of the row.
+            game: The game object to update.
+        """
+        if len(parts) >= 3:
+            try:
+                entity_id = parts[1]
+                goals = int(parts[2]) if len(parts) > 2 else 0
+                assists = int(parts[3]) if len(parts) > 3 else 0
+                steals = int(parts[4]) if len(parts) > 4 else 0
+                clears = int(parts[5]) if len(parts) > 5 else 0
+                blocks = int(parts[6]) if len(parts) > 6 else 0
+                passes = int(parts[7]) if len(parts) > 7 else 0
+                times_zapped = int(parts[8]) if len(parts) > 8 else 0
+                penalties = int(parts[9]) if len(parts) > 9 else 0
+                stats = LaserballStats(
+                    game_id=game.game_id,
+                    entity_id=entity_id,
+                    goals=goals,
+                    assists=assists,
+                    steals=steals,
+                    clears=clears,
+                    blocks=blocks,
+                    passes=passes,
+                    times_blocked=times_zapped,
+                    times_zapped=times_zapped,
+                    penalties=penalties,
+                )
+                game.laserball_stats.append(stats)
             except ValueError:
                 return
 

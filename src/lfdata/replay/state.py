@@ -20,7 +20,7 @@ class LFReplayPlayerState:
 
     Attributes:
         entity_id: Entity ID string of the player.
-        role: LFRole enum of the player.
+        role: LFRole enum of the player, or None for Laserball.
         team_index: Team index integer assigned to the player.
         lives: Current remaining lives count.
         shots: Current remaining shots count.
@@ -45,7 +45,7 @@ class LFReplayPlayerState:
     def __init__(
         self,
         entity_id: str,
-        role: LFRole,
+        role: LFRole | None,
         team_index: int,
         state_history: list[PlayerStateHistory] | None = None,
     ) -> None:
@@ -53,7 +53,7 @@ class LFReplayPlayerState:
 
         Args:
             entity_id: The ID of the game entity.
-            role: The LFRole enum representing the player's role.
+            role: The LFRole enum representing the player's role, or None.
             team_index: The team index the player belongs to.
             state_history: Optional list of authoritative state history entries
                 parsed from type 9 records.
@@ -61,13 +61,13 @@ class LFReplayPlayerState:
         self.entity_id = entity_id
         self.role = role
         self.team_index = team_index
-        self.lives = role.start_lives
-        self.shots = role.start_shots
-        self.missiles = role.start_missiles
+        self.lives = role.start_lives if role else 0
+        self.shots = role.start_shots if role else 0
+        self.missiles = role.start_missiles if role else 0
         self.score = 0
         self._special_points = 0
-        self.max_hp = role.max_hp
-        self.hp = role.max_hp
+        self.max_hp = role.max_hp if role else 0
+        self.hp = role.max_hp if role else 0
         self.downtime_ends_at_ms = 0
         self.resettable_starts_at_ms = 0
         self.just_went_down_at_ms: int | None = None
@@ -81,6 +81,16 @@ class LFReplayPlayerState:
         self.times_zapped: int = 0
         self.times_zapped_opponents: int = 0
         self.state_history: list[PlayerStateHistory] | None = state_history
+
+        # Laserball specific tracking
+        self.has_ball: bool = False
+        self.goals: int = 0
+        self.assists: int = 0
+        self.passes: int = 0
+        self.steals: int = 0
+        self.clears: int = 0
+        self.blocks: int = 0
+        self.times_blocked: int = 0
 
     @property
     def has_authoritative_state(self) -> bool:
@@ -115,6 +125,8 @@ class LFReplayPlayerState:
         """Returns True if the player has no lives left and is out of the
         game.
         """
+        if self.role is None:
+            return False
         return self.lives <= 0
 
     def is_down(self, current_time_ms: int) -> bool:
@@ -212,13 +224,16 @@ class LFReplayPlayerState:
             else:
                 self.hp = 0
         else:
-            if self.hp == 0 and current_time_ms >= self.downtime_ends_at_ms:
-                self.hp = self.max_hp
+            if self.role is not None:
+                if self.hp == 0 and current_time_ms >= self.downtime_ends_at_ms:
+                    self.hp = self.max_hp
+                    self.just_went_down_at_ms = None
+            elif current_time_ms >= self.downtime_ends_at_ms:
                 self.just_went_down_at_ms = None
 
     def resupply_lives_from_medic(self) -> None:
         """Adds lives to player based on role-specific medic resupply values."""
-        if self.is_eliminated():
+        if self.is_eliminated() or self.role is None:
             return
         self.lives = min(
             self.role.max_lives, self.lives + self.role.medic_lives_gain
@@ -226,11 +241,32 @@ class LFReplayPlayerState:
 
     def resupply_shots_from_ammo(self) -> None:
         """Adds shots to player based on role-specific ammo resupply values."""
-        if self.is_eliminated():
+        if self.is_eliminated() or self.role is None:
             return
         self.shots = min(
             self.role.max_shots, self.shots + self.role.ammo_shots_gain
         )
+
+    def calculate_laserball_score(self, penalty_val: int = 0) -> int:
+        """Calculates player ranking score based on Laserball rules.
+
+        Goals and assists grant 10,000 points. Clears and steals grant
+        100 points (combined up to 99). Blocks grant 1 point (up to 99).
+        Penalties incur the mission penalty value.
+
+        Args:
+            penalty_val: Penalty point value (e.g. -1000).
+
+        Returns:
+            int: The calculated Laserball player score.
+        """
+        score = (
+            (self.goals + self.assists) * 10000
+            + min(99, self.clears + self.steals) * 100
+            + min(99, self.blocks)
+            + self.penalties * penalty_val
+        )
+        return score
 
     @property
     def special_points(self) -> int:
@@ -322,24 +358,34 @@ class LFReplayGameState:
         self,
         players: list[LFReplayPlayerState],
         teams: list[LFReplayTeamState],
+        is_laserball: bool = False,
     ) -> None:
         """Initializes the game state.
 
         Args:
             players: List of player states.
             teams: List of team states.
+            is_laserball: Whether this is a Laserball game session.
         """
         self.players = {p.entity_id: p for p in players}
         self.teams = {t.team_index: t for t in teams}
+        self.is_laserball = is_laserball
 
     def update_team_scores_and_rankings(self) -> None:
         """Recalculates team scores and rankings based on player scores."""
         for team in self.teams.values():
-            team.score = sum(
-                p.score
-                for p in self.players.values()
-                if p.team_index == team.team_index
-            )
+            if self.is_laserball:
+                team.score = sum(
+                    p.goals
+                    for p in self.players.values()
+                    if p.team_index == team.team_index
+                )
+            else:
+                team.score = sum(
+                    p.score
+                    for p in self.players.values()
+                    if p.team_index == team.team_index
+                )
 
         sorted_teams = sorted(
             self.teams.values(), key=lambda t: t.score, reverse=True

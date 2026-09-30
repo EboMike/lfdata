@@ -2043,3 +2043,250 @@ def test_replay_missing_0101() -> None:
 
     # The last event time is 5000, so game_ended_at_ms should be 5000
     assert replay.game_ended_at_ms == 5000
+
+
+def test_laserball_replay() -> None:
+    from datetime import datetime
+    from lfdata.model import GameEntity, GameEvent, GameTeam, LFGame
+
+    game = LFGame(
+        game_id='lb_replay_test',
+        timestamp=datetime.now(),
+        game_type='Laserball',
+        penalty=-1000,
+    )
+    t1 = GameTeam(
+        game_id='lb_replay_test',
+        team_index=0,
+        desc='Fire Team',
+        color_enum=11,
+        color_desc='Fire',
+        color_rgb='#FF5000',
+    )
+    t2 = GameTeam(
+        game_id='lb_replay_test',
+        team_index=1,
+        desc='Earth Team',
+        color_enum=13,
+        color_desc='Earth',
+        color_rgb='#A0FF00',
+    )
+    game.teams = [t1, t2]
+
+    p1 = GameEntity(
+        game_id='lb_replay_test',
+        entity_id='P1',
+        type='player',
+        desc='RedCarrier',
+        team_index=0,
+    )
+    p2 = GameEntity(
+        game_id='lb_replay_test',
+        entity_id='P2',
+        type='player',
+        desc='RedTeammate',
+        team_index=0,
+    )
+    e1 = GameEntity(
+        game_id='lb_replay_test',
+        entity_id='E1',
+        type='player',
+        desc='GreenDefender',
+        team_index=1,
+    )
+    base1 = GameEntity(
+        game_id='lb_replay_test',
+        entity_id='BASE_G',
+        type='base',
+        desc='Green Base',
+        team_index=1,
+    )
+    game.entities = [p1, p2, e1, base1]
+
+    events = [
+        # Mission start
+        GameEvent(
+            game_id='lb_replay_test',
+            time=0,
+            event_type='0100',
+            action='start',
+            raw_message='',
+        ),
+        # Round 1 start
+        GameEvent(
+            game_id='lb_replay_test',
+            time=1000,
+            event_type='1105',
+            action='Round start',
+            raw_message='',
+        ),
+        # P1 receives ball
+        GameEvent(
+            game_id='lb_replay_test',
+            time=2000,
+            event_type='1107',
+            actor_entity_id='P1',
+            action='gets ball',
+            raw_message='',
+        ),
+        # P1 passes to P2
+        GameEvent(
+            game_id='lb_replay_test',
+            time=5000,
+            event_type='1100',
+            actor_entity_id='P1',
+            target_entity_id='P2',
+            action='passes to',
+            raw_message='',
+        ),
+        # E1 blocks P1
+        GameEvent(
+            game_id='lb_replay_test',
+            time=6000,
+            event_type='1104',
+            actor_entity_id='E1',
+            target_entity_id='P1',
+            action='blocks',
+            raw_message='',
+        ),
+        # P1 resets on base at 8000
+        GameEvent(
+            game_id='lb_replay_test',
+            time=8000,
+            event_type='110B',
+            actor_entity_id='P1',
+            target_entity_id='BASE_G',
+            action='resets on base',
+            raw_message='',
+        ),
+        # P2 scores a goal
+        GameEvent(
+            game_id='lb_replay_test',
+            time=10000,
+            event_type='1101',
+            actor_entity_id='P2',
+            action='scores a goal',
+            raw_message='',
+        ),
+        # P1 assisted P2
+        GameEvent(
+            game_id='lb_replay_test',
+            time=10000,
+            event_type='1102',
+            actor_entity_id='P1',
+            target_entity_id='P2',
+            action='assists',
+            raw_message='',
+        ),
+        # Round 1 end
+        GameEvent(
+            game_id='lb_replay_test',
+            time=11000,
+            event_type='1106',
+            action='Round end',
+            raw_message='',
+        ),
+        # Round 2 start
+        GameEvent(
+            game_id='lb_replay_test',
+            time=15000,
+            event_type='1105',
+            action='Round start',
+            raw_message='',
+        ),
+        # E1 gets ball
+        GameEvent(
+            game_id='lb_replay_test',
+            time=16000,
+            event_type='1107',
+            actor_entity_id='E1',
+            action='gets ball',
+            raw_message='',
+        ),
+        # P1 steals from E1
+        GameEvent(
+            game_id='lb_replay_test',
+            time=20000,
+            event_type='1103',
+            actor_entity_id='P1',
+            target_entity_id='E1',
+            action='steals from',
+            raw_message='',
+        ),
+        # P1 clears to P2
+        GameEvent(
+            game_id='lb_replay_test',
+            time=25000,
+            event_type='1109',
+            actor_entity_id='P1',
+            target_entity_id='P2',
+            action='clears to',
+            raw_message='',
+        ),
+        # Mission end
+        GameEvent(
+            game_id='lb_replay_test',
+            time=30000,
+            event_type='0101',
+            action='end',
+            raw_message='',
+        ),
+    ]
+    game.events = events
+
+    replay = LFReplaySystem(game)
+    records = replay.run()
+    assert len(records) == len(events)
+
+    p1_state = replay.game_state.players['P1']
+    p2_state = replay.game_state.players['P2']
+    e1_state = replay.game_state.players['E1']
+
+    # Roles should be None in Laserball
+    assert p1_state.role is None
+    assert p2_state.role is None
+    assert e1_state.role is None
+
+    # Players should never be eliminated
+    assert not p1_state.is_eliminated()
+    assert not p2_state.is_eliminated()
+    assert not e1_state.is_eliminated()
+
+    # Check P1 stats:
+    # 0 goals, 1 assist, 1 pass, 1 steal, 1 clear, 0 blocks
+    # 1 times_zapped (blocked by E1)
+    assert p1_state.goals == 0
+    assert p1_state.assists == 1
+    assert p1_state.passes == 1
+    assert p1_state.steals == 1
+    assert p1_state.clears == 1
+    assert p1_state.blocks == 0
+    assert p1_state.times_zapped == 1
+    assert p1_state.times_zapped_opponents == 1  # 1 steal against opponent
+    # P1 score: (0+1)*10000 + (1+1)*100 + 0 = 10200
+    assert p1_state.score == 10200
+    # P1 hit diff: 1 opponent hit / 1 time zapped = 1.0
+    assert p1_state.hit_diff == 1.0
+
+    # Check P2 stats:
+    # 1 goal, 0 assists, 0 passes, 0 steals, 0 clears, 0 blocks
+    assert p2_state.goals == 1
+    assert p2_state.score == 10000
+    assert p2_state.has_ball is True  # received clear at 25000
+
+    # Check E1 stats:
+    # 1 block, 0 goals, 1 time zapped (stolen from)
+    assert e1_state.blocks == 1
+    assert e1_state.times_zapped == 1
+    assert e1_state.score == 1
+    assert e1_state.hit_diff == 1.0
+
+    # Team scores in Laserball: based on goals!
+    # Team 0 (Fire) has 1 goal -> score 1
+    # Team 1 (Earth) has 0 goals -> score 0
+    team_0 = replay.game_state.teams[0]
+    team_1 = replay.game_state.teams[1]
+    assert team_0.score == 1
+    assert team_0.ranking == 1
+    assert team_1.score == 0
+    assert team_1.ranking == 2
