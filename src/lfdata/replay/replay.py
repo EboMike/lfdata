@@ -92,6 +92,10 @@ class LFReplaySystem(LFReplayHandlersMixin):
         self._team_elimination_processed = False
         self.first_team_elimination_time_ms: int | None = None
         self.resolved_ambiguities: list[dict[str, Any]] = []
+        self._last_laserball_passer: LFReplayPlayerState | None = None
+        self._last_laserball_pass_target: LFReplayPlayerState | None = None
+        self._last_assisted_scorer: LFReplayPlayerState | None = None
+        self._last_assisted_passer: LFReplayPlayerState | None = None
 
         if self.game.sm5_stats and align_stats:
             self._search_choices()
@@ -113,6 +117,10 @@ class LFReplaySystem(LFReplayHandlersMixin):
         self.first_team_elimination_time_ms = None
         self._encountered_points = []
         self.resolved_ambiguities = []
+        self._last_laserball_passer = None
+        self._last_laserball_pass_target = None
+        self._last_assisted_scorer = None
+        self._last_assisted_passer = None
 
     def _is_player_boost_ambiguous(
         self, player: LFReplayPlayerState, event_time: int
@@ -293,11 +301,14 @@ class LFReplaySystem(LFReplayHandlersMixin):
         for team in self.game.teams:
             if team.team_index not in player_team_indices:
                 continue
-            try:
-                team_type = LFTeamType.from_index(team.team_index)
-                name = team_type.display_name
-            except ValueError:
+            if self.game.is_laserball:
                 name = team.desc
+            else:
+                try:
+                    team_type = LFTeamType.from_index(team.team_index)
+                    name = team_type.display_name
+                except ValueError:
+                    name = team.desc
             self.team_states.append(
                 LFReplayTeamState(
                     team_index=team.team_index,
@@ -367,6 +378,28 @@ class LFReplaySystem(LFReplayHandlersMixin):
 
         if self.game_ended_at_ms is None and sorted_events:
             self.game_ended_at_ms = sorted_events[-1].time
+
+        if self.game.is_laserball and not self.game.laserball_stats:
+            from lfdata.model.gametypes.laserball_stats import LaserballStats
+
+            stats_list: list[LaserballStats] = []
+            for p_id, p_state in self.game_state.players.items():
+                stats_list.append(
+                    LaserballStats(
+                        game_id=self.game.game_id,
+                        entity_id=p_id,
+                        goals=p_state.goals,
+                        assists=p_state.assists,
+                        steals=p_state.steals,
+                        clears=p_state.clears,
+                        blocks=p_state.blocks,
+                        passes=p_state.passes,
+                        times_blocked=p_state.times_blocked,
+                        times_zapped=p_state.times_zapped,
+                        penalties=p_state.penalties,
+                    )
+                )
+            self.game.laserball_stats = stats_list
 
         return self.records
 

@@ -2263,22 +2263,25 @@ def test_laserball_replay() -> None:
     assert p1_state.blocks == 0
     assert p1_state.times_zapped == 1
     assert p1_state.times_zapped_opponents == 1  # 1 steal against opponent
-    # P1 score: (0+1)*10000 + (1+1)*100 + 0 = 10200
-    assert p1_state.score == 10200
+    # P1 score (goals): 0; ranking score: (0+1)*10000 + (1+1)*100 + 0 = 10200
+    assert p1_state.score == 0
+    assert p1_state.ranking_score == 10200
     # P1 hit diff: 1 opponent hit / 1 time zapped = 1.0
     assert p1_state.hit_diff == 1.0
 
     # Check P2 stats:
     # 1 goal, 0 assists, 0 passes, 0 steals, 0 clears, 0 blocks
     assert p2_state.goals == 1
-    assert p2_state.score == 10000
+    assert p2_state.score == 1
+    assert p2_state.ranking_score == 10000
     assert p2_state.has_ball is True  # received clear at 25000
 
     # Check E1 stats:
     # 1 block, 0 goals, 1 time zapped (stolen from)
     assert e1_state.blocks == 1
     assert e1_state.times_zapped == 1
-    assert e1_state.score == 1
+    assert e1_state.score == 0
+    assert e1_state.ranking_score == 1
     assert e1_state.hit_diff == 1.0
 
     # Team scores in Laserball: based on goals!

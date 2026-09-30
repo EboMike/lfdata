@@ -599,12 +599,18 @@ class LFReplayHandlersMixin:
             str | None: Description string, or None if not a round event.
         """
         if event.event_type == '1105':
+            self._last_laserball_passer = None
+            self._last_laserball_pass_target = None
             return '* Round Start *'
         if event.event_type == '1106':
+            self._last_laserball_passer = None
+            self._last_laserball_pass_target = None
             for p in self.game_state.players.values():
                 p.has_ball = False
             return '* Round End *'
         if event.event_type == '1107':
+            self._last_laserball_passer = None
+            self._last_laserball_pass_target = None
             actor = self.game_state.players.get(event.actor_entity_id)
             actor_name = self.entity_names.get(
                 event.actor_entity_id, event.actor_entity_id
@@ -642,16 +648,19 @@ class LFReplayHandlersMixin:
                 actor.passes += 1
             if target:
                 target.has_ball = True
+            self._last_laserball_passer = actor
+            self._last_laserball_pass_target = target
             return f'{actor_name} passes to {target_name}'
 
         if event.event_type == '1109':
             if actor:
                 actor.has_ball = False
                 actor.clears += 1
-                gp = self.game.penalty or 0
-                actor.score = actor.calculate_laserball_score(gp)
             if target:
                 target.has_ball = True
+            self._last_laserball_passer = None
+            self._last_laserball_pass_target = None
+            if target:
                 return f'{actor_name} clears to {target_name}'
             return f'{actor_name} clears the ball'
 
@@ -677,21 +686,40 @@ class LFReplayHandlersMixin:
         )
 
         if event.event_type == '1101':
+            self._last_assisted_scorer = None
+            self._last_assisted_passer = None
             if actor:
                 actor.goals += 1
+                actor.score = actor.goals
                 actor.has_ball = False
-                gp = self.game.penalty or 0
-                actor.score = actor.calculate_laserball_score(gp)
+                if (
+                    self._last_laserball_passer is not None
+                    and self._last_laserball_pass_target == actor
+                    and self._last_laserball_passer != actor
+                ):
+                    self._last_laserball_passer.assists += 1
+                    self._last_assisted_scorer = actor
+                    self._last_assisted_passer = self._last_laserball_passer
+            self._last_laserball_passer = None
+            self._last_laserball_pass_target = None
             return f'{actor_name} scores a goal'
 
         if event.event_type == '1102':
             target_name = self.entity_names.get(
                 event.target_entity_id, event.target_entity_id
             )
-            if actor:
+            # Avoid double-counting if automatically awarded on 1101
+            already_awarded = (
+                self._last_assisted_passer is not None
+                and self._last_assisted_passer == actor
+                and self._last_assisted_scorer is not None
+                and self._last_assisted_scorer.entity_id
+                == event.target_entity_id
+            )
+            if not already_awarded and actor:
                 actor.assists += 1
-                gp = self.game.penalty or 0
-                actor.score = actor.calculate_laserball_score(gp)
+            self._last_assisted_scorer = None
+            self._last_assisted_passer = None
             return f'{actor_name} assists {target_name}'
 
         return None
@@ -721,21 +749,19 @@ class LFReplayHandlersMixin:
                 actor.steals += 1
                 actor.has_ball = True
                 actor.times_zapped_opponents += 1
-                gp = self.game.penalty or 0
-                actor.score = actor.calculate_laserball_score(gp)
             if target:
                 target.has_ball = False
                 target.times_zapped += 1
                 target.times_blocked += 1
                 self._apply_laserball_downtime(target, event.time)
+            self._last_laserball_passer = None
+            self._last_laserball_pass_target = None
             return f'{actor_name} steals from {target_name}'
 
         if event.event_type == '1104':
             if actor:
                 actor.blocks += 1
                 actor.times_zapped_opponents += 1
-                gp = self.game.penalty or 0
-                actor.score = actor.calculate_laserball_score(gp)
             if target:
                 target.times_zapped += 1
                 target.times_blocked += 1

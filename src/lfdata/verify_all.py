@@ -26,6 +26,7 @@ import argparse
 import glob
 from pathlib import Path
 import sys
+from typing import Any
 
 from lfdata.importer import TdfImporter
 from lfdata.model import LFGame
@@ -52,6 +53,7 @@ class TdfDirectoryVerifier:
         *,
         directory_path: str | None = None,
         boost_grace_period_ms: int = 700,
+        allow_laserball: bool = False,
     ) -> None:
         """Initializes the TDF verifier with a target path.
 
@@ -64,6 +66,8 @@ class TdfDirectoryVerifier:
             directory_path: Optional legacy alias for target_path.
             boost_grace_period_ms: Grace period in milliseconds for boost
                 eligibility (defaults to 700).
+            allow_laserball: Whether to also verify Laserball TDF files.
+                Defaults to False.
 
         Usage:
             verifier = TdfDirectoryVerifier(
@@ -77,6 +81,7 @@ class TdfDirectoryVerifier:
         self._target_path = Path(raw_path)
         self._directory = self._target_path
         self.boost_grace_period_ms = boost_grace_period_ms
+        self.allow_laserball = allow_laserball
 
     @property
     def target_path(self) -> Path:
@@ -168,19 +173,32 @@ class TdfDirectoryVerifier:
             return False
         return getattr(game, 'normalized_game_type', None) == 'SM5'
 
+    def _is_supported_game(self, game: LFGame) -> bool:
+        """Checks whether the game is a supported game type (SM5 or Laserball).
+
+        Args:
+            game: The LFGame object to inspect.
+
+        Returns:
+            True if the game is SM5 or Laserball, False otherwise.
+        """
+        if self._is_sm5_game(game=game):
+            return True
+        return bool(game.is_laserball)
+
     def verify_file(self, file_path: Path) -> bool | None:
         """Verifies a single TDF file using LFReplayVerifier.
 
         Parses the TDF file into a game model and runs the LF replay
         verifier on the resulting game replay events. If the game is not an
-        SM5 game, it is skipped and None is returned.
+        SM5 game (or Laserball if allow_laserball is set), it is skipped.
 
         Args:
             file_path: The Path object of the TDF file to verify.
 
         Returns:
             True if verification passed without errors, False if verification
-            failed, or None if skipped because the game is not SM5.
+            failed, or None if skipped because the game is not supported.
 
         Usage:
             passed = verifier.verify_file(file_path=Path('game.tdf'))
@@ -188,6 +206,9 @@ class TdfDirectoryVerifier:
         try:
             importer = TdfImporter(str(file_path))
             game = importer.parse()
+            if self.allow_laserball and game.is_laserball:
+                verifier = LFReplayVerifier(game)
+                return verifier.verify()
             if not self._is_sm5_game(game=game):
                 print(f'{file_path.name} is not an SM5 game, skipping.\n')
                 return None
@@ -320,15 +341,25 @@ def main() -> None:
             ' 700).'
         ),
     )
+    parser.add_argument(
+        '--laserball',
+        '--allow_laserball',
+        action='store_true',
+        dest='allow_laserball',
+        help='Allow verifying Laserball games in addition to SM5 games.',
+    )
 
     args = parser.parse_args()
     paths = args.path if args.path else ['.']
     all_passed = True
     for target in paths:
-        verifier = TdfDirectoryVerifier(
-            target_path=target,
-            boost_grace_period_ms=args.boost_grace_period_ms,
-        )
+        kwargs: dict[str, Any] = {
+            'target_path': target,
+            'boost_grace_period_ms': args.boost_grace_period_ms,
+        }
+        if args.allow_laserball:
+            kwargs['allow_laserball'] = True
+        verifier = TdfDirectoryVerifier(**kwargs)
         if not verifier.verify_all():
             all_passed = False
 

@@ -62,6 +62,7 @@ class _TdfPlayerSnapshot:
     hp: int
     is_down: bool
     is_eliminated: bool
+    has_ball: bool = False
 
 
 class TdfStateDumper:
@@ -209,6 +210,7 @@ class TdfStateDumper:
             hp=player.hp,
             is_down=player.is_down(time_ms),
             is_eliminated=player.is_eliminated(),
+            has_ball=player.has_ball,
         )
 
     def _build_game_state_entry(

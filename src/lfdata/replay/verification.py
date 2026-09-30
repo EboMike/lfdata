@@ -214,6 +214,9 @@ class LFReplayVerifier:
         )
         diagnostics.dump_mismatches(discrepancies=discrepancies)
 
+        if self.game.is_laserball:
+            return False
+
         print('\nAttempting to resolve discrepancies using replay alignment...')
         replay_aligned = LFReplaySystem(
             self.game,

@@ -492,3 +492,22 @@ def test_verify_all_only_non_sm5_files(
     captured = capsys.readouterr()
     assert 'game1.tdf is not an SM5 game, skipping.' in captured.out
     assert 'game2.tdf is not an SM5 game, skipping.' in captured.out
+
+
+def test_verify_file_laserball_when_allowed(tmp_path: Path) -> None:
+    lb_file = tmp_path / 'laserball.tdf'
+    content = (
+        ';1/mission\ttype\tdesc\tstart\tduration\tpenalty\n'
+        '1\t28\tLaserball Ranked\t20240114205710\t900000\t0\n'
+    )
+    lb_file.write_text(content, encoding='utf-8')
+
+    verifier = TdfDirectoryVerifier(str(tmp_path), allow_laserball=True)
+    with patch('lfdata.verify_all.LFReplayVerifier') as mock_replay_cls:
+        mock_instance = MagicMock()
+        mock_instance.verify.return_value = True
+        mock_replay_cls.return_value = mock_instance
+
+        result = verifier.verify_file(lb_file)
+        assert result is True
+        mock_instance.verify.assert_called_once()

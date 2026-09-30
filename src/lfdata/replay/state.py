@@ -269,6 +269,15 @@ class LFReplayPlayerState:
         return score
 
     @property
+    def ranking_score(self) -> int:
+        """Returns the composite score used for roster ranking in Laserball.
+
+        Returns:
+            int: The calculated Laserball player ranking score.
+        """
+        return self.calculate_laserball_score()
+
+    @property
     def special_points(self) -> int:
         """Returns the player's special points.
 

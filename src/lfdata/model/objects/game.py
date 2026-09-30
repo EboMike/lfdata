@@ -140,13 +140,13 @@ class LFGame(Base):
     def is_laserball(self) -> bool:
         """Returns True if the game is a Laserball game.
 
-        Checks whether the mission type from the type 1 record is 3, or if
-        the normalized game type is 'Laserball'.
+        Checks whether the mission type from the type 1 record is 3 or 28, or
+        if the normalized game type is 'Laserball'.
 
         Returns:
             True if the game is Laserball, False otherwise.
         """
-        if self.mission_type == 3:
+        if self.mission_type in (3, 28):
             return True
         if self.mission_type is not None:
             return False

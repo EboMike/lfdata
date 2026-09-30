@@ -27,6 +27,7 @@ class GameTypeNormalizer:
             (re.compile(r'Space\s*Marines\s*5'), 'SM5'),
             (re.compile(r'SM5'), 'SM5'),
             (re.compile(r'Laser\s*[bB]all'), 'Laserball'),
+            (re.compile(r'Lball', re.IGNORECASE), 'Laserball'),
         ]
 
     def normalize(self, game_type: str) -> str | None:

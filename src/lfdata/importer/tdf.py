@@ -127,6 +127,12 @@ class TdfImporter:
         for line in content.splitlines():
             self._parse_line(line, game)
 
+        if game.is_laserball and not game.laserball_stats:
+            from lfdata.replay.replay import LFReplaySystem
+
+            replay = LFReplaySystem(game)
+            replay.run()
+
         return game
 
     def _parse_info(self, parts: list[str], game: LFGame) -> None:

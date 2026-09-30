@@ -241,3 +241,40 @@ def test_main_root_script_invocation(
 
     assert out_file.exists()
     assert 'time_ms' in out_file.read_text(encoding='utf-8')
+
+
+def test_dumper_laserball_game(tmp_path: Path) -> None:
+    lb_file = tmp_path / 'lb.tdf'
+    content = (
+        ';0/info\tfile-version\tprogram-version\tcentre\n'
+        '0\t2.006\t8.622\t4-43\n'
+        ';1/mission\ttype\tdesc\tstart\tduration\tpenalty\n'
+        '1\t28\tLaserball\t20250208231658\t600000\t0\n'
+        ';2/team\tindex\tdesc\tcolour-enum\tcolour-desc\tcolour-rgb\n'
+        '2\t0\tYellow\t3\tYellow\t#FFFF00\n'
+        ';3/entity-start\n'
+        '3\t0000001\t#P1\tplayer\tStriker\t0\t0\t0\tSuit1\n'
+        ';4/event\ttime\ttype\tvaries\n'
+        '4\t0001000\t1105\t* Round Start *\n'
+        '4\t0002000\t1107\t#P1\tgets ball\n'
+        '4\t0005000\t1101\t#P1\tscores!\n'
+        '4\t0006000\t0101\t* Mission End *\n'
+    )
+    lb_file.write_text(content, encoding='utf-8')
+    game = TdfImporter(str(lb_file)).parse()
+    assert game.is_laserball is True
+
+    dumper = TdfStateDumper(
+        game=game,
+        trigger=TdfDumpTrigger.FINAL,
+        output_format=TdfDumpFormat.CSV,
+    )
+    csv_str = dumper.dump_to_string()
+    reader = list(csv.reader(io.StringIO(csv_str)))
+    assert len(reader) == 2
+    # Check player row: team name is Yellow, score is 1 (goal)
+    row = reader[1]
+    assert row[2] == '#P1'
+    assert row[5] == 'Yellow'
+    assert row[6] == ''  # role is empty in Laserball
+    assert row[7] == '1'  # 1 goal
