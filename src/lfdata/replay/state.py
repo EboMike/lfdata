@@ -13,6 +13,16 @@ Usage example:
 """
 
 from lfdata.model import LFRole, PlayerStateHistory
+from lfdata.model.constants.tdf import LFPlayerState
+from lfdata.model.gametypes.laserball_constants import (
+    LASERBALL_CLEAR_STEAL_SCORE_MULTIPLIER,
+    LASERBALL_GOAL_SCORE_MULTIPLIER,
+    LASERBALL_STAT_CAP,
+)
+from lfdata.model.gametypes.sm5_constants import (
+    DEFAULT_BOOST_GRACE_PERIOD_MS,
+    SM5_MAX_SPECIAL_POINTS,
+)
 
 
 class LFReplayPlayerState:
@@ -101,9 +111,9 @@ class LFReplayPlayerState:
         """Returns the player's authoritative state at current_time_ms.
 
         State values:
-        - 0: Player is up
-        - 3: Player is down and not resettable
-        - 2: Player is resettable
+        - 0: Player is up (LFPlayerState.UP)
+        - 3: Player is down and not resettable (LFPlayerState.DOWN)
+        - 2: Player is resettable (LFPlayerState.RESETTABLE)
 
         Args:
             current_time_ms: Timestamp in milliseconds.
@@ -112,8 +122,8 @@ class LFReplayPlayerState:
             int: 0 if up, 3 if down and not resettable, 2 if resettable.
         """
         if not self.state_history:
-            return 0
-        latest_state = 0
+            return LFPlayerState.UP
+        latest_state: int = LFPlayerState.UP
         for entry in self.state_history:
             if entry.time <= current_time_ms:
                 latest_state = entry.state
@@ -139,7 +149,10 @@ class LFReplayPlayerState:
             bool: True if the player is currently down, False otherwise.
         """
         if self.has_authoritative_state:
-            return self.get_state_at(current_time_ms) in (2, 3)
+            return self.get_state_at(current_time_ms) in (
+                LFPlayerState.RESETTABLE,
+                LFPlayerState.DOWN,
+            )
         return current_time_ms < self.downtime_ends_at_ms
 
     def is_resettable(self, current_time_ms: int) -> bool:
@@ -152,7 +165,9 @@ class LFReplayPlayerState:
             bool: True if resettable down state, False otherwise.
         """
         if self.has_authoritative_state:
-            return self.get_state_at(current_time_ms) == 2
+            return (
+                self.get_state_at(current_time_ms) == LFPlayerState.RESETTABLE
+            )
         return (
             self.is_down(current_time_ms)
             and current_time_ms >= self.resettable_starts_at_ms
@@ -174,7 +189,10 @@ class LFReplayPlayerState:
             for entry in self.state_history:
                 if entry.time > current_time_ms:
                     break
-                if entry.state in (2, 3):
+                if entry.state in (
+                    LFPlayerState.RESETTABLE,
+                    LFPlayerState.DOWN,
+                ):
                     if down_start is None:
                         down_start = entry.time
                 else:
@@ -183,7 +201,9 @@ class LFReplayPlayerState:
         return self.just_went_down_at_ms
 
     def can_receive_resupply(
-        self, current_time_ms: int, grace_period_ms: int = 700
+        self,
+        current_time_ms: int,
+        grace_period_ms: int = DEFAULT_BOOST_GRACE_PERIOD_MS,
     ) -> bool:
         """Checks if the player can receive resupply or team boost.
 
@@ -219,7 +239,7 @@ class LFReplayPlayerState:
             return
         if self.has_authoritative_state:
             state = self.get_state_at(current_time_ms)
-            if state == 0:
+            if state == LFPlayerState.UP:
                 self.hp = self.max_hp
             else:
                 self.hp = 0
@@ -261,9 +281,10 @@ class LFReplayPlayerState:
             int: The calculated Laserball player score.
         """
         score = (
-            (self.goals + self.assists) * 10000
-            + min(99, self.clears + self.steals) * 100
-            + min(99, self.blocks)
+            (self.goals + self.assists) * LASERBALL_GOAL_SCORE_MULTIPLIER
+            + min(LASERBALL_STAT_CAP, self.clears + self.steals)
+            * LASERBALL_CLEAR_STEAL_SCORE_MULTIPLIER
+            + min(LASERBALL_STAT_CAP, self.blocks)
             + self.penalties * penalty_val
         )
         return score
@@ -298,7 +319,7 @@ class LFReplayPlayerState:
         Args:
             value: The new special points value.
         """
-        self._special_points = max(0, min(99, value))
+        self._special_points = max(0, min(SM5_MAX_SPECIAL_POINTS, value))
 
     @property
     def times_zapped_someone(self) -> int:

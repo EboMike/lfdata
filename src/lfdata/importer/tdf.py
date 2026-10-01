@@ -30,6 +30,17 @@ from lfdata.model import (
     ScoreHistory,
     Sm5Stats,
 )
+from lfdata.model.constants.tdf import (
+    TDF_RECORD_ENTITY_END,
+    TDF_RECORD_ENTITY_START,
+    TDF_RECORD_EVENT,
+    TDF_RECORD_INFO,
+    TDF_RECORD_MISSION,
+    TDF_RECORD_PLAYER_STATE,
+    TDF_RECORD_SCORE,
+    TDF_RECORD_STATS,
+    TDF_RECORD_TEAM,
+)
 
 
 class TdfImporter:
@@ -61,26 +72,26 @@ class TdfImporter:
         if not parts:
             return
         rec_type = parts[0]
-        if rec_type == '0':
+        if rec_type == TDF_RECORD_INFO:
             self._parse_info(parts, game)
-        elif rec_type == '1':
+        elif rec_type == TDF_RECORD_MISSION:
             self._parse_mission(parts, game)
-        elif rec_type == '2':
+        elif rec_type == TDF_RECORD_TEAM:
             self._parse_team(parts, game)
-        elif rec_type == '3':
+        elif rec_type == TDF_RECORD_ENTITY_START:
             self._parse_entity_start(parts, game)
-        elif rec_type == '4':
+        elif rec_type == TDF_RECORD_EVENT:
             self._parse_event(parts, game)
-        elif rec_type == '5':
+        elif rec_type == TDF_RECORD_SCORE:
             self._parse_score(parts, game)
-        elif rec_type == '6':
+        elif rec_type == TDF_RECORD_ENTITY_END:
             self._parse_entity_end(parts, game)
-        elif rec_type == '7':
+        elif rec_type == TDF_RECORD_STATS:
             if game.is_laserball:
                 self._parse_laserball_stats(parts, game)
             else:
                 self._parse_sm5_stats(parts, game)
-        elif rec_type == '9':
+        elif rec_type == TDF_RECORD_PLAYER_STATE:
             self._parse_player_state(parts, game)
 
     def parse(self) -> LFGame:

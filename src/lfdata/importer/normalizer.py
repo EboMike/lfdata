@@ -13,6 +13,11 @@ Usage example:
 
 import re
 
+from lfdata.model.constants.game_type import (
+    GAME_TYPE_NAME_LASERBALL,
+    GAME_TYPE_NAME_SM5,
+)
+
 
 class GameTypeNormalizer:
     """Normalizes raw game type strings into standardized game type identifiers.
@@ -24,10 +29,10 @@ class GameTypeNormalizer:
     def __init__(self) -> None:
         """Initializes the normalizer with default regex mappings."""
         self._mappings: list[tuple[re.Pattern[str], str]] = [
-            (re.compile(r'Space\s*Marines\s*5'), 'SM5'),
-            (re.compile(r'SM5'), 'SM5'),
-            (re.compile(r'Laser\s*[bB]all'), 'Laserball'),
-            (re.compile(r'Lball', re.IGNORECASE), 'Laserball'),
+            (re.compile(r'Space\s*Marines\s*5'), GAME_TYPE_NAME_SM5),
+            (re.compile(r'SM5'), GAME_TYPE_NAME_SM5),
+            (re.compile(r'Laser\s*[bB]all'), GAME_TYPE_NAME_LASERBALL),
+            (re.compile(r'Lball', re.IGNORECASE), GAME_TYPE_NAME_LASERBALL),
         ]
 
     def normalize(self, game_type: str) -> str | None:

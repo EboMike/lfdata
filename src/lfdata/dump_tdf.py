@@ -38,7 +38,12 @@ from lfdata.model import LFGame
 from lfdata.replay import LFReplaySystem
 from lfdata.replay.state import LFReplayPlayerState
 
+from lfdata.model.constants.time import MS_PER_SECOND
+
+DEFAULT_DUMP_INTERVAL_MS: int = MS_PER_SECOND
+
 __all__ = [
+    'DEFAULT_DUMP_INTERVAL_MS',
     'TdfDumpFormat',
     'TdfDumpTrigger',
     'TdfGameStateEntry',
@@ -74,7 +79,7 @@ class TdfStateDumper:
         trigger: TdfDumpTrigger = TdfDumpTrigger.PLAYER_CHANGE,
         output_format: TdfDumpFormat = TdfDumpFormat.CSV,
         player_selection: TdfPlayerSelection = TdfPlayerSelection.ALL,
-        interval_ms: int = 1000,
+        interval_ms: int = DEFAULT_DUMP_INTERVAL_MS,
     ) -> None:
         """Initializes the TDF state dumper with replay parameters.
 
@@ -442,7 +447,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         '--interval_ms',
         type=int,
-        default=1000,
+        default=DEFAULT_DUMP_INTERVAL_MS,
         help='Time interval in milliseconds when using --trigger interval.',
     )
     parser.add_argument(

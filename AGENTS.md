@@ -72,6 +72,9 @@ any code changes. Be sure to maintain this order:
   unless they cannot be broken down.
 * Initializing dataclasses must be done with named parameters unless there is no
   ambiguity, like a single argument whose purpose is clear from the name.
+* Do not use magic numbers or magic strings unless their meaning is obvious.
+  Instead, define them as constants. If they are shared in multiple places, define
+  the constant in a shared, common location.
 
 ## Documentation
 

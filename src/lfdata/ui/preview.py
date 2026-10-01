@@ -17,7 +17,16 @@ from tkinter import ttk
 from pathlib import Path
 from typing import Callable
 from PIL import Image, ImageTk
+
+from lfdata.model.constants.time import MS_PER_SECOND, SECONDS_PER_MINUTE
 from lfdata.ui.config_manager import UIConfigManager
+from lfdata.video.constants import (
+    DEFAULT_EXTRA_FOOTAGE_MS,
+    DEFAULT_PREGAME_DELAY_MS,
+)
+
+DEFAULT_PREVIEW_WIDTH: int = 640
+DEFAULT_PREVIEW_HEIGHT: int = 360
 
 
 class ImagePreview(ttk.LabelFrame):
@@ -89,8 +98,8 @@ class ImagePreview(ttk.LabelFrame):
         # Image display container
         self.img_frame = ttk.Frame(
             self,
-            width=640,
-            height=360,
+            width=DEFAULT_PREVIEW_WIDTH,
+            height=DEFAULT_PREVIEW_HEIGHT,
             style='Preview.TFrame',
         )
         self.img_frame.pack(fill='both', expand=True, padx=5, pady=5)
@@ -117,8 +126,12 @@ class ImagePreview(ttk.LabelFrame):
             duration_ms = self.config_manager.game.duration or 0
 
         # Max end time is duration plus config margins
-        extra_ms = self.config_manager.config.get('extra_footage_ms', 10000)
-        pregame_ms = self.config_manager.config.get('pregame_delay_ms', 0)
+        extra_ms = self.config_manager.config.get(
+            'extra_footage_ms', DEFAULT_EXTRA_FOOTAGE_MS
+        )
+        pregame_ms = self.config_manager.config.get(
+            'pregame_delay_ms', DEFAULT_PREGAME_DELAY_MS
+        )
         max_ms = duration_ms + extra_ms + pregame_ms
 
         self.slider.config(to=float(max_ms))
@@ -154,9 +167,9 @@ class ImagePreview(ttk.LabelFrame):
         Args:
             time_ms: The timestamp in milliseconds.
         """
-        total_sec = time_ms // 1000
-        min_part = total_sec // 60
-        sec_part = total_sec % 60
+        total_sec = time_ms // MS_PER_SECOND
+        min_part = total_sec // SECONDS_PER_MINUTE
+        sec_part = total_sec % SECONDS_PER_MINUTE
         self.lbl_time.config(
             text=f'Time: {time_ms:,} ms ({min_part:02d}:{sec_part:02d})'
         )
@@ -230,8 +243,8 @@ class ImagePreview(ttk.LabelFrame):
         Args:
             raw_img: The PIL image object.
         """
-        canvas_w = 640
-        canvas_h = 360
+        canvas_w = DEFAULT_PREVIEW_WIDTH
+        canvas_h = DEFAULT_PREVIEW_HEIGHT
         if hasattr(self.img_frame, 'winfo_width'):
             w = self.img_frame.winfo_width()
             if w > 1:

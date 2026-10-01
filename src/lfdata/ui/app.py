@@ -22,6 +22,12 @@ from lfdata.ui.canvas import LayoutCanvas
 from lfdata.ui.config_manager import UIConfigManager
 from lfdata.ui.preview import ImagePreview
 from lfdata.ui.properties import PropertiesPanel
+from lfdata.video.constants import (
+    DEFAULT_FPS,
+    DEFAULT_FRAME_HEIGHT,
+    DEFAULT_FRAME_WIDTH,
+    DEFAULT_PREGAME_DELAY_MS,
+)
 
 
 class LFDataUIApp(tk.Tk):
@@ -305,13 +311,15 @@ class LFDataUIApp(tk.Tk):
     def _sync_global_widgets(self) -> None:
         """Populates the global fields and tree from the config manager."""
         cfg = self.config_manager.config
-        self.fps_var.set(str(cfg.get('fps', 60)))
+        self.fps_var.set(str(cfg.get('fps', DEFAULT_FPS)))
 
-        res = cfg.get('resolution', [1920, 1080])
+        res = cfg.get('resolution', [DEFAULT_FRAME_WIDTH, DEFAULT_FRAME_HEIGHT])
         self.width_var.set(str(res[0]))
         self.height_var.set(str(res[1]))
 
-        self.pregame_delay_ms_var.set(str(cfg.get('pregame_delay_ms', 0)))
+        self.pregame_delay_ms_var.set(
+            str(cfg.get('pregame_delay_ms', DEFAULT_PREGAME_DELAY_MS))
+        )
 
         # Populate elements tree
         self.lst_elements.delete(*self.lst_elements.get_children())

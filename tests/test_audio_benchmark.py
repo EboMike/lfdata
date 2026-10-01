@@ -237,12 +237,8 @@ def test_evaluate_multiple_test_cases_summary() -> None:
         target2 = os.path.join(tmpdir, 'target2.wav')
 
         _create_synthetic_chirp(ref_file)
-        _create_synthetic_target(
-            target1, ref_file, insert_timestamps_ms=[1000]
-        )
-        _create_synthetic_target(
-            target2, ref_file, insert_timestamps_ms=[2500]
-        )
+        _create_synthetic_target(target1, ref_file, insert_timestamps_ms=[1000])
+        _create_synthetic_target(target2, ref_file, insert_timestamps_ms=[2500])
 
         sound_def = SoundDefinition(
             name='chirp',
@@ -566,9 +562,7 @@ def test_cli_analyze_human_and_json(
         config_path = os.path.join(tmpdir, 'config.yaml')
 
         _create_synthetic_chirp(ref_file)
-        _create_synthetic_target(
-            target, ref_file, insert_timestamps_ms=[1000]
-        )
+        _create_synthetic_target(target, ref_file, insert_timestamps_ms=[1000])
 
         sound_def = SoundDefinition(
             name='cli_analyze_sound',
@@ -615,9 +609,7 @@ def test_analyze_suggestions_generated() -> None:
         target = os.path.join(tmpdir, 'target.wav')
 
         _create_synthetic_chirp(ref_file)
-        _create_synthetic_target(
-            target, ref_file, insert_timestamps_ms=[1000]
-        )
+        _create_synthetic_target(target, ref_file, insert_timestamps_ms=[1000])
 
         sound_def = SoundDefinition(
             name='sug_sound',
@@ -651,12 +643,8 @@ def test_analyze_iterate_mode() -> None:
         target2 = os.path.join(tmpdir, 'target2.wav')
 
         _create_synthetic_chirp(ref_file)
-        _create_synthetic_target(
-            target1, ref_file, insert_timestamps_ms=[1000]
-        )
-        _create_synthetic_target(
-            target2, ref_file, insert_timestamps_ms=[2000]
-        )
+        _create_synthetic_target(target1, ref_file, insert_timestamps_ms=[1000])
+        _create_synthetic_target(target2, ref_file, insert_timestamps_ms=[2000])
 
         sound_def = SoundDefinition(
             name='iter_sound',
@@ -697,9 +685,7 @@ def test_cli_analyze_iterate_and_save(
         config_path = os.path.join(tmpdir, 'config.yaml')
 
         _create_synthetic_chirp(ref_file)
-        _create_synthetic_target(
-            target, ref_file, insert_timestamps_ms=[1000]
-        )
+        _create_synthetic_target(target, ref_file, insert_timestamps_ms=[1000])
 
         sound_def = SoundDefinition(
             name='cli_iter_sound',
@@ -801,9 +787,7 @@ def test_benchmark_analyze_suggests_template_crop_for_long_reference() -> None:
         audio = np.sin(2 * np.pi * 1500.0 * t)
         wavfile.write(ref_file, sample_rate, np.int16(audio * 32767))
 
-        _create_synthetic_target(
-            target, ref_file, insert_timestamps_ms=[1000]
-        )
+        _create_synthetic_target(target, ref_file, insert_timestamps_ms=[1000])
 
         sound_def = SoundDefinition(
             name='long_sound',
@@ -841,9 +825,7 @@ def test_cli_evaluate_and_analyze_with_duration_flags(
         config_path = os.path.join(tmpdir, 'config.yaml')
 
         _create_synthetic_chirp(ref_file)
-        _create_synthetic_target(
-            target, ref_file, insert_timestamps_ms=[1000]
-        )
+        _create_synthetic_target(target, ref_file, insert_timestamps_ms=[1000])
 
         sound_def = SoundDefinition(
             name='flag_test_sound',
@@ -876,7 +858,3 @@ def test_cli_evaluate_and_analyze_with_duration_flags(
 
         out = capsys.readouterr().out
         assert 'Passed: 1/1' in out
-
-
-
-

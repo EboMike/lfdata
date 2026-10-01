@@ -34,9 +34,13 @@ def _create_synthetic_wav(
         t_chirp = np.linspace(0, chirp_duration_ms / 1000.0, chirp_samples)
         # Linear frequency chirp
         chirp_dur_sec = chirp_duration_ms / 1000.0
-        phase = 2 * np.pi * (
-            chirp_f0 * t_chirp
-            + (chirp_f1 - chirp_f0) * (t_chirp**2) / (2 * chirp_dur_sec)
+        phase = (
+            2
+            * np.pi
+            * (
+                chirp_f0 * t_chirp
+                + (chirp_f1 - chirp_f0) * (t_chirp**2) / (2 * chirp_dur_sec)
+            )
         )
         chirp = np.sin(phase)
         end_sample = min(total_samples, start_sample + chirp_samples)
@@ -66,9 +70,7 @@ def test_synthetic_audio_single_match() -> None:
         t = np.linspace(0, duration, int(duration * sample_rate))
         phase = 2 * np.pi * (1000.0 * t + 1500.0 * (t**2) / (2 * duration))
         ref_audio = np.sin(phase)
-        wavfile.write(
-            ref_wav, sample_rate, np.int16(ref_audio * 32767)
-        )
+        wavfile.write(ref_wav, sample_rate, np.int16(ref_audio * 32767))
 
         # Target: 4.0s with background noise and chirp at 1500 ms
         t_target = np.linspace(0, 4.0, int(4.0 * sample_rate))
@@ -106,9 +108,7 @@ def test_synthetic_audio_multiple_matches() -> None:
         t = np.linspace(0, duration, int(duration * sample_rate))
         phase = 2 * np.pi * (1000.0 * t + 2000.0 * (t**2) / (2 * duration))
         ref_audio = np.sin(phase)
-        wavfile.write(
-            ref_wav, sample_rate, np.int16(ref_audio * 32767)
-        )
+        wavfile.write(ref_wav, sample_rate, np.int16(ref_audio * 32767))
 
         # Target with chirps at 1000 ms and 3000 ms
         target_audio = np.random.normal(0, 0.05, int(5.0 * sample_rate))
@@ -345,8 +345,7 @@ def test_load_sound_config_relative_path() -> None:
         config_file = os.path.join(tmpdir, 'sound.yaml')
         with open(config_file, 'w', encoding='utf-8') as f:
             f.write(
-                'name: test_sound\n'
-                'reference_sound_path: sounds/alert.wav\n'
+                'name: test_sound\nreference_sound_path: sounds/alert.wav\n'
             )
 
         cfg = load_sound_config(config_file)
@@ -377,8 +376,7 @@ def test_load_sound_config_errors() -> None:
         missing_sound_file = os.path.join(tmpdir, 'missing_sound.yaml')
         with open(missing_sound_file, 'w', encoding='utf-8') as f:
             f.write(
-                'name: alert\n'
-                'reference_sound_path: non_existent_sound.wav\n'
+                'name: alert\nreference_sound_path: non_existent_sound.wav\n'
             )
         with pytest.raises(
             FileNotFoundError, match='Reference sound file not found'
@@ -664,7 +662,3 @@ def test_match_config_yaml_with_template_duration_and_energy_ratio() -> None:
         )
         assert len(matches) >= 1
         assert abs(matches[0].timestamp_ms - 1000) < 30
-
-
-
-

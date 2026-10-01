@@ -37,6 +37,14 @@ except ImportError as err:
         'Install them using `pip install lfdata[video]`.'
     ) from err
 
+from lfdata.model.constants.time import MS_PER_SECOND
+from lfdata.video.constants import (
+    DEFAULT_AUDIO_THRESHOLD,
+    DEFAULT_HOP_LENGTH,
+    DEFAULT_N_FFT,
+    DEFAULT_SAMPLE_RATE_HZ,
+)
+
 
 @dataclasses.dataclass(frozen=True)
 class AudioMatchConfig:
@@ -54,7 +62,7 @@ class AudioMatchConfig:
     reference_sound_path: str
     freq_min_hz: float | None = None
     freq_max_hz: float | None = None
-    threshold: float = 0.2
+    threshold: float = DEFAULT_AUDIO_THRESHOLD
     template_duration_ms: int | None = None
     min_energy_ratio: float | None = None
 
@@ -145,7 +153,7 @@ class AudioMatchResult:
         Returns:
             float: Offset in seconds.
         """
-        return self.timestamp_ms / 1000.0
+        return self.timestamp_ms / MS_PER_SECOND
 
 
 @dataclasses.dataclass(frozen=True)
@@ -190,9 +198,9 @@ class AudioMatcher:
 
     def __init__(
         self,
-        sample_rate: int = 22050,
-        hop_length: int = 256,
-        n_fft: int = 1024,
+        sample_rate: int = DEFAULT_SAMPLE_RATE_HZ,
+        hop_length: int = DEFAULT_HOP_LENGTH,
+        n_fft: int = DEFAULT_N_FFT,
     ) -> None:
         """Initializes the AudioMatcher with processing parameters.
 
@@ -209,7 +217,7 @@ class AudioMatcher:
         self,
         video_or_audio_path: str | Path,
         reference_sound_path: str | Path,
-        threshold: float = 0.2,
+        threshold: float = DEFAULT_AUDIO_THRESHOLD,
         min_interval_ms: int | None = None,
         start_ms: int | None = None,
         end_ms: int | None = None,
@@ -375,8 +383,8 @@ class AudioMatcher:
         tol_start = expected_timestamp_ms - tolerance_ms
         tol_end = expected_timestamp_ms + tolerance_ms
 
-        in_tol_mask = (
-            (frame_times_ms >= tol_start) & (frame_times_ms <= tol_end)
+        in_tol_mask = (frame_times_ms >= tol_start) & (
+            frame_times_ms <= tol_end
         )
         in_tol_indices = np.where(in_tol_mask)[0]
         out_tol_indices = np.where(~in_tol_mask)[0]
@@ -467,7 +475,7 @@ class AudioMatcher:
 
         if template_duration_ms is not None and template_duration_ms > 0:
             max_samples = int(
-                (template_duration_ms / 1000.0) * self.sample_rate
+                (template_duration_ms / MS_PER_SECOND) * self.sample_rate
             )
             if max_samples < len(ref_audio):
                 ref_audio = ref_audio[:max_samples]
@@ -514,8 +522,8 @@ class AudioMatcher:
                 )
                 final_scores = final_scores * energy_scale
 
-        ms_per_frame = (self.hop_length / self.sample_rate) * 1000.0
-        ref_duration_ms = (len(ref_audio) / self.sample_rate) * 1000.0
+        ms_per_frame = (self.hop_length / self.sample_rate) * MS_PER_SECOND
+        ref_duration_ms = (len(ref_audio) / self.sample_rate) * MS_PER_SECOND
         offset_ms = start_ms if start_ms is not None else 0
 
         return (
@@ -636,24 +644,24 @@ class AudioMatcher:
         try:
             cmd = ['ffmpeg', '-y']
             if start_ms is not None and start_ms > 0:
-                cmd.extend(['-ss', f'{start_ms / 1000.0:.3f}'])
+                cmd.extend(['-ss', f'{start_ms / MS_PER_SECOND:.3f}'])
             if end_ms is not None:
-                duration_sec = (
-                    (end_ms - (start_ms or 0)) / 1000.0
-                )
+                duration_sec = (end_ms - (start_ms or 0)) / MS_PER_SECOND
                 if duration_sec > 0:
                     cmd.extend(['-t', f'{duration_sec:.3f}'])
 
-            cmd.extend([
-                '-i',
-                str(file_path),
-                '-vn',
-                '-ac',
-                '1',
-                '-ar',
-                str(self.sample_rate),
-                temp_wav_path,
-            ])
+            cmd.extend(
+                [
+                    '-i',
+                    str(file_path),
+                    '-vn',
+                    '-ac',
+                    '1',
+                    '-ar',
+                    str(self.sample_rate),
+                    temp_wav_path,
+                ]
+            )
 
             result = subprocess.run(
                 cmd,
@@ -821,9 +829,7 @@ class AudioMatcher:
                 continue
             selected.append((int(idx), float(correlation_series[idx])))
             start_frame = max(0, idx - min_dist_frames)
-            end_frame = min(
-                len(correlation_series), idx + min_dist_frames + 1
-            )
+            end_frame = min(len(correlation_series), idx + min_dist_frames + 1)
             suppressed[start_frame:end_frame] = True
 
         return selected

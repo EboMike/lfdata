@@ -14,9 +14,21 @@ Usage example:
 """
 
 from lfdata.model import LFGame, Sm5Stats
+from lfdata.model.gametypes.sm5_constants import DEFAULT_BOOST_GRACE_PERIOD_MS
 from lfdata.replay.diagnostics import LFReplayDiagnostics, PlayerDiscrepancy
 from lfdata.replay.replay import LFReplaySystem
 from lfdata.replay.unhandled_events import LFUnhandledEventsAnalyzer
+
+CANDIDATE_GRACE_MIN_MS: int = 0
+CANDIDATE_GRACE_MAX_MS: int = 2000
+CANDIDATE_GRACE_STEP_MS: int = 50
+DEFAULT_CANDIDATE_GRACE_PERIODS_MS: list[int] = list(
+    range(
+        CANDIDATE_GRACE_MIN_MS,
+        CANDIDATE_GRACE_MAX_MS + CANDIDATE_GRACE_STEP_MS,
+        CANDIDATE_GRACE_STEP_MS,
+    )
+)
 
 
 class LFReplayVerifier:
@@ -33,7 +45,7 @@ class LFReplayVerifier:
     def __init__(
         self,
         game: LFGame,
-        boost_grace_period_ms: int = 700,
+        boost_grace_period_ms: int = DEFAULT_BOOST_GRACE_PERIOD_MS,
         candidate_grace_periods_ms: list[int] | None = None,
     ) -> None:
         """Initializes the verifier.
@@ -51,7 +63,7 @@ class LFReplayVerifier:
         self.candidate_grace_periods_ms: list[int] = (
             candidate_grace_periods_ms
             if candidate_grace_periods_ms is not None
-            else list(range(0, 2050, 50))
+            else list(DEFAULT_CANDIDATE_GRACE_PERIODS_MS)
         )
 
     def get_discrepancies(

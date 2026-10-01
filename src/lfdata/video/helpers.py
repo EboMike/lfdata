@@ -12,6 +12,16 @@ Usage example:
 import dataclasses
 from typing import Any
 
+from lfdata.model.constants.time import MS_PER_SECOND
+from lfdata.video.constants import (
+    DEFAULT_EXTRA_FOOTAGE_MS,
+    DEFAULT_FADE_DURATION_S,
+    DEFAULT_FPS,
+    DEFAULT_FRAME_HEIGHT,
+    DEFAULT_FRAME_WIDTH,
+    DEFAULT_PREGAME_DELAY_MS,
+)
+
 
 @dataclasses.dataclass
 class LFTeamTransition:
@@ -34,13 +44,13 @@ DEFAULT_CONFIG: dict[str, Any] = {
     'size': 20,
     'color': '#ffffffff',
     'background_color': '#00000000',
-    'fps': 60,
-    'extra_footage_ms': 10000,
-    'pregame_delay_ms': 0,
+    'fps': DEFAULT_FPS,
+    'extra_footage_ms': DEFAULT_EXTRA_FOOTAGE_MS,
+    'pregame_delay_ms': DEFAULT_PREGAME_DELAY_MS,
     'player_name': None,
-    'resolution': [1920, 1080],
+    'resolution': [DEFAULT_FRAME_WIDTH, DEFAULT_FRAME_HEIGHT],
     'animation': 'ease-in-out',
-    'fade_duration': 1.0,
+    'fade_duration': DEFAULT_FADE_DURATION_S,
     'elements': {
         'hit_border': {
             'enabled': True,
@@ -469,8 +479,8 @@ def get_visual_rank(
         return float(final_rank)
 
     elapsed_ms = t_ms - last_trans.event_time_ms
-    if elapsed_ms < 1000:
-        p = elapsed_ms / 1000.0
+    if elapsed_ms < MS_PER_SECOND:
+        p = elapsed_ms / MS_PER_SECOND
         p_anim = apply_animation(p, animation_func)
         return (
             last_trans.visual_rank

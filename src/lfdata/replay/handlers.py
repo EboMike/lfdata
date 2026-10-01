@@ -12,6 +12,31 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 from lfdata.model import GameEvent, LFRole
+from lfdata.model.gametypes.sm5_constants import (
+    DEFAULT_BOOST_GRACE_PERIOD_MS,
+    DEFAULT_MISSION_PENALTY,
+    SM5_BASE_CAPTURE_SCORE,
+    SM5_BASE_CAPTURE_SPECIAL_POINTS,
+    SM5_BEACON_CLAIM_SHOTS_LOST,
+    SM5_DOWNTIME_SAFE_MS,
+    SM5_DOWNTIME_TOTAL_MS,
+    SM5_LIVES_LOST_MISSILED,
+    SM5_LIVES_LOST_ZAPPED,
+    SM5_NUKE_LIVES_LOST,
+    SM5_SCORE_MISSILE_ENEMY,
+    SM5_SCORE_MISSILE_TEAM,
+    SM5_SCORE_MISSILED_PENALTY,
+    SM5_SCORE_NUKE_DETONATE,
+    SM5_SCORE_ZAP_ENEMY,
+    SM5_SCORE_ZAP_TEAM,
+    SM5_SCORE_ZAPPED_PENALTY,
+    SM5_SPECIAL_POINTS_AMMO_BOOST,
+    SM5_SPECIAL_POINTS_MEDIC_BOOST,
+    SM5_SPECIAL_POINTS_MISSILE_ENEMY,
+    SM5_SPECIAL_POINTS_NUKE,
+    SM5_SPECIAL_POINTS_RAPID_FIRE,
+    SM5_SPECIAL_POINTS_ZAP_ENEMY,
+)
 
 if TYPE_CHECKING:
     from lfdata.replay.replay import LFReplaySystem
@@ -54,29 +79,33 @@ class LFReplayHandlersMixin:
             target.times_zapped += 1
             if actor.team_index == target.team_index:
                 # Friendly fire: penalize actor
-                actor.score -= 100
+                actor.score += SM5_SCORE_ZAP_TEAM
             else:
                 actor.times_zapped_opponents += 1
-                actor.score += 100
+                actor.score += SM5_SCORE_ZAP_ENEMY
                 if (
                     not (actor.role == LFRole.SCOUT and actor.has_rapid_fire)
                     and actor.role != LFRole.HEAVY
                 ):
-                    actor.special_points += 1
+                    actor.special_points += SM5_SPECIAL_POINTS_ZAP_ENEMY
 
-            # Target always loses 20 score (unless already eliminated)
-            target.score -= 20
+            # Target always loses score (unless already eliminated)
+            target.score += SM5_SCORE_ZAPPED_PENALTY
 
             # Check if target goes down or resets downtime
             if event.event_type in ['0206', '0208']:
                 was_already_down = target.is_down(event.time)
-                target.lives = max(0, target.lives - 1)
+                target.lives = max(0, target.lives - SM5_LIVES_LOST_ZAPPED)
                 if target.has_authoritative_state:
                     target.update_downtime(event.time)
                 else:
                     target.hp = 0
-                    target.downtime_ends_at_ms = event.time + 8000
-                    target.resettable_starts_at_ms = event.time + 4000
+                    target.downtime_ends_at_ms = (
+                        event.time + SM5_DOWNTIME_TOTAL_MS
+                    )
+                    target.resettable_starts_at_ms = (
+                        event.time + SM5_DOWNTIME_SAFE_MS
+                    )
                     if not was_already_down:
                         target.just_went_down_at_ms = event.time
             else:
@@ -113,27 +142,29 @@ class LFReplayHandlersMixin:
         ):
             if actor.team_index == target.team_index:
                 # Friendly fire missile: penalize actor
-                actor.score -= 500
+                actor.score += SM5_SCORE_MISSILE_TEAM
             else:
-                actor.score += 500
+                actor.score += SM5_SCORE_MISSILE_ENEMY
                 if (
                     not (actor.role == LFRole.SCOUT and actor.has_rapid_fire)
                     and actor.role != LFRole.HEAVY
                 ):
-                    actor.special_points += 2
+                    actor.special_points += SM5_SPECIAL_POINTS_MISSILE_ENEMY
 
-            # Target always loses 100 score (unless already eliminated)
-            target.score -= 100
+            # Target always loses score (unless already eliminated)
+            target.score += SM5_SCORE_MISSILED_PENALTY
 
             # Missile immediately downs target or resets downtime
             was_already_down = target.is_down(event.time)
-            target.lives = max(0, target.lives - 2)
+            target.lives = max(0, target.lives - SM5_LIVES_LOST_MISSILED)
             if target.has_authoritative_state:
                 target.update_downtime(event.time)
             else:
                 target.hp = 0
-                target.downtime_ends_at_ms = event.time + 8000
-                target.resettable_starts_at_ms = event.time + 4000
+                target.downtime_ends_at_ms = event.time + SM5_DOWNTIME_TOTAL_MS
+                target.resettable_starts_at_ms = (
+                    event.time + SM5_DOWNTIME_SAFE_MS
+                )
                 if not was_already_down:
                     target.just_went_down_at_ms = event.time
 
@@ -175,12 +206,12 @@ class LFReplayHandlersMixin:
                 and event.target_entity_id not in actor.captured_bases
             ):
                 actor.captured_bases.add(event.target_entity_id)
-                actor.score += 1001
+                actor.score += SM5_BASE_CAPTURE_SCORE
                 if (
                     not (actor.role == LFRole.SCOUT and actor.has_rapid_fire)
                     and actor.role != LFRole.HEAVY
                 ):
-                    actor.special_points += 5
+                    actor.special_points += SM5_BASE_CAPTURE_SPECIAL_POINTS
 
         if event.event_type == '0B03':
             return f'{actor_name} is awarded {target_name}'
@@ -203,7 +234,7 @@ class LFReplayHandlersMixin:
         )
 
         if actor and not actor.is_eliminated():
-            actor.score += 500
+            actor.score += SM5_SCORE_NUKE_DETONATE
             actor.nukes_detonated += 1
             for player in self.game_state.players.values():
                 if (
@@ -211,13 +242,17 @@ class LFReplayHandlersMixin:
                     and not player.is_eliminated()
                 ):
                     was_already_down = player.is_down(event.time)
-                    player.lives = max(0, player.lives - 3)
+                    player.lives = max(0, player.lives - SM5_NUKE_LIVES_LOST)
                     if player.has_authoritative_state:
                         player.update_downtime(event.time)
                     else:
                         player.hp = 0
-                        player.downtime_ends_at_ms = event.time + 8000
-                        player.resettable_starts_at_ms = event.time + 4000
+                        player.downtime_ends_at_ms = (
+                            event.time + SM5_DOWNTIME_TOTAL_MS
+                        )
+                        player.resettable_starts_at_ms = (
+                            event.time + SM5_DOWNTIME_SAFE_MS
+                        )
                         if not was_already_down:
                             player.just_went_down_at_ms = event.time
 
@@ -253,8 +288,10 @@ class LFReplayHandlersMixin:
                 target.update_downtime(event.time)
             else:
                 target.hp = 0
-                target.downtime_ends_at_ms = event.time + 8000
-                target.resettable_starts_at_ms = event.time + 4000
+                target.downtime_ends_at_ms = event.time + SM5_DOWNTIME_TOTAL_MS
+                target.resettable_starts_at_ms = (
+                    event.time + SM5_DOWNTIME_SAFE_MS
+                )
                 if not was_already_down:
                     target.just_went_down_at_ms = event.time
             if target.role == LFRole.SCOUT:
@@ -280,9 +317,13 @@ class LFReplayHandlersMixin:
         if actor:
             is_medic = event.event_type == '0512'
             if is_medic:
-                actor.special_points = max(0, actor.special_points - 10)
+                actor.special_points = max(
+                    0, actor.special_points - SM5_SPECIAL_POINTS_MEDIC_BOOST
+                )
             else:
-                actor.special_points = max(0, actor.special_points - 15)
+                actor.special_points = max(
+                    0, actor.special_points - SM5_SPECIAL_POINTS_AMMO_BOOST
+                )
 
             for player in self.game_state.players.values():
                 if (
@@ -293,7 +334,9 @@ class LFReplayHandlersMixin:
                     default_val = player.can_receive_resupply(
                         event.time,
                         grace_period_ms=getattr(
-                            self, 'boost_grace_period_ms', 700
+                            self,
+                            'boost_grace_period_ms',
+                            DEFAULT_BOOST_GRACE_PERIOD_MS,
                         ),
                     )
                     is_ambig = self._is_player_boost_ambiguous(
@@ -387,7 +430,7 @@ class LFReplayHandlersMixin:
             actor = self.game_state.players.get(event.actor_entity_id)
             if actor and not actor.is_eliminated():
                 gp = self.game.penalty
-                penalty_val = gp if gp is not None else -1000
+                penalty_val = gp if gp is not None else DEFAULT_MISSION_PENALTY
                 actor.score += penalty_val
                 actor.penalties += 1
                 was_already_down = actor.is_down(event.time)
@@ -395,8 +438,11 @@ class LFReplayHandlersMixin:
                     actor.update_downtime(event.time)
                 else:
                     actor.hp = 0
-                    actor.downtime_ends_at_ms = event.time + 8000
-                    actor.resettable_starts_at_ms = event.time + 4000
+                    actor.downtime_ends_at_ms = (
+                        event.time + SM5_DOWNTIME_TOTAL_MS
+                    )
+                    target_resettable = event.time + SM5_DOWNTIME_SAFE_MS
+                    actor.resettable_starts_at_ms = target_resettable
                     if not was_already_down:
                         actor.just_went_down_at_ms = event.time
             return f'{actor_name} is penalized'
@@ -430,7 +476,9 @@ class LFReplayHandlersMixin:
         if event.event_type == '0209':
             return f'{actor_name} zaps {target_name}'
         if event.event_type == '0B00':
-            self._decrement_shots(event.actor_entity_id, count=3)
+            self._decrement_shots(
+                event.actor_entity_id, count=SM5_BEACON_CLAIM_SHOTS_LOST
+            )
             return f'{actor_name} claims a beacon'
         if event.event_type == '0300':
             return f'{actor_name} locking {target_name}'
@@ -474,13 +522,17 @@ class LFReplayHandlersMixin:
         if event.event_type == '0400':
             actor = self.game_state.players.get(event.actor_entity_id)
             if actor and not actor.is_eliminated():
-                actor.special_points = max(0, actor.special_points - 15)
+                actor.special_points = max(
+                    0, actor.special_points - SM5_SPECIAL_POINTS_RAPID_FIRE
+                )
                 actor.has_rapid_fire = True
             return f'{actor_name} activates rapid fire'
         if event.event_type == '0404':
             actor = self.game_state.players.get(event.actor_entity_id)
             if actor and not actor.is_eliminated():
-                actor.special_points = max(0, actor.special_points - 20)
+                actor.special_points = max(
+                    0, actor.special_points - SM5_SPECIAL_POINTS_NUKE
+                )
                 actor.nukes_activated += 1
             return f'{actor_name} activates nuke'
         if event.event_type == '0900':

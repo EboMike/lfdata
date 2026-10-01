@@ -16,6 +16,11 @@ from sqlalchemy import ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from lfdata.model.base import Base
+from lfdata.model.gametypes.laserball_constants import (
+    LASERBALL_CLEAR_STEAL_SCORE_MULTIPLIER,
+    LASERBALL_GOAL_SCORE_MULTIPLIER,
+    LASERBALL_STAT_CAP,
+)
 
 if TYPE_CHECKING:
     from lfdata.model.objects.game import LFGame
@@ -86,9 +91,10 @@ class LaserballStats(Base):
         steals_val = self.steals or 0
         blocks_val = self.blocks or 0
         return (
-            (goals_val + assists_val) * 10000
-            + min(99, clears_val + steals_val) * 100
-            + min(99, blocks_val)
+            (goals_val + assists_val) * LASERBALL_GOAL_SCORE_MULTIPLIER
+            + min(LASERBALL_STAT_CAP, clears_val + steals_val)
+            * LASERBALL_CLEAR_STEAL_SCORE_MULTIPLIER
+            + min(LASERBALL_STAT_CAP, blocks_val)
         )
 
     @property

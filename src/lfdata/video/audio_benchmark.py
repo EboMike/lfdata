@@ -28,6 +28,10 @@ from lfdata.video.audio_matcher import (
     AudioMatchResult,
     AudioMatcher,
 )
+from lfdata.video.constants import (
+    DEFAULT_AUDIO_THRESHOLD,
+    DEFAULT_AUDIO_TOLERANCE_MS,
+)
 
 
 @dataclasses.dataclass
@@ -45,7 +49,7 @@ class AudioTestCase:
 
     video_path: str
     expected_timestamp_ms: int
-    tolerance_ms: int = 500
+    tolerance_ms: int = DEFAULT_AUDIO_TOLERANCE_MS
     search_start_ms: int | None = None
     search_end_ms: int | None = None
     description: str = ''
@@ -71,7 +75,7 @@ class SoundDefinition:
     reference_sound_path: str
     freq_min_hz: float | None = None
     freq_max_hz: float | None = None
-    threshold: float = 0.2
+    threshold: float = DEFAULT_AUDIO_THRESHOLD
     template_duration_ms: int | None = None
     min_energy_ratio: float | None = None
     description: str = ''
@@ -423,9 +427,7 @@ class AudioBenchmarkRunner:
         eff_max = (
             freq_max_hz if freq_max_hz is not None else sound_def.freq_max_hz
         )
-        eff_thresh = (
-            threshold if threshold is not None else sound_def.threshold
-        )
+        eff_thresh = threshold if threshold is not None else sound_def.threshold
         eff_duration_ms = (
             template_duration_ms
             if template_duration_ms is not None
@@ -537,9 +539,7 @@ class AudioBenchmarkRunner:
         Returns:
             BenchmarkAnalysis: Comprehensive analysis across all test cases.
         """
-        eff_thresh = (
-            threshold if threshold is not None else sound_def.threshold
-        )
+        eff_thresh = threshold if threshold is not None else sound_def.threshold
         eff_fmin = (
             freq_min_hz if freq_min_hz is not None else sound_def.freq_min_hz
         )
@@ -647,12 +647,8 @@ class AudioBenchmarkRunner:
                 reconciling_thresh = round((min_tp + max_fp) / 2.0, 3)
 
         ref_duration_ms: float = 0.0
-        ref_audio = self._matcher._load_audio(
-            sound_def.reference_sound_path
-        )
-        ref_duration_ms = (
-            len(ref_audio) / self._matcher.sample_rate
-        ) * 1000.0
+        ref_audio = self._matcher._load_audio(sound_def.reference_sound_path)
+        ref_duration_ms = (len(ref_audio) / self._matcher.sample_rate) * 1000.0
 
         suggestions: list[ConfigurationSuggestion] = []
         has_vocal_pen = any(
@@ -890,7 +886,6 @@ class AudioBenchmarkRunner:
             best_iteration=best_iteration,
         )
 
-
     def tune(
         self,
         sound_def: SoundDefinition,
@@ -913,23 +908,35 @@ class AudioBenchmarkRunner:
         Returns:
             TuningResult: Optimal parameter values and benchmark summary.
         """
-        min_freqs = list(min_freq_candidates) if min_freq_candidates else [
-            sound_def.freq_min_hz or 1000.0,
-            1200.0,
-            1400.0,
-            1600.0,
-        ]
-        max_freqs = list(max_freq_candidates) if max_freq_candidates else [
-            sound_def.freq_max_hz or 2500.0,
-            2200.0,
-            2400.0,
-            2600.0,
-        ]
-        thresholds = list(threshold_candidates) if threshold_candidates else [
-            0.15,
-            0.20,
-            0.25,
-        ]
+        min_freqs = (
+            list(min_freq_candidates)
+            if min_freq_candidates
+            else [
+                sound_def.freq_min_hz or 1000.0,
+                1200.0,
+                1400.0,
+                1600.0,
+            ]
+        )
+        max_freqs = (
+            list(max_freq_candidates)
+            if max_freq_candidates
+            else [
+                sound_def.freq_max_hz or 2500.0,
+                2200.0,
+                2400.0,
+                2600.0,
+            ]
+        )
+        thresholds = (
+            list(threshold_candidates)
+            if threshold_candidates
+            else [
+                0.15,
+                0.20,
+                0.25,
+            ]
+        )
 
         best_tuple: tuple[float, float, float] | None = None
         best_summary: BenchmarkSummary | None = None
@@ -1456,7 +1463,6 @@ def _print_analysis(analysis: BenchmarkAnalysis) -> None:
                 f'  Accuracy: {b_sum.passed_cases}/{b_sum.total_cases} '
                 f'({b_sum.accuracy * 100:.1f}%)'
             )
-
 
 
 if __name__ == '__main__':

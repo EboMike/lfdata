@@ -18,6 +18,8 @@ Usage example:
 import dataclasses
 import enum
 
+from lfdata.model.constants.time import MS_PER_MINUTE, MS_PER_SECOND
+
 
 class TdfDumpTrigger(enum.Enum):
     """Enumeration of trigger conditions for recording game state entries.
@@ -139,8 +141,8 @@ def format_time_ms(time_ms: int) -> str:
         str: Formatted string in MM:SS.sss format.
     """
     total_ms = max(0, time_ms)
-    minutes = total_ms // 60000
-    seconds = (total_ms % 60000) / 1000.0
+    minutes = total_ms // MS_PER_MINUTE
+    seconds = (total_ms % MS_PER_MINUTE) / MS_PER_SECOND
     return f'{minutes:02d}:{seconds:06.3f}'
 
 

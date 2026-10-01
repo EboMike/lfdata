@@ -16,6 +16,13 @@ import dataclasses
 from typing import Any
 
 from lfdata.model import GameEvent, LFGame, LFRole, LFTeamType
+from lfdata.model.gametypes.sm5_constants import (
+    DEFAULT_BOOST_GRACE_PERIOD_MS,
+    SM5_BASE_DESTROY_POINTS,
+    SM5_BASE_DESTROY_SPECIAL_POINTS,
+    SM5_BOOST_AMBIGUITY_WINDOW_MS,
+    SM5_NUKE_DETONATION_TIME_MS,
+)
 from lfdata.replay.handlers import LFReplayHandlersMixin
 from lfdata.replay.record import LFReplayEventRecord
 from lfdata.replay.state import (
@@ -59,7 +66,7 @@ class LFReplaySystem(LFReplayHandlersMixin):
         self,
         game: LFGame,
         align_stats: bool = True,
-        boost_grace_period_ms: int = 700,
+        boost_grace_period_ms: int = DEFAULT_BOOST_GRACE_PERIOD_MS,
     ) -> None:
         """Initializes the replay system.
 
@@ -143,10 +150,16 @@ class LFReplaySystem(LFReplayHandlersMixin):
 
         if player.just_went_down_at_ms is not None:
             elapsed_ms = event_time - player.just_went_down_at_ms
-            if abs(elapsed_ms - self.boost_grace_period_ms) <= 2000:
+            if (
+                abs(elapsed_ms - self.boost_grace_period_ms)
+                <= SM5_BOOST_AMBIGUITY_WINDOW_MS
+            ):
                 return True
 
-        if abs(event_time - player.downtime_ends_at_ms) <= 2000:
+        if (
+            abs(event_time - player.downtime_ends_at_ms)
+            <= SM5_BOOST_AMBIGUITY_WINDOW_MS
+        ):
             return True
 
         return False
@@ -438,7 +451,7 @@ class LFReplaySystem(LFReplayHandlersMixin):
             bool: True if detonated within 10 seconds, False otherwise.
         """
         for check_ev in sorted_events[index + 1 :]:
-            if check_ev.time > activate_ms + 10000:
+            if check_ev.time > activate_ms + SM5_NUKE_DETONATION_TIME_MS:
                 break
             if (
                 check_ev.event_type == '0405'
@@ -511,14 +524,14 @@ class LFReplaySystem(LFReplayHandlersMixin):
             LFNukeCancelDetails: The cancel details object containing timestamp
                 and reason.
         """
-        cancel_ms = activate_ms + 10000
+        cancel_ms = activate_ms + SM5_NUKE_DETONATION_TIME_MS
         cancel_reason = 'nuke activated too late'
 
         if mission_end_ms is not None and mission_end_ms < cancel_ms:
             cancel_ms = mission_end_ms
 
         for check_ev in sorted_events[index + 1 :]:
-            if check_ev.time > activate_ms + 10000:
+            if check_ev.time > activate_ms + SM5_NUKE_DETONATION_TIME_MS:
                 break
 
             reason = self._get_cancel_reason_for_event(
@@ -823,7 +836,7 @@ class LFReplaySystem(LFReplayHandlersMixin):
                             and base.entity_id not in player.captured_bases
                         ):
                             player.captured_bases.add(base.entity_id)
-                            player.score += 1001
+                            player.score += SM5_BASE_DESTROY_POINTS
                             if (
                                 not (
                                     player.role == LFRole.SCOUT
@@ -831,7 +844,9 @@ class LFReplaySystem(LFReplayHandlersMixin):
                                 )
                                 and player.role != LFRole.HEAVY
                             ):
-                                player.special_points += 5
+                                player.special_points += (
+                                    SM5_BASE_DESTROY_SPECIAL_POINTS
+                                )
 
     def _is_game_over(self) -> bool:
         """Checks if the game has ended prematurely.

@@ -210,4 +210,3 @@ def test_replay_player_state_hit_diff() -> None:
     p.times_zapped_opponents = 15
     p.times_zapped = 5
     assert p.hit_diff == 3.0
-

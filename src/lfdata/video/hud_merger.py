@@ -23,6 +23,13 @@ import json
 from pathlib import Path
 import subprocess
 
+from lfdata.model.constants.time import MS_PER_SECOND
+from lfdata.video.constants import (
+    DEFAULT_HUD_MERGE_CRF,
+    DEFAULT_HUD_MERGE_FADE_DURATION_MS,
+    DEFAULT_HUD_MERGE_PRESET,
+)
+
 
 @dataclass
 class VideoMetadata:
@@ -61,9 +68,9 @@ class HudMergeOptions:
     hud_path: Path
     hud_alpha_path: Path
     output_path: Path
-    fade_duration_ms: int = 5000
-    crf: int = 18
-    preset: str = 'medium'
+    fade_duration_ms: int = DEFAULT_HUD_MERGE_FADE_DURATION_MS
+    crf: int = DEFAULT_HUD_MERGE_CRF
+    preset: str = DEFAULT_HUD_MERGE_PRESET
     overwrite: bool = True
     lut_path: Path | None = None
     start_ms: int = 0
@@ -287,11 +294,11 @@ class HudMerger:
         """
         effective_gopro_duration_ms = max(0, gopro_meta.duration_ms - start_ms)
         filters: list[str] = []
-        final_s = final_duration_ms / 1000.0
-        fade_dur_s = fade_duration_ms / 1000.0
-        fade_st_s = fade_start_ms / 1000.0
-        gopro_active_s = (fade_start_ms + fade_duration_ms) / 1000.0
-        start_s = start_ms / 1000.0
+        final_s = final_duration_ms / MS_PER_SECOND
+        fade_dur_s = fade_duration_ms / MS_PER_SECOND
+        fade_st_s = fade_start_ms / MS_PER_SECOND
+        gopro_active_s = (fade_start_ms + fade_duration_ms) / MS_PER_SECOND
+        start_s = start_ms / MS_PER_SECOND
 
         gopro_filters: list[str] = []
         if lut_path:
@@ -310,7 +317,9 @@ class HudMerger:
         )
 
         if effective_gopro_duration_ms < final_duration_ms:
-            pad_dur_s = (final_duration_ms - effective_gopro_duration_ms) / 1000.0
+            pad_dur_s = (
+                final_duration_ms - effective_gopro_duration_ms
+            ) / 1000.0
             gopro_filters.append(
                 f'tpad=stop_mode=add:color=black:stop_duration={pad_dur_s:.3f}'
             )

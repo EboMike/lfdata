@@ -14,8 +14,16 @@ import argparse
 import sys
 
 from lfdata.importer import TdfImporter
+from lfdata.model.gametypes.sm5_constants import DEFAULT_BOOST_GRACE_PERIOD_MS
 from lfdata.replay import LFReplaySystem, LFReplayVerifier
 from lfdata.startup import StartupVerifier
+from lfdata.video.constants import (
+    DEFAULT_EXTRA_FOOTAGE_MS,
+    DEFAULT_FPS,
+    DEFAULT_PREGAME_DELAY_MS,
+)
+
+DEFAULT_STATE_INTERVAL_MS: int = 15000
 
 
 def _print_game_state(replay: LFReplaySystem, time_ms: int) -> None:
@@ -103,7 +111,7 @@ def main() -> None:
     parser.add_argument(
         '--state_interval_ms',
         type=int,
-        default=15000,
+        default=DEFAULT_STATE_INTERVAL_MS,
         help='Interval in milliseconds between printed states.',
     )
     parser.add_argument(
@@ -212,7 +220,7 @@ def main() -> None:
     parser.add_argument(
         '--boost_grace_period_ms',
         type=int,
-        default=700,
+        default=DEFAULT_BOOST_GRACE_PERIOD_MS,
         help=(
             'Grace period in milliseconds for boost eligibility '
             '(defaults to 700, representing 0.7 seconds).'
@@ -246,7 +254,9 @@ def main() -> None:
         config = generator._load_config(args.config)
         if args.pregame_delay_ms is not None:
             config['pregame_delay_ms'] = args.pregame_delay_ms
-        pregame_delay_ms = config.get('pregame_delay_ms', 0)
+        pregame_delay_ms = config.get(
+            'pregame_delay_ms', DEFAULT_PREGAME_DELAY_MS
+        )
 
         chapter_gen = LFChapterGenerator(game)
         chapters = chapter_gen.generate()
@@ -452,14 +462,20 @@ def main() -> None:
             if not game.events:
                 end_ms = 0
             else:
-                pregame_delay_ms = config.get('pregame_delay_ms', 0)
-                extra_footage_ms = config.get('extra_footage_ms', 10000)
+                pregame_delay_ms = config.get(
+                    'pregame_delay_ms', DEFAULT_PREGAME_DELAY_MS
+                )
+                extra_footage_ms = config.get(
+                    'extra_footage_ms', DEFAULT_EXTRA_FOOTAGE_MS
+                )
                 end_ms = (
                     actual_duration_ms + extra_footage_ms + pregame_delay_ms
                 )
 
         start_ms = args.video_start_ms
-        fps = args.fps if args.fps is not None else config.get('fps', 60)
+        fps = (
+            args.fps if args.fps is not None else config.get('fps', DEFAULT_FPS)
+        )
 
         out_dir = Path(args.image_outdir)
         out_dir.mkdir(parents=True, exist_ok=True)

@@ -30,6 +30,13 @@ from typing import Any
 
 from lfdata.importer import TdfImporter
 from lfdata.model import LFGame
+from lfdata.model.constants.game_type import (
+    GAME_TYPE_NAME_SM5,
+    MISSION_TYPE_SM5,
+)
+from lfdata.model.gametypes.sm5_constants import (
+    DEFAULT_BOOST_GRACE_PERIOD_MS,
+)
 from lfdata.replay import LFReplayVerifier
 
 
@@ -52,7 +59,7 @@ class TdfDirectoryVerifier:
         target_path: str = '.',
         *,
         directory_path: str | None = None,
-        boost_grace_period_ms: int = 700,
+        boost_grace_period_ms: int = DEFAULT_BOOST_GRACE_PERIOD_MS,
         allow_laserball: bool = False,
     ) -> None:
         """Initializes the TDF verifier with a target path.
@@ -165,13 +172,13 @@ class TdfDirectoryVerifier:
         if isinstance(is_sm5_attr, bool):
             return is_sm5_attr
         mission_type = getattr(game, 'mission_type', None)
-        if mission_type == 5:
+        if mission_type == MISSION_TYPE_SM5:
             return True
         if hasattr(mission_type, '_mock_return_value'):
             return True
         if mission_type is not None:
             return False
-        return getattr(game, 'normalized_game_type', None) == 'SM5'
+        return getattr(game, 'normalized_game_type', None) == GAME_TYPE_NAME_SM5
 
     def _is_supported_game(self, game: LFGame) -> bool:
         """Checks whether the game is a supported game type (SM5 or Laserball).
@@ -334,11 +341,11 @@ def main() -> None:
         '--boost_grace_period_ms',
         '--boost_grace_period',
         type=int,
-        default=700,
+        default=DEFAULT_BOOST_GRACE_PERIOD_MS,
         dest='boost_grace_period_ms',
         help=(
-            'Grace period in milliseconds for boost eligibility (defaults to'
-            ' 700).'
+            'Grace period in milliseconds for boost eligibility (defaults to '
+            f'{DEFAULT_BOOST_GRACE_PERIOD_MS}).'
         ),
     )
     parser.add_argument(

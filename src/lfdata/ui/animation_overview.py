@@ -15,6 +15,10 @@ from tkinter import ttk
 from typing import Any, Callable
 
 from lfdata.ui.config_manager import UIConfigManager
+from lfdata.video.constants import (
+    DEFAULT_EXTRA_FOOTAGE_MS,
+    DEFAULT_PREGAME_DELAY_MS,
+)
 from lfdata.video.helpers import resolve_animated_value
 
 
@@ -200,16 +204,23 @@ class AnimationOverviewPanel(ttk.LabelFrame):
         if self.config_manager.game:
             duration_ms = self.config_manager.game.duration or 0
 
-        extra_ms = self.config_manager.config.get('extra_footage_ms', 10000)
-        pregame_ms = self.config_manager.config.get('pregame_delay_ms', 0)
+        extra_ms = self.config_manager.config.get(
+            'extra_footage_ms', DEFAULT_EXTRA_FOOTAGE_MS
+        )
+        pregame_ms = self.config_manager.config.get(
+            'pregame_delay_ms', DEFAULT_PREGAME_DELAY_MS
+        )
         if isinstance(pregame_ms, dict) and 'keyframes' in pregame_ms:
             pregame_ms = resolve_animated_value(
-                pregame_ms, self.config_manager.current_time_ms, 0, 0
+                pregame_ms,
+                self.config_manager.current_time_ms,
+                DEFAULT_PREGAME_DELAY_MS,
+                0,
             )
 
         max_ms = duration_ms + extra_ms + pregame_ms
         if max_ms <= 0:
-            max_ms = 10000
+            max_ms = DEFAULT_EXTRA_FOOTAGE_MS
 
         # Resolve properties mapping
         prop_str = self.prop_var.get()
@@ -471,16 +482,23 @@ class AnimationOverviewPanel(ttk.LabelFrame):
         if self.config_manager.game:
             duration_ms = self.config_manager.game.duration or 0
 
-        extra_ms = self.config_manager.config.get('extra_footage_ms', 10000)
-        pregame_ms = self.config_manager.config.get('pregame_delay_ms', 0)
+        extra_ms = self.config_manager.config.get(
+            'extra_footage_ms', DEFAULT_EXTRA_FOOTAGE_MS
+        )
+        pregame_ms = self.config_manager.config.get(
+            'pregame_delay_ms', DEFAULT_PREGAME_DELAY_MS
+        )
         if isinstance(pregame_ms, dict) and 'keyframes' in pregame_ms:
             pregame_ms = resolve_animated_value(
-                pregame_ms, self.config_manager.current_time_ms, 0, 0
+                pregame_ms,
+                self.config_manager.current_time_ms,
+                DEFAULT_PREGAME_DELAY_MS,
+                0,
             )
 
         max_ms = duration_ms + extra_ms + pregame_ms
         if max_ms <= 0:
-            max_ms = 10000
+            max_ms = DEFAULT_EXTRA_FOOTAGE_MS
 
         prop_str = self.prop_var.get()
         prop_key = 'x'

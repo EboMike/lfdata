@@ -15,10 +15,23 @@ Usage example:
 import dataclasses
 
 from lfdata.model import GameEvent, LFGame, LFRole
+from lfdata.model.constants.time import MS_PER_MINUTE, MS_PER_SECOND
+from lfdata.model.gametypes.sm5_constants import (
+    DEFAULT_BOOST_GRACE_PERIOD_MS,
+    SM5_BEACON_CLAIM_SHOTS_LOST,
+    SM5_BOOST_AMBIGUITY_WINDOW_MS,
+    SM5_DOWNTIME_SAFE_MS,
+)
 from lfdata.replay.record import LFReplayEventRecord
 from lfdata.replay.replay import LFReplaySystem
-from lfdata.replay.state import LFReplayPlayerState
+from lfdata.replay.state import LFPlayerState, LFReplayPlayerState
 from lfdata.replay.unhandled_events import LFUnhandledEventsAnalyzer
+
+DEFAULT_DIAGNOSTICS_BOOST_WINDOW_MS: int = SM5_BOOST_AMBIGUITY_WINDOW_MS
+DEFAULT_LATE_EVENT_WINDOW_MS: int = 15000
+GAME_DURATION_TOLERANCE_MS: int = 5000
+SOON_UP_THRESHOLD_MS: int = 5000
+DIAGNOSTICS_SEPARATOR_WIDTH: int = 72
 
 
 @dataclasses.dataclass(frozen=True)
@@ -49,8 +62,8 @@ def format_timestamp_ms(time_ms: int) -> str:
         formatted = format_timestamp_ms(170566)
     """
     total_ms = max(0, time_ms)
-    minutes = total_ms // 60000
-    seconds = (total_ms % 60000) / 1000.0
+    minutes = total_ms // MS_PER_MINUTE
+    seconds = (total_ms % MS_PER_MINUTE) / MS_PER_SECOND
     return f'{minutes:02d}:{seconds:06.3f}'
 
 
@@ -66,11 +79,11 @@ def get_state_label(state: int) -> str:
     Usage:
         label = get_state_label(3)
     """
-    if state == 0:
+    if state == LFPlayerState.UP:
         return 'Up'
-    if state == 2:
+    if state == LFPlayerState.RESETTABLE:
         return 'Resettable'
-    if state == 3:
+    if state == LFPlayerState.DOWN:
         return 'Down'
     return f'Unknown({state})'
 
@@ -170,17 +183,17 @@ def describe_player_state_at_ms(
 
     if player.has_authoritative_state:
         st = player.get_state_at(current_time_ms)
-        if st == 0:
+        if st == LFPlayerState.UP:
             return 'Up (State 0)', True
-        if st == 2:
+        if st == LFPlayerState.RESETTABLE:
             return 'Resettable (State 2) - can reset immediately', True
         down_start = player.get_down_start_time_ms(current_time_ms)
         if down_start is not None:
             elapsed_ms = current_time_ms - down_start
-            if elapsed_ms >= 4000:
+            if elapsed_ms >= SM5_DOWNTIME_SAFE_MS:
                 return 'Resettable (State 3, safe time elapsed)', True
-            rem_ms = 4000 - elapsed_ms
-            if rem_ms <= 5000:
+            rem_ms = SM5_DOWNTIME_SAFE_MS - elapsed_ms
+            if rem_ms <= SOON_UP_THRESHOLD_MS:
                 return f'Down (State 3, {rem_ms} ms until resettable)', True
             return f'Down (State 3, {rem_ms} ms until resettable)', False
         return 'Down (State 3)', False
@@ -190,7 +203,7 @@ def describe_player_state_at_ms(
     if player.is_resettable(current_time_ms):
         return 'Resettable - can reset immediately', True
     rem_ms = max(0, player.downtime_ends_at_ms - current_time_ms)
-    if rem_ms <= 5000:
+    if rem_ms <= SOON_UP_THRESHOLD_MS:
         return f'Down ({rem_ms} ms remaining)', True
     return f'Down ({rem_ms} ms remaining)', False
 
@@ -213,7 +226,7 @@ class LFReplayDiagnostics:
         self,
         game: LFGame,
         replay: LFReplaySystem,
-        boost_grace_period_ms: int = 700,
+        boost_grace_period_ms: int = DEFAULT_BOOST_GRACE_PERIOD_MS,
     ) -> None:
         """Initializes the diagnostics analyzer.
 
@@ -276,7 +289,7 @@ class LFReplayDiagnostics:
         field: str,
         diff: int,
         end_time_ms: int,
-        max_window_ms: int = 15000,
+        max_window_ms: int = DEFAULT_LATE_EVENT_WINDOW_MS,
     ) -> LateEventCutoffAnalysis:
         """Analyzes if discounting late events could resolve the discrepancy.
 
@@ -350,7 +363,7 @@ class LFReplayDiagnostics:
         print('\n  Late-Game Event Cutoff Analysis:')
         if analysis.can_be_prevented and analysis.window_ms is not None:
             count = len(analysis.events)
-            seconds = analysis.window_ms / 1000.0
+            seconds = analysis.window_ms / MS_PER_SECOND
             earliest_ms = analysis.events[-1].time_ms
             earliest_str = format_timestamp_ms(earliest_ms)
             noun = 'event' if count == 1 else 'events'
@@ -371,15 +384,17 @@ class LFReplayDiagnostics:
                 )
         elif analysis.events:
             count = len(analysis.events)
+            cutoff_s = DEFAULT_LATE_EVENT_WINDOW_MS / MS_PER_SECOND
             print(
-                f'    - In the final 15.0 seconds of the game, {count} '
+                f'    - In the final {cutoff_s:.1f} seconds of the game, {count} '
                 f'event(s) affected {field_name}, but discounting them does '
                 f'not match the discrepancy of {diff:+d} {field_name}.'
             )
         else:
+            cutoff_s = DEFAULT_LATE_EVENT_WINDOW_MS / MS_PER_SECOND
             print(
                 f'    - No {field_name}-modifying events occurred for this '
-                'player in the final 15.0 seconds of the game. The '
+                f'player in the final {cutoff_s:.1f} seconds of the game. The '
                 'discrepancy cannot be explained by discounting late-game '
                 'events.'
             )
@@ -467,7 +482,7 @@ class LFReplayDiagnostics:
             if team_players and all(p.is_eliminated() for p in team_players):
                 eliminated_teams.append(team_idx)
 
-        tolerance_ms = 5000
+        tolerance_ms = GAME_DURATION_TOLERANCE_MS
         if scheduled_ms is not None and scheduled_ms > 0:
             if elim_ms is not None or eliminated_teams:
                 ran_full = False
@@ -562,7 +577,7 @@ class LFReplayDiagnostics:
         if not mismatches:
             return
 
-        separator = '=' * 72
+        separator = '=' * DIAGNOSTICS_SEPARATOR_WIDTH
         print('\n' + separator)
         print('DISCREPANCY DIAGNOSTICS & AMBIGUOUS EVENT ANALYSIS')
         print(separator)
@@ -667,7 +682,7 @@ class LFReplayDiagnostics:
         if not discrepancies:
             return
 
-        separator = '-' * 72
+        separator = '-' * DIAGNOSTICS_SEPARATOR_WIDTH
         print('\n' + separator)
         print('WARBOT ZAPS & BEACON CLAIMS (PLAYERS WITH DISCREPANCIES)')
         print(separator)
@@ -702,7 +717,7 @@ class LFReplayDiagnostics:
         print(f'  Player {codename} ({entity_id}):')
 
         if beacons:
-            shots_cost = len(beacons) * 3
+            shots_cost = len(beacons) * SM5_BEACON_CLAIM_SHOTS_LOST
             count = len(beacons)
             noun = 'claim' if count == 1 else 'claims'
             print(
@@ -718,7 +733,7 @@ class LFReplayDiagnostics:
                 )
                 print(
                     f'      * {ev.time} ms ({t_str}): claimed beacon'
-                    f'{target_str} [-3 shots]'
+                    f'{target_str} [-{SM5_BEACON_CLAIM_SHOTS_LOST} shots]'
                 )
 
         if warbots:
@@ -758,7 +773,7 @@ class LFReplayDiagnostics:
         if not player:
             return
 
-        sub_sep = '-' * 72
+        sub_sep = '-' * DIAGNOSTICS_SEPARATOR_WIDTH
         print(f'\n{sub_sep}')
         print(
             f'Player {info.codename} ({info.entity_id})'
@@ -947,7 +962,8 @@ class LFReplayDiagnostics:
             for sh in self.game.state_history:
                 if (
                     sh.entity_id == player.entity_id
-                    and abs(sh.time - boost_time_ms) <= 2000
+                    and abs(sh.time - boost_time_ms)
+                    <= DEFAULT_DIAGNOSTICS_BOOST_WINDOW_MS
                 ):
                     state_entries.append(sh)
 
@@ -977,7 +993,11 @@ class LFReplayDiagnostics:
         print('  Other events regarding player within 2000 ms:')
         related: list[GameEvent] = []
         for e in self.game.events:
-            if e is not boost and abs(e.time - boost_time_ms) <= 2000:
+            if (
+                e is not boost
+                and abs(e.time - boost_time_ms)
+                <= DEFAULT_DIAGNOSTICS_BOOST_WINDOW_MS
+            ):
                 if (
                     e.actor_entity_id == player.entity_id
                     or e.target_entity_id == player.entity_id

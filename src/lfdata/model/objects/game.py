@@ -115,10 +115,23 @@ class LFGame(Base):
                     game_type_val
                 )
         if getattr(self, 'mission_type', None) is None:
-            if getattr(self, 'normalized_game_type', None) == 'SM5':
-                self.mission_type = 5
-            elif getattr(self, 'normalized_game_type', None) == 'Laserball':
-                self.mission_type = 3
+            from lfdata.model.constants.game_type import (
+                GAME_TYPE_NAME_LASERBALL,
+                GAME_TYPE_NAME_SM5,
+                MISSION_TYPE_LASERBALL,
+                MISSION_TYPE_SM5,
+            )
+
+            if (
+                getattr(self, 'normalized_game_type', None)
+                == GAME_TYPE_NAME_SM5
+            ):
+                self.mission_type = MISSION_TYPE_SM5
+            elif (
+                getattr(self, 'normalized_game_type', None)
+                == GAME_TYPE_NAME_LASERBALL
+            ):
+                self.mission_type = MISSION_TYPE_LASERBALL
 
     @property
     def is_sm5(self) -> bool:
@@ -130,11 +143,16 @@ class LFGame(Base):
         Returns:
             True if the game is SM5, False otherwise.
         """
-        if self.mission_type == 5:
+        from lfdata.model.constants.game_type import (
+            GAME_TYPE_NAME_SM5,
+            MISSION_TYPE_SM5,
+        )
+
+        if self.mission_type == MISSION_TYPE_SM5:
             return True
         if self.mission_type is not None:
             return False
-        return self.normalized_game_type == 'SM5'
+        return self.normalized_game_type == GAME_TYPE_NAME_SM5
 
     @property
     def is_laserball(self) -> bool:
@@ -146,11 +164,20 @@ class LFGame(Base):
         Returns:
             True if the game is Laserball, False otherwise.
         """
-        if self.mission_type in (3, 28):
+        from lfdata.model.constants.game_type import (
+            GAME_TYPE_NAME_LASERBALL,
+            MISSION_TYPE_LASERBALL,
+            MISSION_TYPE_LASERBALL_ALT,
+        )
+
+        if self.mission_type in (
+            MISSION_TYPE_LASERBALL,
+            MISSION_TYPE_LASERBALL_ALT,
+        ):
             return True
         if self.mission_type is not None:
             return False
-        return self.normalized_game_type == 'Laserball'
+        return self.normalized_game_type == GAME_TYPE_NAME_LASERBALL
 
     def get_notability(
         self,

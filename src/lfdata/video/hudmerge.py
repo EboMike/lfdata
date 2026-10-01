@@ -15,6 +15,11 @@ import argparse
 from pathlib import Path
 import sys
 
+from lfdata.video.constants import (
+    DEFAULT_HUD_MERGE_CRF,
+    DEFAULT_HUD_MERGE_FADE_DURATION_MS,
+    DEFAULT_HUD_MERGE_PRESET,
+)
 from lfdata.video.hud_merger import HudMerger, HudMergeOptions
 
 
@@ -58,20 +63,26 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         '--fade_duration_ms',
         type=int,
-        default=5000,
-        help='Fade out duration in milliseconds (default: 5000).',
+        default=DEFAULT_HUD_MERGE_FADE_DURATION_MS,
+        help=(
+            'Fade out duration in milliseconds '
+            f'(default: {DEFAULT_HUD_MERGE_FADE_DURATION_MS}).'
+        ),
     )
     parser.add_argument(
         '--crf',
         type=int,
-        default=18,
-        help='Constant Rate Factor for x264 video encoding (default: 18).',
+        default=DEFAULT_HUD_MERGE_CRF,
+        help=(
+            'Constant Rate Factor for x264 video encoding '
+            f'(default: {DEFAULT_HUD_MERGE_CRF}).'
+        ),
     )
     parser.add_argument(
         '--preset',
         type=str,
-        default='medium',
-        help='Encoding preset for x264 (default: medium).',
+        default=DEFAULT_HUD_MERGE_PRESET,
+        help=f'Encoding preset for x264 (default: {DEFAULT_HUD_MERGE_PRESET}).',
     )
     parser.add_argument(
         '--lut',

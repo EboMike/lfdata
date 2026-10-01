@@ -19,6 +19,7 @@ import dataclasses
 from typing import TYPE_CHECKING
 
 from lfdata.model import LFGame
+from lfdata.model.constants.time import MS_PER_MINUTE, MS_PER_SECOND
 
 if TYPE_CHECKING:
     from lfdata.replay.diagnostics import PlayerDiscrepancy
@@ -37,8 +38,8 @@ def format_timestamp_ms(time_ms: int) -> str:
         formatted = format_timestamp_ms(170566)
     """
     total_ms = max(0, time_ms)
-    minutes = total_ms // 60000
-    seconds = (total_ms % 60000) / 1000.0
+    minutes = total_ms // MS_PER_MINUTE
+    seconds = (total_ms % MS_PER_MINUTE) / MS_PER_SECOND
     return f'{minutes:02d}:{seconds:06.3f}'
 
 

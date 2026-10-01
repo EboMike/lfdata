@@ -21,8 +21,14 @@ import jinja2
 
 
 from lfdata.model import GameEvent, LFGame, LFRole
+from lfdata.model.constants.time import MS_PER_SECOND
 from lfdata.replay import LFReplaySystem
 from lfdata.replay.state import LFReplayPlayerState, LFReplayTeamState
+from lfdata.video.constants import (
+    DEFAULT_EXTRA_FOOTAGE_MS,
+    DEFAULT_FADE_DURATION_S,
+    DEFAULT_PREGAME_DELAY_MS,
+)
 from lfdata.video.element import (
     LFCameraShake,
     LFEventLogEntry,
@@ -1374,7 +1380,9 @@ class VisualElementGenerator:
                 local_vars=local_vars,
             )
 
-        pregame_delay = self.config.get('pregame_delay_ms', 0)
+        pregame_delay = self.config.get(
+            'pregame_delay_ms', DEFAULT_PREGAME_DELAY_MS
+        )
         video_end_ms = self.config.get('video_end_ms')
         if video_end_ms is None:
             actual_duration_ms = self.game.duration
@@ -1382,7 +1390,9 @@ class VisualElementGenerator:
                 actual_duration_ms = self.game_ended_at_ms
             if actual_duration_ms is None:
                 actual_duration_ms = 0
-            extra_footage_ms = self.config.get('extra_footage_ms', 10000)
+            extra_footage_ms = self.config.get(
+                'extra_footage_ms', DEFAULT_EXTRA_FOOTAGE_MS
+            )
             video_end_ms = actual_duration_ms + extra_footage_ms + pregame_delay
 
         offset_setting = kwargs_copy.pop(
@@ -1960,12 +1970,14 @@ class VisualElementGenerator:
         fade_time_s = el_config.get('fade_out_time')
         if fade_time_s is None:
             fade_time_s = self.config.get('fade_out_time', 3.0)
-        fade_time_ms = int(fade_time_s * 1000)
+        fade_time_ms = int(fade_time_s * MS_PER_SECOND)
 
         fade_duration_s = el_config.get('fade_duration')
         if fade_duration_s is None:
-            fade_duration_s = self.config.get('fade_duration', 1.0)
-        fade_duration_ms = int(fade_duration_s * 1000)
+            fade_duration_s = self.config.get(
+                'fade_duration', DEFAULT_FADE_DURATION_S
+            )
+        fade_duration_ms = int(fade_duration_s * MS_PER_SECOND)
 
         max_lines = el_config.get('max_lines', 4)
         slots = self._get_active_multiline_lines(
@@ -2026,12 +2038,14 @@ class VisualElementGenerator:
         fade_time_s = el_config.get('fade_out_time')
         if fade_time_s is None:
             fade_time_s = self.config.get('fade_out_time', 5.0)
-        fade_time_ms = int(fade_time_s * 1000)
+        fade_time_ms = int(fade_time_s * MS_PER_SECOND)
 
         fade_duration_s = el_config.get('fade_duration')
         if fade_duration_s is None:
-            fade_duration_s = self.config.get('fade_duration', 1.0)
-        fade_duration_ms = int(fade_duration_s * 1000)
+            fade_duration_s = self.config.get(
+                'fade_duration', DEFAULT_FADE_DURATION_S
+            )
+        fade_duration_ms = int(fade_duration_s * MS_PER_SECOND)
 
         max_lines = el_config.get('max_lines', 3)
         important_events = [ev for ev in self.event_log if ev.is_important]
@@ -2135,7 +2149,9 @@ class VisualElementGenerator:
         orig_config = self.config
 
         # Get pregame delay and game duration to resolve animated properties
-        pregame_delay_ms = orig_config.get('pregame_delay_ms', 0)
+        pregame_delay_ms = orig_config.get(
+            'pregame_delay_ms', DEFAULT_PREGAME_DELAY_MS
+        )
         if (
             isinstance(pregame_delay_ms, dict)
             and 'keyframes' in pregame_delay_ms
@@ -2143,7 +2159,7 @@ class VisualElementGenerator:
             pregame_delay_ms = resolve_animated_value(
                 pregame_delay_ms,
                 time_ms,
-                pregame_delay_ms=0,
+                pregame_delay_ms=DEFAULT_PREGAME_DELAY_MS,
                 game_duration_ms=self.game.duration or 0,
             )
 
@@ -2280,12 +2296,12 @@ class VisualElementGenerator:
                     actor_entity
                     and actor_entity.type == 'player'
                     and actor_entity.team_index != player_team_idx
-                    and actor_entity.category == 1  # Commander
+                    and actor_entity.category == LFRole.COMMANDER.role_id
                 ):
                     self.camera_shakes.append(
                         LFCameraShake(
                             start_ms=event.time,
-                            duration_ms=1000,
+                            duration_ms=MS_PER_SECOND,
                             strength=0.03,
                         )
                     )
@@ -2343,7 +2359,7 @@ class VisualElementGenerator:
                     actor_entity
                     and actor_entity.type == 'player'
                     and actor_entity.team_index != player_team_idx
-                    and actor_entity.category == 1  # Commander
+                    and actor_entity.category == LFRole.COMMANDER.role_id
                 ):
                     is_hit = True
 

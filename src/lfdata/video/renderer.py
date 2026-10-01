@@ -24,6 +24,13 @@ from typing import Any
 from PIL import Image, ImageChops, ImageDraw, ImageFont
 
 from lfdata.model import LFGame
+from lfdata.video.constants import (
+    DEFAULT_EXTRA_FOOTAGE_MS,
+    DEFAULT_FPS,
+    DEFAULT_FRAME_HEIGHT,
+    DEFAULT_FRAME_WIDTH,
+    DEFAULT_PREGAME_DELAY_MS,
+)
 from lfdata.video.element import (
     LFScoreboardPlayerData,
     LFScoreboardTeamData,
@@ -494,8 +501,12 @@ class VideoGenerator:
         if not self.game.events:
             return 0
 
-        pregame_delay_ms = config.get('pregame_delay_ms', 0)
-        extra_footage_ms = config.get('extra_footage_ms', 10000)
+        pregame_delay_ms = config.get(
+            'pregame_delay_ms', DEFAULT_PREGAME_DELAY_MS
+        )
+        extra_footage_ms = config.get(
+            'extra_footage_ms', DEFAULT_EXTRA_FOOTAGE_MS
+        )
         return actual_duration_ms + extra_footage_ms + pregame_delay_ms
 
     def generate(
@@ -555,7 +566,7 @@ class VideoGenerator:
 
         end_ms = self._determine_video_end_ms(hud_gen, config, video_end_ms)
         start_ms = video_start_ms
-        fps_val = fps if fps is not None else config.get('fps', 60)
+        fps_val = fps if fps is not None else config.get('fps', DEFAULT_FPS)
 
         if final_use_pipe:
             self._generate_video_piped(
@@ -812,7 +823,9 @@ class VideoGenerator:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.touch()
 
-        resolution = config.get('resolution', [1920, 1080])
+        resolution = config.get(
+            'resolution', [DEFAULT_FRAME_WIDTH, DEFAULT_FRAME_HEIGHT]
+        )
         ext = output_path.suffix.lower()
         codec: str
         pix_fmt: str
@@ -1175,7 +1188,9 @@ class VideoGenerator:
         Returns:
             Image.Image: The rendered frame image.
         """
-        pregame_delay_ms = config.get('pregame_delay_ms', 0)
+        pregame_delay_ms = config.get(
+            'pregame_delay_ms', DEFAULT_PREGAME_DELAY_MS
+        )
         if (
             isinstance(pregame_delay_ms, dict)
             and 'keyframes' in pregame_delay_ms
@@ -1183,7 +1198,7 @@ class VideoGenerator:
             pregame_delay_ms = resolve_animated_value(
                 pregame_delay_ms,
                 time_ms,
-                pregame_delay_ms=0,
+                pregame_delay_ms=DEFAULT_PREGAME_DELAY_MS,
                 game_duration_ms=hud_gen.game.duration or 0,
             )
 
@@ -1200,7 +1215,9 @@ class VideoGenerator:
             game_duration_ms=actual_duration_ms,
         )
 
-        resolution = resolved_config.get('resolution', [1920, 1080])
+        resolution = resolved_config.get(
+            'resolution', [DEFAULT_FRAME_WIDTH, DEFAULT_FRAME_HEIGHT]
+        )
         bg_hex = resolved_config.get('background_color', '#00000000')
 
         bg_color = parse_color_with_alpha(bg_hex)
@@ -2369,7 +2386,7 @@ class VideoGenerator:
             columns, offsets = self._resolve_scoreboard_columns(
                 x_start, table_width, max_player_w
             )
-            padding_y = int(5 * scale * image.height / 1080)
+            padding_y = int(5 * scale * image.height / DEFAULT_FRAME_HEIGHT)
 
             sep_y = self._draw_table_structure(
                 draw=draw,

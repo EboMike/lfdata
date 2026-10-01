@@ -15,6 +15,17 @@ Usage example:
 from typing import TYPE_CHECKING, Any
 
 from lfdata.model.constants.role import LFRole
+from lfdata.model.constants.time import MS_PER_MINUTE
+from lfdata.model.gametypes.sm5_constants import (
+    SM5_NOTABILITY_ALMOST_ELIM_MAX_LIVES,
+    SM5_NOTABILITY_CLOSE_GAME_MAX_DIFF,
+    SM5_NOTABILITY_COMMANDER_NUKES_MIN,
+    SM5_NOTABILITY_FAST_TEAM_ELIM_MAX_MS,
+    SM5_NOTABILITY_HIGH_HIT_DIFF_MIN,
+    SM5_NOTABILITY_HIGH_MEDIC_HITS_MIN,
+    SM5_NOTABILITY_LOW_TIMES_ZAPPED_MAX,
+    SM5_NOTABILITY_MEDIC_ZAPPED_MEDIC_MIN,
+)
 from lfdata.model.gametypes.sm5_notability_condition import (
     Sm5NotabilityCondition,
 )
@@ -81,10 +92,10 @@ class Sm5NotabilityChecks:
             Sm5NotabilityResult | None: Result if close, None otherwise.
         """
         diff = abs(team0_score - team1_score)
-        if 0 < diff <= 200:
+        if 0 < diff <= SM5_NOTABILITY_CLOSE_GAME_MAX_DIFF:
             return Sm5NotabilityResult(
                 condition=Sm5NotabilityCondition.CLOSE_GAME,
-                tagline='Game within 200 points',
+                tagline=f'Game within {SM5_NOTABILITY_CLOSE_GAME_MAX_DIFF} points',
                 details={
                     'team0_score': team0_score,
                     'team1_score': team1_score,
@@ -113,7 +124,7 @@ class Sm5NotabilityChecks:
         for stat in game.sm5_stats:
             if stat.entity_id == focus_entity.entity_id:
                 nukes = stat.nukes_detonated or 0
-                if nukes > 5:
+                if nukes > SM5_NOTABILITY_COMMANDER_NUKES_MIN:
                     return Sm5NotabilityResult(
                         condition=Sm5NotabilityCondition.COMMANDER_NUKES,
                         tagline=f'{nukes} commander nukes',
@@ -135,7 +146,7 @@ class Sm5NotabilityChecks:
         if focus_entity is None:
             return None
         diff = focus_entity.hit_diff
-        if diff is not None and diff >= 1.9:
+        if diff is not None and diff >= SM5_NOTABILITY_HIGH_HIT_DIFF_MIN:
             return Sm5NotabilityResult(
                 condition=Sm5NotabilityCondition.HIGH_HIT_DIFF,
                 tagline=f'{diff:.1f} hit diff game',
@@ -160,7 +171,7 @@ class Sm5NotabilityChecks:
         for stat in game.sm5_stats:
             if stat.entity_id == focus_entity.entity_id:
                 hits = stat.medic_hits or 0
-                if hits >= 9:
+                if hits >= SM5_NOTABILITY_HIGH_MEDIC_HITS_MIN:
                     return Sm5NotabilityResult(
                         condition=Sm5NotabilityCondition.HIGH_MEDIC_HITS,
                         tagline=f'{hits} medic hits',
@@ -283,8 +294,11 @@ class Sm5NotabilityChecks:
             return None
 
         elim_ms = self._get_elimination_time_ms(game)
-        if elim_ms is not None and elim_ms < 480_000:
-            minutes = max(1, int(elim_ms / 60000))
+        if (
+            elim_ms is not None
+            and elim_ms < SM5_NOTABILITY_FAST_TEAM_ELIM_MAX_MS
+        ):
+            minutes = max(1, int(elim_ms / MS_PER_MINUTE))
             return Sm5NotabilityResult(
                 condition=Sm5NotabilityCondition.FAST_TEAM_ELIMINATION,
                 tagline=f'Elim in {minutes} minutes',
@@ -353,7 +367,7 @@ class Sm5NotabilityChecks:
         if focus_entity is not None:
             opp_team = 1 - focus_entity.team_index
             lives = self._get_team_lives(game, opp_team, stats_by_id)
-            if 0 < lives <= 5:
+            if 0 < lives <= SM5_NOTABILITY_ALMOST_ELIM_MAX_LIVES:
                 tag = (
                     'Opponents down to 1 life'
                     if lives == 1
@@ -370,7 +384,7 @@ class Sm5NotabilityChecks:
 
         for idx in (0, 1):
             lives = self._get_team_lives(game, idx, stats_by_id)
-            if 0 < lives <= 5:
+            if 0 < lives <= SM5_NOTABILITY_ALMOST_ELIM_MAX_LIVES:
                 tag = (
                     'Team down to 1 life'
                     if lives == 1
@@ -420,7 +434,7 @@ class Sm5NotabilityChecks:
             and ev.target_entity_id in enemy_medics
             and ev.event_type in ('0205', '0206')
         )
-        if zaps >= 3:
+        if zaps >= SM5_NOTABILITY_MEDIC_ZAPPED_MEDIC_MIN:
             return Sm5NotabilityResult(
                 condition=Sm5NotabilityCondition.MEDIC_ZAPPED_MEDIC,
                 tagline=f'{zaps} medic-on-medic hits',
@@ -469,7 +483,7 @@ class Sm5NotabilityChecks:
         for stat in game.sm5_stats:
             if stat.entity_id == focus_entity.entity_id:
                 zapped = stat.times_zapped or 0
-                if zapped < 5:
+                if zapped < SM5_NOTABILITY_LOW_TIMES_ZAPPED_MAX:
                     tag = (
                         'Zapped only once'
                         if zapped == 1

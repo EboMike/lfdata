@@ -12,8 +12,17 @@ Usage example:
 """
 
 import dataclasses
+
 from lfdata.model import GameEvent, LFGame, LFRole
+from lfdata.model.constants.time import MS_PER_SECOND, SECONDS_PER_MINUTE
 from lfdata.replay import LFReplaySystem
+from lfdata.video.constants import (
+    CHAPTER_GETTING_READY_THRESHOLD_MS,
+    CHAPTER_MULTI_NUKE_WINDOW_MS,
+    CHAPTER_SPAN_THRESHOLD_MS,
+    DEFAULT_MAX_CHAPTERS,
+    DEFAULT_PREGAME_DELAY_MS,
+)
 
 
 @dataclasses.dataclass
@@ -57,12 +66,14 @@ class LFChapterGenerator:
         """
         candidates = self._collect_candidates()
         consolidated = self._filter_and_consolidate(candidates)
-        return self._limit_chapters(consolidated, max_chapters=20)
+        return self._limit_chapters(
+            consolidated, max_chapters=DEFAULT_MAX_CHAPTERS
+        )
 
     def format_youtube_chapters(
         self,
         chapters: list[LFChapter],
-        pregame_delay_ms: int = 0,
+        pregame_delay_ms: int = DEFAULT_PREGAME_DELAY_MS,
     ) -> str:
         """Formats the list of chapters as a YouTube chapter string.
 
@@ -86,11 +97,13 @@ class LFChapterGenerator:
 
         if not has_zero:
             first_name = (
-                'Getting Ready' if pregame_delay_ms > 20000 else 'Game Starts'
+                'Getting Ready'
+                if pregame_delay_ms > CHAPTER_GETTING_READY_THRESHOLD_MS
+                else 'Game Starts'
             )
             ch_entries.insert(0, (0, first_name))
 
-        if pregame_delay_ms > 20000:
+        if pregame_delay_ms > CHAPTER_GETTING_READY_THRESHOLD_MS:
             has_game_start = any(msg == 'Game Start' for _, msg in ch_entries)
             if not has_game_start:
                 inserted = False
@@ -103,11 +116,11 @@ class LFChapterGenerator:
                     ch_entries.append((pregame_delay_ms, 'Game Start'))
 
         # Check final 20 chapters limit and truncate if necessary
-        if len(ch_entries) > 20:
+        if len(ch_entries) > DEFAULT_MAX_CHAPTERS:
             # We want to remove the lowest importance ones.
             # Structural chapters (00:00 start / game start) are kept.
             num_structural = len(ch_entries) - len(sorted_ch)
-            limit = max(1, 20 - num_structural)
+            limit = max(1, DEFAULT_MAX_CHAPTERS - num_structural)
             limited_original = self._limit_chapters(
                 chapters, max_chapters=limit
             )
@@ -118,9 +131,9 @@ class LFChapterGenerator:
 
         formatted_lines = []
         for v_time_ms, msg in ch_entries:
-            total_sec = max(0, v_time_ms // 1000)
-            mins = total_sec // 60
-            secs = total_sec % 60
+            total_sec = max(0, v_time_ms // MS_PER_SECOND)
+            mins = total_sec // SECONDS_PER_MINUTE
+            secs = total_sec % SECONDS_PER_MINUTE
             formatted_lines.append(f'{mins:02d}:{secs:02d} {msg}')
 
         return '\n'.join(formatted_lines)
@@ -273,7 +286,7 @@ class LFChapterGenerator:
                     current_seq.append((ev, desc, elim_teams))
                 else:
                     prev_ev, _, _ = current_seq[-1]
-                    if ev.time - prev_ev.time <= 15000:
+                    if ev.time - prev_ev.time <= CHAPTER_MULTI_NUKE_WINDOW_MS:
                         current_seq.append((ev, desc, elim_teams))
                     else:
                         sequences.append(current_seq)
@@ -459,7 +472,7 @@ class LFChapterGenerator:
                 c1 = current[i]
                 c2 = current[i + 1]
 
-                if abs(c1.time_ms - c2.time_ms) <= 10000:
+                if abs(c1.time_ms - c2.time_ms) <= CHAPTER_SPAN_THRESHOLD_MS:
                     conflict_found = True
                     parsed1 = self._parse_elimination_message(c1.message)
                     parsed2 = self._parse_elimination_message(c2.message)

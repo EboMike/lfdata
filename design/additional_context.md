@@ -74,4 +74,10 @@ SM5 notability conditions evaluate games in priority order:
 * When rendering the animation for a player getting zapped (the border around
   the image / hit border), a yellow color is used if the player got penalized.
 
+## SM5 Special Points Boost Costs
+
+* Resupplying team members with lives (Medic boost) costs 10 special points.
+* Resupplying team members with ammo (Ammo boost) costs 15 special points.
+
+
 
