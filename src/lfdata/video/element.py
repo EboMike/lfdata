@@ -134,6 +134,12 @@ class LFScoreboardPlayerData:
         is_down: True if player is down.
         is_eliminated: True if player is eliminated.
         penalties: Penalty count integer.
+        goals: Goals scored count integer (Laserball).
+        assists: Assists count integer (Laserball).
+        steals: Steals count integer (Laserball).
+        clears: Clears count integer (Laserball).
+        blocks: Blocks count integer (Laserball).
+        has_ball: True if player is actively holding the ball (Laserball).
     """
 
     codename: str
@@ -148,6 +154,12 @@ class LFScoreboardPlayerData:
     is_down: bool
     is_eliminated: bool
     penalties: int
+    goals: int = 0
+    assists: int = 0
+    steals: int = 0
+    clears: int = 0
+    blocks: int = 0
+    has_ball: bool = False
 
 
 @dataclass
@@ -161,6 +173,11 @@ class LFScoreboardTeamTotals:
         missiles: Total team missiles integer.
         special_points: Total team special points integer.
         hp: Total team hit points integer.
+        goals: Total team goals integer (Laserball).
+        assists: Total team assists integer (Laserball).
+        steals: Total team steals integer (Laserball).
+        clears: Total team clears integer (Laserball).
+        blocks: Total team blocks integer (Laserball).
     """
 
     score: int
@@ -169,6 +186,11 @@ class LFScoreboardTeamTotals:
     missiles: int
     special_points: int
     hp: int
+    goals: int = 0
+    assists: int = 0
+    steals: int = 0
+    clears: int = 0
+    blocks: int = 0
 
 
 @dataclass

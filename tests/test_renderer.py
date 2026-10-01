@@ -2091,3 +2091,137 @@ def test_hit_borders_rendering() -> None:
         hud_gen=hud_gen,
     )
     assert mock_canvas.paste.call_count == 1
+
+
+def test_laserball_scoreboard_columns_and_row_values() -> None:
+    from lfdata.model import LFGame
+    from lfdata.video.element import (
+        LFScoreboardPlayerData,
+        LFScoreboardTeamTotals,
+    )
+    from lfdata.video.renderer import VideoGenerator
+
+    game = LFGame(game_id='lb_test_sb', game_type='Laserball')
+    vg = VideoGenerator(game)
+
+    cols, offsets = vg._resolve_scoreboard_columns(x_start=100, table_width=650)
+    assert cols == ['Player', 'Goals', 'Assists', 'Steals', 'Clears', 'Blocks']
+    assert len(offsets) == 6
+
+    p = LFScoreboardPlayerData(
+        codename='Alpha',
+        role_name='',
+        score=2,
+        lives=0,
+        shots=0,
+        missiles=0,
+        special_points=0,
+        hp=0,
+        max_hp=0,
+        is_down=False,
+        is_eliminated=False,
+        penalties=0,
+        goals=2,
+        assists=1,
+        steals=3,
+        clears=4,
+        blocks=5,
+        has_ball=True,
+    )
+    p_vals = vg._compile_player_row_values(p, cols)
+    assert p_vals == ['Alpha', '2', '1', '3', '4', '5']
+
+    totals = LFScoreboardTeamTotals(
+        score=2,
+        lives=0,
+        shots=0,
+        missiles=0,
+        special_points=0,
+        hp=0,
+        goals=2,
+        assists=1,
+        steals=3,
+        clears=4,
+        blocks=5,
+    )
+    tot_vals = vg._compile_totals_row_values(totals, cols)
+    assert tot_vals == ['TOTAL', '2', '1', '3', '4', '5']
+
+
+def test_laserball_ball_carrier_row_rendering() -> None:
+    from unittest.mock import MagicMock, patch
+    from PIL import Image
+    from lfdata.model import LFGame
+    from lfdata.video.element import LFScoreboardPlayerData
+    from lfdata.video.renderer import VideoGenerator
+
+    game = LFGame(game_id='lb_test_carrier', game_type='Laserball')
+    vg = VideoGenerator(game)
+
+    player = LFScoreboardPlayerData(
+        codename='Carrier',
+        role_name='',
+        score=1,
+        lives=0,
+        shots=0,
+        missiles=0,
+        special_points=0,
+        hp=0,
+        max_hp=0,
+        is_down=False,
+        is_eliminated=False,
+        penalties=0,
+        goals=1,
+        assists=0,
+        steals=0,
+        clears=0,
+        blocks=0,
+        has_ball=True,
+    )
+
+    mock_draw = MagicMock()
+    mock_overlay = MagicMock(spec=Image.Image)
+    mock_overlay.width = 1920
+
+    font = MagicMock()
+    cols = ['Player', 'Goals', 'Assists', 'Steals', 'Clears', 'Blocks']
+    offsets = [100, 240, 320, 400, 480, 560]
+
+    with patch.object(vg, '_draw_text_with_fallback') as mock_draw_text:
+        vg._draw_player_rows(
+            draw=mock_draw,
+            players=[player],
+            columns=cols,
+            offsets=offsets,
+            font=font,
+            text_color=(255, 0, 0, 255),
+            gray_color=(128, 128, 128, 255),
+            dimmed_color=(100, 100, 100, 255),
+            y_row=100,
+            row_h=30,
+            height=1080,
+            overlay=mock_overlay,
+            stroke_width=1,
+            x_start=50,
+            table_width=600,
+            time_ms=500,
+        )
+
+        # Semitransparent blue background rectangle drawn
+        mock_draw.rectangle.assert_called_once_with(
+            [50, 100, 650, 130], fill=(0, 100, 255, 100)
+        )
+
+        # Ball icon pasted
+        assert mock_overlay.paste.call_count >= 1
+
+        # Text color pulsed between red and white
+        # At 500ms (pulse factor = 0.5):
+        # r = 255 + (255 - 255) * 0.5 = 255
+        # g = 0 + (255 - 0) * 0.5 = 127
+        # b = 0 + (255 - 0) * 0.5 = 127
+        # call[1]['fill'] is fill kwarg
+        called_fill = mock_draw_text.call_args_list[0][1]['fill']
+        assert called_fill[0] == 255
+        assert 120 <= called_fill[1] <= 135
+        assert 120 <= called_fill[2] <= 135

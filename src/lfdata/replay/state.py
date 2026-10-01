@@ -396,8 +396,22 @@ class LFReplayGameState:
                     if p.team_index == team.team_index
                 )
 
-        sorted_teams = sorted(
-            self.teams.values(), key=lambda t: t.score, reverse=True
-        )
+        if self.is_laserball:
+            sorted_teams = sorted(
+                self.teams.values(),
+                key=lambda t: (
+                    t.score,
+                    sum(
+                        p.ranking_score
+                        for p in self.players.values()
+                        if p.team_index == t.team_index
+                    ),
+                ),
+                reverse=True,
+            )
+        else:
+            sorted_teams = sorted(
+                self.teams.values(), key=lambda t: t.score, reverse=True
+            )
         for rank, team in enumerate(sorted_teams, 1):
             team.ranking = rank

@@ -228,6 +228,14 @@ class VisualElementGenerator:
         new_p.penalties = p.penalties
         new_p.times_zapped = p.times_zapped
         new_p.times_zapped_opponents = p.times_zapped_opponents
+        new_p.goals = p.goals
+        new_p.assists = p.assists
+        new_p.steals = p.steals
+        new_p.clears = p.clears
+        new_p.blocks = p.blocks
+        new_p.passes = p.passes
+        new_p.times_blocked = p.times_blocked
+        new_p.has_ball = p.has_ball
         return new_p
 
     def _copy_team_state(self, t: LFReplayTeamState) -> LFReplayTeamState:
@@ -411,11 +419,24 @@ class VisualElementGenerator:
                 )
             )
 
-            is_important = event.event_type in [
-                '0404',
-                '0405',
-                'nuke_cancel',
-            ]
+            if self.game.is_laserball:
+                is_important = event.event_type in ('1101', '1105', '1106')
+                if event.event_type == '1105':
+                    desc = 'ROUND STARTS'
+                elif event.event_type == '1106':
+                    desc = 'ROUND END'
+                elif event.event_type == '1101':
+                    actor_name = self.entity_names.get(
+                        event.actor_entity_id or '',
+                        event.actor_entity_id or '',
+                    )
+                    desc = f'{actor_name} scored a goal'
+            else:
+                is_important = event.event_type in [
+                    '0404',
+                    '0405',
+                    'nuke_cancel',
+                ]
             if desc and 'misses' not in desc:
                 self.event_log.append(
                     LFEventLogEntry(
@@ -763,6 +784,34 @@ class VisualElementGenerator:
                 if actor_id == self.entity_id:
                     msg = 'Received a penalty'
 
+            elif et == '1104':
+                if actor_id == self.entity_id:
+                    msg = f'Blocked {target_name}'
+                elif target_id == self.entity_id:
+                    msg = f'Blocked by {actor_name}'
+
+            elif et == '1103':
+                if actor_id == self.entity_id:
+                    msg = f'Stole ball from {target_name}'
+                elif target_id == self.entity_id:
+                    msg = f'Ball stolen by {actor_name}'
+
+            elif et == '1100':
+                if actor_id == self.entity_id:
+                    msg = f'Passed ball to {target_name}'
+                elif target_id == self.entity_id:
+                    msg = f'Ball passed by {actor_name}'
+
+            elif et == '1101':
+                if actor_id == self.entity_id:
+                    msg = 'SCORED A GOAL'
+
+            elif et == '1109':
+                if actor_id == self.entity_id:
+                    msg = f'Cleared ball to {target_name}'
+                elif target_id == self.entity_id:
+                    msg = f'Cleared ball by {actor_name}'
+
             if msg:
                 log_entry = LFPlayerEventLogEntry(
                     time=event.time,
@@ -777,43 +826,44 @@ class VisualElementGenerator:
                     log_entry.zap_count = 1
                 self.player_event_log.append(log_entry)
 
-        for pid, player in replay.game_state.players.items():
-            prev_player = prev_players.get(pid)
-            if not prev_player:
-                continue
+        if not self.game.is_laserball:
+            for pid, player in replay.game_state.players.items():
+                prev_player = prev_players.get(pid)
+                if not prev_player:
+                    continue
 
-            if prev_player.lives > 0 and player.lives == 0:
-                p_name = self.entity_names.get(pid, pid)
-                self.event_log.append(
-                    LFEventLogEntry(
-                        time=event.time,
-                        desc=f'{p_name} eliminated',
-                        is_important=True,
-                        actor_id=None,
-                        target_id=pid,
+                if prev_player.lives > 0 and player.lives == 0:
+                    p_name = self.entity_names.get(pid, pid)
+                    self.event_log.append(
+                        LFEventLogEntry(
+                            time=event.time,
+                            desc=f'{p_name} eliminated',
+                            is_important=True,
+                            actor_id=None,
+                            target_id=pid,
+                        )
                     )
-                )
 
-            elif (
-                player.role == LFRole.MEDIC
-                and player.lives < prev_player.lives
-                and player.lives > 0
-                and any(
-                    val % 5 == 0
-                    for val in range(player.lives, prev_player.lives)
-                )
-            ):
-                p_name = self.entity_names.get(pid, pid)
-                desc = f'Medic {p_name} has {player.lives} lives left'
-                self.event_log.append(
-                    LFEventLogEntry(
-                        time=event.time,
-                        desc=desc,
-                        is_important=True,
-                        actor_id=None,
-                        target_id=pid,
+                elif (
+                    player.role == LFRole.MEDIC
+                    and player.lives < prev_player.lives
+                    and player.lives > 0
+                    and any(
+                        val % 5 == 0
+                        for val in range(player.lives, prev_player.lives)
                     )
-                )
+                ):
+                    p_name = self.entity_names.get(pid, pid)
+                    desc = f'Medic {p_name} has {player.lives} lives left'
+                    self.event_log.append(
+                        LFEventLogEntry(
+                            time=event.time,
+                            desc=desc,
+                            is_important=True,
+                            actor_id=None,
+                            target_id=pid,
+                        )
+                    )
 
     def _insert_zap_multiplier(self, text: str, count: int) -> str:
         """Inserts a zap multiplier (e.g. x2, x3) after 'zap' or 'Zapped'."""
@@ -1218,7 +1268,9 @@ class VisualElementGenerator:
         if self.entity_id and self.entity_id in players:
             p_state = players[self.entity_id]
             variables['player_name'] = self.player_name or ''
-            variables['player_role'] = p_state.role.display_name
+            variables['player_role'] = (
+                p_state.role.display_name if p_state.role else ''
+            )
             variables['player_score'] = str(p_state.score)
         else:
             variables['player_name'] = ''
@@ -1415,13 +1467,18 @@ class VisualElementGenerator:
         tot_missiles = 0
         tot_spec = 0
         tot_hp = 0
+        tot_goals = 0
+        tot_assists = 0
+        tot_steals = 0
+        tot_clears = 0
+        tot_blocks = 0
 
         for p in team_players:
             codename = self.entity_names.get(p.entity_id, p.entity_id)
             players_data.append(
                 LFScoreboardPlayerData(
                     codename=codename,
-                    role_name=p.role.display_name,
+                    role_name=p.role.display_name if p.role else '',
                     score=p.score,
                     lives=p.lives,
                     shots=p.shots,
@@ -1432,6 +1489,12 @@ class VisualElementGenerator:
                     is_down=p.is_down(time_ms),
                     is_eliminated=p.is_eliminated(),
                     penalties=p.penalties,
+                    goals=p.goals,
+                    assists=p.assists,
+                    steals=p.steals,
+                    clears=p.clears,
+                    blocks=p.blocks,
+                    has_ball=p.has_ball,
                 )
             )
             tot_score += p.score
@@ -1439,6 +1502,11 @@ class VisualElementGenerator:
             tot_shots += p.shots
             tot_missiles += p.missiles
             tot_spec += p.special_points
+            tot_goals += p.goals
+            tot_assists += p.assists
+            tot_steals += p.steals
+            tot_clears += p.clears
+            tot_blocks += p.blocks
             if p.max_hp > 1:
                 tot_hp += p.hp
 
@@ -1449,6 +1517,11 @@ class VisualElementGenerator:
             missiles=tot_missiles,
             special_points=tot_spec,
             hp=tot_hp,
+            goals=tot_goals,
+            assists=tot_assists,
+            steals=tot_steals,
+            clears=tot_clears,
+            blocks=tot_blocks,
         )
         return players_data, totals
 
@@ -1477,7 +1550,10 @@ class VisualElementGenerator:
         team_players = [
             p for p in players.values() if p.team_index == team.team_index
         ]
-        team_players.sort(key=lambda p: p.score, reverse=True)
+        if self.game.is_laserball:
+            team_players.sort(key=lambda p: p.ranking_score, reverse=True)
+        else:
+            team_players.sort(key=lambda p: p.score, reverse=True)
 
         players_data, totals = self._compile_player_scoreboard_data(
             team_players, time_ms
@@ -1638,74 +1714,77 @@ class VisualElementGenerator:
         """
         stats_defs = [
             ('player_name', f'{self.player_name}'),
-            ('player_role', f'{p_state.role.display_name}'),
-            ('player_score', f'{p_state.score}'),
         ]
+        if p_state.role:
+            stats_defs.append(('player_role', f'{p_state.role.display_name}'))
+        stats_defs.append(('player_score', f'{p_state.score}'))
+
         for key, text in stats_defs:
             el = self._create_ui_element(key, text=text, element_type='text')
             if el:
                 elements.append(el)
 
-        el_lives = self._create_ui_element(
-            'player_lives',
-            element_type='counter',
-            current_value=p_state.lives,
-            max_value=p_state.role.max_lives,
-        )
-        if el_lives:
-            elements.append(el_lives)
-
-        if p_state.role.max_shots > 0:
-            el_shots = self._create_ui_element(
-                'player_shots',
+        if p_state.role is not None:
+            el_lives = self._create_ui_element(
+                'player_lives',
                 element_type='counter',
-                current_value=p_state.shots,
-                max_value=p_state.role.max_shots,
+                current_value=p_state.lives,
+                max_value=p_state.role.max_lives,
             )
-            if el_shots:
-                elements.append(el_shots)
+            if el_lives:
+                elements.append(el_lives)
 
-        if p_state.role.start_missiles > 0:
-            el_missiles = self._create_ui_element(
-                'player_missiles',
-                element_type='counter',
-                current_value=p_state.missiles,
-                max_value=p_state.role.start_missiles,
-                indicator_interval=1,
-            )
-            if el_missiles:
-                elements.append(el_missiles)
+            if p_state.role.max_shots > 0:
+                el_shots = self._create_ui_element(
+                    'player_shots',
+                    element_type='counter',
+                    current_value=p_state.shots,
+                    max_value=p_state.role.max_shots,
+                )
+                if el_shots:
+                    elements.append(el_shots)
 
-        if p_state.max_hp > 1:
-            el_hp = self._create_ui_element(
-                'player_hitpoints',
-                element_type='counter',
-                current_value=p_state.hp,
-                max_value=p_state.max_hp,
-                indicator_interval=1,
-            )
-            if el_hp:
-                elements.append(el_hp)
+            if p_state.role.start_missiles > 0:
+                el_missiles = self._create_ui_element(
+                    'player_missiles',
+                    element_type='counter',
+                    current_value=p_state.missiles,
+                    max_value=p_state.role.start_missiles,
+                    indicator_interval=1,
+                )
+                if el_missiles:
+                    elements.append(el_missiles)
 
-        if p_state.role != LFRole.HEAVY:
-            if p_state.role == LFRole.COMMANDER:
-                sp_interval = 20
-            elif p_state.role in (LFRole.SCOUT, LFRole.AMMO):
-                sp_interval = 15
-            elif p_state.role == LFRole.MEDIC:
-                sp_interval = 10
-            else:
-                sp_interval = None
+            if p_state.max_hp > 1:
+                el_hp = self._create_ui_element(
+                    'player_hitpoints',
+                    element_type='counter',
+                    current_value=p_state.hp,
+                    max_value=p_state.max_hp,
+                    indicator_interval=1,
+                )
+                if el_hp:
+                    elements.append(el_hp)
 
-            el_pspec = self._create_ui_element(
-                'player_special_points',
-                element_type='counter',
-                current_value=p_state.special_points,
-                max_value=99,
-                indicator_interval=sp_interval,
-            )
-            if el_pspec:
-                elements.append(el_pspec)
+            if p_state.role != LFRole.HEAVY:
+                if p_state.role == LFRole.COMMANDER:
+                    sp_interval = 20
+                elif p_state.role in (LFRole.SCOUT, LFRole.AMMO):
+                    sp_interval = 15
+                elif p_state.role == LFRole.MEDIC:
+                    sp_interval = 10
+                else:
+                    sp_interval = None
+
+                el_pspec = self._create_ui_element(
+                    'player_special_points',
+                    element_type='counter',
+                    current_value=p_state.special_points,
+                    max_value=99,
+                    indicator_interval=sp_interval,
+                )
+                if el_pspec:
+                    elements.append(el_pspec)
 
     def _add_player_downtime_hud_element(
         self,

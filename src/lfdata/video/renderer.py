@@ -11,6 +11,7 @@ Usage example:
 """
 
 import colorsys
+import math
 import os
 from pathlib import Path
 import re
@@ -1211,7 +1212,9 @@ class VideoGenerator:
 
         for el in elements:
             if el.element_type == 'scoreboard':
-                self._draw_scoreboard(img, el, resolved_config)
+                self._draw_scoreboard(
+                    img, el, resolved_config, time_ms=game_time_ms
+                )
             elif el.element_type == 'downtime_bar':
                 self._draw_downtime_bar(img, el)
             elif el.element_type == 'counter':
@@ -1720,6 +1723,7 @@ class VideoGenerator:
         image: Image.Image,
         el: UIElement,
         config: dict[str, Any],
+        time_ms: int = 0,
     ) -> None:
         """Draws the animated scoreboard table onto the image.
 
@@ -1727,6 +1731,7 @@ class VideoGenerator:
             image: The Image canvas to draw on.
             el: The scoreboard UIElement containing team details.
             config: The merged video configuration options.
+            time_ms: Current millisecond timestamp for animations.
         """
         teams = el.scoreboard_data.teams if el.scoreboard_data else []
         if not teams:
@@ -1842,6 +1847,16 @@ class VideoGenerator:
         # to ensure it expands the column correctly.
         max_player_w += max_hp_w
 
+        is_lb = getattr(self.game, 'is_laserball', False) or (
+            'laserball' in getattr(self.game, 'game_type', '').lower()
+        )
+        if is_lb:
+            icon_size = int(row_h * 0.8)
+            ball_space = icon_size + max(
+                2, int(4 * (row_h / 28) * image.width / 1920)
+            )
+            max_player_w += ball_space
+
         overlay = Image.new('RGBA', image.size, (0, 0, 0, 0))
         try:
             for team in teams:
@@ -1861,6 +1876,7 @@ class VideoGenerator:
                     max_player_w=max_player_w,
                     pixel_size=pixel_size,
                     max_hp_w=max_hp_w,
+                    time_ms=time_ms,
                 )
             if el.alpha < 1.0:
                 r, g, b, a = overlay.split()
@@ -2026,6 +2042,9 @@ class VideoGenerator:
         overlay: Image.Image | None,
         stroke_width: int,
         max_hp_w: int = 0,
+        x_start: int = 0,
+        table_width: int = 0,
+        time_ms: int = 0,
     ) -> int:
         """Draws individual player rows inside the table.
 
@@ -2044,16 +2063,32 @@ class VideoGenerator:
             overlay: The overlay Image for pasting role icons.
             stroke_width: The text outline stroke width in pixels.
             max_hp_w: Maximum hitpoints width in pixels.
+            x_start: Table starting X position.
+            table_width: Table width in pixels.
+            time_ms: Current millisecond timestamp for animations.
 
         Returns:
             int: The Y coordinate ending after player rows.
         """
         for p in players:
-            p_color = text_color
-            if p.is_eliminated:
+            if p.has_ball:
+                if table_width > 0:
+                    draw.rectangle(
+                        [x_start, y_row, x_start + table_width, y_row + row_h],
+                        fill=(0, 100, 255, 100),
+                    )
+                pulse = 0.5 + 0.5 * math.sin(time_ms / 1000.0 * 2.0 * math.pi)
+                r = int(text_color[0] + (255 - text_color[0]) * pulse)
+                g = int(text_color[1] + (255 - text_color[1]) * pulse)
+                b = int(text_color[2] + (255 - text_color[2]) * pulse)
+                a = text_color[3] if len(text_color) > 3 else 255
+                p_color = (r, g, b, a)
+            elif p.is_eliminated:
                 p_color = gray_color
             elif p.is_down:
                 p_color = dimmed_color
+            else:
+                p_color = text_color
 
             vals = self._compile_player_row_values(p, columns)
             for col, val, offset in zip(columns, vals, offsets):
@@ -2077,6 +2112,25 @@ class VideoGenerator:
 
                 x_pos = offset
                 if col == 'Player':
+                    if p.has_ball and overlay is not None:
+                        ball_path = Path('assets') / 'ball.png'
+                        if ball_path.exists():
+                            icon_size = int(row_h * 0.8)
+                            ball_img = self._get_cached_icon(
+                                ball_path, icon_size
+                            )
+                            if ball_img is not None:
+                                scale = row_h / 28
+                                margin = max(
+                                    2, int(4 * scale * overlay.width / 1920)
+                                )
+                                ball_x = x_pos - icon_size - margin
+                                ball_y = y_row + (row_h - icon_size) // 2
+                                overlay.paste(
+                                    ball_img,
+                                    (int(ball_x), int(ball_y)),
+                                    ball_img,
+                                )
                     x_pos += max_hp_w
                     if p.max_hp > 1:
                         scale = row_h / 28
@@ -2254,6 +2308,7 @@ class VideoGenerator:
         max_player_w: int | None = None,
         pixel_size: float | int = 27,
         max_hp_w: int = 0,
+        time_ms: int = 0,
     ) -> None:
         """Draws a single team's table border, headers, and rows.
 
@@ -2273,6 +2328,7 @@ class VideoGenerator:
             max_player_w: Maximum player column width in pixels.
             pixel_size: Standard font size in pixels.
             max_hp_w: Maximum hitpoints width in pixels.
+            time_ms: Current millisecond timestamp for animations.
         """
         bg_fill, text_color, dimmed_color, gray_color = (
             self._calculate_team_colors(team)
@@ -2292,14 +2348,19 @@ class VideoGenerator:
                 'sm5' in self.game.game_type.lower()
                 or 'space marines' in self.game.game_type.lower()
             )
+            is_lb = getattr(self.game, 'is_laserball', False) or (
+                'laserball' in getattr(self.game, 'game_type', '').lower()
+            )
             if is_sm5:
                 columns.append('Role')
 
-            default_player_col_w = (
-                int(160 * table_width / 650)
-                if 'Role' in columns
-                else int(210 * table_width / 650)
-            )
+            if is_lb:
+                default_player_col_w = int(205 * table_width / 650)
+            elif 'Role' in columns:
+                default_player_col_w = int(160 * table_width / 650)
+            else:
+                default_player_col_w = int(210 * table_width / 650)
+
             excess_w = 0
             if max_player_w is not None and max_player_w > default_player_col_w:
                 excess_w = max_player_w - default_player_col_w
@@ -2344,6 +2405,9 @@ class VideoGenerator:
                 overlay=overlay,
                 stroke_width=stroke_width,
                 max_hp_w=max_hp_w,
+                x_start=x_start,
+                table_width=actual_table_width,
+                time_ms=time_ms,
             )
 
             totals_h = int(pixel_size * (35 / 27))
@@ -2387,29 +2451,51 @@ class VideoGenerator:
             'sm5' in self.game.game_type.lower()
             or 'space marines' in self.game.game_type.lower()
         )
-
-        columns = ['Player']
-        if is_sm5:
-            columns.append('Role')
-        columns.append('Score')
-        if is_sm5:
-            columns.extend(['Lives', 'Shots', 'Missiles', 'Spec'])
-
-        col_offset_map = {
-            'Player': 20,
-            'Role': 180,
-            'Score': 230,
-            'Lives': 330,
-            'Shots': 410,
-            'Missiles': 490,
-            'Spec': 580,
-        }
-
-        default_player_col_w = (
-            int(160 * table_width / 650)
-            if 'Role' in columns
-            else int(210 * table_width / 650)
+        is_lb = getattr(self.game, 'is_laserball', False) or (
+            'laserball' in getattr(self.game, 'game_type', '').lower()
         )
+
+        if is_lb:
+            columns = [
+                'Player',
+                'Goals',
+                'Assists',
+                'Steals',
+                'Clears',
+                'Blocks',
+            ]
+            col_offset_map = {
+                'Player': 35,
+                'Goals': 240,
+                'Assists': 320,
+                'Steals': 400,
+                'Clears': 480,
+                'Blocks': 560,
+            }
+            default_player_col_w = int(205 * table_width / 650)
+        else:
+            columns = ['Player']
+            if is_sm5:
+                columns.append('Role')
+            columns.append('Score')
+            if is_sm5:
+                columns.extend(['Lives', 'Shots', 'Missiles', 'Spec'])
+
+            col_offset_map = {
+                'Player': 20,
+                'Role': 180,
+                'Score': 230,
+                'Lives': 330,
+                'Shots': 410,
+                'Missiles': 490,
+                'Spec': 580,
+            }
+            default_player_col_w = (
+                int(160 * table_width / 650)
+                if 'Role' in columns
+                else int(210 * table_width / 650)
+            )
+
         excess_w = 0
         if max_player_w is not None and max_player_w > default_player_col_w:
             excess_w = max_player_w - default_player_col_w
@@ -2450,6 +2536,16 @@ class VideoGenerator:
                 vals.append(str(p.missiles))
             elif col == 'Spec':
                 vals.append(str(p.special_points))
+            elif col == 'Goals':
+                vals.append(str(p.goals))
+            elif col == 'Assists':
+                vals.append(str(p.assists))
+            elif col == 'Steals':
+                vals.append(str(p.steals))
+            elif col == 'Clears':
+                vals.append(str(p.clears))
+            elif col == 'Blocks':
+                vals.append(str(p.blocks))
         return vals
 
     def _compile_totals_row_values(
@@ -2480,6 +2576,16 @@ class VideoGenerator:
                 vals.append(str(totals.missiles))
             elif col == 'Spec':
                 vals.append(str(totals.special_points))
+            elif col == 'Goals':
+                vals.append(str(totals.goals))
+            elif col == 'Assists':
+                vals.append(str(totals.assists))
+            elif col == 'Steals':
+                vals.append(str(totals.steals))
+            elif col == 'Clears':
+                vals.append(str(totals.clears))
+            elif col == 'Blocks':
+                vals.append(str(totals.blocks))
         return vals
 
     def _draw_downtime_bar(self, image: Image.Image, el: UIElement) -> None:
@@ -3362,8 +3468,6 @@ class VideoGenerator:
             tilt = el_config.get('tilt', 10.0)
 
             if tilt != 0.0:
-                import math
-
                 dx = H * math.tan(math.radians(tilt))
                 dx = max(0.0, min(W * 0.45, dx))
 

@@ -197,8 +197,9 @@ scoreboards animate to change their ordering.
 
 The header text is white and by default uses the font `D Day Stencil`.
 
-The scoreboard will show (columns omitted if the game type does not
-have them):
+Depending on the game format, the scoreboard will show:
+
+### In SM5
 
 * Player (and penalties)
 * Player role
@@ -207,6 +208,32 @@ have them):
 * Player shots
 * Player missiles
 * Player special points
+
+### In Laserball
+
+The order of the scoreboards is by whichever team has the most goals. If it is the
+same, then it is by whichever team has the higher combined score.
+
+* Player (and penalties)
+* Goals
+* Assists
+* Steals
+* Clears
+* Blocks
+
+### Any other format
+
+Columns omitted if the game type does not have them:
+
+* Player (and penalties)
+* Player role
+* Player score
+* Player lives
+* Player shots
+* Player missiles
+* Player special points
+
+### General scoreboard rules
 
 The column with the player name shows the name. If the player has any
 penalties, it will show one `assets/penalty.png` per penalty to the
@@ -231,11 +258,16 @@ can be enabled separately.
 For roles, do not write the text. Instead, use the PNG file in `assets/sm5`
 with the role name in lower case.
 
+In case of Laserball, for the player who currently has the ball, animate the color of
+the row so that its color pulses between the normal color and white. Also give the row
+a semitransparent blue background. Also render the ball (PNG file in `assets/ball.png`)
+to the left of the player's name.
+
 ## SM5 rules
 
 ### Player events
 
-In SM5, the following player events might be shown. Each event shows up for 3 seconds
+The following player events might be shown. Each event shows up for 3 seconds
 by default:
 
 | Message to display                              | Trigger event                                                |
@@ -269,3 +301,35 @@ The following global events will be shown:
 
 By default, global events will be shown for 5 seconds.
 The "activates nuke" event is shown until the nuke detonates or is canceled.
+
+## Laserball rules
+
+### Player events
+
+The following player events might be shown. Each event shows up for 3 seconds
+by default:
+
+| Message to display                              | Trigger event                                                |
+|-------------------------------------------------|--------------------------------------------------------------|
+| Blocked <player name>                           | Blocked (zapped) an enemy                                    |
+| Blocked by <player name>                        | Got blocked (zapped) by an enemy                             |
+| Stole ball from <player name>                   | Stole the ball from an enemy                                 |
+| Ball stolen by <player name>                    | Got the ball stolen by an enemy                              |
+| Ball passed by <player name>                    | Ball was passed to the player by a teammate                  |
+| Passed ball to <player name>                    | The player passed to ball to a teammate                      |
+| SCORED A GOAL                                   | The player scored a goal                                     |
+| Cleared ball to <player name>                   | Cleared the ball, which was given to a teammate              |
+| Cleared ball by <player name>                   | A teammate cleared the ball, it was given to this player     |
+| Received a penalty                              | Focus player receives a penalty                              |
+
+### Important game events
+
+The following global events will be shown:
+
+| Message to display                         | Trigger event                                                                                                  |
+|--------------------------------------------|----------------------------------------------------------------------------------------------------------------|
+| ROUND STARTS                               | A new round has started                                                                                        |
+| ROUND END                                  | The current round is over                                                                                      |
+| <player name> scored a goal                | A player scored a goal                                                                                         |
+
+By default, global events will be shown for 5 seconds.

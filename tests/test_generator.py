@@ -2341,3 +2341,210 @@ def test_penalty_player_event_and_downtime() -> None:
         el.element_type == 'text' and el.text == 'Received a penalty'
         for el in elements_at_12000
     )
+
+
+def test_laserball_generator_events_and_scoreboard():
+    game = LFGame(
+        game_id='lb_vid_test',
+        timestamp=datetime.now(),
+        game_type='Laserball',
+        duration=60000,
+    )
+    game.entities = [
+        GameEntity(
+            game_id='lb_vid_test',
+            entity_id='P1',
+            type='player',
+            desc='Alpha',
+            team_index=0,
+        ),
+        GameEntity(
+            game_id='lb_vid_test',
+            entity_id='P2',
+            type='player',
+            desc='Beta',
+            team_index=0,
+        ),
+        GameEntity(
+            game_id='lb_vid_test',
+            entity_id='P3',
+            type='player',
+            desc='Gamma',
+            team_index=1,
+        ),
+    ]
+    game.teams = [
+        GameTeam(
+            game_id='lb_vid_test',
+            team_index=0,
+            desc='Red Team',
+            color_enum=0,
+            color_desc='Red',
+            color_rgb='#FF0000',
+        ),
+        GameTeam(
+            game_id='lb_vid_test',
+            team_index=1,
+            desc='Blue Team',
+            color_enum=1,
+            color_desc='Blue',
+            color_rgb='#0000FF',
+        ),
+    ]
+    game.events = [
+        GameEvent(time=1000, event_type='1105', action='* Round Start *'),
+        GameEvent(time=2000, event_type='1107', actor_entity_id='P1'),
+        GameEvent(
+            time=3000,
+            event_type='1100',
+            actor_entity_id='P1',
+            target_entity_id='P2',
+        ),
+        GameEvent(
+            time=4000,
+            event_type='1103',
+            actor_entity_id='P3',
+            target_entity_id='P2',
+        ),
+        GameEvent(
+            time=5000,
+            event_type='1104',
+            actor_entity_id='P1',
+            target_entity_id='P3',
+        ),
+        GameEvent(
+            time=6000,
+            event_type='1109',
+            actor_entity_id='P1',
+            target_entity_id='P2',
+        ),
+        GameEvent(time=7000, event_type='1101', actor_entity_id='P2'),
+        GameEvent(time=8000, event_type='1106', action='* Round End *'),
+        GameEvent(time=9000, event_type='0600', actor_entity_id='P1'),
+    ]
+
+    hud_gen = VisualElementGenerator(game=game, player_name='Alpha')
+
+    # Check global important events
+    important = [ev for ev in hud_gen.event_log if ev.is_important]
+    assert len(important) == 3
+    assert important[0].desc == 'ROUND STARTS'
+    assert important[0].time == 1000
+    assert important[1].desc == 'Beta scored a goal'
+    assert important[1].time == 7000
+    assert important[2].desc == 'ROUND END'
+    assert important[2].time == 8000
+
+    # Check player events for Alpha (P1)
+    p_evs = [ev.desc for ev in hud_gen.player_event_log]
+    assert 'Passed ball to Beta' in p_evs
+    assert 'Blocked Gamma' in p_evs
+    assert 'Cleared ball to Beta' in p_evs
+    assert 'Received a penalty' in p_evs
+
+    # Generate at 2500ms when P1 has the ball
+    elements = hud_gen.generate_at(2500)
+    sb_el = next(el for el in elements if el.element_type == 'scoreboard')
+    red_team = next(t for t in sb_el.scoreboard_data.teams if t.team_index == 0)
+    p1_data = next(p for p in red_team.players if p.codename == 'Alpha')
+    assert p1_data.has_ball is True
+
+    # At 7500ms, P2 scored a goal
+    elements_7500 = hud_gen.generate_at(7500)
+    sb_7500 = next(
+        el for el in elements_7500 if el.element_type == 'scoreboard'
+    )
+    red_7500 = next(
+        t for t in sb_7500.scoreboard_data.teams if t.team_index == 0
+    )
+    assert red_7500.team_score == 1
+    assert red_7500.totals.goals == 1
+    p2_data = next(p for p in red_7500.players if p.codename == 'Beta')
+    assert p2_data.goals == 1
+    assert p2_data.has_ball is False
+
+
+def test_laserball_player_events_target_view():
+    game = LFGame(
+        game_id='lb_vid_target',
+        timestamp=datetime.now(),
+        game_type='Laserball',
+        duration=60000,
+    )
+    game.entities = [
+        GameEntity(
+            game_id='lb_vid_target',
+            entity_id='P1',
+            type='player',
+            desc='Alpha',
+            team_index=0,
+        ),
+        GameEntity(
+            game_id='lb_vid_target',
+            entity_id='P2',
+            type='player',
+            desc='Beta',
+            team_index=0,
+        ),
+        GameEntity(
+            game_id='lb_vid_target',
+            entity_id='P3',
+            type='player',
+            desc='Gamma',
+            team_index=1,
+        ),
+    ]
+    game.teams = [
+        GameTeam(
+            game_id='lb_vid_target',
+            team_index=0,
+            desc='Red Team',
+            color_enum=0,
+            color_desc='Red',
+            color_rgb='#FF0000',
+        ),
+        GameTeam(
+            game_id='lb_vid_target',
+            team_index=1,
+            desc='Blue Team',
+            color_enum=1,
+            color_desc='Blue',
+            color_rgb='#0000FF',
+        ),
+    ]
+    game.events = [
+        GameEvent(time=1000, event_type='1107', actor_entity_id='P2'),
+        GameEvent(
+            time=2000,
+            event_type='1100',
+            actor_entity_id='P2',
+            target_entity_id='P1',
+        ),
+        GameEvent(
+            time=3000,
+            event_type='1103',
+            actor_entity_id='P3',
+            target_entity_id='P1',
+        ),
+        GameEvent(
+            time=4000,
+            event_type='1104',
+            actor_entity_id='P3',
+            target_entity_id='P1',
+        ),
+        GameEvent(
+            time=5000,
+            event_type='1109',
+            actor_entity_id='P2',
+            target_entity_id='P1',
+        ),
+        GameEvent(time=6000, event_type='1101', actor_entity_id='P1'),
+    ]
+
+    hud_gen = VisualElementGenerator(game=game, player_name='Alpha')
+    p_evs = [ev.desc for ev in hud_gen.player_event_log]
+    assert 'Ball passed by Beta' in p_evs
+    assert 'Ball stolen by Gamma' in p_evs
+    assert 'Blocked by Gamma' in p_evs
+    assert 'Cleared ball by Beta' in p_evs
+    assert 'SCORED A GOAL' in p_evs
