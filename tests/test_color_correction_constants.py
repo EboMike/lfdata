@@ -7,6 +7,7 @@ from lfdata.color_correction.constants import (
     COLOR_TRACK_BG,
     COLOR_TRACK_BORDER,
     DEFAULT_COLOR_BAR_UPDATE_INTERVAL_MS,
+    DEFAULT_MAX_COLOR_BAR_SAMPLES,
     DEFAULT_PREVIEW_HEIGHT,
     DEFAULT_PREVIEW_WIDTH,
     DEFAULT_TIMELINE_HEIGHT,
@@ -22,6 +23,7 @@ def test_constants_values() -> None:
     assert DEFAULT_TIMELINE_PAD_X == 15
     assert DEFAULT_TIMELINE_TRACK_Y_PAD == 8
     assert DEFAULT_COLOR_BAR_UPDATE_INTERVAL_MS == 5000
+    assert DEFAULT_MAX_COLOR_BAR_SAMPLES == 120
     assert COLOR_TRACK_BG == '#2d3748'
     assert COLOR_TRACK_BORDER == '#4a5568'
     assert COLOR_RANGE_FILL == '#3182ce'

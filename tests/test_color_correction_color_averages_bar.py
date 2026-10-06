@@ -90,6 +90,29 @@ def test_compute_frame_color_column_math() -> None:
     assert col[19, 0] < 50
 
 
+def test_compute_frame_color_column_bgr_mode() -> None:
+    # Frame in BGR format: top red (0, 0, 255), bottom blue (255, 0, 0)
+    frame = np.zeros((100, 50, 3), dtype=np.uint8)
+    frame[:50, :, :] = [0, 0, 255]  # Red in BGR
+    frame[50:, :, :] = [255, 0, 0]  # Blue in BGR
+
+    col = compute_frame_color_column(frame=frame, height=20, is_bgr=True)
+    assert col.shape == (20, 3)
+    # Output should be in RGB: top rows red, bottom rows blue
+    assert col[0, 0] > 200
+    assert col[0, 2] < 50
+    assert col[19, 2] > 200
+    assert col[19, 0] < 50
+
+
+def test_compute_frame_color_column_large_frame_subsampling() -> None:
+    # Large 400x300 frame to exercise stride subsampling
+    frame = np.full((400, 300, 3), fill_value=180, dtype=np.uint8)
+    col = compute_frame_color_column(frame=frame, height=20)
+    assert col.shape == (20, 3)
+    assert np.all(col == 180)
+
+
 def test_compute_frame_color_column_invalid_height() -> None:
     frame = np.zeros((20, 20, 3), dtype=np.uint8)
     with pytest.raises(ValueError, match='Target height must be >= 1'):

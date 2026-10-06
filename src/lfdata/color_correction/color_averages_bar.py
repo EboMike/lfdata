@@ -2,7 +2,9 @@
 
 This module provides the `ColorAveragesBar` widget, displaying a non-interactive
 horizontal bar underneath the timeline representing video color averages across
-time and vertical frame position.
+time and vertical frame position. Optimized algorithms (stride spatial
+subsampling, timeline downsampling, and channel swap on output slices) ensure
+fast visual approximations without decoding every pixel or frame.
 
 Usage example:
     import tkinter as tk
@@ -26,6 +28,7 @@ from lfdata.color_correction.constants import (
     COLOR_TRACK_BG,
     COLOR_TRACK_BORDER,
     DEFAULT_COLOR_BAR_UPDATE_INTERVAL_MS,
+    DEFAULT_MAX_COLOR_BAR_SAMPLES,
     DEFAULT_PREVIEW_WIDTH,
     DEFAULT_TIMELINE_HEIGHT,
     DEFAULT_TIMELINE_PAD_X,
@@ -33,16 +36,20 @@ from lfdata.color_correction.constants import (
 )
 
 
-def compute_frame_color_column(frame: np.ndarray, height: int) -> np.ndarray:
+def compute_frame_color_column(
+    frame: np.ndarray, height: int, is_bgr: bool = False
+) -> np.ndarray:
     """Computes vertical color averages for a single video frame.
 
     Collapses the frame horizontally and scales it to the specified height
     using area averaging so that the top pixel corresponds to the top of
-    the frame and the bottom pixel corresponds to the bottom.
+    the frame and the bottom pixel corresponds to the bottom. Performs
+    stride subsampling on large frames to accelerate computation.
 
     Args:
-        frame: RGB image array of shape (H, W, 3).
+        frame: Image array of shape (H, W, 3).
         height: Target height in pixels for the color column.
+        is_bgr: If True, input is treated as BGR and converted to RGB output.
 
     Returns:
         np.ndarray: Color column array of shape (height, 3) in uint8 RGB.
@@ -52,6 +59,7 @@ def compute_frame_color_column(frame: np.ndarray, height: int) -> np.ndarray:
 
     Usage example:
         import numpy as np
+
         frame = np.zeros((100, 100, 3), dtype=np.uint8)
         col = compute_frame_color_column(frame=frame, height=40)
     """
@@ -60,8 +68,20 @@ def compute_frame_color_column(frame: np.ndarray, height: int) -> np.ndarray:
     if frame.size == 0 or frame.ndim != 3:
         raise ValueError('Frame must be a non-empty 3-dimensional array')
 
-    resized = cv2.resize(frame, (1, height), interpolation=cv2.INTER_AREA)
-    return resized[:, 0, :]
+    h, w = frame.shape[:2]
+    # Spatially subsample high-resolution frames to accelerate area averaging
+    if h > height * 4 or w > 64:
+        step_y = max(1, h // (height * 4))
+        step_x = max(1, w // 64)
+        sampled = frame[::step_y, ::step_x]
+    else:
+        sampled = frame
+
+    resized = cv2.resize(sampled, (1, height), interpolation=cv2.INTER_AREA)
+    col = resized[:, 0, :]
+    if is_bgr:
+        col = col[:, [2, 1, 0]]
+    return col
 
 
 class ColorAveragesBar(tk.Canvas):
@@ -163,7 +183,6 @@ class ColorAveragesBar(tk.Canvas):
         track_width, track_height = self._get_track_dimensions()
         self.total_columns = track_width
 
-        # Initialize buffer with track background color (RGB 45, 55, 72)
         bg_rgb = np.array([45, 55, 72], dtype=np.uint8)
         self._buffer = np.full(
             (track_height, track_width, 3), bg_rgb, dtype=np.uint8
@@ -210,7 +229,6 @@ class ColorAveragesBar(tk.Canvas):
         track_width = max(1, width - (pad_x * 2))
         track_height = max(1, track_y2 - track_y1)
 
-        # Draw track background
         self.create_rectangle(
             pad_x,
             track_y1,
@@ -274,6 +292,9 @@ class ColorAveragesBar(tk.Canvas):
     ) -> None:
         """Decodes frames and calculates color average columns over time.
 
+        Uses temporal sampling across the timeline and horizontal linear
+        interpolation to produce smooth visual approximations quickly.
+
         Args:
             track_width: Number of horizontal columns to compute.
             track_height: Height in pixels for each computed column.
@@ -305,11 +326,18 @@ class ColorAveragesBar(tk.Canvas):
                 (track_height, track_width, 3), bg_rgb, dtype=np.uint8
             )
 
+            num_samples = min(track_width, DEFAULT_MAX_COLOR_BAR_SAMPLES)
+            sample_indices = np.linspace(
+                0, track_width - 1, num_samples, dtype=int
+            )
+            sample_indices = np.unique(sample_indices)
+
             last_frame_idx: int = -1
             last_col: np.ndarray | None = None
+            last_x: int | None = None
             last_update_monotonic = time.monotonic()
 
-            for x in range(track_width):
+            for x in sample_indices:
                 if self._cancel_event.is_set():
                     break
 
@@ -321,19 +349,42 @@ class ColorAveragesBar(tk.Canvas):
                 )
 
                 if frame_idx == last_frame_idx and last_col is not None:
-                    buffer[:, x, :] = last_col
+                    curr_col = last_col
                 else:
-                    if frame_idx != last_frame_idx + 1:
+                    if 0 < frame_idx - last_frame_idx <= 5:
+                        for _ in range(frame_idx - last_frame_idx - 1):
+                            cap.grab()
+                    elif frame_idx != last_frame_idx + 1:
                         cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
 
                     ret, bgr_frame = cap.read()
                     if ret and bgr_frame is not None and bgr_frame.size > 0:
-                        rgb_frame = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2RGB)
-                        last_col = compute_frame_color_column(
-                            frame=rgb_frame, height=track_height
+                        curr_col = compute_frame_color_column(
+                            frame=bgr_frame,
+                            height=track_height,
+                            is_bgr=True,
                         )
-                        buffer[:, x, :] = last_col
                         last_frame_idx = frame_idx
+                    else:
+                        curr_col = last_col if last_col is not None else bg_rgb
+
+                # Horizontally interpolate into buffer between last_x and x
+                if last_x is None:
+                    buffer[:, : x + 1, :] = curr_col[:, np.newaxis, :]
+                elif x > last_x:
+                    span = x - last_x
+                    if span > 1 and last_col is not None:
+                        weights = np.linspace(
+                            0.0, 1.0, span + 1, dtype=np.float32
+                        )
+                        for i, w in enumerate(weights):
+                            interp = (1.0 - w) * last_col + w * curr_col
+                            buffer[:, last_x + i, :] = interp.astype(np.uint8)
+                    else:
+                        buffer[:, x, :] = curr_col
+
+                last_x = x
+                last_col = curr_col
 
                 now = time.monotonic()
                 elapsed_ms = (now - last_update_monotonic) * 1000.0
@@ -342,11 +393,17 @@ class ColorAveragesBar(tk.Canvas):
                     snapshot = np.copy(buffer)
                     self._notify_progress(
                         snapshot=snapshot,
-                        computed=x + 1,
+                        computed=int(x) + 1,
                         total=track_width,
                     )
 
             if not self._cancel_event.is_set():
+                if (
+                    last_x is not None
+                    and last_x < track_width - 1
+                    and last_col is not None
+                ):
+                    buffer[:, last_x + 1 :, :] = last_col[:, np.newaxis, :]
                 final_snapshot = np.copy(buffer)
                 self._notify_complete(snapshot=final_snapshot)
         finally:
