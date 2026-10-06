@@ -2,6 +2,9 @@
 
 This module provides the `ReferenceVideoTab` widget for loading reference video
 files, previewing still frames along the timeline, and managing clip ranges.
+All expensive operations such as video metadata probing, color averages
+computations, and frame extraction are performed in worker threads to guarantee
+UI responsiveness.
 
 Usage example:
     import tkinter as tk
@@ -13,11 +16,13 @@ Usage example:
 """
 
 from pathlib import Path
+import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from typing import Callable
 from PIL import Image, ImageTk
 
+from lfdata.color_correction.color_averages_bar import ColorAveragesBar
 from lfdata.color_correction.constants import (
     DEFAULT_PREVIEW_HEIGHT,
     DEFAULT_PREVIEW_WIDTH,
@@ -33,12 +38,14 @@ class ReferenceVideoTab(ttk.Frame):
     Attributes:
         video_reader: VideoReader instance handling frame extraction.
         timeline: TimelineWidget instance for scrub and range operations.
+        color_averages_bar: ColorAveragesBar showing video color profile.
         ranges: List of added TimeRange instances.
         on_ranges_changed: Optional callback invoked when ranges list changes.
         content_container: Frame containing timeline and preview widgets.
         lbl_still_image: Label widget displaying current video frame.
         tree_ranges: Treeview widget displaying added ranges.
         is_video_loaded: True once a video file has been successfully loaded.
+        load_thread: Background worker thread for asynchronous video loading.
     """
 
     def __init__(
@@ -68,8 +75,19 @@ class ReferenceVideoTab(ttk.Frame):
         )
         self.ranges: list[TimeRange] = []
         self.is_video_loaded: bool = False
+        self.load_thread: threading.Thread | None = None
         self._current_photo: ImageTk.PhotoImage | None = None
         self._last_frame_img: Image.Image | None = None
+
+        self._frame_worker_running: bool = True
+        self._pending_frame_time_ms: int | None = None
+        self._frame_lock = threading.Lock()
+        self._frame_condition = threading.Condition(self._frame_lock)
+        self._frame_worker_thread = threading.Thread(
+            target=self._frame_worker_loop,
+            daemon=True,
+        )
+        self._frame_worker_thread.start()
 
         self._create_top_bar()
         self._create_content_container()
@@ -104,13 +122,22 @@ class ReferenceVideoTab(ttk.Frame):
         timeline_frame = ttk.Frame(self.content_container)
         timeline_frame.pack(fill='x', padx=5, pady=5)
 
+        bars_container = ttk.Frame(timeline_frame)
+        bars_container.pack(side='left', fill='x', expand=True, padx=(0, 5))
+
         self.timeline = TimelineWidget(
-            parent=timeline_frame,
+            parent=bars_container,
             duration_ms=0,
             on_time_changed=self._on_timeline_time_changed,
             on_range_changed=self._on_timeline_range_changed,
         )
-        self.timeline.pack(side='left', fill='x', expand=True, padx=(0, 5))
+        self.timeline.pack(fill='x', expand=True, pady=(0, 2))
+
+        self.color_averages_bar = ColorAveragesBar(
+            parent=bars_container,
+            duration_ms=0,
+        )
+        self.color_averages_bar.pack(fill='x', expand=True, pady=(2, 0))
 
         self.btn_add_range = ttk.Button(
             timeline_frame,
@@ -191,7 +218,7 @@ class ReferenceVideoTab(ttk.Frame):
         self.btn_delete_range.pack(side='left', padx=5)
 
     def _on_load_video_click(self) -> None:
-        """Prompts the user to pick a video file and loads it."""
+        """Prompts the user to pick a video file and loads it asynchronously."""
         file_path = filedialog.askopenfilename(
             title='Select Reference Video',
             filetypes=[
@@ -202,32 +229,94 @@ class ReferenceVideoTab(ttk.Frame):
         if not file_path:
             return
 
-        try:
-            self.load_video(file_path=file_path)
-        except Exception as err:
-            messagebox.showerror(
-                'Error Loading Video',
-                f'Failed to check reference video:\n{err}',
-            )
+        self.load_video(file_path=file_path, async_load=True)
 
-    def load_video(self, file_path: str | Path) -> None:
+    def load_video(
+        self,
+        file_path: str | Path,
+        async_load: bool = False,
+        on_complete: Callable[[], None] | None = None,
+        on_error: Callable[[Exception], None] | None = None,
+    ) -> None:
         """Loads reference video and reveals editor controls.
 
         Loads the video via the video reader, queries the video duration,
         configures the timeline bounds, reveals the controls underneath the
-        load button, and loads the initial still frame.
+        load button, and loads the initial still frame. When async_load is True,
+        video file probing is executed in a background worker thread.
 
         Args:
             file_path: Path to the target video file.
+            async_load: If True, executes loading in a background worker thread.
+            on_complete: Optional callback invoked when async loading completes.
+            on_error: Optional callback invoked when async loading encounters
+                an error.
 
         Raises:
-            FileNotFoundError: If the video file does not exist.
-            ValueError: If the video cannot be opened or duration is zero.
+            FileNotFoundError: If video file does not exist (synchronous mode).
+            ValueError: If video cannot be opened or duration is zero
+                (synchronous mode).
 
         Usage example:
             tab.load_video(file_path='clip.mp4')
         """
-        duration_ms = self.video_reader.load(video_path=file_path)
+        if not async_load:
+            duration_ms = self.video_reader.load(video_path=file_path)
+            self._apply_video_loaded(
+                file_path=file_path, duration_ms=duration_ms
+            )
+            if on_complete is not None:
+                on_complete()
+            return
+
+        path_obj = Path(file_path)
+        self.lbl_video_info.config(
+            text=f'Loading reference video: {path_obj.name}...'
+        )
+        self.btn_load_video.config(state='disabled')
+
+        def _worker() -> None:
+            try:
+                duration_ms = self.video_reader.load(video_path=file_path)
+
+                def _apply() -> None:
+                    self.btn_load_video.config(state='normal')
+                    self._apply_video_loaded(
+                        file_path=file_path, duration_ms=duration_ms
+                    )
+                    if on_complete is not None:
+                        on_complete()
+
+                self._safe_after(delay_ms=0, callback=_apply)
+            except Exception as exc:
+                captured_err = exc
+
+                def _fail() -> None:
+                    self.btn_load_video.config(state='normal')
+                    self.lbl_video_info.config(
+                        text='Failed to load reference video.'
+                    )
+                    messagebox.showerror(
+                        'Error Loading Video',
+                        f'Failed to check reference video:\n{captured_err}',
+                    )
+                    if on_error is not None:
+                        on_error(captured_err)
+
+                self._safe_after(delay_ms=0, callback=_fail)
+
+        self.load_thread = threading.Thread(target=_worker, daemon=True)
+        self.load_thread.start()
+
+    def _apply_video_loaded(
+        self, file_path: str | Path, duration_ms: int
+    ) -> None:
+        """Applies loaded video metadata and displays initial frame.
+
+        Args:
+            file_path: Path of the loaded video file.
+            duration_ms: Total duration in milliseconds.
+        """
         path_obj = Path(file_path)
         formatted_dur = TimeRange.format_timestamp_ms(duration_ms)
 
@@ -243,12 +332,18 @@ class ReferenceVideoTab(ttk.Frame):
         self.timeline.set_current_time_ms(time_ms=0)
         self.timeline.clear_range()
 
-        # Reveal elements underneath the load button
+        self.color_averages_bar.start_computation(
+            video_path=file_path,
+            duration_ms=duration_ms,
+            fps=self.video_reader.fps,
+            total_frames=self.video_reader.frame_count,
+        )
+
         self.is_video_loaded = True
         self.content_container.pack(fill='both', expand=True, padx=10, pady=5)
 
         self._update_time_display(time_ms=0)
-        self._display_frame_at(time_ms=0)
+        self._display_frame_at(time_ms=0, async_display=False)
 
     def _on_timeline_time_changed(self, time_ms: int) -> None:
         """Handles scrub timestamp updates from the timeline widget.
@@ -257,7 +352,7 @@ class ReferenceVideoTab(ttk.Frame):
             time_ms: Current timeline scrub timestamp in milliseconds.
         """
         self._update_time_display(time_ms=time_ms)
-        self._display_frame_at(time_ms=time_ms)
+        self._display_frame_at(time_ms=time_ms, async_display=True)
 
     def _on_timeline_range_changed(self, start_ms: int, end_ms: int) -> None:
         """Handles range selection changes from the timeline widget.
@@ -302,21 +397,110 @@ class ReferenceVideoTab(ttk.Frame):
 
         self.lbl_time_status.config(text=text)
 
-    def _display_frame_at(self, time_ms: int) -> None:
+    def _display_frame_at(
+        self, time_ms: int, async_display: bool = True
+    ) -> None:
         """Extracts and renders still image at the given timestamp.
 
+        Decodes the still video frame at the specified millisecond offset.
+        If async_display is True, dispatches frame decoding to a background
+        worker thread to keep the user interface responsive during timeline
+        scrubbing.
+
         Args:
-            time_ms: Timestamp in milliseconds.
+            time_ms: Millisecond offset into the video.
+            async_display: If True, decodes asynchronously in worker thread.
+
+        Usage example:
+            tab._display_frame_at(time_ms=5000, async_display=True)
+        """
+        if not async_display:
+            try:
+                frame_img = self.video_reader.get_frame_at(timestamp_ms=time_ms)
+                self._apply_rendered_frame(img=frame_img, time_ms=time_ms)
+            except Exception as err:
+                self._apply_frame_error(err=err, time_ms=time_ms)
+            return
+
+        with self._frame_condition:
+            self._pending_frame_time_ms = time_ms
+            self._frame_condition.notify_all()
+
+    def _frame_worker_loop(self) -> None:
+        """Background worker loop continuously decoding requested frames."""
+        while self._frame_worker_running:
+            with self._frame_condition:
+                while (
+                    self._frame_worker_running
+                    and self._pending_frame_time_ms is None
+                ):
+                    self._frame_condition.wait()
+                if not self._frame_worker_running:
+                    break
+                target_time_ms = self._pending_frame_time_ms
+                self._pending_frame_time_ms = None
+
+            if target_time_ms is None:
+                continue
+
+            try:
+                frame_img = self.video_reader.get_frame_at(
+                    timestamp_ms=target_time_ms
+                )
+                with self._frame_condition:
+                    is_latest = self._pending_frame_time_ms is None
+
+                if is_latest:
+                    self._safe_after(
+                        delay_ms=0,
+                        callback=lambda img=frame_img, t=target_time_ms: (
+                            self._apply_rendered_frame(img=img, time_ms=t)
+                        ),
+                    )
+            except Exception as err:
+                with self._frame_condition:
+                    is_latest = self._pending_frame_time_ms is None
+                if is_latest:
+                    self._safe_after(
+                        delay_ms=0,
+                        callback=lambda e=err, t=target_time_ms: (
+                            self._apply_frame_error(err=e, time_ms=t)
+                        ),
+                    )
+
+    def _safe_after(self, delay_ms: int, callback: Callable[[], None]) -> None:
+        """Schedules callback on UI thread if widget exists.
+
+        Args:
+            delay_ms: Milliseconds delay before execution.
+            callback: Function to invoke on the main UI thread.
         """
         try:
-            frame_img = self.video_reader.get_frame_at(timestamp_ms=time_ms)
-            self._last_frame_img = frame_img
-            self._render_still_image(frame_img)
-        except Exception as err:
-            self.lbl_still_image.config(
-                text=f'Error rendering frame at {time_ms} ms: {err}',
-                image='',
-            )
+            self.after(delay_ms, callback)
+        except Exception:
+            pass
+
+    def _apply_rendered_frame(self, img: Image.Image, time_ms: int) -> None:
+        """Renders the extracted frame image onto the preview label.
+
+        Args:
+            img: Decoded PIL Image of the video frame.
+            time_ms: Timestamp in milliseconds of the rendered frame.
+        """
+        self._last_frame_img = img
+        self._render_still_image(img=img)
+
+    def _apply_frame_error(self, err: Exception, time_ms: int) -> None:
+        """Displays frame extraction error message on the preview label.
+
+        Args:
+            err: Exception raised during frame extraction.
+            time_ms: Timestamp in milliseconds where failure occurred.
+        """
+        self.lbl_still_image.config(
+            text=f'Error rendering frame at {time_ms} ms: {err}',
+            image='',
+        )
 
     def _render_still_image(self, img: Image.Image) -> None:
         """Scales and sets the PIL image onto the preview label.
@@ -438,3 +622,29 @@ class ReferenceVideoTab(ttk.Frame):
                     f'{dur_sec:.3f}s',
                 ),
             )
+
+    def close(self) -> None:
+        """Stops background workers and releases video resources.
+
+        Usage example:
+            tab.close()
+        """
+        self._frame_worker_running = False
+        with self._frame_condition:
+            self._pending_frame_time_ms = None
+            self._frame_condition.notify_all()
+        if (
+            self._frame_worker_thread is not None
+            and self._frame_worker_thread.is_alive()
+        ):
+            self._frame_worker_thread.join(timeout=0.5)
+        self.color_averages_bar.cancel()
+        self.video_reader.close()
+
+    def destroy(self) -> None:
+        """Destroys widget and terminates background worker threads."""
+        self.close()
+        try:
+            super().destroy()
+        except Exception:
+            pass

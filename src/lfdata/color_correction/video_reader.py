@@ -31,6 +31,13 @@ class VideoReader:
         height: Pixel height of the video frames.
     """
 
+    video_path: Path | None = None
+    duration_ms: int = 0
+    fps: float = 0.0
+    frame_count: int = 0
+    width: int = 0
+    height: int = 0
+
     def __init__(self) -> None:
         """Initializes an empty VideoReader with default state."""
         self.video_path: Path | None = None

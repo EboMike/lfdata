@@ -1,5 +1,6 @@
 """Tests for ReferenceVideoTab component."""
 
+import threading
 from typing import Any
 from unittest.mock import MagicMock, patch
 from PIL import Image
@@ -86,6 +87,11 @@ class DummyWidget:
             )
         return self._options.get(f'item_{item}_values', {})
 
+    def after(self, ms: int, func: Any = None, *args: Any) -> Any:
+        if func is not None:
+            return func(*args)
+        return None
+
 
 class DummyCanvas(DummyWidget):
     """Mock Canvas for timeline integration in tab."""
@@ -100,6 +106,9 @@ class DummyCanvas(DummyWidget):
         return 1
 
     def create_polygon(self, *args: Any, **kwargs: Any) -> int:
+        return 1
+
+    def create_image(self, *args: Any, **kwargs: Any) -> int:
         return 1
 
 
@@ -140,6 +149,7 @@ def mock_video_reader() -> VideoReader:
     reader.fps = 30.0
     reader.width = 1920
     reader.height = 1080
+    reader.frame_count = 1350
     reader.load.return_value = 45000
     reader.get_frame_at.return_value = Image.new('RGB', (160, 120), 'blue')
     return reader
@@ -150,6 +160,7 @@ def test_reference_video_tab_init() -> None:
     assert tab.ranges == []
     assert tab.btn_load_video is not None
     assert not tab.is_video_loaded
+    tab.close()
 
 
 def test_reference_video_tab_load_video(
@@ -168,6 +179,28 @@ def test_reference_video_tab_load_video(
     assert tab.timeline.duration_ms == 45000
     assert 'test_reference.mp4' in tab.lbl_video_info.cget('text')
     assert tab.is_video_loaded is True
+    tab.close()
+
+
+def test_reference_video_tab_load_video_async(
+    mock_video_reader: VideoReader,
+) -> None:
+    tab = ReferenceVideoTab(
+        parent=DummyWidget(),
+        video_reader=mock_video_reader,
+    )
+    completed_event = threading.Event()
+    tab.load_video(
+        file_path='async_ref.mp4',
+        async_load=True,
+        on_complete=completed_event.set,
+    )
+    assert tab.load_thread is not None
+    assert completed_event.wait(timeout=0.5)
+
+    mock_video_reader.load.assert_called_once_with(video_path='async_ref.mp4')
+    assert tab.is_video_loaded is True
+    tab.close()
 
 
 def test_reference_video_tab_add_and_delete_range(
@@ -185,7 +218,6 @@ def test_reference_video_tab_add_and_delete_range(
     )
     tab.load_video('clip.mp4')
 
-    # Add range manually
     time_range = TimeRange(start_ms=2000, end_ms=8000)
     tab.add_range(time_range=time_range)
 
@@ -194,17 +226,16 @@ def test_reference_video_tab_add_and_delete_range(
     assert len(ranges_recorded) == 1
     assert len(tab.tree_ranges.get_children()) == 1
 
-    # Add second range
     time_range2 = TimeRange(start_ms=10000, end_ms=15000)
     tab.add_range(time_range=time_range2)
     assert len(tab.ranges) == 2
     assert len(ranges_recorded) == 2
 
-    # Delete first range
     tab.delete_range_at(index=0)
     assert len(tab.ranges) == 1
     assert tab.ranges[0] == time_range2
     assert len(ranges_recorded) == 3
+    tab.close()
 
 
 def test_reference_video_tab_on_add_range_click(
@@ -216,18 +247,17 @@ def test_reference_video_tab_on_add_range_click(
     )
     tab.load_video('clip.mp4')
 
-    # No range selected yet
     with patch('tkinter.messagebox.showinfo') as mock_info:
         tab._on_add_range_click()
         mock_info.assert_called_once()
         assert len(tab.ranges) == 0
 
-    # Select range on timeline
     tab.timeline.set_range(start_ms=3000, end_ms=7000)
     tab._on_add_range_click()
 
     assert len(tab.ranges) == 1
     assert tab.ranges[0] == TimeRange(start_ms=3000, end_ms=7000)
+    tab.close()
 
 
 def test_reference_video_tab_on_delete_range_click_empty(
@@ -242,6 +272,7 @@ def test_reference_video_tab_on_delete_range_click_empty(
     with patch('tkinter.messagebox.showinfo') as mock_info:
         tab._on_delete_range_click()
         mock_info.assert_called_once()
+    tab.close()
 
 
 def test_reference_video_tab_on_delete_range_click_with_selection(
@@ -259,6 +290,7 @@ def test_reference_video_tab_on_delete_range_click_with_selection(
 
     tab._on_delete_range_click()
     assert len(tab.ranges) == 0
+    tab.close()
 
 
 def test_reference_video_tab_on_load_video_click(
@@ -270,7 +302,10 @@ def test_reference_video_tab_on_load_video_click(
     )
     with patch('tkinter.filedialog.askopenfilename', return_value='video.mp4'):
         tab._on_load_video_click()
+        if tab.load_thread is not None:
+            tab.load_thread.join(timeout=0.5)
         mock_video_reader.load.assert_called_once_with(video_path='video.mp4')
+    tab.close()
 
 
 def test_reference_video_tab_on_load_video_click_cancelled(
@@ -283,6 +318,7 @@ def test_reference_video_tab_on_load_video_click_cancelled(
     with patch('tkinter.filedialog.askopenfilename', return_value=''):
         tab._on_load_video_click()
         mock_video_reader.load.assert_not_called()
+    tab.close()
 
 
 def test_reference_video_tab_load_failure(
@@ -298,5 +334,34 @@ def test_reference_video_tab_load_failure(
         patch('tkinter.messagebox.showerror') as mock_error,
     ):
         tab._on_load_video_click()
+        if tab.load_thread is not None:
+            tab.load_thread.join(timeout=0.5)
         mock_error.assert_called_once()
         assert not tab.is_video_loaded
+    tab.close()
+
+
+def test_reference_video_tab_timeline_scrub_async(
+    mock_video_reader: VideoReader,
+) -> None:
+    tab = ReferenceVideoTab(
+        parent=DummyWidget(),
+        video_reader=mock_video_reader,
+    )
+    tab.load_video('clip.mp4')
+
+    scrub_event = threading.Event()
+
+    def _mock_get_frame(timestamp_ms: int) -> Image.Image:
+        if timestamp_ms == 12345:
+            scrub_event.set()
+        return Image.new('RGB', (160, 120), 'blue')
+
+    mock_video_reader.get_frame_at.side_effect = _mock_get_frame
+
+    tab._on_timeline_time_changed(time_ms=12345)
+    assert '12.345' in tab.lbl_time_status.text
+
+    assert scrub_event.wait(timeout=0.5)
+    mock_video_reader.get_frame_at.assert_called_with(timestamp_ms=12345)
+    tab.close()

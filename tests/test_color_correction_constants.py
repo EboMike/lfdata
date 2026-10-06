@@ -6,10 +6,12 @@ from lfdata.color_correction.constants import (
     COLOR_SCRUBBER,
     COLOR_TRACK_BG,
     COLOR_TRACK_BORDER,
+    DEFAULT_COLOR_BAR_UPDATE_INTERVAL_MS,
     DEFAULT_PREVIEW_HEIGHT,
     DEFAULT_PREVIEW_WIDTH,
     DEFAULT_TIMELINE_HEIGHT,
     DEFAULT_TIMELINE_PAD_X,
+    DEFAULT_TIMELINE_TRACK_Y_PAD,
 )
 
 
@@ -18,6 +20,8 @@ def test_constants_values() -> None:
     assert DEFAULT_PREVIEW_HEIGHT == 360
     assert DEFAULT_TIMELINE_HEIGHT == 40
     assert DEFAULT_TIMELINE_PAD_X == 15
+    assert DEFAULT_TIMELINE_TRACK_Y_PAD == 8
+    assert DEFAULT_COLOR_BAR_UPDATE_INTERVAL_MS == 5000
     assert COLOR_TRACK_BG == '#2d3748'
     assert COLOR_TRACK_BORDER == '#4a5568'
     assert COLOR_RANGE_FILL == '#3182ce'
