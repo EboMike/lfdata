@@ -291,13 +291,14 @@ by default:
 
 The following global events will be shown:
 
-| Message to display                         | Trigger event                                                                                                  |
-|--------------------------------------------|----------------------------------------------------------------------------------------------------------------|
-| <player name> activates nuke               | A commander is activating a nuke                                                                               |
-| <player name> detonates nuke               | A nuke has been activated                                                                                      |
-| <player name> nuke canceled                | A commander is down after activating and before detonating a nuke (see SM5 rules for the exact message to use) |
-| <player name> eliminated                   | A player ran out of lives                                                                                      |
-| <team name> <medic name> has <lives> lives | If a medic on either team lose a life, and their current number of lives is greater than 0 and divisible by 5  |
+| Message to display                             | Trigger event                                                                                                  |
+|------------------------------------------------|----------------------------------------------------------------------------------------------------------------|
+| <player name> activates nuke                   | A commander is activating a nuke                                                                               |
+| <player name> detonates nuke                   | A nuke has been activated                                                                                      |
+| <player name> nuke canceled                    | A commander is down after activating and before detonating a nuke (see SM5 rules for the exact message to use) |
+| <player name> eliminated                       | A player ran out of lives                                                                                      |
+| <team name> <medic name> has <lives> lives     | If a medic on either team lose a life, and their current number of lives is greater than 0 and divisible by 5  |
+| <team name> <commander name> has <nukes> nukes | If a commander just obtained a multiple of 20 special points. "has a nuke" if the commander has 20 points.     |
 
 By default, global events will be shown for 5 seconds.
 The "activates nuke" event is shown until the nuke detonates or is canceled.

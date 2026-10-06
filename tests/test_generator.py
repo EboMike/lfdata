@@ -628,6 +628,217 @@ def test_important_events_filtering() -> None:
     assert team_elim_event.is_important is False
 
 
+def test_generator_commander_nuke_events() -> None:
+    game = LFGame(
+        game_id='test_cmdr_nukes',
+        timestamp=datetime.now(),
+        game_type='SM5',
+        duration=120000,
+    )
+    t0 = GameTeam(
+        game_id='test_cmdr_nukes',
+        team_index=0,
+        desc='Fire Team',
+        color_enum=11,
+        color_rgb='#FF5000',
+    )
+    t1 = GameTeam(
+        game_id='test_cmdr_nukes',
+        team_index=1,
+        desc='Earth Team',
+        color_enum=12,
+        color_rgb='#00FF00',
+    )
+    game.teams = [t0, t1]
+
+    cmdr = GameEntity(
+        game_id='test_cmdr_nukes',
+        entity_id='C0',
+        type='player',
+        desc='CommanderPlayer',
+        team_index=0,
+        level=1,
+        category=1,
+        battlesuit='Battlesuit 1',
+    )
+    enemy = GameEntity(
+        game_id='test_cmdr_nukes',
+        entity_id='E1',
+        type='player',
+        desc='EnemyPlayer',
+        team_index=1,
+        level=1,
+        category=2,
+        battlesuit='Battlesuit 2',
+    )
+    game.entities = [cmdr, enemy]
+
+    events = [
+        GameEvent(
+            game_id='test_cmdr_nukes',
+            time=0,
+            event_type='0100',
+            action='start',
+            raw_message='',
+        )
+    ]
+
+    for i in range(1, 41):
+        events.append(
+            GameEvent(
+                game_id='test_cmdr_nukes',
+                time=i * 1000,
+                event_type='0205',
+                actor_entity_id='C0',
+                target_entity_id='E1',
+                action='zap',
+                raw_message='',
+            )
+        )
+
+    # Commander activates nuke at 45000 ms (0404)
+    events.append(
+        GameEvent(
+            game_id='test_cmdr_nukes',
+            time=45000,
+            event_type='0404',
+            actor_entity_id='C0',
+            action='nuke_activate',
+            raw_message='',
+        )
+    )
+
+    # Commander gains 20 more points (reaches 40 again) at 65000 ms
+    for i in range(1, 21):
+        events.append(
+            GameEvent(
+                game_id='test_cmdr_nukes',
+                time=45000 + i * 1000,
+                event_type='0205',
+                actor_entity_id='C0',
+                target_entity_id='E1',
+                action='zap',
+                raw_message='',
+            )
+        )
+
+    game.events = events
+
+    hud_gen = VisualElementGenerator(game, 'CommanderPlayer')
+    hud_gen.generate_at(70000)
+
+    nuke_events = [ev for ev in hud_gen.event_log if 'nuke' in ev.desc.lower()]
+
+    # Event at 20000 ms: reaches 20 SP (1 nuke)
+    ev_20k = next((ev for ev in nuke_events if ev.time == 20000), None)
+    assert ev_20k is not None
+    assert ev_20k.desc == 'Fire Team CommanderPlayer has a nuke'
+    assert ev_20k.is_important is True
+
+    # No new nuke event at 21000 ms
+    assert not any(ev.time == 21000 and 'has' in ev.desc for ev in nuke_events)
+
+    # Event at 40000 ms: reaches 40 SP (2 nukes)
+    ev_40k = next((ev for ev in nuke_events if ev.time == 40000), None)
+    assert ev_40k is not None
+    assert ev_40k.desc == 'Fire Team CommanderPlayer has 2 nukes'
+    assert ev_40k.is_important is True
+
+    # At 45000 ms: nuke activated (no "has" nuke event)
+    assert not any(ev.time == 45000 and 'has' in ev.desc for ev in nuke_events)
+
+    # At 65000 ms: reaches 40 SP again (2 nukes)
+    ev_65k = next((ev for ev in nuke_events if ev.time == 65000), None)
+    assert ev_65k is not None
+    assert ev_65k.desc == 'Fire Team CommanderPlayer has 2 nukes'
+    assert ev_65k.is_important is True
+
+
+def test_generator_commander_nuke_events_earth_team() -> None:
+    game = LFGame(
+        game_id='test_cmdr_earth',
+        timestamp=datetime.now(),
+        game_type='SM5',
+        duration=120000,
+    )
+    t0 = GameTeam(
+        game_id='test_cmdr_earth',
+        team_index=0,
+        desc='Fire Team',
+        color_enum=11,
+        color_rgb='#FF5000',
+    )
+    t1 = GameTeam(
+        game_id='test_cmdr_earth',
+        team_index=1,
+        desc='Earth Team',
+        color_enum=12,
+        color_rgb='#00FF00',
+    )
+    game.teams = [t0, t1]
+
+    enemy = GameEntity(
+        game_id='test_cmdr_earth',
+        entity_id='F0',
+        type='player',
+        desc='FirePlayer',
+        team_index=0,
+        level=1,
+        category=2,
+        battlesuit='Battlesuit 1',
+    )
+    cmdr = GameEntity(
+        game_id='test_cmdr_earth',
+        entity_id='C1',
+        type='player',
+        desc='EarthCmdr',
+        team_index=1,
+        level=1,
+        category=1,
+        battlesuit='Battlesuit 2',
+    )
+    game.entities = [enemy, cmdr]
+
+    events = [
+        GameEvent(
+            game_id='test_cmdr_earth',
+            time=0,
+            event_type='0100',
+            action='start',
+            raw_message='',
+        )
+    ]
+    # 60 zaps = 60 special points = 3 nukes
+    for i in range(1, 61):
+        events.append(
+            GameEvent(
+                game_id='test_cmdr_earth',
+                time=i * 1000,
+                event_type='0205',
+                actor_entity_id='C1',
+                target_entity_id='F0',
+                action='zap',
+                raw_message='',
+            )
+        )
+
+    game.events = events
+    hud_gen = VisualElementGenerator(game, 'EarthCmdr')
+    hud_gen.generate_at(65000)
+
+    ev_60k = next(
+        (
+            ev
+            for ev in hud_gen.event_log
+            if ev.time == 60000 and 'has' in ev.desc
+        ),
+        None,
+    )
+    assert ev_60k is not None
+    assert ev_60k.desc == 'Earth Team EarthCmdr has 3 nukes'
+    assert ev_60k.is_important is True
+
+
 def test_camera_shake_triggering() -> None:
     game = LFGame(
         game_id='test_shake_game',

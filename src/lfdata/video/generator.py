@@ -22,6 +22,7 @@ import jinja2
 
 from lfdata.model import GameEvent, LFGame, LFRole
 from lfdata.model.constants.time import MS_PER_SECOND
+from lfdata.model.gametypes.sm5_constants import SM5_SPECIAL_POINTS_NUKE
 from lfdata.replay import LFReplaySystem
 from lfdata.replay.state import LFReplayPlayerState, LFReplayTeamState
 from lfdata.video.constants import (
@@ -868,6 +869,40 @@ class VisualElementGenerator:
                             is_important=True,
                             actor_id=None,
                             target_id=pid,
+                        )
+                    )
+
+                elif (
+                    player.role == LFRole.COMMANDER
+                    and not player.is_eliminated()
+                    and player.special_points > prev_player.special_points
+                    and any(
+                        val % SM5_SPECIAL_POINTS_NUKE == 0
+                        for val in range(
+                            prev_player.special_points + 1,
+                            player.special_points + 1,
+                        )
+                    )
+                ):
+                    p_name = self.entity_names.get(pid, pid)
+                    team_state = replay.game_state.teams.get(player.team_index)
+                    team_name = (
+                        team_state.name
+                        if team_state and team_state.name
+                        else f'Team {player.team_index}'
+                    )
+                    nukes = player.special_points // SM5_SPECIAL_POINTS_NUKE
+                    if nukes == 1:
+                        desc = f'{team_name} {p_name} has a nuke'
+                    else:
+                        desc = f'{team_name} {p_name} has {nukes} nukes'
+                    self.event_log.append(
+                        LFEventLogEntry(
+                            time=event.time,
+                            desc=desc,
+                            is_important=True,
+                            actor_id=pid,
+                            target_id=None,
                         )
                     )
 
