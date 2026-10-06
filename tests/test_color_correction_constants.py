@@ -1,0 +1,25 @@
+"""Tests for color correction editor constants."""
+
+from lfdata.color_correction.constants import (
+    COLOR_RANGE_FILL,
+    COLOR_RANGE_OUTLINE,
+    COLOR_SCRUBBER,
+    COLOR_TRACK_BG,
+    COLOR_TRACK_BORDER,
+    DEFAULT_PREVIEW_HEIGHT,
+    DEFAULT_PREVIEW_WIDTH,
+    DEFAULT_TIMELINE_HEIGHT,
+    DEFAULT_TIMELINE_PAD_X,
+)
+
+
+def test_constants_values() -> None:
+    assert DEFAULT_PREVIEW_WIDTH == 640
+    assert DEFAULT_PREVIEW_HEIGHT == 360
+    assert DEFAULT_TIMELINE_HEIGHT == 40
+    assert DEFAULT_TIMELINE_PAD_X == 15
+    assert COLOR_TRACK_BG == '#2d3748'
+    assert COLOR_TRACK_BORDER == '#4a5568'
+    assert COLOR_RANGE_FILL == '#3182ce'
+    assert COLOR_RANGE_OUTLINE == '#63b3ed'
+    assert COLOR_SCRUBBER == '#e53e3e'

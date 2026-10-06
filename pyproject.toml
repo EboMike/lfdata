@@ -31,6 +31,7 @@ hudmerge = "lfdata.video.hudmerge:main"
 match-audio = "lfdata.video.audio_matcher:main"
 tune-audio = "lfdata.video.audio_benchmark:main"
 dump-tdf = "lfdata.dump_tdf:main"
+color-correction-editor = "lfdata.color_correction.editor:main"
 
 
 [project.optional-dependencies]
