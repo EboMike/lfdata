@@ -145,6 +145,8 @@ def test_player_authoritative_state_history() -> None:
     assert p.can_receive_resupply(500)
     p.update_downtime(500)
     assert p.hp == p.max_hp
+    assert p.downtime_ends_at_ms == 0
+    assert p.resettable_starts_at_ms == 0
 
     # t=1500 -> state 3 (down non-resettable), went down at t=1000 (elapsed 500ms <= 750ms)
     assert p.get_state_at(1500) == 3
@@ -153,6 +155,8 @@ def test_player_authoritative_state_history() -> None:
     assert p.can_receive_resupply(1500)
     p.update_downtime(1500)
     assert p.hp == 0
+    assert p.resettable_starts_at_ms == 5000
+    assert p.downtime_ends_at_ms == 9000
 
     # t=3000 -> state 3, went down at t=1000 (elapsed 2000ms > 750ms)
     assert p.get_state_at(3000) == 3
@@ -164,12 +168,17 @@ def test_player_authoritative_state_history() -> None:
     assert p.get_state_at(6000) == 2
     assert p.is_down(6000)
     assert p.is_resettable(6000)
+    p.update_downtime(6000)
+    assert p.resettable_starts_at_ms == 5000
+    assert p.downtime_ends_at_ms == 9000
 
     # t=10000 -> state 0 (up again)
     assert p.get_state_at(10000) == 0
     assert not p.is_down(10000)
     p.update_downtime(10000)
     assert p.hp == p.max_hp
+    assert p.downtime_ends_at_ms == 0
+    assert p.resettable_starts_at_ms == 0
 
 
 def test_configurable_boost_grace_period() -> None:

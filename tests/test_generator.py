@@ -1,5 +1,11 @@
 from datetime import datetime
-from lfdata.model import LFGame, GameTeam, GameEntity, GameEvent
+from lfdata.model import (
+    GameEntity,
+    GameEvent,
+    GameTeam,
+    LFGame,
+    PlayerStateHistory,
+)
 from lfdata.video.generator import (
     VisualElementGenerator,
     LFNukeInterval,
@@ -115,6 +121,87 @@ def test_visual_element_generator() -> None:
     assert bar_el is not None
     assert bar_el.safe_ms == 2000
     assert bar_el.resettable_ms == 4000
+
+
+def test_visual_element_generator_authoritative_downtime_bar() -> None:
+    game = LFGame(
+        game_id='test_auth_dt_game',
+        timestamp=datetime.now(),
+        game_type='SM5',
+        duration=15000,
+    )
+    t1 = GameTeam(
+        game_id='test_auth_dt_game',
+        team_index=0,
+        desc='Fire Team',
+        color_enum=11,
+        color_desc='Fire',
+        color_rgb='#FF5000',
+    )
+    game.teams = [t1]
+    cmd = GameEntity(
+        game_id='test_auth_dt_game',
+        entity_id='C1',
+        type='player',
+        desc='Sqnfdcp',
+        team_index=0,
+        level=1,
+        category=1,
+        battlesuit='Maverick',
+    )
+    game.entities = [cmd]
+    game.events = [
+        GameEvent(
+            game_id='test_auth_dt_game',
+            time=0,
+            event_type='0100',
+            action='start',
+            raw_message='',
+        ),
+    ]
+    game.state_history = [
+        PlayerStateHistory(
+            game_id='test_auth_dt_game', time=0, entity_id='C1', state=0
+        ),
+        PlayerStateHistory(
+            game_id='test_auth_dt_game', time=2000, entity_id='C1', state=3
+        ),
+        PlayerStateHistory(
+            game_id='test_auth_dt_game', time=6000, entity_id='C1', state=2
+        ),
+        PlayerStateHistory(
+            game_id='test_auth_dt_game', time=10000, entity_id='C1', state=0
+        ),
+    ]
+
+    hud_gen = VisualElementGenerator(game, 'Sqnfdcp')
+
+    # At 1000 ms: player is active, no downtime bar
+    elements_active = hud_gen.generate_at(1000)
+    assert not any(el.element_type == 'downtime_bar' for el in elements_active)
+
+    # At 3000 ms: player is in state 3 (safe phase, 3000ms until resettable at 6000ms)
+    elements_down = hud_gen.generate_at(3000)
+    bar_el = next(
+        (el for el in elements_down if el.element_type == 'downtime_bar'), None
+    )
+    assert bar_el is not None
+    assert bar_el.safe_ms == 3000
+    assert bar_el.resettable_ms == 4000
+
+    # At 7000 ms: player is in state 2 (resettable phase, safe_ms=0, 3000ms left until 10000ms)
+    elements_resettable = hud_gen.generate_at(7000)
+    bar_res = next(
+        (el for el in elements_resettable if el.element_type == 'downtime_bar'),
+        None,
+    )
+    assert bar_res is not None
+    assert bar_res.safe_ms == 0
+    assert bar_res.resettable_ms == 3000
+
+    # At 11000 ms: player is back up, no downtime bar
+    elements_up = hud_gen.generate_at(11000)
+    assert not any(el.element_type == 'downtime_bar' for el in elements_up)
 
 
 def test_visual_element_generator_new_features() -> None:

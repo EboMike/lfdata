@@ -215,7 +215,12 @@ class VisualElementGenerator:
         Returns:
             LFReplayPlayerState: The cloned player state.
         """
-        new_p = LFReplayPlayerState(p.entity_id, p.role, p.team_index)
+        new_p = LFReplayPlayerState(
+            p.entity_id,
+            p.role,
+            p.team_index,
+            state_history=p.state_history,
+        )
         new_p.lives = p.lives
         new_p.shots = p.shots
         new_p.missiles = p.missiles

@@ -21,6 +21,9 @@ from lfdata.model.gametypes.laserball_constants import (
 )
 from lfdata.model.gametypes.sm5_constants import (
     DEFAULT_BOOST_GRACE_PERIOD_MS,
+    SM5_DOWNTIME_RESETTABLE_MS,
+    SM5_DOWNTIME_SAFE_MS,
+    SM5_DOWNTIME_TOTAL_MS,
     SM5_MAX_SPECIAL_POINTS,
 )
 
@@ -228,6 +231,70 @@ class LFReplayPlayerState:
             return 0 <= elapsed_ms <= grace_period_ms
         return False
 
+    def _compute_authoritative_downtime_ms(
+        self, current_time_ms: int
+    ) -> tuple[int, int]:
+        """Calculates resettable start and downtime expiration from history.
+
+        Inspects the player state history timeline around the given timestamp
+        to determine when the player transitions into a resettable state and
+        when downtime completely expires.
+
+        Args:
+            current_time_ms: The current millisecond timestamp.
+
+        Returns:
+            tuple[int, int]: Tuple containing resettable_starts_at_ms and
+                downtime_ends_at_ms.
+        """
+        if not self.state_history:
+            return 0, 0
+
+        curr_idx = -1
+        for i, entry in enumerate(self.state_history):
+            if entry.time <= current_time_ms:
+                curr_idx = i
+            else:
+                break
+
+        if curr_idx == -1:
+            return 0, 0
+
+        curr_entry = self.state_history[curr_idx]
+        if curr_entry.state not in (
+            LFPlayerState.DOWN,
+            LFPlayerState.RESETTABLE,
+        ):
+            return 0, 0
+
+        if curr_entry.state == LFPlayerState.DOWN:
+            resettable_start_ms = curr_entry.time + SM5_DOWNTIME_SAFE_MS
+            downtime_end_ms = curr_entry.time + SM5_DOWNTIME_TOTAL_MS
+            if curr_idx + 1 < len(self.state_history):
+                next_entry = self.state_history[curr_idx + 1]
+                if next_entry.state == LFPlayerState.RESETTABLE:
+                    resettable_start_ms = next_entry.time
+                    if (
+                        curr_idx + 2 < len(self.state_history)
+                        and self.state_history[curr_idx + 2].state
+                        == LFPlayerState.UP
+                    ):
+                        downtime_end_ms = self.state_history[curr_idx + 2].time
+                    else:
+                        downtime_end_ms = (
+                            resettable_start_ms + SM5_DOWNTIME_RESETTABLE_MS
+                        )
+            return resettable_start_ms, downtime_end_ms
+
+        # LFPlayerState.RESETTABLE
+        resettable_start_ms = curr_entry.time
+        downtime_end_ms = curr_entry.time + SM5_DOWNTIME_RESETTABLE_MS
+        if curr_idx + 1 < len(self.state_history):
+            next_entry = self.state_history[curr_idx + 1]
+            if next_entry.state == LFPlayerState.UP:
+                downtime_end_ms = next_entry.time
+        return resettable_start_ms, downtime_end_ms
+
     def update_downtime(self, current_time_ms: int) -> None:
         """Restores player's HP if active / up, or zeroes HP if down.
 
@@ -236,13 +303,22 @@ class LFReplayPlayerState:
         """
         if self.is_eliminated():
             self.hp = 0
+            self.downtime_ends_at_ms = 0
+            self.resettable_starts_at_ms = 0
             return
         if self.has_authoritative_state:
             state = self.get_state_at(current_time_ms)
             if state == LFPlayerState.UP:
                 self.hp = self.max_hp
+                self.downtime_ends_at_ms = 0
+                self.resettable_starts_at_ms = 0
+                self.just_went_down_at_ms = None
             else:
                 self.hp = 0
+                (
+                    self.resettable_starts_at_ms,
+                    self.downtime_ends_at_ms,
+                ) = self._compute_authoritative_downtime_ms(current_time_ms)
         else:
             if self.role is not None:
                 if self.hp == 0 and current_time_ms >= self.downtime_ends_at_ms:
