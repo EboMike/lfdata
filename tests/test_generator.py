@@ -819,7 +819,7 @@ def test_generator_commander_nuke_events() -> None:
     # Event at 20000 ms: reaches 20 SP (1 nuke)
     ev_20k = next((ev for ev in nuke_events if ev.time == 20000), None)
     assert ev_20k is not None
-    assert ev_20k.desc == 'Fire Team CommanderPlayer has a nuke'
+    assert ev_20k.desc == 'CommanderPlayer has a nuke'
     assert ev_20k.is_important is True
 
     # No new nuke event at 21000 ms
@@ -828,7 +828,7 @@ def test_generator_commander_nuke_events() -> None:
     # Event at 40000 ms: reaches 40 SP (2 nukes)
     ev_40k = next((ev for ev in nuke_events if ev.time == 40000), None)
     assert ev_40k is not None
-    assert ev_40k.desc == 'Fire Team CommanderPlayer has 2 nukes'
+    assert ev_40k.desc == 'CommanderPlayer has 2 nukes'
     assert ev_40k.is_important is True
 
     # At 45000 ms: nuke activated (no "has" nuke event)
@@ -837,7 +837,7 @@ def test_generator_commander_nuke_events() -> None:
     # At 65000 ms: reaches 40 SP again (2 nukes)
     ev_65k = next((ev for ev in nuke_events if ev.time == 65000), None)
     assert ev_65k is not None
-    assert ev_65k.desc == 'Fire Team CommanderPlayer has 2 nukes'
+    assert ev_65k.desc == 'CommanderPlayer has 2 nukes'
     assert ev_65k.is_important is True
 
 
@@ -922,7 +922,7 @@ def test_generator_commander_nuke_events_earth_team() -> None:
         None,
     )
     assert ev_60k is not None
-    assert ev_60k.desc == 'Earth Team EarthCmdr has 3 nukes'
+    assert ev_60k.desc == 'EarthCmdr has 3 nukes'
     assert ev_60k.is_important is True
 
 
@@ -3097,3 +3097,66 @@ def test_player_events_base_rendering() -> None:
     elements_at_6000 = hud_gen.generate_at(6000)
     pe_at_6000 = [el for el in elements_at_6000 if el.element_type == 'text']
     assert any(el.text == 'Destroyed base Earth Base' for el in pe_at_6000)
+
+
+def test_player_name_element_team_color() -> None:
+    game = LFGame(
+        game_id='sm5_name_color',
+        game_type='SM5',
+        duration=60000,
+    )
+    p1 = GameEntity(
+        game_id='sm5_name_color',
+        entity_id='P1',
+        type='player',
+        desc='RedPlayer',
+        team_index=0,
+        category=1,
+    )
+    p2 = GameEntity(
+        game_id='sm5_name_color',
+        entity_id='P2',
+        type='player',
+        desc='BluePlayer',
+        team_index=1,
+        category=1,
+    )
+    game.entities = [p1, p2]
+    game.teams = [
+        GameTeam(
+            game_id='sm5_name_color',
+            team_index=0,
+            desc='Red Team',
+            color_enum=0,
+            color_desc='Red',
+            color_rgb='#FF0000',
+        ),
+        GameTeam(
+            game_id='sm5_name_color',
+            team_index=1,
+            desc='Blue Team',
+            color_enum=1,
+            color_desc='Blue',
+            color_rgb='#0000FF',
+        ),
+    ]
+
+    hud_gen = VisualElementGenerator(game=game, player_name='RedPlayer')
+    elements = hud_gen.generate_at(1000)
+
+    name_el = next((el for el in elements if el.text == 'RedPlayer'), None)
+    assert name_el is not None
+    assert name_el.player_to_color is not None
+    assert name_el.player_to_color.get('RedPlayer') == '#FF0000'
+
+    # Verify when player_events_in_color is False, player_to_color is None
+    config_disabled = {'player_events_in_color': False}
+    hud_gen_disabled = VisualElementGenerator(
+        game=game, player_name='RedPlayer', config=config_disabled
+    )
+    elements_disabled = hud_gen_disabled.generate_at(1000)
+    name_el_disabled = next(
+        (el for el in elements_disabled if el.text == 'RedPlayer'), None
+    )
+    assert name_el_disabled is not None
+    assert name_el_disabled.player_to_color is None

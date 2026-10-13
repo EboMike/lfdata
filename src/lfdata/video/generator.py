@@ -897,17 +897,11 @@ class VisualElementGenerator:
                     )
                 ):
                     p_name = self.entity_names.get(pid, pid)
-                    team_state = replay.game_state.teams.get(player.team_index)
-                    team_name = (
-                        team_state.name
-                        if team_state and team_state.name
-                        else f'Team {player.team_index}'
-                    )
                     nukes = player.special_points // SM5_SPECIAL_POINTS_NUKE
                     if nukes == 1:
-                        desc = f'{team_name} {p_name} has a nuke'
+                        desc = f'{p_name} has a nuke'
                     else:
-                        desc = f'{team_name} {p_name} has {nukes} nukes'
+                        desc = f'{p_name} has {nukes} nukes'
                     self.event_log.append(
                         LFEventLogEntry(
                             time=event.time,
@@ -1791,12 +1785,16 @@ class VisualElementGenerator:
         self,
         elements: list[UIElement],
         p_state: LFReplayPlayerState,
+        teams: dict[int, LFReplayTeamState] | None = None,
+        players: dict[str, LFReplayPlayerState] | None = None,
     ) -> None:
         """Adds text stats and Counter HUD elements for the focused player.
 
         Args:
             elements: List of visual elements to append to.
             p_state: Player state of the focused player.
+            teams: Optional mapping of team index to team state.
+            players: Optional mapping of entity ID to player state.
         """
         stats_defs = [
             ('player_name', f'{self.player_name}'),
@@ -1805,8 +1803,34 @@ class VisualElementGenerator:
             stats_defs.append(('player_role', f'{p_state.role.display_name}'))
         stats_defs.append(('player_score', f'{p_state.score}'))
 
+        player_events_in_color = self.config.get('player_events_in_color', True)
+        t_state = teams.get(p_state.team_index) if teams else None
+        team_color = t_state.color_rgb if t_state else None
+        if not team_color and self.game.teams:
+            for t in self.game.teams:
+                if t.team_index == p_state.team_index:
+                    team_color = t.color_rgb
+                    break
+
+        player_to_color: dict[str, str] = {}
+        if teams and players:
+            for pid, player in players.items():
+                name = self.entity_names.get(pid, pid)
+                ts = teams.get(player.team_index)
+                color = ts.color_rgb if ts else '#ffffff'
+                player_to_color[name] = color
+        if team_color and self.player_name:
+            player_to_color[self.player_name] = team_color
+
+        color_map = player_to_color if player_events_in_color else None
+
         for key, text in stats_defs:
-            el = self._create_ui_element(key, text=text, element_type='text')
+            kwargs: dict[str, Any] = {}
+            if key == 'player_name' and color_map:
+                kwargs['player_to_color'] = color_map
+            el = self._create_ui_element(
+                key, text=text, element_type='text', **kwargs
+            )
             if el:
                 elements.append(el)
 
@@ -1906,6 +1930,7 @@ class VisualElementGenerator:
         elements: list[UIElement],
         players: dict[str, LFReplayPlayerState],
         time_ms: int,
+        teams: dict[int, LFReplayTeamState] | None = None,
     ) -> None:
         """Adds player-specific HUD elements if a target player is focused.
 
@@ -1913,12 +1938,18 @@ class VisualElementGenerator:
             elements: List of visual elements to append to.
             players: Current player states.
             time_ms: Current millisecond timestamp.
+            teams: Optional current team states.
         """
         if not self.entity_id or self.entity_id not in players:
             return
 
         p_state = players[self.entity_id]
-        self._add_player_stats_hud_elements(elements, p_state)
+        self._add_player_stats_hud_elements(
+            elements=elements,
+            p_state=p_state,
+            teams=teams,
+            players=players,
+        )
         self._add_player_downtime_hud_element(elements, p_state, time_ms)
 
     def _get_active_multiline_lines(
@@ -2275,7 +2306,10 @@ class VisualElementGenerator:
                 time_ms=game_time_ms,
             )
             self._add_player_hud_elements(
-                elements=elements, players=players, time_ms=game_time_ms
+                elements=elements,
+                players=players,
+                time_ms=game_time_ms,
+                teams=teams,
             )
             self._add_event_hud_elements(
                 elements=elements,
