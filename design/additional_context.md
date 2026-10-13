@@ -79,5 +79,16 @@ SM5 notability conditions evaluate games in priority order:
 * Resupplying team members with lives (Medic boost) costs 10 special points.
 * Resupplying team members with ammo (Ammo boost) costs 15 special points.
 
+## Base Zap Replacement Window
+
+* When the focus player zaps the same base multiple times within 8 seconds
+  (8000 ms), each zap replaces the previous message instead of creating a
+  new message:
+  - First zap: `Zapped base <base name>`
+  - Second zap: `2x Zapped base <base name>` (increments for subsequent hits)
+  - Destroy zap: `Destroyed base <base name>` (if resulting in destruction)
+* If more than 8 seconds elapse between zaps on that base, a new event entry
+  is created.
+
 
 

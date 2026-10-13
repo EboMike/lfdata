@@ -18,6 +18,7 @@ from lfdata.model.constants.time import (
 )
 
 __all__ = [
+    'BASE_ZAP_BUNDLE_WINDOW_MS',
     'CHAPTER_GETTING_READY_THRESHOLD_MS',
     'CHAPTER_MULTI_NUKE_WINDOW_MS',
     'CHAPTER_SPAN_THRESHOLD_MS',
@@ -47,6 +48,7 @@ DEFAULT_FPS: int = 60
 DEFAULT_EXTRA_FOOTAGE_MS: int = 10000
 DEFAULT_PREGAME_DELAY_MS: int = 0
 DEFAULT_FADE_DURATION_S: float = 1.0
+BASE_ZAP_BUNDLE_WINDOW_MS: int = 8000
 
 # Standard display resolution dimensions
 DEFAULT_FRAME_WIDTH: int = 1920

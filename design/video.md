@@ -290,6 +290,12 @@ by default:
 | Missiled base <base name>                       | Player missiled a base                                       |
 | Destroyed base <base name>                      | Player destroyed a base, not with a missile                  |
 
+When the focus player is zapping the same base multiple times within 8 seconds,
+each zap replaces the previous message instead of creating a new message:
+* First zap: "Zapped base <base name>"
+* Second zap: "2x Zapped base <base name>" (and increments for further zaps)
+* Destroy zap: "Destroyed base <base name>" (if it resulted in destruction)
+
 ### Important game events
 
 The following global events will be shown:

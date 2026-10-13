@@ -11,6 +11,8 @@ Usage example:
     elements = generator.get_elements_at(time_ms=60000)
 """
 
+from __future__ import annotations
+
 import bisect
 import dataclasses
 import random
@@ -26,6 +28,7 @@ from lfdata.model.gametypes.sm5_constants import SM5_SPECIAL_POINTS_NUKE
 from lfdata.replay import LFReplaySystem
 from lfdata.replay.state import LFReplayPlayerState, LFReplayTeamState
 from lfdata.video.constants import (
+    BASE_ZAP_BUNDLE_WINDOW_MS,
     DEFAULT_EXTRA_FOOTAGE_MS,
     DEFAULT_FADE_DURATION_S,
     DEFAULT_PREGAME_DELAY_MS,
@@ -560,8 +563,10 @@ class VisualElementGenerator:
 
             if et in ('0203', '0204'):
                 msg = self._process_hud_base_event(
+                    event=event,
                     et=et,
                     actor_id=actor_id,
+                    target_id=target_id,
                     target_name=target_name,
                 )
 
@@ -843,6 +848,9 @@ class VisualElementGenerator:
                 if et in ('0205', '0206', '0207', '0208'):
                     log_entry.base_desc = base_msg
                     log_entry.zap_count = 1
+                elif et in ('0203', '0204'):
+                    log_entry.base_desc = msg
+                    log_entry.zap_count = 1
                 self.player_event_log.append(log_entry)
 
         if not self.game.is_laserball:
@@ -1048,29 +1056,122 @@ class VisualElementGenerator:
                 return parsed if parsed > 0 else None
         return None
 
+    def _find_recent_base_zap_event(
+        self,
+        target_id: str | None,
+        event_time_ms: int,
+    ) -> LFPlayerEventLogEntry | None:
+        """Finds a recent un-destroyed base event for the current player.
+
+        Searches backward through the player event log for an event targeting
+        the specified base within the allowed zap bundling window.
+
+        Args:
+            target_id: The entity ID of the target base, or None.
+            event_time_ms: Timestamp in milliseconds of the new event.
+
+        Returns:
+            LFPlayerEventLogEntry | None: The matching event entry if found
+                within the bundling window and not yet destroyed, else None.
+        """
+        for ev in reversed(self.player_event_log):
+            if (
+                ev.actor_id == self.entity_id
+                and ev.target_id == target_id
+                and ev.event_type in ('0203', '0204')
+            ):
+                if ev.desc.startswith('Destroyed base') or any(
+                    u.desc.startswith('Destroyed base') for u in ev.updates
+                ):
+                    break
+                last_time_ms = ev.updates[-1].time if ev.updates else ev.time
+                if event_time_ms - last_time_ms <= BASE_ZAP_BUNDLE_WINDOW_MS:
+                    return ev
+                break
+        return None
+
+    def _bundle_hud_base_event(
+        self,
+        event: GameEvent,
+        ev: LFPlayerEventLogEntry,
+        et: str,
+        target_name: str,
+    ) -> None:
+        """Bundles a base interaction update into an existing log entry.
+
+        Updates the zap count, appends the replacement text update, and
+        extends the total duration of the base event entry.
+
+        Args:
+            event: The game event triggering the update.
+            ev: The existing player event log entry being updated.
+            et: The event type string code (e.g. '0203', '0204').
+            target_name: The display name of the target base entity.
+        """
+        count = ev.zap_count + 1
+        ev.zap_count = count
+        if et == '0204':
+            new_desc = f'Destroyed base {target_name}'
+        else:
+            new_desc = f'{count}x Zapped base {target_name}'
+
+        ev.updates.append(
+            LFPlayerEventUpdate(
+                time=event.time,
+                desc=new_desc,
+            )
+        )
+        el_config = self.config.get('elements', {}).get('player_events', {})
+        fade_time_s = el_config.get('fade_out_time')
+        if fade_time_s is None:
+            fade_time_s = self.config.get('fade_out_time', 3.0)
+        fade_time_ms = int(fade_time_s * MS_PER_SECOND)
+        ev.duration = (event.time - ev.time) + fade_time_ms
+
     def _process_hud_base_event(
         self,
+        event: GameEvent,
         et: str,
         actor_id: str | None,
+        target_id: str | None,
         target_name: str,
     ) -> str | None:
         """Processes a base interaction event and returns the HUD message.
 
         Checks whether the focused player interacted with a base (zapping or
         destroying without a missile) and returns the corresponding player
-        message string to display.
+        message string to display, or bundles consecutive zaps within 8 seconds
+        into updates on the existing log entry.
 
         Args:
+            event: The game event triggering the base interaction.
             et: The event type string code (e.g. '0203', '0204').
             actor_id: The entity ID of the actor player, or None.
+            target_id: The entity ID of the target base, or None.
             target_name: The display name of the target base entity.
 
         Returns:
             str | None: The event message description, or None if no message
-                should be shown.
+                should be shown or if the event was bundled.
         """
         if actor_id != self.entity_id:
             return None
+
+        bundle = self.config.get('bundle_zap_events', True)
+        if bundle:
+            prev_ev = self._find_recent_base_zap_event(
+                target_id=target_id,
+                event_time_ms=event.time,
+            )
+            if prev_ev is not None:
+                self._bundle_hud_base_event(
+                    event=event,
+                    ev=prev_ev,
+                    et=et,
+                    target_name=target_name,
+                )
+                return None
+
         if et == '0203':
             return f'Zapped base {target_name}'
         if et == '0204':

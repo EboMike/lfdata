@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime
 from lfdata.model import (
     GameEntity,
@@ -2924,16 +2926,257 @@ def test_player_events_base_zap_and_destroy() -> None:
     ]
 
     hud_gen = VisualElementGenerator(game=game, player_name='Player1')
-    p_evs = [ev.desc for ev in hud_gen.player_event_log]
-    assert p_evs == ['Zapped base Earth Base', 'Destroyed base Earth Base']
+    assert len(hud_gen.player_event_log) == 1
+    log_entry = hud_gen.player_event_log[0]
+    assert log_entry.time == 1000
+    assert log_entry.desc == 'Zapped base Earth Base'
+    assert log_entry.actor_id == 'P1'
+    assert log_entry.target_id == 'B1'
+    assert log_entry.event_type == '0203'
+    assert len(log_entry.updates) == 1
+    assert log_entry.updates[0].time == 4000
+    assert log_entry.updates[0].desc == 'Destroyed base Earth Base'
+
+
+def test_player_events_base_zap_consecutive_replacements() -> None:
+    game = LFGame(
+        game_id='sm5_base_bundle',
+        game_type='SM5',
+        duration=60000,
+    )
+    p1 = GameEntity(
+        game_id='sm5_base_bundle',
+        entity_id='P1',
+        type='player',
+        desc='Player1',
+        team_index=0,
+        category=1,
+    )
+    base = GameEntity(
+        game_id='sm5_base_bundle',
+        entity_id='B1',
+        type='base',
+        desc='Earth Base',
+        team_index=1,
+    )
+    game.entities = [p1, base]
+    game.teams = [
+        GameTeam(
+            game_id='sm5_base_bundle',
+            team_index=0,
+            desc='Fire Team',
+            color_enum=11,
+            color_desc='Fire',
+            color_rgb='#FF5000',
+        ),
+        GameTeam(
+            game_id='sm5_base_bundle',
+            team_index=1,
+            desc='Earth Team',
+            color_enum=12,
+            color_desc='Earth',
+            color_rgb='#00FF00',
+        ),
+    ]
+    game.events = [
+        GameEvent(
+            time=1000,
+            event_type='0203',
+            actor_entity_id='P1',
+            target_entity_id='B1',
+        ),
+        GameEvent(
+            time=3000,
+            event_type='0203',
+            actor_entity_id='P1',
+            target_entity_id='B1',
+        ),
+        GameEvent(
+            time=6000,
+            event_type='0203',
+            actor_entity_id='P1',
+            target_entity_id='B1',
+        ),
+        GameEvent(
+            time=9000,
+            event_type='0204',
+            actor_entity_id='P1',
+            target_entity_id='B1',
+        ),
+    ]
+
+    hud_gen = VisualElementGenerator(game=game, player_name='Player1')
+    assert len(hud_gen.player_event_log) == 1
+    log_entry = hud_gen.player_event_log[0]
+    assert log_entry.time == 1000
+    assert log_entry.desc == 'Zapped base Earth Base'
+    assert len(log_entry.updates) == 3
+    assert log_entry.updates[0].time == 3000
+    assert log_entry.updates[0].desc == '2x Zapped base Earth Base'
+    assert log_entry.updates[1].time == 6000
+    assert log_entry.updates[1].desc == '3x Zapped base Earth Base'
+    assert log_entry.updates[2].time == 9000
+    assert log_entry.updates[2].desc == 'Destroyed base Earth Base'
+
+    # Check rendered text across the timeline
+    def get_first_event_text(time_ms: int) -> str | None:
+        elements = hud_gen.generate_at(time_ms)
+        for el in elements:
+            if (
+                el.element_type == 'text'
+                and el.text
+                and 'Earth Base' in el.text
+            ):
+                return el.text
+        return None
+
+    assert get_first_event_text(2000) == 'Zapped base Earth Base'
+    assert get_first_event_text(4000) == '2x Zapped base Earth Base'
+    assert get_first_event_text(7000) == '3x Zapped base Earth Base'
+    assert get_first_event_text(10000) == 'Destroyed base Earth Base'
+
+
+def test_player_events_base_zap_exceeds_window() -> None:
+    game = LFGame(
+        game_id='sm5_base_window',
+        game_type='SM5',
+        duration=60000,
+    )
+    p1 = GameEntity(
+        game_id='sm5_base_window',
+        entity_id='P1',
+        type='player',
+        desc='Player1',
+        team_index=0,
+        category=1,
+    )
+    base = GameEntity(
+        game_id='sm5_base_window',
+        entity_id='B1',
+        type='base',
+        desc='Earth Base',
+        team_index=1,
+    )
+    game.entities = [p1, base]
+    game.teams = [
+        GameTeam(
+            game_id='sm5_base_window',
+            team_index=0,
+            desc='Fire Team',
+            color_enum=11,
+            color_desc='Fire',
+            color_rgb='#FF5000',
+        ),
+        GameTeam(
+            game_id='sm5_base_window',
+            team_index=1,
+            desc='Earth Team',
+            color_enum=12,
+            color_desc='Earth',
+            color_rgb='#00FF00',
+        ),
+    ]
+    # Zap 1 at 1000, Zap 2 at 10000 (>8000ms), Zap 3 at 12000 (<=8000ms)
+    game.events = [
+        GameEvent(
+            time=1000,
+            event_type='0203',
+            actor_entity_id='P1',
+            target_entity_id='B1',
+        ),
+        GameEvent(
+            time=10000,
+            event_type='0203',
+            actor_entity_id='P1',
+            target_entity_id='B1',
+        ),
+        GameEvent(
+            time=12000,
+            event_type='0204',
+            actor_entity_id='P1',
+            target_entity_id='B1',
+        ),
+    ]
+
+    hud_gen = VisualElementGenerator(game=game, player_name='Player1')
+    assert len(hud_gen.player_event_log) == 2
     assert hud_gen.player_event_log[0].time == 1000
-    assert hud_gen.player_event_log[0].actor_id == 'P1'
-    assert hud_gen.player_event_log[0].target_id == 'B1'
-    assert hud_gen.player_event_log[0].event_type == '0203'
-    assert hud_gen.player_event_log[1].time == 4000
-    assert hud_gen.player_event_log[1].actor_id == 'P1'
-    assert hud_gen.player_event_log[1].target_id == 'B1'
-    assert hud_gen.player_event_log[1].event_type == '0204'
+    assert hud_gen.player_event_log[0].desc == 'Zapped base Earth Base'
+    assert len(hud_gen.player_event_log[0].updates) == 0
+
+    assert hud_gen.player_event_log[1].time == 10000
+    assert hud_gen.player_event_log[1].desc == 'Zapped base Earth Base'
+    assert len(hud_gen.player_event_log[1].updates) == 1
+    assert hud_gen.player_event_log[1].updates[0].time == 12000
+    assert (
+        hud_gen.player_event_log[1].updates[0].desc
+        == 'Destroyed base Earth Base'
+    )
+
+
+def test_player_events_base_zap_bundle_disabled() -> None:
+    game = LFGame(
+        game_id='sm5_base_nobundle',
+        game_type='SM5',
+        duration=60000,
+    )
+    p1 = GameEntity(
+        game_id='sm5_base_nobundle',
+        entity_id='P1',
+        type='player',
+        desc='Player1',
+        team_index=0,
+        category=1,
+    )
+    base = GameEntity(
+        game_id='sm5_base_nobundle',
+        entity_id='B1',
+        type='base',
+        desc='Earth Base',
+        team_index=1,
+    )
+    game.entities = [p1, base]
+    game.teams = [
+        GameTeam(
+            game_id='sm5_base_nobundle',
+            team_index=0,
+            desc='Fire Team',
+            color_enum=11,
+            color_desc='Fire',
+            color_rgb='#FF5000',
+        ),
+        GameTeam(
+            game_id='sm5_base_nobundle',
+            team_index=1,
+            desc='Earth Team',
+            color_enum=12,
+            color_desc='Earth',
+            color_rgb='#00FF00',
+        ),
+    ]
+    game.events = [
+        GameEvent(
+            time=1000,
+            event_type='0203',
+            actor_entity_id='P1',
+            target_entity_id='B1',
+        ),
+        GameEvent(
+            time=2000,
+            event_type='0203',
+            actor_entity_id='P1',
+            target_entity_id='B1',
+        ),
+    ]
+
+    hud_gen = VisualElementGenerator(
+        game=game,
+        player_name='Player1',
+        config={'bundle_zap_events': False},
+    )
+    assert len(hud_gen.player_event_log) == 2
+    assert hud_gen.player_event_log[0].desc == 'Zapped base Earth Base'
+    assert hud_gen.player_event_log[1].desc == 'Zapped base Earth Base'
 
 
 def test_player_events_base_missile() -> None:
