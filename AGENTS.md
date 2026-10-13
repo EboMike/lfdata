@@ -1,3 +1,5 @@
+<!-- BEGIN SHARED INSTRUCTIONS -->
+
 # Code generation rules
 
 ## Python guidelines
@@ -23,7 +25,7 @@
 * Lines should not exceed 80 characters unless they contain strings that
   cannot be broken up, like URLs.
 * Unused imports must be removed.
-* All imports must be on the top of the file, unless there is a reason to
+* All imports *MUST* be on the top of the file, unless there is a reason to
   import later.
 * All functions must have docstrings, except in test files.
 * The docstring for a function must have a one-line summary, then a blank
@@ -41,24 +43,10 @@
   need to be exposed. Everything beyond that needs to be in separate files.
 * Use guard clauses and early-outs to reduce nesting.
 
-## System design
-
-Read all `.md` files in the `design` directory and apply them when making
-any code changes. Be sure to maintain this order:
-
-1. `lf-structure.md`
-2. `games.md`
-3. `gametype-sm5.md`
-4. `tdf-files.md`
-5. `replay.md`
-6. `video.md`
-7. Everything else
-
 ## Code generation
 
 * Data classes should use sqlalchemy and be as independent as possible of the
   actual SQL engine being used.
-* TDF is not an acronym. Do not try to explain its meaning.
 * Do not use absolute paths, even during tests. All path references must be
   relative.
 * Any data point that can a finite set of values, for example team colors,
@@ -72,6 +60,8 @@ any code changes. Be sure to maintain this order:
   unless they cannot be broken down.
 * Initializing dataclasses must be done with named parameters unless there is no
   ambiguity, like a single argument whose purpose is clear from the name.
+* Multi-line strings (using `"""`) must always use double-quotes, not
+  single-quotes, i.e. `"""` instead of `'''`.
 * Do not use magic numbers or magic strings unless their meaning is obvious.
   Instead, define them as constants. If they are shared in multiple places, define
   the constant in a shared, common location.
@@ -93,6 +83,47 @@ any code changes. Be sure to maintain this order:
   quick usage example. It should be short, and not repeat information already
   explained in the file-level docstring or class docstring.
 * In a class, all public attributes must be listed.
+
+## Database management
+
+* Any change to a database schema must be handled by the code so that it automatically
+  updates the schema on startup if necessary.
+
+## Persistent decisions
+
+If any command or any conversation introduced important design decisions that will
+apply to further decisions and are not currently captured in any existing document,
+add them to the `design/additional_context.md`.
+
+## Additional instructions
+
+If there is an `private.AGENTS.md` file, read it entirely and follow all instructions.
+
+## Ambiguity
+
+If a task is unclear and requires deeper research, stop and prompt the user for
+clarification if this avoids a lot of expensive investigation.
+
+## Post-operation instructions
+
+After completing a task, assess if there were any unclear instructions in the global
+prompts, such as `AGENTS.md`, that resulted in unnecesary additional investigation to
+complete the task, and make suggestions to improve future tasks.
+
+<!-- END SHARED INSTRUCTIONS -->
+
+## System design
+
+Read all `.md` files in the `design` directory and apply them when making
+any code changes. Be sure to maintain this order:
+
+1. `lf-structure.md`
+2. `games.md`
+3. `gametype-sm5.md`
+4. `tdf-files.md`
+5. `replay.md`
+6. `video.md`
+7. Everything else
 
 ## Code structure
 
@@ -133,13 +164,3 @@ The command line tool has these arguments:
   over.
 * --video_out: Filename of the video to generate from the images that were
   rendered.
-
-## Persistent decisions
-
-If any command or any conversation introduced important design decisions that will
-apply to further decisions and are not currently captured in any existing document,
-add them to the `design/additional_context.md`.
-
-## Additional instructions
-
-If there is an `private.AGENTS.md` file, read it entirely and follow all instructions.
