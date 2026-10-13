@@ -1,4 +1,7 @@
 from lfdata.model.gametypes.laserball_events import (
+    LASERBALL_EVENT_BLOCK,
+    LASERBALL_EVENT_GOAL,
+    LASERBALL_EVENT_STEAL,
     LaserballEvent,
     LaserballEventInfo,
 )
@@ -15,16 +18,16 @@ def test_laserball_event_info() -> None:
 
 def test_laserball_event_members() -> None:
     goal = LaserballEvent.GOAL
-    assert goal.event_id == '1101'
+    assert goal.event_id == LASERBALL_EVENT_GOAL
     assert goal.display_name == 'GOAL'
     assert 'scores' in goal.description.lower()
 
     steal = LaserballEvent.STEAL
-    assert steal.event_id == '1103'
+    assert steal.event_id == LASERBALL_EVENT_STEAL
     assert steal.display_name == 'STEAL'
 
     block = LaserballEvent.BLOCK
-    assert block.event_id == '1104'
+    assert block.event_id == LASERBALL_EVENT_BLOCK
     assert block.display_name == 'BLOCK'
 
 

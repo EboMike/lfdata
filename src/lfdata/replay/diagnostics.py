@@ -22,6 +22,13 @@ from lfdata.model.gametypes.sm5_constants import (
     SM5_BOOST_AMBIGUITY_WINDOW_MS,
     SM5_DOWNTIME_SAFE_MS,
 )
+from lfdata.model.gametypes.sm5_events import (
+    SM5_EVENT_AMMO_BOOST,
+    SM5_EVENT_CLAIM_BEACON,
+    SM5_EVENT_LIFE_BOOST,
+    SM5_EVENT_MISSION_END,
+    SM5_EVENT_WARBOT_ZAP,
+)
 from lfdata.replay.record import LFReplayEventRecord
 from lfdata.replay.replay import LFReplaySystem
 from lfdata.replay.state import LFPlayerState, LFReplayPlayerState
@@ -456,7 +463,7 @@ class LFReplayDiagnostics:
             end_ms = None
         if end_ms is None:
             for ev in self.game.events:
-                if ev.event_type == '0101':
+                if ev.event_type == SM5_EVENT_MISSION_END:
                     end_ms = ev.time
                     break
             if end_ms is None and self.game.events:
@@ -647,7 +654,7 @@ class LFReplayDiagnostics:
         if not self.game.events:
             return events
         for ev in self.game.events:
-            if ev.event_type == '0209' and (
+            if ev.event_type == SM5_EVENT_WARBOT_ZAP and (
                 ev.target_entity_id == entity_id
                 or ev.actor_entity_id == entity_id
             ):
@@ -667,7 +674,10 @@ class LFReplayDiagnostics:
         if not self.game.events:
             return events
         for ev in self.game.events:
-            if ev.event_type == '0B00' and ev.actor_entity_id == entity_id:
+            if (
+                ev.event_type == SM5_EVENT_CLAIM_BEACON
+                and ev.actor_entity_id == entity_id
+            ):
                 events.append(ev)
         return events
 
@@ -831,7 +841,7 @@ class LFReplayDiagnostics:
             )
             self._analyze_boost_type(
                 player=player,
-                event_type='0512',
+                event_type=SM5_EVENT_LIFE_BOOST,
                 boost_name='Team Life Boost',
                 diff_amount=diff,
                 field_name='lives',
@@ -846,7 +856,7 @@ class LFReplayDiagnostics:
             )
             self._analyze_boost_type(
                 player=player,
-                event_type='0510',
+                event_type=SM5_EVENT_AMMO_BOOST,
                 boost_name='Team Ammo Boost',
                 diff_amount=diff,
                 field_name='shots',

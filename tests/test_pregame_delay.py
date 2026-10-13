@@ -1,5 +1,6 @@
 from datetime import datetime
 from lfdata.model import LFGame, GameTeam, GameEntity, GameEvent
+from lfdata.model.gametypes.sm5_events import SM5_EVENT_MISSION_START
 from lfdata.video import VideoGenerator, VisualElementGenerator
 from lfdata.video.element import UIElement
 from lfdata.video.helpers import DEFAULT_CONFIG
@@ -29,7 +30,7 @@ def test_determine_video_end_ms_with_pregame_delay() -> None:
         GameEvent(
             game_id='test_end_ms',
             time=0,
-            event_type='0100',
+            event_type=SM5_EVENT_MISSION_START,
             action='start',
             raw_message='',
         )
@@ -58,7 +59,7 @@ def test_ui_element_visibility_and_fading() -> None:
         GameEvent(
             game_id='test_fading',
             time=0,
-            event_type='0100',
+            event_type=SM5_EVENT_MISSION_START,
             action='start',
             raw_message='',
         )
@@ -162,7 +163,7 @@ def test_game_time_shifting_with_pregame_delay() -> None:
         GameEvent(
             game_id='test_shifting',
             time=0,
-            event_type='0100',
+            event_type=SM5_EVENT_MISSION_START,
             action='start',
             raw_message='',
         )
@@ -198,7 +199,7 @@ def test_user_defined_text_elements() -> None:
         GameEvent(
             game_id='test_shifting',
             time=0,
-            event_type='0100',
+            event_type=SM5_EVENT_MISSION_START,
             action='start',
             raw_message='',
         )

@@ -39,6 +39,7 @@ from lfdata.replay import LFReplaySystem
 from lfdata.replay.state import LFReplayPlayerState
 
 from lfdata.model.constants.time import MS_PER_SECOND
+from lfdata.model.gametypes.sm5_events import SM5_EVENT_MISSION_END
 
 DEFAULT_DUMP_INTERVAL_MS: int = MS_PER_SECOND
 
@@ -177,7 +178,7 @@ class TdfStateDumper:
                     )
                 )
 
-            if event.event_type == '0101':
+            if event.event_type == SM5_EVENT_MISSION_END:
                 break
 
         final_time_ms = (

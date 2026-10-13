@@ -110,6 +110,9 @@ After completing a task, assess if there were any unclear instructions in the gl
 prompts, such as `AGENTS.md`, that resulted in unnecesary additional investigation to
 complete the task, and make suggestions to improve future tasks.
 
+This includes complications because the build environment was not set up correctly and
+certain tools were missing or skills or MCP servers were not installed.
+
 <!-- END SHARED INSTRUCTIONS -->
 
 ## System design

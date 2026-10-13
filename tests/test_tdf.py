@@ -5,6 +5,17 @@ import pytest
 from lfdata import parse_tdf as top_level_parse_tdf
 from lfdata.importer import TdfImporter, parse_tdf
 from lfdata.model import LFGame
+from lfdata.model.gametypes.laserball_events import (
+    LASERBALL_EVENT_BLOCK,
+    LASERBALL_EVENT_GETS_BALL,
+    LASERBALL_EVENT_GOAL,
+    LASERBALL_EVENT_ROUND_START,
+    LASERBALL_EVENT_STEAL,
+)
+from lfdata.model.gametypes.sm5_events import (
+    SM5_EVENT_CLAIM_BEACON,
+    SM5_EVENT_WARBOT_ZAP,
+)
 
 
 def test_parse_tdf_helper() -> None:
@@ -137,19 +148,19 @@ def test_tdf_importer_parse_event_0b00(tmp_path: Path) -> None:
     assert len(game.events) == 3
 
     assert game.events[0].time == 15000
-    assert game.events[0].event_type == '0B00'
+    assert game.events[0].event_type == SM5_EVENT_CLAIM_BEACON
     assert game.events[0].actor_entity_id == '#P1'
     assert game.events[0].action == 'claims a beacon'
     assert game.events[0].target_entity_id is None
 
     assert game.events[1].time == 20000
-    assert game.events[1].event_type == '0B00'
+    assert game.events[1].event_type == SM5_EVENT_CLAIM_BEACON
     assert game.events[1].actor_entity_id == '#P2'
     assert game.events[1].action == 'claims a beacon'
     assert game.events[1].target_entity_id == '@B1'
 
     assert game.events[2].time == 25000
-    assert game.events[2].event_type == '0B00'
+    assert game.events[2].event_type == SM5_EVENT_CLAIM_BEACON
     assert game.events[2].actor_entity_id == '#P3'
     assert game.events[2].action == 'claims a beacon'
     assert game.events[2].target_entity_id is None
@@ -168,7 +179,7 @@ def test_tdf_importer_parse_event_0209(tmp_path: Path) -> None:
 
     assert len(game.events) == 1
     assert game.events[0].time == 12000
-    assert game.events[0].event_type == '0209'
+    assert game.events[0].event_type == SM5_EVENT_WARBOT_ZAP
     assert game.events[0].actor_entity_id == '#W1'
     assert game.events[0].action == 'zaps'
     assert game.events[0].target_entity_id == '#P1'
@@ -209,24 +220,24 @@ def test_tdf_importer_parse_laserball(tmp_path: Path) -> None:
     assert len(game.events) == 5
 
     # Event 1105
-    assert game.events[0].event_type == '1105'
+    assert game.events[0].event_type == LASERBALL_EVENT_ROUND_START
 
     # Event 1107
-    assert game.events[1].event_type == '1107'
+    assert game.events[1].event_type == LASERBALL_EVENT_GETS_BALL
     assert game.events[1].actor_entity_id == '#P1'
 
     # Event 1104
-    assert game.events[2].event_type == '1104'
+    assert game.events[2].event_type == LASERBALL_EVENT_BLOCK
     assert game.events[2].actor_entity_id == '#P2'
     assert game.events[2].target_entity_id == '#P1'
 
     # Event 1103
-    assert game.events[3].event_type == '1103'
+    assert game.events[3].event_type == LASERBALL_EVENT_STEAL
     assert game.events[3].actor_entity_id == '#P2'
     assert game.events[3].target_entity_id == '#P1'
 
     # Event 1101
-    assert game.events[4].event_type == '1101'
+    assert game.events[4].event_type == LASERBALL_EVENT_GOAL
     assert game.events[4].actor_entity_id == '#P2'
 
     # Type 7 stats

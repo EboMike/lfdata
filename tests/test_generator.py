@@ -8,6 +8,35 @@ from lfdata.model import (
     LFGame,
     PlayerStateHistory,
 )
+from lfdata.model.gametypes.laserball_events import (
+    LASERBALL_EVENT_BLOCK,
+    LASERBALL_EVENT_CLEAR,
+    LASERBALL_EVENT_GETS_BALL,
+    LASERBALL_EVENT_GOAL,
+    LASERBALL_EVENT_PASS,
+    LASERBALL_EVENT_ROUND_END,
+    LASERBALL_EVENT_ROUND_START,
+    LASERBALL_EVENT_STEAL,
+)
+from lfdata.model.gametypes.sm5_events import (
+    SM5_EVENT_ACTIVATE_NUKE,
+    SM5_EVENT_BASE_AWARDED,
+    SM5_EVENT_DAMAGED_OPPONENT,
+    SM5_EVENT_DESTROY_BASE,
+    SM5_EVENT_DETONATE_NUKE,
+    SM5_EVENT_DOWNED_OPPONENT,
+    SM5_EVENT_HIT_BASE,
+    SM5_EVENT_LOCKING,
+    SM5_EVENT_MISS,
+    SM5_EVENT_MISSILE_BASE_DAMAGE,
+    SM5_EVENT_MISSILE_BASE_DESTROY,
+    SM5_EVENT_MISSILE_DOWN_OPPONENT,
+    SM5_EVENT_MISSILE_MISS,
+    SM5_EVENT_MISSION_START,
+    SM5_EVENT_PENALTY,
+    SM5_EVENT_RESUPPLY_AMMO,
+    SM5_EVENT_RESUPPLY_LIVES,
+)
 from lfdata.video.generator import (
     VisualElementGenerator,
     LFNukeInterval,
@@ -66,14 +95,14 @@ def test_visual_element_generator() -> None:
         GameEvent(
             game_id='test_rule_game',
             time=0,
-            event_type='0100',
+            event_type=SM5_EVENT_MISSION_START,
             action='start',
             raw_message='',
         ),
         GameEvent(
             game_id='test_rule_game',
             time=3000,
-            event_type='0206',
+            event_type=SM5_EVENT_DOWNED_OPPONENT,
             actor_entity_id='E2',
             target_entity_id='C1',
             action='zaps',
@@ -156,7 +185,7 @@ def test_visual_element_generator_authoritative_downtime_bar() -> None:
         GameEvent(
             game_id='test_auth_dt_game',
             time=0,
-            event_type='0100',
+            event_type=SM5_EVENT_MISSION_START,
             action='start',
             raw_message='',
         ),
@@ -237,7 +266,7 @@ def test_visual_element_generator_new_features() -> None:
         GameEvent(
             game_id='test_vid_game2',
             time=0,
-            event_type='0100',
+            event_type=SM5_EVENT_MISSION_START,
             action='start',
             raw_message='',
         )
@@ -305,7 +334,7 @@ def test_generator_heavy_no_special_points() -> None:
         GameEvent(
             game_id='test_heavy_sp_generator',
             time=0,
-            event_type='0100',
+            event_type=SM5_EVENT_MISSION_START,
             action='start',
             raw_message='',
         )
@@ -422,7 +451,7 @@ def test_scoreboard_hp_total_filtering() -> None:
         GameEvent(
             game_id='test_hp_filter',
             time=0,
-            event_type='0100',
+            event_type=SM5_EVENT_MISSION_START,
             action='start',
             raw_message='',
         )
@@ -496,14 +525,14 @@ def test_event_scroller_miss_filtering() -> None:
         GameEvent(
             game_id='test_scroller_miss',
             time=0,
-            event_type='0100',
+            event_type=SM5_EVENT_MISSION_START,
             action='start',
             raw_message='',
         ),
         GameEvent(
             game_id='test_scroller_miss',
             time=1000,
-            event_type='0201',
+            event_type=SM5_EVENT_MISS,
             actor_entity_id='P1',
             action='miss',
             raw_message='',
@@ -511,7 +540,7 @@ def test_event_scroller_miss_filtering() -> None:
         GameEvent(
             game_id='test_scroller_miss',
             time=2000,
-            event_type='0203',
+            event_type=SM5_EVENT_HIT_BASE,
             actor_entity_id='P1',
             target_entity_id='P2',
             action='zap',
@@ -597,7 +626,7 @@ def test_important_events_filtering() -> None:
         GameEvent(
             game_id='test_important_filter',
             time=0,
-            event_type='0100',
+            event_type=SM5_EVENT_MISSION_START,
             action='start',
             raw_message='',
         ),
@@ -605,7 +634,7 @@ def test_important_events_filtering() -> None:
         GameEvent(
             game_id='test_important_filter',
             time=1000,
-            event_type='0204',
+            event_type=SM5_EVENT_DESTROY_BASE,
             actor_entity_id='E1',
             target_entity_id='B0',
             action='base_destroy',
@@ -615,7 +644,7 @@ def test_important_events_filtering() -> None:
         GameEvent(
             game_id='test_important_filter',
             time=1500,
-            event_type='0303',
+            event_type=SM5_EVENT_MISSILE_BASE_DESTROY,
             actor_entity_id='E1',
             target_entity_id='B0',
             action='base_destroy_missile',
@@ -625,7 +654,7 @@ def test_important_events_filtering() -> None:
         GameEvent(
             game_id='test_important_filter',
             time=1800,
-            event_type='0B03',
+            event_type=SM5_EVENT_BASE_AWARDED,
             actor_entity_id='E1',
             target_entity_id='B0',
             action='target_award',
@@ -635,7 +664,7 @@ def test_important_events_filtering() -> None:
         GameEvent(
             game_id='test_important_filter',
             time=2000,
-            event_type='0404',
+            event_type=SM5_EVENT_ACTIVATE_NUKE,
             actor_entity_id='E1',
             action='nuke_activate',
             raw_message='',
@@ -644,7 +673,7 @@ def test_important_events_filtering() -> None:
         GameEvent(
             game_id='test_important_filter',
             time=3000,
-            event_type='0405',
+            event_type=SM5_EVENT_DETONATE_NUKE,
             actor_entity_id='E1',
             action='nuke_detonate',
             raw_message='',
@@ -659,7 +688,7 @@ def test_important_events_filtering() -> None:
             GameEvent(
                 game_id='test_important_filter',
                 time=12000 + i * 9000,
-                event_type='0206',
+                event_type=SM5_EVENT_DOWNED_OPPONENT,
                 actor_entity_id='E1',
                 target_entity_id='M0',
                 action='zap',
@@ -766,7 +795,7 @@ def test_generator_commander_nuke_events() -> None:
         GameEvent(
             game_id='test_cmdr_nukes',
             time=0,
-            event_type='0100',
+            event_type=SM5_EVENT_MISSION_START,
             action='start',
             raw_message='',
         )
@@ -777,7 +806,7 @@ def test_generator_commander_nuke_events() -> None:
             GameEvent(
                 game_id='test_cmdr_nukes',
                 time=i * 1000,
-                event_type='0205',
+                event_type=SM5_EVENT_DAMAGED_OPPONENT,
                 actor_entity_id='C0',
                 target_entity_id='E1',
                 action='zap',
@@ -790,7 +819,7 @@ def test_generator_commander_nuke_events() -> None:
         GameEvent(
             game_id='test_cmdr_nukes',
             time=45000,
-            event_type='0404',
+            event_type=SM5_EVENT_ACTIVATE_NUKE,
             actor_entity_id='C0',
             action='nuke_activate',
             raw_message='',
@@ -803,7 +832,7 @@ def test_generator_commander_nuke_events() -> None:
             GameEvent(
                 game_id='test_cmdr_nukes',
                 time=45000 + i * 1000,
-                event_type='0205',
+                event_type=SM5_EVENT_DAMAGED_OPPONENT,
                 actor_entity_id='C0',
                 target_entity_id='E1',
                 action='zap',
@@ -892,7 +921,7 @@ def test_generator_commander_nuke_events_earth_team() -> None:
         GameEvent(
             game_id='test_cmdr_earth',
             time=0,
-            event_type='0100',
+            event_type=SM5_EVENT_MISSION_START,
             action='start',
             raw_message='',
         )
@@ -903,7 +932,7 @@ def test_generator_commander_nuke_events_earth_team() -> None:
             GameEvent(
                 game_id='test_cmdr_earth',
                 time=i * 1000,
-                event_type='0205',
+                event_type=SM5_EVENT_DAMAGED_OPPONENT,
                 actor_entity_id='C1',
                 target_entity_id='F0',
                 action='zap',
@@ -978,7 +1007,7 @@ def test_camera_shake_triggering() -> None:
         GameEvent(
             game_id='test_shake_game',
             time=1000,
-            event_type='0306',
+            event_type=SM5_EVENT_MISSILE_DOWN_OPPONENT,
             actor_entity_id='E1',
             target_entity_id='M0',
             action='missile',
@@ -987,7 +1016,7 @@ def test_camera_shake_triggering() -> None:
         GameEvent(
             game_id='test_shake_game',
             time=3000,
-            event_type='0405',
+            event_type=SM5_EVENT_DETONATE_NUKE,
             actor_entity_id='E1',
             action='nuke_detonate',
             raw_message='',
@@ -1292,7 +1321,7 @@ def test_double_resupply_in_place_replacement() -> None:
     ev1 = GameEvent(
         game_id='test_double_resup_game',
         time=1000,
-        event_type='0500',
+        event_type=SM5_EVENT_RESUPPLY_AMMO,
         actor_entity_id='A1',
         target_entity_id='P1',
     )
@@ -1306,7 +1335,7 @@ def test_double_resupply_in_place_replacement() -> None:
     ev2 = GameEvent(
         game_id='test_double_resup_game',
         time=1500,
-        event_type='0502',
+        event_type=SM5_EVENT_RESUPPLY_LIVES,
         actor_entity_id='M1',
         target_entity_id='P1',
     )
@@ -1845,7 +1874,7 @@ def test_generator_missile_lock_and_followup() -> None:
     ev1 = GameEvent(
         game_id='test_missile_lock_game',
         time=1000,
-        event_type='0300',
+        event_type=SM5_EVENT_LOCKING,
         actor_entity_id='P1',
         target_entity_id='P2',
     )
@@ -1860,7 +1889,7 @@ def test_generator_missile_lock_and_followup() -> None:
     ev2 = GameEvent(
         game_id='test_missile_lock_game',
         time=3000,
-        event_type='0306',
+        event_type=SM5_EVENT_MISSILE_DOWN_OPPONENT,
         actor_entity_id='P1',
         target_entity_id='P2',
     )
@@ -1895,7 +1924,7 @@ def test_generator_missile_lock_and_followup() -> None:
     ev3 = GameEvent(
         game_id='test_missile_lock_game',
         time=5000,
-        event_type='0300',
+        event_type=SM5_EVENT_LOCKING,
         actor_entity_id='P2',
         target_entity_id='P1',
     )
@@ -1909,7 +1938,7 @@ def test_generator_missile_lock_and_followup() -> None:
     ev4 = GameEvent(
         game_id='test_missile_lock_game',
         time=7000,
-        event_type='0304',
+        event_type=SM5_EVENT_MISSILE_MISS,
         actor_entity_id='P2',
         target_entity_id=None,
     )
@@ -1937,7 +1966,7 @@ def test_generator_missile_lock_and_followup() -> None:
     ev5 = GameEvent(
         game_id='test_missile_lock_game',
         time=10000,
-        event_type='0300',
+        event_type=SM5_EVENT_LOCKING,
         actor_entity_id='P1',
         target_entity_id='P3',
     )
@@ -1950,7 +1979,7 @@ def test_generator_missile_lock_and_followup() -> None:
     ev6 = GameEvent(
         game_id='test_missile_lock_game',
         time=12000,
-        event_type='0300',
+        event_type=SM5_EVENT_LOCKING,
         actor_entity_id='P3',
         target_entity_id='P1',
     )
@@ -1964,7 +1993,7 @@ def test_generator_missile_lock_and_followup() -> None:
     ev7 = GameEvent(
         game_id='test_missile_lock_game',
         time=20000,
-        event_type='0306',
+        event_type=SM5_EVENT_MISSILE_DOWN_OPPONENT,
         actor_entity_id='P1',
         target_entity_id='P2',
     )
@@ -2073,7 +2102,7 @@ def test_generator_show_hit_points_in_events() -> None:
     ev1 = GameEvent(
         game_id='test_hp_events_game',
         time=1000,
-        event_type='0205',
+        event_type=SM5_EVENT_DAMAGED_OPPONENT,
         actor_entity_id='P2',
         target_entity_id='P1',
     )
@@ -2088,7 +2117,7 @@ def test_generator_show_hit_points_in_events() -> None:
     ev2 = GameEvent(
         game_id='test_hp_events_game',
         time=2000,
-        event_type='0205',
+        event_type=SM5_EVENT_DAMAGED_OPPONENT,
         actor_entity_id='P1',
         target_entity_id='P2',
     )
@@ -2110,7 +2139,7 @@ def test_generator_show_hit_points_in_events() -> None:
     ev3 = GameEvent(
         game_id='test_hp_events_game',
         time=3000,
-        event_type='0205',
+        event_type=SM5_EVENT_DAMAGED_OPPONENT,
         actor_entity_id='P1',
         target_entity_id='P2',
     )
@@ -2162,7 +2191,7 @@ def test_generator_bundle_zap_events() -> None:
     ev1 = GameEvent(
         game_id='test_bundle_zap_game',
         time=1000,
-        event_type='0205',
+        event_type=SM5_EVENT_DAMAGED_OPPONENT,
         actor_entity_id='P1',
         target_entity_id='P2',
     )
@@ -2176,7 +2205,7 @@ def test_generator_bundle_zap_events() -> None:
     ev2 = GameEvent(
         game_id='test_bundle_zap_game',
         time=2000,
-        event_type='0205',
+        event_type=SM5_EVENT_DAMAGED_OPPONENT,
         actor_entity_id='P1',
         target_entity_id='P2',
     )
@@ -2211,7 +2240,7 @@ def test_generator_bundle_zap_events() -> None:
     ev3 = GameEvent(
         game_id='test_bundle_zap_game',
         time=3000,
-        event_type='0205',
+        event_type=SM5_EVENT_DAMAGED_OPPONENT,
         actor_entity_id='P1',
         target_entity_id='P3',
     )
@@ -2556,7 +2585,7 @@ def test_penalty_player_event_and_downtime() -> None:
         GameEvent(
             game_id='test_penalty_game',
             time=1000,
-            event_type='0600',
+            event_type=SM5_EVENT_PENALTY,
             actor_entity_id='P2',
             action='penalty',
             raw_message='',
@@ -2565,7 +2594,7 @@ def test_penalty_player_event_and_downtime() -> None:
         GameEvent(
             game_id='test_penalty_game',
             time=3000,
-            event_type='0600',
+            event_type=SM5_EVENT_PENALTY,
             actor_entity_id='P1',
             action='penalty',
             raw_message='',
@@ -2692,35 +2721,51 @@ def test_laserball_generator_events_and_scoreboard():
         ),
     ]
     game.events = [
-        GameEvent(time=1000, event_type='1105', action='* Round Start *'),
-        GameEvent(time=2000, event_type='1107', actor_entity_id='P1'),
+        GameEvent(
+            time=1000,
+            event_type=LASERBALL_EVENT_ROUND_START,
+            action='* Round Start *',
+        ),
+        GameEvent(
+            time=2000,
+            event_type=LASERBALL_EVENT_GETS_BALL,
+            actor_entity_id='P1',
+        ),
         GameEvent(
             time=3000,
-            event_type='1100',
+            event_type=LASERBALL_EVENT_PASS,
             actor_entity_id='P1',
             target_entity_id='P2',
         ),
         GameEvent(
             time=4000,
-            event_type='1103',
+            event_type=LASERBALL_EVENT_STEAL,
             actor_entity_id='P3',
             target_entity_id='P2',
         ),
         GameEvent(
             time=5000,
-            event_type='1104',
+            event_type=LASERBALL_EVENT_BLOCK,
             actor_entity_id='P1',
             target_entity_id='P3',
         ),
         GameEvent(
             time=6000,
-            event_type='1109',
+            event_type=LASERBALL_EVENT_CLEAR,
             actor_entity_id='P1',
             target_entity_id='P2',
         ),
-        GameEvent(time=7000, event_type='1101', actor_entity_id='P2'),
-        GameEvent(time=8000, event_type='1106', action='* Round End *'),
-        GameEvent(time=9000, event_type='0600', actor_entity_id='P1'),
+        GameEvent(
+            time=7000, event_type=LASERBALL_EVENT_GOAL, actor_entity_id='P2'
+        ),
+        GameEvent(
+            time=8000,
+            event_type=LASERBALL_EVENT_ROUND_END,
+            action='* Round End *',
+        ),
+        GameEvent(
+            time=9000, event_type=SM5_EVENT_PENALTY, actor_entity_id='P1'
+        ),
     ]
 
     hud_gen = VisualElementGenerator(game=game, player_name='Alpha')
@@ -2813,32 +2858,38 @@ def test_laserball_player_events_target_view():
         ),
     ]
     game.events = [
-        GameEvent(time=1000, event_type='1107', actor_entity_id='P2'),
+        GameEvent(
+            time=1000,
+            event_type=LASERBALL_EVENT_GETS_BALL,
+            actor_entity_id='P2',
+        ),
         GameEvent(
             time=2000,
-            event_type='1100',
+            event_type=LASERBALL_EVENT_PASS,
             actor_entity_id='P2',
             target_entity_id='P1',
         ),
         GameEvent(
             time=3000,
-            event_type='1103',
+            event_type=LASERBALL_EVENT_STEAL,
             actor_entity_id='P3',
             target_entity_id='P1',
         ),
         GameEvent(
             time=4000,
-            event_type='1104',
+            event_type=LASERBALL_EVENT_BLOCK,
             actor_entity_id='P3',
             target_entity_id='P1',
         ),
         GameEvent(
             time=5000,
-            event_type='1109',
+            event_type=LASERBALL_EVENT_CLEAR,
             actor_entity_id='P2',
             target_entity_id='P1',
         ),
-        GameEvent(time=6000, event_type='1101', actor_entity_id='P1'),
+        GameEvent(
+            time=6000, event_type=LASERBALL_EVENT_GOAL, actor_entity_id='P1'
+        ),
     ]
 
     hud_gen = VisualElementGenerator(game=game, player_name='Alpha')
@@ -2901,25 +2952,25 @@ def test_player_events_base_zap_and_destroy() -> None:
     game.events = [
         GameEvent(
             time=1000,
-            event_type='0203',
+            event_type=SM5_EVENT_HIT_BASE,
             actor_entity_id='P1',
             target_entity_id='B1',
         ),
         GameEvent(
             time=2000,
-            event_type='0203',
+            event_type=SM5_EVENT_HIT_BASE,
             actor_entity_id='P2',
             target_entity_id='B1',
         ),
         GameEvent(
             time=3000,
-            event_type='0204',
+            event_type=SM5_EVENT_DESTROY_BASE,
             actor_entity_id='P2',
             target_entity_id='B1',
         ),
         GameEvent(
             time=4000,
-            event_type='0204',
+            event_type=SM5_EVENT_DESTROY_BASE,
             actor_entity_id='P1',
             target_entity_id='B1',
         ),
@@ -2981,25 +3032,25 @@ def test_player_events_base_zap_consecutive_replacements() -> None:
     game.events = [
         GameEvent(
             time=1000,
-            event_type='0203',
+            event_type=SM5_EVENT_HIT_BASE,
             actor_entity_id='P1',
             target_entity_id='B1',
         ),
         GameEvent(
             time=3000,
-            event_type='0203',
+            event_type=SM5_EVENT_HIT_BASE,
             actor_entity_id='P1',
             target_entity_id='B1',
         ),
         GameEvent(
             time=6000,
-            event_type='0203',
+            event_type=SM5_EVENT_HIT_BASE,
             actor_entity_id='P1',
             target_entity_id='B1',
         ),
         GameEvent(
             time=9000,
-            event_type='0204',
+            event_type=SM5_EVENT_DESTROY_BASE,
             actor_entity_id='P1',
             target_entity_id='B1',
         ),
@@ -3080,19 +3131,19 @@ def test_player_events_base_zap_exceeds_window() -> None:
     game.events = [
         GameEvent(
             time=1000,
-            event_type='0203',
+            event_type=SM5_EVENT_HIT_BASE,
             actor_entity_id='P1',
             target_entity_id='B1',
         ),
         GameEvent(
             time=10000,
-            event_type='0203',
+            event_type=SM5_EVENT_HIT_BASE,
             actor_entity_id='P1',
             target_entity_id='B1',
         ),
         GameEvent(
             time=12000,
-            event_type='0204',
+            event_type=SM5_EVENT_DESTROY_BASE,
             actor_entity_id='P1',
             target_entity_id='B1',
         ),
@@ -3157,13 +3208,13 @@ def test_player_events_base_zap_bundle_disabled() -> None:
     game.events = [
         GameEvent(
             time=1000,
-            event_type='0203',
+            event_type=SM5_EVENT_HIT_BASE,
             actor_entity_id='P1',
             target_entity_id='B1',
         ),
         GameEvent(
             time=2000,
-            event_type='0203',
+            event_type=SM5_EVENT_HIT_BASE,
             actor_entity_id='P1',
             target_entity_id='B1',
         ),
@@ -3230,31 +3281,31 @@ def test_player_events_base_missile() -> None:
     game.events = [
         GameEvent(
             time=1000,
-            event_type='0302',
+            event_type=SM5_EVENT_MISSILE_BASE_DAMAGE,
             actor_entity_id='P1',
             target_entity_id='B1',
         ),
         GameEvent(
             time=2000,
-            event_type='0302',
+            event_type=SM5_EVENT_MISSILE_BASE_DAMAGE,
             actor_entity_id='P2',
             target_entity_id='B1',
         ),
         GameEvent(
             time=3000,
-            event_type='0303',
+            event_type=SM5_EVENT_MISSILE_BASE_DESTROY,
             actor_entity_id='P1',
             target_entity_id='B1',
         ),
         GameEvent(
             time=4000,
-            event_type='0300',
+            event_type=SM5_EVENT_LOCKING,
             actor_entity_id='P1',
             target_entity_id='B1',
         ),
         GameEvent(
             time=5000,
-            event_type='0303',
+            event_type=SM5_EVENT_MISSILE_BASE_DESTROY,
             actor_entity_id='P1',
             target_entity_id='B1',
         ),
@@ -3321,13 +3372,13 @@ def test_player_events_base_rendering() -> None:
     game.events = [
         GameEvent(
             time=1000,
-            event_type='0203',
+            event_type=SM5_EVENT_HIT_BASE,
             actor_entity_id='P1',
             target_entity_id='B1',
         ),
         GameEvent(
             time=5000,
-            event_type='0204',
+            event_type=SM5_EVENT_DESTROY_BASE,
             actor_entity_id='P1',
             target_entity_id='B1',
         ),

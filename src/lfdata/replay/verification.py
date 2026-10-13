@@ -15,6 +15,7 @@ Usage example:
 
 from lfdata.model import LFGame, Sm5Stats
 from lfdata.model.gametypes.sm5_constants import DEFAULT_BOOST_GRACE_PERIOD_MS
+from lfdata.model.gametypes.sm5_events import SM5_EVENT_AMMO_BOOST
 from lfdata.replay.diagnostics import LFReplayDiagnostics, PlayerDiscrepancy
 from lfdata.replay.replay import LFReplaySystem
 from lfdata.replay.unhandled_events import LFUnhandledEventsAnalyzer
@@ -254,7 +255,7 @@ class LFReplayVerifier:
                 codename = replay_aligned.entity_names.get(player_id, player_id)
                 event_type_name = (
                     'Ammo Boost'
-                    if dec['event_type'] == '0510'
+                    if dec['event_type'] == SM5_EVENT_AMMO_BOOST
                     else 'Life Boost'
                 )
                 print(

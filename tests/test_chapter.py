@@ -2,6 +2,12 @@
 
 from datetime import datetime
 from lfdata.model import LFGame, GameTeam, GameEntity, GameEvent
+from lfdata.model.gametypes.sm5_events import (
+    SM5_EVENT_ACTIVATE_NUKE,
+    SM5_EVENT_DETONATE_NUKE,
+    SM5_EVENT_DOWNED_OPPONENT,
+    SM5_EVENT_MISSION_START,
+)
 from lfdata.video.chapter import LFChapter, LFChapterGenerator
 
 
@@ -83,7 +89,7 @@ def test_collect_candidates_medic_down_to_10_lives() -> None:
         GameEvent(
             game_id='test_chapter_game',
             time=0,
-            event_type='0100',
+            event_type=SM5_EVENT_MISSION_START,
             action='start',
             raw_message='',
         )
@@ -99,7 +105,7 @@ def test_collect_candidates_medic_down_to_10_lives() -> None:
             GameEvent(
                 game_id='test_chapter_game',
                 time=t,
-                event_type='0206',
+                event_type=SM5_EVENT_DOWNED_OPPONENT,
                 actor_entity_id='S2',
                 target_entity_id='M1',
                 action='zaps',
@@ -138,7 +144,7 @@ def test_collect_candidates_eliminations() -> None:
         GameEvent(
             game_id='test_chapter_game',
             time=0,
-            event_type='0100',
+            event_type=SM5_EVENT_MISSION_START,
             action='start',
             raw_message='',
         )
@@ -151,7 +157,7 @@ def test_collect_candidates_eliminations() -> None:
             GameEvent(
                 game_id='test_chapter_game',
                 time=t,
-                event_type='0206',
+                event_type=SM5_EVENT_DOWNED_OPPONENT,
                 actor_entity_id='C1',
                 target_entity_id='S2',
                 action='zaps',
@@ -179,7 +185,7 @@ def test_collect_candidates_nuke_detonate_and_cancel() -> None:
         GameEvent(
             game_id='test_chapter_game',
             time=0,
-            event_type='0100',
+            event_type=SM5_EVENT_MISSION_START,
             action='start',
             raw_message='',
         ),
@@ -187,7 +193,7 @@ def test_collect_candidates_nuke_detonate_and_cancel() -> None:
         GameEvent(
             game_id='test_chapter_game',
             time=5000,
-            event_type='0404',
+            event_type=SM5_EVENT_ACTIVATE_NUKE,
             actor_entity_id='C1',
             action='activates nuke',
             raw_message='',
@@ -196,7 +202,7 @@ def test_collect_candidates_nuke_detonate_and_cancel() -> None:
         GameEvent(
             game_id='test_chapter_game',
             time=10000,
-            event_type='0405',
+            event_type=SM5_EVENT_DETONATE_NUKE,
             actor_entity_id='C1',
             action='detonates nuke',
             raw_message='',
@@ -205,7 +211,7 @@ def test_collect_candidates_nuke_detonate_and_cancel() -> None:
         GameEvent(
             game_id='test_chapter_game',
             time=20000,
-            event_type='0404',
+            event_type=SM5_EVENT_ACTIVATE_NUKE,
             actor_entity_id='C1',
             action='activates nuke',
             raw_message='',
@@ -214,7 +220,7 @@ def test_collect_candidates_nuke_detonate_and_cancel() -> None:
         GameEvent(
             game_id='test_chapter_game',
             time=22000,
-            event_type='0206',
+            event_type=SM5_EVENT_DOWNED_OPPONENT,
             actor_entity_id='S2',
             target_entity_id='C1',
             action='zaps',
@@ -396,7 +402,7 @@ def test_collect_candidates_multi_nuke_detonations() -> None:
         GameEvent(
             game_id='test_chapter_game',
             time=0,
-            event_type='0100',
+            event_type=SM5_EVENT_MISSION_START,
             action='start',
             raw_message='',
         ),
@@ -404,7 +410,7 @@ def test_collect_candidates_multi_nuke_detonations() -> None:
         GameEvent(
             game_id='test_chapter_game',
             time=5000,
-            event_type='0404',
+            event_type=SM5_EVENT_ACTIVATE_NUKE,
             actor_entity_id='C1',
             action='activates nuke',
             raw_message='',
@@ -412,7 +418,7 @@ def test_collect_candidates_multi_nuke_detonations() -> None:
         GameEvent(
             game_id='test_chapter_game',
             time=10000,
-            event_type='0405',
+            event_type=SM5_EVENT_DETONATE_NUKE,
             actor_entity_id='C1',
             action='detonates nuke',
             raw_message='',
@@ -421,7 +427,7 @@ def test_collect_candidates_multi_nuke_detonations() -> None:
         GameEvent(
             game_id='test_chapter_game',
             time=20000,
-            event_type='0404',
+            event_type=SM5_EVENT_ACTIVATE_NUKE,
             actor_entity_id='C1',
             action='activates nuke',
             raw_message='',
@@ -429,7 +435,7 @@ def test_collect_candidates_multi_nuke_detonations() -> None:
         GameEvent(
             game_id='test_chapter_game',
             time=24000,
-            event_type='0405',
+            event_type=SM5_EVENT_DETONATE_NUKE,
             actor_entity_id='C1',
             action='detonates nuke',
             raw_message='',
@@ -438,7 +444,7 @@ def test_collect_candidates_multi_nuke_detonations() -> None:
         GameEvent(
             game_id='test_chapter_game',
             time=45000,
-            event_type='0404',
+            event_type=SM5_EVENT_ACTIVATE_NUKE,
             actor_entity_id='C1',
             action='activates nuke',
             raw_message='',
@@ -446,7 +452,7 @@ def test_collect_candidates_multi_nuke_detonations() -> None:
         GameEvent(
             game_id='test_chapter_game',
             time=50000,
-            event_type='0405',
+            event_type=SM5_EVENT_DETONATE_NUKE,
             actor_entity_id='C1',
             action='detonates nuke',
             raw_message='',
@@ -500,7 +506,7 @@ def test_collect_candidates_team_elimination_on_player_elim() -> None:
         GameEvent(
             game_id='test_chapter_game',
             time=0,
-            event_type='0100',
+            event_type=SM5_EVENT_MISSION_START,
             action='start',
             raw_message='',
         )
@@ -510,7 +516,7 @@ def test_collect_candidates_team_elimination_on_player_elim() -> None:
             GameEvent(
                 game_id='test_chapter_game',
                 time=1000 + i * 9000,
-                event_type='0206',
+                event_type=SM5_EVENT_DOWNED_OPPONENT,
                 actor_entity_id='C1',
                 target_entity_id='S2',
                 action='zaps',
@@ -537,7 +543,7 @@ def test_collect_candidates_team_elimination_on_nuke_detonation() -> None:
         GameEvent(
             game_id='test_chapter_game',
             time=0,
-            event_type='0100',
+            event_type=SM5_EVENT_MISSION_START,
             action='start',
             raw_message='',
         ),
@@ -548,7 +554,7 @@ def test_collect_candidates_team_elimination_on_nuke_detonation() -> None:
             GameEvent(
                 game_id='test_chapter_game',
                 time=1000 + i * 9000,
-                event_type='0206',
+                event_type=SM5_EVENT_DOWNED_OPPONENT,
                 actor_entity_id='C1',
                 target_entity_id='S2',
                 action='zaps',
@@ -563,7 +569,7 @@ def test_collect_candidates_team_elimination_on_nuke_detonation() -> None:
             GameEvent(
                 game_id='test_chapter_game',
                 time=120000,
-                event_type='0404',
+                event_type=SM5_EVENT_ACTIVATE_NUKE,
                 actor_entity_id='C1',
                 action='activates nuke',
                 raw_message='',
@@ -571,7 +577,7 @@ def test_collect_candidates_team_elimination_on_nuke_detonation() -> None:
             GameEvent(
                 game_id='test_chapter_game',
                 time=125000,
-                event_type='0405',
+                event_type=SM5_EVENT_DETONATE_NUKE,
                 actor_entity_id='C1',
                 action='detonates nuke',
                 raw_message='',

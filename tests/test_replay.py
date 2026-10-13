@@ -1,6 +1,42 @@
 from pathlib import Path
 
 from lfdata.importer import TdfImporter
+from lfdata.model.gametypes.laserball_events import (
+    LASERBALL_EVENT_ASSIST,
+    LASERBALL_EVENT_BLOCK,
+    LASERBALL_EVENT_CLEAR,
+    LASERBALL_EVENT_GETS_BALL,
+    LASERBALL_EVENT_GOAL,
+    LASERBALL_EVENT_PASS,
+    LASERBALL_EVENT_RESET_ON_BASE,
+    LASERBALL_EVENT_ROUND_END,
+    LASERBALL_EVENT_ROUND_START,
+    LASERBALL_EVENT_STEAL,
+)
+from lfdata.model.gametypes.sm5_events import (
+    SM5_EVENT_ACTIVATE_NUKE,
+    SM5_EVENT_ACTIVATE_RAPID_FIRE,
+    SM5_EVENT_AMMO_BOOST,
+    SM5_EVENT_DAMAGED_OPPONENT,
+    SM5_EVENT_DESTROY_BASE,
+    SM5_EVENT_DETONATE_NUKE,
+    SM5_EVENT_DOWNED_OPPONENT,
+    SM5_EVENT_DOWNED_TEAM,
+    SM5_EVENT_LIFE_BOOST,
+    SM5_EVENT_MISS,
+    SM5_EVENT_MISSILE_BASE_DAMAGE,
+    SM5_EVENT_MISSILE_BASE_DESTROY,
+    SM5_EVENT_MISSILE_BASE_MISS,
+    SM5_EVENT_MISSILE_DOWN_OPPONENT,
+    SM5_EVENT_MISSILE_DOWN_TEAM,
+    SM5_EVENT_MISSILE_MISS,
+    SM5_EVENT_MISSION_END,
+    SM5_EVENT_MISSION_START,
+    SM5_EVENT_PENALTY,
+    SM5_EVENT_RESUPPLY_AMMO,
+    SM5_EVENT_RESUPPLY_LIVES,
+    SM5_EVENT_SHOT_EMPTY,
+)
 from lfdata.replay.replay import LFReplaySystem
 
 
@@ -96,7 +132,7 @@ def test_replay_system_rules() -> None:
         GameEvent(
             game_id='test_rule_game',
             time=0,
-            event_type='0100',
+            event_type=SM5_EVENT_MISSION_START,
             action='start',
             raw_message='',
         ),
@@ -105,7 +141,7 @@ def test_replay_system_rules() -> None:
         GameEvent(
             game_id='test_rule_game',
             time=1000,
-            event_type='0205',
+            event_type=SM5_EVENT_DAMAGED_OPPONENT,
             actor_entity_id='S2',
             target_entity_id='C1',
             action='zaps',
@@ -115,7 +151,7 @@ def test_replay_system_rules() -> None:
         GameEvent(
             game_id='test_rule_game',
             time=2000,
-            event_type='0205',
+            event_type=SM5_EVENT_DAMAGED_OPPONENT,
             actor_entity_id='S2',
             target_entity_id='C1',
             action='zaps',
@@ -126,7 +162,7 @@ def test_replay_system_rules() -> None:
         GameEvent(
             game_id='test_rule_game',
             time=3000,
-            event_type='0206',
+            event_type=SM5_EVENT_DOWNED_OPPONENT,
             actor_entity_id='S2',
             target_entity_id='C1',
             action='zaps',
@@ -138,7 +174,7 @@ def test_replay_system_rules() -> None:
         GameEvent(
             game_id='test_rule_game',
             time=12000,
-            event_type='0306',
+            event_type=SM5_EVENT_MISSILE_DOWN_OPPONENT,
             actor_entity_id='S2',
             target_entity_id='C1',
             action='missiled',
@@ -151,7 +187,7 @@ def test_replay_system_rules() -> None:
         GameEvent(
             game_id='test_rule_game',
             time=13000,
-            event_type='0512',
+            event_type=SM5_EVENT_LIFE_BOOST,
             actor_entity_id='M2',
             action='life_boost',
             raw_message='',
@@ -232,7 +268,7 @@ def test_replay_missile_decrements_and_penalties() -> None:
         GameEvent(
             game_id='test_m_game',
             time=0,
-            event_type='0100',
+            event_type=SM5_EVENT_MISSION_START,
             action='start',
             raw_message='',
         ),
@@ -240,7 +276,7 @@ def test_replay_missile_decrements_and_penalties() -> None:
         GameEvent(
             game_id='test_m_game',
             time=1000,
-            event_type='0304',
+            event_type=SM5_EVENT_MISSILE_MISS,
             actor_entity_id='C1',
             action='miss',
             raw_message='',
@@ -249,7 +285,7 @@ def test_replay_missile_decrements_and_penalties() -> None:
         GameEvent(
             game_id='test_m_game',
             time=2000,
-            event_type='0301',
+            event_type=SM5_EVENT_MISSILE_BASE_MISS,
             actor_entity_id='C1',
             target_entity_id='B1',
             action='miss base',
@@ -259,7 +295,7 @@ def test_replay_missile_decrements_and_penalties() -> None:
         GameEvent(
             game_id='test_m_game',
             time=3000,
-            event_type='0302',
+            event_type=SM5_EVENT_MISSILE_BASE_DAMAGE,
             actor_entity_id='C1',
             target_entity_id='B1',
             action='damage base',
@@ -269,7 +305,7 @@ def test_replay_missile_decrements_and_penalties() -> None:
         GameEvent(
             game_id='test_m_game',
             time=4000,
-            event_type='0600',
+            event_type=SM5_EVENT_PENALTY,
             actor_entity_id='C1',
             action='penalty',
             raw_message='',
@@ -278,7 +314,7 @@ def test_replay_missile_decrements_and_penalties() -> None:
         GameEvent(
             game_id='test_m_game',
             time=5000,
-            event_type='0303',
+            event_type=SM5_EVENT_MISSILE_BASE_DESTROY,
             actor_entity_id='C1',
             target_entity_id='B1',
             action='destroys',
@@ -292,7 +328,8 @@ def test_replay_missile_decrements_and_penalties() -> None:
 
     cmd_state = replay.game_state.players['C1']
     # Commmander starts with 5 missiles.
-    # Fires 4: at 1000 (0304), 2000 (0301), 3000 (0302), and 5000 (0303).
+    # Fires 4: at 1000 (missile miss), 2000 (missile base miss),
+    # 3000 (missile base damage), and 5000 (missile base destroy).
     # Resulting missiles: 5 - 4 = 1.
     assert cmd_state.missiles == 1
 
@@ -377,7 +414,7 @@ def test_medic_and_nuke_life_rules() -> None:
         GameEvent(
             game_id='test_medic_nuke_game',
             time=0,
-            event_type='0100',
+            event_type=SM5_EVENT_MISSION_START,
             action='start',
             raw_message='',
         ),
@@ -385,7 +422,7 @@ def test_medic_and_nuke_life_rules() -> None:
         GameEvent(
             game_id='test_medic_nuke_game',
             time=1000,
-            event_type='0206',
+            event_type=SM5_EVENT_DOWNED_OPPONENT,
             actor_entity_id='C1',
             target_entity_id='M2',
             action='zaps',
@@ -396,7 +433,7 @@ def test_medic_and_nuke_life_rules() -> None:
         GameEvent(
             game_id='test_medic_nuke_game',
             time=10000,
-            event_type='0306',
+            event_type=SM5_EVENT_MISSILE_DOWN_OPPONENT,
             actor_entity_id='C1',
             target_entity_id='M2',
             action='missiled',
@@ -407,7 +444,7 @@ def test_medic_and_nuke_life_rules() -> None:
         GameEvent(
             game_id='test_medic_nuke_game',
             time=20000,
-            event_type='0405',
+            event_type=SM5_EVENT_DETONATE_NUKE,
             actor_entity_id='C1',
             action='detonates nuke',
             raw_message='',
@@ -512,7 +549,7 @@ def test_team_boost_not_down() -> None:
         GameEvent(
             game_id='test_boost_game',
             time=0,
-            event_type='0100',
+            event_type=SM5_EVENT_MISSION_START,
             action='start',
             raw_message='',
         ),
@@ -520,7 +557,7 @@ def test_team_boost_not_down() -> None:
         GameEvent(
             game_id='test_boost_game',
             time=1000,
-            event_type='0206',
+            event_type=SM5_EVENT_DOWNED_OPPONENT,
             actor_entity_id='C1',
             target_entity_id='S2',
             action='zaps',
@@ -532,7 +569,7 @@ def test_team_boost_not_down() -> None:
         GameEvent(
             game_id='test_boost_game',
             time=2000,
-            event_type='0512',
+            event_type=SM5_EVENT_LIFE_BOOST,
             actor_entity_id='M2',
             action='life_boost',
             raw_message='',
@@ -633,7 +670,7 @@ def test_scout_rapid_fire_sp_rules() -> None:
         GameEvent(
             game_id='test_rapid_game',
             time=0,
-            event_type='0100',
+            event_type=SM5_EVENT_MISSION_START,
             action='start',
             raw_message='',
         ),
@@ -641,7 +678,7 @@ def test_scout_rapid_fire_sp_rules() -> None:
         GameEvent(
             game_id='test_rapid_game',
             time=1000,
-            event_type='0205',
+            event_type=SM5_EVENT_DAMAGED_OPPONENT,
             actor_entity_id='S1',
             target_entity_id='S2',
             action='zaps',
@@ -656,7 +693,7 @@ def test_scout_rapid_fire_sp_rules() -> None:
             GameEvent(
                 game_id='test_rapid_game',
                 time=t,
-                event_type='0205',
+                event_type=SM5_EVENT_DAMAGED_OPPONENT,
                 actor_entity_id='S1',
                 target_entity_id='S2',
                 action='zaps',
@@ -671,7 +708,7 @@ def test_scout_rapid_fire_sp_rules() -> None:
             GameEvent(
                 game_id='test_rapid_game',
                 time=17000,
-                event_type='0400',
+                event_type=SM5_EVENT_ACTIVATE_RAPID_FIRE,
                 actor_entity_id='S1',
                 action='activates rapid fire',
                 raw_message='',
@@ -681,7 +718,7 @@ def test_scout_rapid_fire_sp_rules() -> None:
             GameEvent(
                 game_id='test_rapid_game',
                 time=18000,
-                event_type='0205',
+                event_type=SM5_EVENT_DAMAGED_OPPONENT,
                 actor_entity_id='S1',
                 target_entity_id='S2',
                 action='zaps',
@@ -692,7 +729,7 @@ def test_scout_rapid_fire_sp_rules() -> None:
             GameEvent(
                 game_id='test_rapid_game',
                 time=19000,
-                event_type='0204',
+                event_type=SM5_EVENT_DESTROY_BASE,
                 actor_entity_id='S1',
                 target_entity_id='B2',
                 action='destroys base',
@@ -702,7 +739,7 @@ def test_scout_rapid_fire_sp_rules() -> None:
             GameEvent(
                 game_id='test_rapid_game',
                 time=20000,
-                event_type='0502',
+                event_type=SM5_EVENT_RESUPPLY_LIVES,
                 actor_entity_id='M1',
                 target_entity_id='S1',
                 action='resupplies lives',
@@ -713,7 +750,7 @@ def test_scout_rapid_fire_sp_rules() -> None:
             GameEvent(
                 game_id='test_rapid_game',
                 time=30000,
-                event_type='0205',
+                event_type=SM5_EVENT_DAMAGED_OPPONENT,
                 actor_entity_id='S1',
                 target_entity_id='S2',
                 action='zaps',
@@ -819,7 +856,7 @@ def test_nuke_cancel_scenarios() -> None:
         GameEvent(
             game_id='test_nuke_cancel_game',
             time=0,
-            event_type='0100',
+            event_type=SM5_EVENT_MISSION_START,
             action='start',
             raw_message='',
         ),
@@ -828,7 +865,7 @@ def test_nuke_cancel_scenarios() -> None:
         GameEvent(
             game_id='test_nuke_cancel_game',
             time=1000,
-            event_type='0404',
+            event_type=SM5_EVENT_ACTIVATE_NUKE,
             actor_entity_id='C1',
             action='activates nuke',
             raw_message='',
@@ -837,7 +874,7 @@ def test_nuke_cancel_scenarios() -> None:
         GameEvent(
             game_id='test_nuke_cancel_game',
             time=3000,
-            event_type='0206',
+            event_type=SM5_EVENT_DOWNED_OPPONENT,
             actor_entity_id='S2',
             target_entity_id='C1',
             action='zaps',
@@ -848,7 +885,7 @@ def test_nuke_cancel_scenarios() -> None:
         GameEvent(
             game_id='test_nuke_cancel_game',
             time=20000,
-            event_type='0404',
+            event_type=SM5_EVENT_ACTIVATE_NUKE,
             actor_entity_id='C1',
             action='activates nuke',
             raw_message='',
@@ -857,7 +894,7 @@ def test_nuke_cancel_scenarios() -> None:
         GameEvent(
             game_id='test_nuke_cancel_game',
             time=22000,
-            event_type='0208',
+            event_type=SM5_EVENT_DOWNED_TEAM,
             actor_entity_id='S1',
             target_entity_id='C1',
             action='zaps',
@@ -868,7 +905,7 @@ def test_nuke_cancel_scenarios() -> None:
         GameEvent(
             game_id='test_nuke_cancel_game',
             time=40000,
-            event_type='0404',
+            event_type=SM5_EVENT_ACTIVATE_NUKE,
             actor_entity_id='C1',
             action='activates nuke',
             raw_message='',
@@ -877,7 +914,7 @@ def test_nuke_cancel_scenarios() -> None:
         GameEvent(
             game_id='test_nuke_cancel_game',
             time=43000,
-            event_type='0500',
+            event_type=SM5_EVENT_RESUPPLY_AMMO,
             actor_entity_id='S1',
             target_entity_id='C1',
             action='resupplies',
@@ -888,7 +925,7 @@ def test_nuke_cancel_scenarios() -> None:
         GameEvent(
             game_id='test_nuke_cancel_game',
             time=60000,
-            event_type='0404',
+            event_type=SM5_EVENT_ACTIVATE_NUKE,
             actor_entity_id='C1',
             action='activates nuke',
             raw_message='',
@@ -898,7 +935,7 @@ def test_nuke_cancel_scenarios() -> None:
         GameEvent(
             game_id='test_nuke_cancel_game',
             time=55000,
-            event_type='0404',
+            event_type=SM5_EVENT_ACTIVATE_NUKE,
             actor_entity_id='C2',
             action='activates nuke',
             raw_message='',
@@ -906,7 +943,7 @@ def test_nuke_cancel_scenarios() -> None:
         GameEvent(
             game_id='test_nuke_cancel_game',
             time=61000,
-            event_type='0405',
+            event_type=SM5_EVENT_DETONATE_NUKE,
             actor_entity_id='C2',
             action='detonates nuke',
             raw_message='',
@@ -917,7 +954,7 @@ def test_nuke_cancel_scenarios() -> None:
         GameEvent(
             game_id='test_nuke_cancel_game',
             time=80000,
-            event_type='0404',
+            event_type=SM5_EVENT_ACTIVATE_NUKE,
             actor_entity_id='C1',
             action='activates nuke',
             raw_message='',
@@ -926,7 +963,7 @@ def test_nuke_cancel_scenarios() -> None:
         GameEvent(
             game_id='test_nuke_cancel_game',
             time=95000,
-            event_type='0201',
+            event_type=SM5_EVENT_MISS,
             actor_entity_id='S1',
             action='misses',
             raw_message='',
@@ -935,7 +972,7 @@ def test_nuke_cancel_scenarios() -> None:
         GameEvent(
             game_id='test_nuke_cancel_game',
             time=100000,
-            event_type='0101',
+            event_type=SM5_EVENT_MISSION_END,
             action='end',
             raw_message='',
         ),
@@ -1106,7 +1143,7 @@ def test_team_boost_rules() -> None:
         GameEvent(
             game_id='test_team_boost_rules_game',
             time=0,
-            event_type='0100',
+            event_type=SM5_EVENT_MISSION_START,
             action='start',
             raw_message='',
         )
@@ -1121,7 +1158,7 @@ def test_team_boost_rules() -> None:
             GameEvent(
                 game_id='test_team_boost_rules_game',
                 time=t,
-                event_type='0205',
+                event_type=SM5_EVENT_DAMAGED_OPPONENT,
                 actor_entity_id='M2',
                 target_entity_id='C1',
                 action='zaps',
@@ -1134,7 +1171,7 @@ def test_team_boost_rules() -> None:
             GameEvent(
                 game_id='test_team_boost_rules_game',
                 time=t,
-                event_type='0205',
+                event_type=SM5_EVENT_DAMAGED_OPPONENT,
                 actor_entity_id='A2',
                 target_entity_id='C1',
                 action='zaps',
@@ -1147,7 +1184,7 @@ def test_team_boost_rules() -> None:
             GameEvent(
                 game_id='test_team_boost_rules_game',
                 time=t,
-                event_type='0205',
+                event_type=SM5_EVENT_DAMAGED_OPPONENT,
                 actor_entity_id='S2',
                 target_entity_id='C1',
                 action='zaps',
@@ -1161,7 +1198,7 @@ def test_team_boost_rules() -> None:
         GameEvent(
             game_id='test_team_boost_rules_game',
             time=t,
-            event_type='0400',
+            event_type=SM5_EVENT_ACTIVATE_RAPID_FIRE,
             actor_entity_id='S2',
             action='activates rapid fire',
             raw_message='',
@@ -1174,7 +1211,7 @@ def test_team_boost_rules() -> None:
         GameEvent(
             game_id='test_team_boost_rules_game',
             time=t,
-            event_type='0512',
+            event_type=SM5_EVENT_LIFE_BOOST,
             actor_entity_id='M2',
             action='life_boost',
             raw_message='',
@@ -1187,7 +1224,7 @@ def test_team_boost_rules() -> None:
         GameEvent(
             game_id='test_team_boost_rules_game',
             time=t,
-            event_type='0510',
+            event_type=SM5_EVENT_AMMO_BOOST,
             actor_entity_id='A2',
             action='ammo_boost',
             raw_message='',
@@ -1277,7 +1314,7 @@ def test_zap_and_missile_downed_player_authoritative() -> None:
         GameEvent(
             game_id='test_resettable_game',
             time=0,
-            event_type='0100',
+            event_type=SM5_EVENT_MISSION_START,
             action='start',
             raw_message='',
         ),
@@ -1285,7 +1322,7 @@ def test_zap_and_missile_downed_player_authoritative() -> None:
         GameEvent(
             game_id='test_resettable_game',
             time=1000,
-            event_type='0205',
+            event_type=SM5_EVENT_DAMAGED_OPPONENT,
             actor_entity_id='S2',
             target_entity_id='C1',
             action='zaps',
@@ -1295,7 +1332,7 @@ def test_zap_and_missile_downed_player_authoritative() -> None:
         GameEvent(
             game_id='test_resettable_game',
             time=2000,
-            event_type='0205',
+            event_type=SM5_EVENT_DAMAGED_OPPONENT,
             actor_entity_id='S2',
             target_entity_id='C1',
             action='zaps',
@@ -1306,7 +1343,7 @@ def test_zap_and_missile_downed_player_authoritative() -> None:
         GameEvent(
             game_id='test_resettable_game',
             time=3000,
-            event_type='0206',
+            event_type=SM5_EVENT_DOWNED_OPPONENT,
             actor_entity_id='S2',
             target_entity_id='C1',
             action='zaps',
@@ -1318,7 +1355,7 @@ def test_zap_and_missile_downed_player_authoritative() -> None:
         GameEvent(
             game_id='test_resettable_game',
             time=6000,
-            event_type='0306',
+            event_type=SM5_EVENT_MISSILE_DOWN_OPPONENT,
             actor_entity_id='S2',
             target_entity_id='C1',
             action='missiles',
@@ -1330,7 +1367,7 @@ def test_zap_and_missile_downed_player_authoritative() -> None:
         GameEvent(
             game_id='test_resettable_game',
             time=9000,
-            event_type='0206',
+            event_type=SM5_EVENT_DOWNED_OPPONENT,
             actor_entity_id='S2',
             target_entity_id='C1',
             action='zaps',
@@ -1432,7 +1469,7 @@ def test_team_boost_within_grace_period() -> None:
         GameEvent(
             game_id='test_grace_game',
             time=0,
-            event_type='0100',
+            event_type=SM5_EVENT_MISSION_START,
             action='start',
             raw_message='',
         ),
@@ -1443,7 +1480,7 @@ def test_team_boost_within_grace_period() -> None:
         GameEvent(
             game_id='test_grace_game',
             time=1000,
-            event_type='0206',
+            event_type=SM5_EVENT_DOWNED_OPPONENT,
             actor_entity_id='E2',
             target_entity_id='S1',
             action='zaps',
@@ -1454,7 +1491,7 @@ def test_team_boost_within_grace_period() -> None:
         GameEvent(
             game_id='test_grace_game',
             time=1500,
-            event_type='0512',
+            event_type=SM5_EVENT_LIFE_BOOST,
             actor_entity_id='M1',
             action='life_boost',
             raw_message='',
@@ -1465,7 +1502,7 @@ def test_team_boost_within_grace_period() -> None:
         GameEvent(
             game_id='test_grace_game',
             time=3000,
-            event_type='0206',
+            event_type=SM5_EVENT_DOWNED_OPPONENT,
             actor_entity_id='E2',
             target_entity_id='S2',
             action='zaps',
@@ -1476,7 +1513,7 @@ def test_team_boost_within_grace_period() -> None:
         GameEvent(
             game_id='test_grace_game',
             time=4000,
-            event_type='0512',
+            event_type=SM5_EVENT_LIFE_BOOST,
             actor_entity_id='M1',
             action='life_boost',
             raw_message='',
@@ -1487,7 +1524,7 @@ def test_team_boost_within_grace_period() -> None:
         GameEvent(
             game_id='test_grace_game',
             time=5000,
-            event_type='0206',
+            event_type=SM5_EVENT_DOWNED_OPPONENT,
             actor_entity_id='E2',
             target_entity_id='S1',
             action='zaps',
@@ -1499,7 +1536,7 @@ def test_team_boost_within_grace_period() -> None:
         GameEvent(
             game_id='test_grace_game',
             time=5500,
-            event_type='0512',
+            event_type=SM5_EVENT_LIFE_BOOST,
             actor_entity_id='M1',
             action='life_boost',
             raw_message='',
@@ -1594,7 +1631,7 @@ def test_replay_stats_alignment() -> None:
         GameEvent(
             game_id='test_align_game',
             time=0,
-            event_type='0100',
+            event_type=SM5_EVENT_MISSION_START,
             action='start',
             raw_message='',
         ),
@@ -1602,7 +1639,7 @@ def test_replay_stats_alignment() -> None:
         GameEvent(
             game_id='test_align_game',
             time=1000,
-            event_type='0206',
+            event_type=SM5_EVENT_DOWNED_OPPONENT,
             actor_entity_id='E2',
             target_entity_id='S1',
             action='zaps',
@@ -1614,7 +1651,7 @@ def test_replay_stats_alignment() -> None:
         GameEvent(
             game_id='test_align_game',
             time=1500,
-            event_type='0512',
+            event_type=SM5_EVENT_LIFE_BOOST,
             actor_entity_id='M1',
             action='life_boost',
             raw_message='',
@@ -1740,7 +1777,7 @@ def test_replay_recovery_boundary_alignment() -> None:
         GameEvent(
             game_id='test_recovery_game',
             time=0,
-            event_type='0100',
+            event_type=SM5_EVENT_MISSION_START,
             action='start',
             raw_message='',
         ),
@@ -1749,7 +1786,7 @@ def test_replay_recovery_boundary_alignment() -> None:
         GameEvent(
             game_id='test_recovery_game',
             time=1000,
-            event_type='0206',
+            event_type=SM5_EVENT_DOWNED_OPPONENT,
             actor_entity_id='E2',
             target_entity_id='S1',
             action='zaps',
@@ -1760,7 +1797,7 @@ def test_replay_recovery_boundary_alignment() -> None:
         GameEvent(
             game_id='test_recovery_game',
             time=8800,
-            event_type='0512',
+            event_type=SM5_EVENT_LIFE_BOOST,
             actor_entity_id='M1',
             action='life_boost',
             raw_message='',
@@ -1841,7 +1878,7 @@ def test_replay_friendly_fire_and_resupply_lives() -> None:
         GameEvent(
             game_id='test_ff_game',
             time=0,
-            event_type='0100',
+            event_type=SM5_EVENT_MISSION_START,
             action='start',
             raw_message='',
         ),
@@ -1849,7 +1886,7 @@ def test_replay_friendly_fire_and_resupply_lives() -> None:
         GameEvent(
             game_id='test_ff_game',
             time=1000,
-            event_type='0208',
+            event_type=SM5_EVENT_DOWNED_TEAM,
             actor_entity_id='H1',
             target_entity_id='C1',
             action='zaps',
@@ -1859,7 +1896,7 @@ def test_replay_friendly_fire_and_resupply_lives() -> None:
         GameEvent(
             game_id='test_ff_game',
             time=10000,
-            event_type='0308',
+            event_type=SM5_EVENT_MISSILE_DOWN_TEAM,
             actor_entity_id='H1',
             target_entity_id='C1',
             action='missiles',
@@ -1869,7 +1906,7 @@ def test_replay_friendly_fire_and_resupply_lives() -> None:
         GameEvent(
             game_id='test_ff_game',
             time=20000,
-            event_type='0502',
+            event_type=SM5_EVENT_RESUPPLY_LIVES,
             actor_entity_id='H1',
             target_entity_id='C1',
             action='resupplies',
@@ -1956,7 +1993,7 @@ def test_heavy_special_points_never_accumulate() -> None:
         GameEvent(
             game_id='test_heavy_sp_game',
             time=0,
-            event_type='0100',
+            event_type=SM5_EVENT_MISSION_START,
             action='start',
             raw_message='',
         ),
@@ -1964,7 +2001,7 @@ def test_heavy_special_points_never_accumulate() -> None:
         GameEvent(
             game_id='test_heavy_sp_game',
             time=1000,
-            event_type='0205',
+            event_type=SM5_EVENT_DAMAGED_OPPONENT,
             actor_entity_id='H1',
             target_entity_id='C2',
             action='zaps',
@@ -1974,7 +2011,7 @@ def test_heavy_special_points_never_accumulate() -> None:
         GameEvent(
             game_id='test_heavy_sp_game',
             time=2000,
-            event_type='0306',
+            event_type=SM5_EVENT_MISSILE_DOWN_OPPONENT,
             actor_entity_id='H1',
             target_entity_id='C2',
             action='missiled',
@@ -1984,7 +2021,7 @@ def test_heavy_special_points_never_accumulate() -> None:
         GameEvent(
             game_id='test_heavy_sp_game',
             time=3000,
-            event_type='0204',
+            event_type=SM5_EVENT_DESTROY_BASE,
             actor_entity_id='H1',
             target_entity_id='B2',
             action='destroys base',
@@ -2024,14 +2061,14 @@ def test_replay_missing_0101() -> None:
         GameEvent(
             game_id='test_missing_0101',
             time=0,
-            event_type='0100',
+            event_type=SM5_EVENT_MISSION_START,
             action='start',
             raw_message='',
         ),
         GameEvent(
             game_id='test_missing_0101',
             time=5000,
-            event_type='0200',
+            event_type=SM5_EVENT_SHOT_EMPTY,
             actor_entity_id='P1',
             action='zap',
             raw_message='',
@@ -2108,7 +2145,7 @@ def test_laserball_replay() -> None:
         GameEvent(
             game_id='lb_replay_test',
             time=0,
-            event_type='0100',
+            event_type=SM5_EVENT_MISSION_START,
             action='start',
             raw_message='',
         ),
@@ -2116,7 +2153,7 @@ def test_laserball_replay() -> None:
         GameEvent(
             game_id='lb_replay_test',
             time=1000,
-            event_type='1105',
+            event_type=LASERBALL_EVENT_ROUND_START,
             action='Round start',
             raw_message='',
         ),
@@ -2124,7 +2161,7 @@ def test_laserball_replay() -> None:
         GameEvent(
             game_id='lb_replay_test',
             time=2000,
-            event_type='1107',
+            event_type=LASERBALL_EVENT_GETS_BALL,
             actor_entity_id='P1',
             action='gets ball',
             raw_message='',
@@ -2133,7 +2170,7 @@ def test_laserball_replay() -> None:
         GameEvent(
             game_id='lb_replay_test',
             time=5000,
-            event_type='1100',
+            event_type=LASERBALL_EVENT_PASS,
             actor_entity_id='P1',
             target_entity_id='P2',
             action='passes to',
@@ -2143,7 +2180,7 @@ def test_laserball_replay() -> None:
         GameEvent(
             game_id='lb_replay_test',
             time=6000,
-            event_type='1104',
+            event_type=LASERBALL_EVENT_BLOCK,
             actor_entity_id='E1',
             target_entity_id='P1',
             action='blocks',
@@ -2153,7 +2190,7 @@ def test_laserball_replay() -> None:
         GameEvent(
             game_id='lb_replay_test',
             time=8000,
-            event_type='110B',
+            event_type=LASERBALL_EVENT_RESET_ON_BASE,
             actor_entity_id='P1',
             target_entity_id='BASE_G',
             action='resets on base',
@@ -2163,7 +2200,7 @@ def test_laserball_replay() -> None:
         GameEvent(
             game_id='lb_replay_test',
             time=10000,
-            event_type='1101',
+            event_type=LASERBALL_EVENT_GOAL,
             actor_entity_id='P2',
             action='scores a goal',
             raw_message='',
@@ -2172,7 +2209,7 @@ def test_laserball_replay() -> None:
         GameEvent(
             game_id='lb_replay_test',
             time=10000,
-            event_type='1102',
+            event_type=LASERBALL_EVENT_ASSIST,
             actor_entity_id='P1',
             target_entity_id='P2',
             action='assists',
@@ -2182,7 +2219,7 @@ def test_laserball_replay() -> None:
         GameEvent(
             game_id='lb_replay_test',
             time=11000,
-            event_type='1106',
+            event_type=LASERBALL_EVENT_ROUND_END,
             action='Round end',
             raw_message='',
         ),
@@ -2190,7 +2227,7 @@ def test_laserball_replay() -> None:
         GameEvent(
             game_id='lb_replay_test',
             time=15000,
-            event_type='1105',
+            event_type=LASERBALL_EVENT_ROUND_START,
             action='Round start',
             raw_message='',
         ),
@@ -2198,7 +2235,7 @@ def test_laserball_replay() -> None:
         GameEvent(
             game_id='lb_replay_test',
             time=16000,
-            event_type='1107',
+            event_type=LASERBALL_EVENT_GETS_BALL,
             actor_entity_id='E1',
             action='gets ball',
             raw_message='',
@@ -2207,7 +2244,7 @@ def test_laserball_replay() -> None:
         GameEvent(
             game_id='lb_replay_test',
             time=20000,
-            event_type='1103',
+            event_type=LASERBALL_EVENT_STEAL,
             actor_entity_id='P1',
             target_entity_id='E1',
             action='steals from',
@@ -2217,7 +2254,7 @@ def test_laserball_replay() -> None:
         GameEvent(
             game_id='lb_replay_test',
             time=25000,
-            event_type='1109',
+            event_type=LASERBALL_EVENT_CLEAR,
             actor_entity_id='P1',
             target_entity_id='P2',
             action='clears to',
@@ -2227,7 +2264,7 @@ def test_laserball_replay() -> None:
         GameEvent(
             game_id='lb_replay_test',
             time=30000,
-            event_type='0101',
+            event_type=SM5_EVENT_MISSION_END,
             action='end',
             raw_message='',
         ),

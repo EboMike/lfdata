@@ -1,5 +1,11 @@
 from datetime import datetime
 from lfdata.model import GameEntity, GameEvent, GameTeam, LFGame
+from lfdata.model.gametypes.sm5_events import (
+    SM5_EVENT_CLAIM_BEACON,
+    SM5_EVENT_DAMAGED_OPPONENT,
+    SM5_EVENT_DAMAGED_TEAM,
+    SM5_EVENT_WARBOT_ZAP,
+)
 from lfdata.replay.handlers import LFReplayHandlersMixin
 from lfdata.replay.replay import LFReplaySystem
 
@@ -121,7 +127,7 @@ def test_process_event_zap_hit_diff() -> None:
     ev1 = GameEvent(
         game_id='test_zap_game',
         time=1000,
-        event_type='0205',
+        event_type=SM5_EVENT_DAMAGED_OPPONENT,
         actor_entity_id='P1',
         target_entity_id='P2',
         action='zaps',
@@ -141,7 +147,7 @@ def test_process_event_zap_hit_diff() -> None:
     ev_ff = GameEvent(
         game_id='test_zap_game',
         time=1500,
-        event_type='0207',
+        event_type=SM5_EVENT_DAMAGED_TEAM,
         actor_entity_id='P1',
         target_entity_id='P3',
         action='zaps',
@@ -156,7 +162,7 @@ def test_process_event_zap_hit_diff() -> None:
     ev2 = GameEvent(
         game_id='test_zap_game',
         time=2000,
-        event_type='0205',
+        event_type=SM5_EVENT_DAMAGED_OPPONENT,
         actor_entity_id='P2',
         target_entity_id='P1',
         action='zaps',
@@ -165,7 +171,7 @@ def test_process_event_zap_hit_diff() -> None:
     ev3 = GameEvent(
         game_id='test_zap_game',
         time=3000,
-        event_type='0205',
+        event_type=SM5_EVENT_DAMAGED_OPPONENT,
         actor_entity_id='P2',
         target_entity_id='P1',
         action='zaps',
@@ -226,7 +232,7 @@ def test_process_event_0b00_claim_beacon() -> None:
     beacon_ev1 = GameEvent(
         game_id='test_beacon_game',
         time=10000,
-        event_type='0B00',
+        event_type=SM5_EVENT_CLAIM_BEACON,
         actor_entity_id='P1',
         action='claims a beacon',
         raw_message='claims a beacon',
@@ -234,7 +240,7 @@ def test_process_event_0b00_claim_beacon() -> None:
     beacon_ev2 = GameEvent(
         game_id='test_beacon_game',
         time=20000,
-        event_type='0B00',
+        event_type=SM5_EVENT_CLAIM_BEACON,
         actor_entity_id='P2',
         action='claims a beacon',
         raw_message='claims a beacon',
@@ -302,7 +308,7 @@ def test_process_event_0209_warbot_zap() -> None:
     warbot_ev = GameEvent(
         game_id='test_warbot_game',
         time=15000,
-        event_type='0209',
+        event_type=SM5_EVENT_WARBOT_ZAP,
         actor_entity_id='W1',
         target_entity_id='P1',
         action='zaps',

@@ -1,4 +1,24 @@
 from lfdata.model import GameEntity, GameEvent, LFGame
+from lfdata.model.gametypes.sm5_events import (
+    SM5_EVENT_AMMO_BOOST,
+    SM5_EVENT_BASE_AWARDED,
+    SM5_EVENT_CLAIM_BEACON,
+    SM5_EVENT_DAMAGED_OPPONENT,
+    SM5_EVENT_DEACTIVATE_RAPID_FIRE,
+    SM5_EVENT_DETONATE_NUKE,
+    SM5_EVENT_DOWNED_OPPONENT,
+    SM5_EVENT_DOWNED_TEAM,
+    SM5_EVENT_LIFE_BOOST,
+    SM5_EVENT_MISSILE_DAMAGE_OPPONENT,
+    SM5_EVENT_MISSILE_DAMAGE_TEAM,
+    SM5_EVENT_MISSILE_DOWN_OPPONENT,
+    SM5_EVENT_MISSION_END,
+    SM5_EVENT_MISSION_START,
+    SM5_EVENT_NUKE_CANCEL,
+    SM5_EVENT_PENALTY,
+    SM5_EVENT_SHOT_EMPTY,
+    SM5_EVENT_WARBOT_ZAP,
+)
 from lfdata.replay.diagnostics import PlayerDiscrepancy
 from lfdata.replay.unhandled_events import (
     HANDLED_EVENT_TYPES,
@@ -9,26 +29,26 @@ from lfdata.replay.unhandled_events import (
 
 
 def test_handled_event_types_contents() -> None:
-    assert '0100' in HANDLED_EVENT_TYPES
-    assert '0101' in HANDLED_EVENT_TYPES
-    assert '0205' in HANDLED_EVENT_TYPES
-    assert '0206' in HANDLED_EVENT_TYPES
-    assert '0208' in HANDLED_EVENT_TYPES
-    assert '0209' in HANDLED_EVENT_TYPES
-    assert '0306' in HANDLED_EVENT_TYPES
-    assert '0405' in HANDLED_EVENT_TYPES
-    assert '0510' in HANDLED_EVENT_TYPES
-    assert '0512' in HANDLED_EVENT_TYPES
-    assert '0600' in HANDLED_EVENT_TYPES
-    assert '0B00' in HANDLED_EVENT_TYPES
-    assert '0B03' in HANDLED_EVENT_TYPES
-    assert 'nuke_cancel' in HANDLED_EVENT_TYPES
+    assert SM5_EVENT_MISSION_START in HANDLED_EVENT_TYPES
+    assert SM5_EVENT_MISSION_END in HANDLED_EVENT_TYPES
+    assert SM5_EVENT_DAMAGED_OPPONENT in HANDLED_EVENT_TYPES
+    assert SM5_EVENT_DOWNED_OPPONENT in HANDLED_EVENT_TYPES
+    assert SM5_EVENT_DOWNED_TEAM in HANDLED_EVENT_TYPES
+    assert SM5_EVENT_WARBOT_ZAP in HANDLED_EVENT_TYPES
+    assert SM5_EVENT_MISSILE_DOWN_OPPONENT in HANDLED_EVENT_TYPES
+    assert SM5_EVENT_DETONATE_NUKE in HANDLED_EVENT_TYPES
+    assert SM5_EVENT_AMMO_BOOST in HANDLED_EVENT_TYPES
+    assert SM5_EVENT_LIFE_BOOST in HANDLED_EVENT_TYPES
+    assert SM5_EVENT_PENALTY in HANDLED_EVENT_TYPES
+    assert SM5_EVENT_CLAIM_BEACON in HANDLED_EVENT_TYPES
+    assert SM5_EVENT_BASE_AWARDED in HANDLED_EVENT_TYPES
+    assert SM5_EVENT_NUKE_CANCEL in HANDLED_EVENT_TYPES
 
     # Unhandled / ignored event types
-    assert '0200' not in HANDLED_EVENT_TYPES
-    assert '0305' not in HANDLED_EVENT_TYPES
-    assert '0307' not in HANDLED_EVENT_TYPES
-    assert '0401' not in HANDLED_EVENT_TYPES
+    assert SM5_EVENT_SHOT_EMPTY not in HANDLED_EVENT_TYPES
+    assert SM5_EVENT_MISSILE_DAMAGE_OPPONENT not in HANDLED_EVENT_TYPES
+    assert SM5_EVENT_MISSILE_DAMAGE_TEAM not in HANDLED_EVENT_TYPES
+    assert SM5_EVENT_DEACTIVATE_RAPID_FIRE not in HANDLED_EVENT_TYPES
     assert '9999' not in HANDLED_EVENT_TYPES
 
 
@@ -41,7 +61,7 @@ def test_format_timestamp_ms() -> None:
 def test_unhandled_event_info_dataclass() -> None:
     info = UnhandledEventInfo(
         time_ms=5000,
-        event_type='0305',
+        event_type=SM5_EVENT_MISSILE_DAMAGE_OPPONENT,
         action='missile damage opponent',
         actor_entity_id='p1',
         target_entity_id='p2',
@@ -52,7 +72,7 @@ def test_unhandled_event_info_dataclass() -> None:
         discrepancy_summaries=['lives: diff -1'],
     )
     assert info.time_ms == 5000
-    assert info.event_type == '0305'
+    assert info.event_type == SM5_EVENT_MISSILE_DAMAGE_OPPONENT
     assert info.pertains_to_mismatched_player is True
     assert info.mismatched_player_ids == ['p1']
     assert info.discrepancy_summaries == ['lives: diff -1']
@@ -70,21 +90,21 @@ def test_analyzer_all_handled_events() -> None:
         GameEvent(
             game_id='g1',
             time=0,
-            event_type='0100',
+            event_type=SM5_EVENT_MISSION_START,
             action='start',
             raw_message='',
         ),
         GameEvent(
             game_id='g1',
             time=1000,
-            event_type='0205',
+            event_type=SM5_EVENT_DAMAGED_OPPONENT,
             action='zaps',
             raw_message='',
         ),
         GameEvent(
             game_id='g1',
             time=60000,
-            event_type='0101',
+            event_type=SM5_EVENT_MISSION_END,
             action='end',
             raw_message='',
         ),
@@ -114,7 +134,7 @@ def test_analyzer_finds_unhandled_events_without_discrepancies() -> None:
         GameEvent(
             game_id='g1',
             time=5000,
-            event_type='0305',
+            event_type=SM5_EVENT_MISSILE_DAMAGE_OPPONENT,
             action='missile damage opponent',
             actor_entity_id='p1',
             target_entity_id='p2',
@@ -123,7 +143,7 @@ def test_analyzer_finds_unhandled_events_without_discrepancies() -> None:
         GameEvent(
             game_id='g1',
             time=10000,
-            event_type='0401',
+            event_type=SM5_EVENT_DEACTIVATE_RAPID_FIRE,
             action='deactivate rapid fire',
             actor_entity_id='p1',
             raw_message='',
@@ -135,13 +155,13 @@ def test_analyzer_finds_unhandled_events_without_discrepancies() -> None:
     assert len(unhandled) == 2
 
     assert unhandled[0].time_ms == 5000
-    assert unhandled[0].event_type == '0305'
+    assert unhandled[0].event_type == SM5_EVENT_MISSILE_DAMAGE_OPPONENT
     assert unhandled[0].actor_name == 'Alpha'
     assert unhandled[0].target_name == 'Bravo'
     assert unhandled[0].pertains_to_mismatched_player is False
 
     assert unhandled[1].time_ms == 10000
-    assert unhandled[1].event_type == '0401'
+    assert unhandled[1].event_type == SM5_EVENT_DEACTIVATE_RAPID_FIRE
     assert unhandled[1].actor_name == 'Alpha'
     assert unhandled[1].target_name is None
     assert unhandled[1].pertains_to_mismatched_player is False
@@ -176,7 +196,7 @@ def test_analyzer_highlights_mismatched_players() -> None:
         GameEvent(
             game_id='g1',
             time=5000,
-            event_type='0305',
+            event_type=SM5_EVENT_MISSILE_DAMAGE_OPPONENT,
             action='missile damage opponent',
             actor_entity_id='p1',
             target_entity_id='p2',
@@ -186,7 +206,7 @@ def test_analyzer_highlights_mismatched_players() -> None:
         GameEvent(
             game_id='g1',
             time=8000,
-            event_type='0200',
+            event_type=SM5_EVENT_SHOT_EMPTY,
             action='empty zap',
             actor_entity_id='p2',
             target_entity_id='p3',
@@ -196,7 +216,7 @@ def test_analyzer_highlights_mismatched_players() -> None:
         GameEvent(
             game_id='g1',
             time=12000,
-            event_type='0307',
+            event_type=SM5_EVENT_MISSILE_DAMAGE_TEAM,
             action='missile damage team',
             actor_entity_id='p2',
             target_entity_id='p1',
@@ -234,7 +254,7 @@ def test_get_events_for_player() -> None:
         GameEvent(
             game_id='g1',
             time=5000,
-            event_type='0305',
+            event_type=SM5_EVENT_MISSILE_DAMAGE_OPPONENT,
             action='missile damage opponent',
             actor_entity_id='p1',
             target_entity_id='p2',
@@ -243,7 +263,7 @@ def test_get_events_for_player() -> None:
         GameEvent(
             game_id='g1',
             time=8000,
-            event_type='0200',
+            event_type=SM5_EVENT_SHOT_EMPTY,
             action='empty zap',
             actor_entity_id='p3',
             target_entity_id='p4',
@@ -252,7 +272,7 @@ def test_get_events_for_player() -> None:
         GameEvent(
             game_id='g1',
             time=12000,
-            event_type='0307',
+            event_type=SM5_EVENT_MISSILE_DAMAGE_TEAM,
             action='missile damage team',
             actor_entity_id='p5',
             target_entity_id='p1',
@@ -297,7 +317,7 @@ def test_dump_unhandled_events(capsys: object) -> None:
         GameEvent(
             game_id='g1',
             time=5000,
-            event_type='0305',
+            event_type=SM5_EVENT_MISSILE_DAMAGE_OPPONENT,
             action='missile damage opponent',
             actor_entity_id='p1',
             raw_message='',

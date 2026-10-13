@@ -1,5 +1,9 @@
 from unittest.mock import MagicMock, patch
 from lfdata.model import GameEntity, GameEvent, LFGame, Sm5Stats
+from lfdata.model.gametypes.sm5_events import (
+    SM5_EVENT_LIFE_BOOST,
+    SM5_EVENT_SHOT_EMPTY,
+)
 from lfdata.replay.verification import LFReplayVerifier, PlayerDiscrepancy
 
 
@@ -121,7 +125,7 @@ def test_verifier_with_discrepancies_resolved() -> None:
                 'player_id': 'player_1',
                 'default': False,
                 'chosen': True,
-                'event_type': '0512',
+                'event_type': SM5_EVENT_LIFE_BOOST,
             }
         ]
         mock_inst_aligned.entity_names = {'player_1': 'PlayerOne'}
@@ -253,7 +257,7 @@ def test_verify_reports_unhandled_events_without_discrepancies(
         GameEvent(
             game_id='test_unhandled_verify',
             time=2000,
-            event_type='0200',
+            event_type=SM5_EVENT_SHOT_EMPTY,
             action='empty shot',
             actor_entity_id='player_1',
             raw_message='',

@@ -25,6 +25,7 @@ from lfdata.model.objects.team import GameTeam
 from lfdata.model.gametypes.sm5_stats import Sm5Stats
 from lfdata.model.gametypes.laserball_stats import LaserballStats
 from lfdata.model.gametypes.laserball_events import LaserballEvent
+from lfdata.model.gametypes.sm5_events import SM5Event
 from lfdata.model.gametypes.sm5_notability import (
     Sm5NotabilityCondition,
     Sm5NotabilityEvaluator,
@@ -41,6 +42,7 @@ __all__ = [
     'Sm5Stats',
     'LaserballStats',
     'LaserballEvent',
+    'SM5Event',
     'ScoreHistory',
     'PlayerStateHistory',
     'LFRole',

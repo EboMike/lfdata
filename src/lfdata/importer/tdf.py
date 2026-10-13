@@ -41,6 +41,23 @@ from lfdata.model.constants.tdf import (
     TDF_RECORD_STATS,
     TDF_RECORD_TEAM,
 )
+from lfdata.model.gametypes.laserball_events import (
+    LASERBALL_EVENT_ASSIST,
+    LASERBALL_EVENT_BLOCK,
+    LASERBALL_EVENT_CLEAR,
+    LASERBALL_EVENT_FAIL_CLEAR,
+    LASERBALL_EVENT_GETS_BALL,
+    LASERBALL_EVENT_GOAL,
+    LASERBALL_EVENT_PASS,
+    LASERBALL_EVENT_RESET_ON_BASE,
+    LASERBALL_EVENT_ROUND_END,
+    LASERBALL_EVENT_ROUND_START,
+    LASERBALL_EVENT_STEAL,
+)
+from lfdata.model.gametypes.sm5_events import (
+    SM5_EVENT_CLAIM_BEACON,
+    SM5_EVENT_WARBOT_ZAP,
+)
 
 
 class TdfImporter:
@@ -272,7 +289,7 @@ class TdfImporter:
             varies = parts[3:] if len(parts) > 3 else []
             actor_entity_id = None
             target_entity_id = None
-            if event_type == '0B00':
+            if event_type == SM5_EVENT_CLAIM_BEACON:
                 if len(varies) == 1:
                     actor_entity_id = varies[0]
                     action = 'claims a beacon'
@@ -283,7 +300,7 @@ class TdfImporter:
                         target_entity_id = varies[2]
                 else:
                     action = 'claims a beacon'
-            elif event_type == '0209':
+            elif event_type == SM5_EVENT_WARBOT_ZAP:
                 if len(varies) >= 3:
                     actor_entity_id = varies[0]
                     action = varies[1].strip() or 'zaps'
@@ -302,12 +319,12 @@ class TdfImporter:
                 else:
                     action = 'zaps'
             elif event_type in (
-                '1100',
-                '1102',
-                '1103',
-                '1104',
-                '1109',
-                '110B',
+                LASERBALL_EVENT_PASS,
+                LASERBALL_EVENT_ASSIST,
+                LASERBALL_EVENT_STEAL,
+                LASERBALL_EVENT_BLOCK,
+                LASERBALL_EVENT_CLEAR,
+                LASERBALL_EVENT_RESET_ON_BASE,
             ):
                 if len(varies) >= 3:
                     actor_entity_id = varies[0]
@@ -322,7 +339,11 @@ class TdfImporter:
                     action = varies[0].strip()
                 else:
                     action = ''
-            elif event_type in ('1101', '1107', '110A'):
+            elif event_type in (
+                LASERBALL_EVENT_GOAL,
+                LASERBALL_EVENT_GETS_BALL,
+                LASERBALL_EVENT_FAIL_CLEAR,
+            ):
                 if len(varies) >= 2:
                     actor_entity_id = varies[0]
                     action = varies[1].strip()
@@ -331,7 +352,10 @@ class TdfImporter:
                     action = varies[0].strip()
                 else:
                     action = ''
-            elif event_type in ('1105', '1106'):
+            elif event_type in (
+                LASERBALL_EVENT_ROUND_START,
+                LASERBALL_EVENT_ROUND_END,
+            ):
                 action = varies[0].strip() if varies else ''
             elif len(varies) == 1:
                 action = varies[0].strip()

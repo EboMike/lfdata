@@ -16,12 +16,32 @@ import dataclasses
 from typing import Any
 
 from lfdata.model import GameEvent, LFGame, LFRole, LFTeamType
+from lfdata.model.gametypes.laserball_events import LaserballEvent
 from lfdata.model.gametypes.sm5_constants import (
     DEFAULT_BOOST_GRACE_PERIOD_MS,
     SM5_BASE_DESTROY_POINTS,
     SM5_BASE_DESTROY_SPECIAL_POINTS,
     SM5_BOOST_AMBIGUITY_WINDOW_MS,
     SM5_NUKE_DETONATION_TIME_MS,
+)
+from lfdata.model.gametypes.sm5_events import (
+    SM5_EVENT_ACTIVATE_NUKE,
+    SM5_EVENT_AMMO_BOOST,
+    SM5_EVENT_BASE_AWARDED,
+    SM5_EVENT_DAMAGED_OPPONENT,
+    SM5_EVENT_DAMAGED_TEAM,
+    SM5_EVENT_DESTROY_BASE,
+    SM5_EVENT_DETONATE_NUKE,
+    SM5_EVENT_DOWNED_OPPONENT,
+    SM5_EVENT_DOWNED_TEAM,
+    SM5_EVENT_LIFE_BOOST,
+    SM5_EVENT_MISSILE_BASE_DESTROY,
+    SM5_EVENT_MISSILE_DOWN_OPPONENT,
+    SM5_EVENT_MISSILE_DOWN_TEAM,
+    SM5_EVENT_MISSION_END,
+    SM5_EVENT_NUKE_CANCEL,
+    SM5_EVENT_RESUPPLY_AMMO,
+    SM5_EVENT_RESUPPLY_LIVES,
 )
 from lfdata.replay.handlers import LFReplayHandlersMixin
 from lfdata.replay.record import LFReplayEventRecord
@@ -229,7 +249,7 @@ class LFReplaySystem(LFReplayHandlersMixin):
             self._dispatch_event(event)
             self.game_state.update_team_scores_and_rankings()
 
-            if event.event_type == '0101':
+            if event.event_type == SM5_EVENT_MISSION_END:
                 self.game_ended_at_ms = event.time
                 break
 
@@ -385,7 +405,7 @@ class LFReplaySystem(LFReplayHandlersMixin):
             )
             self.records.append(record)
 
-            if event.event_type == '0101':
+            if event.event_type == SM5_EVENT_MISSION_END:
                 self.game_ended_at_ms = event.time
                 break
 
@@ -428,7 +448,7 @@ class LFReplaySystem(LFReplayHandlersMixin):
             int | None: The mission end timestamp in milliseconds if found.
         """
         for ev in sorted_events:
-            if ev.event_type == '0101':
+            if ev.event_type == SM5_EVENT_MISSION_END:
                 return ev.time
         return None
 
@@ -454,7 +474,7 @@ class LFReplaySystem(LFReplayHandlersMixin):
             if check_ev.time > activate_ms + SM5_NUKE_DETONATION_TIME_MS:
                 break
             if (
-                check_ev.event_type == '0405'
+                check_ev.event_type == SM5_EVENT_DETONATE_NUKE
                 and check_ev.actor_entity_id == nuker_id
             ):
                 return True
@@ -481,22 +501,34 @@ class LFReplaySystem(LFReplayHandlersMixin):
         actor = check_ev.actor_entity_id
 
         # 1. Player is downed
-        if et in ('0206', '0208', '0306', '0308') and target == nuker_id:
+        if (
+            et
+            in (
+                SM5_EVENT_DOWNED_OPPONENT,
+                SM5_EVENT_DOWNED_TEAM,
+                SM5_EVENT_MISSILE_DOWN_OPPONENT,
+                SM5_EVENT_MISSILE_DOWN_TEAM,
+            )
+            and target == nuker_id
+        ):
             if actor and player_teams.get(actor) == player_teams.get(nuker_id):
                 return 'nuke cancel by friendly fire'
             return 'nuke cancel'
 
         # 2. Cancel by resup
-        if et in ('0500', '0502') and target == nuker_id:
+        if (
+            et in (SM5_EVENT_RESUPPLY_AMMO, SM5_EVENT_RESUPPLY_LIVES)
+            and target == nuker_id
+        ):
             return 'nuke cancel by own resup'
 
         # 3. Cancel by enemy nuke
-        if et == '0405' and actor != nuker_id:
+        if et == SM5_EVENT_DETONATE_NUKE and actor != nuker_id:
             if actor and player_teams.get(actor) != player_teams.get(nuker_id):
                 return 'nuke cancel by enemy nuke'
 
         # 4. Game end
-        if et == '0101':
+        if et == SM5_EVENT_MISSION_END:
             return 'nuke activated too late'
 
         return None
@@ -595,7 +627,7 @@ class LFReplaySystem(LFReplayHandlersMixin):
         injected_cancels = []
 
         for i, ev in enumerate(sorted_events):
-            if ev.event_type != '0404':
+            if ev.event_type != SM5_EVENT_ACTIVATE_NUKE:
                 continue
 
             nuker_id = ev.actor_entity_id
@@ -642,7 +674,7 @@ class LFReplaySystem(LFReplayHandlersMixin):
             self._dispatch_event(event)
             self.game_state.update_team_scores_and_rankings()
 
-            if event.event_type == '0101':
+            if event.event_type == SM5_EVENT_MISSION_END:
                 self.game_ended_at_ms = event.time
                 return
 
@@ -660,31 +692,36 @@ class LFReplaySystem(LFReplayHandlersMixin):
             str: The event description string.
         """
         ev_type = event.event_type
-        if ev_type in ['0205', '0206', '0207', '0208']:
+        if ev_type in (
+            SM5_EVENT_DAMAGED_OPPONENT,
+            SM5_EVENT_DOWNED_OPPONENT,
+            SM5_EVENT_DAMAGED_TEAM,
+            SM5_EVENT_DOWNED_TEAM,
+        ):
             description = self._process_event_zap(event)
-        elif ev_type in ['0306', '0308']:
+        elif ev_type in (
+            SM5_EVENT_MISSILE_DOWN_OPPONENT,
+            SM5_EVENT_MISSILE_DOWN_TEAM,
+        ):
             description = self._process_event_missile(event)
-        elif ev_type in ['0204', '0303', '0B03']:
+        elif ev_type in (
+            SM5_EVENT_DESTROY_BASE,
+            SM5_EVENT_MISSILE_BASE_DESTROY,
+            SM5_EVENT_BASE_AWARDED,
+        ):
             description = self._process_event_base_destroy(event)
-        elif ev_type == '0405':
+        elif ev_type == SM5_EVENT_DETONATE_NUKE:
             description = self._process_event_nuke_detonate(event)
-        elif ev_type == 'nuke_cancel':
+        elif ev_type == SM5_EVENT_NUKE_CANCEL:
             description = self._process_event_nuke_cancel(event)
-        elif ev_type in ['0500', '0502', '0510', '0512']:
+        elif ev_type in (
+            SM5_EVENT_RESUPPLY_AMMO,
+            SM5_EVENT_RESUPPLY_LIVES,
+            SM5_EVENT_AMMO_BOOST,
+            SM5_EVENT_LIFE_BOOST,
+        ):
             description = self._process_event_resupply(event)
-        elif ev_type in [
-            '1100',
-            '1101',
-            '1102',
-            '1103',
-            '1104',
-            '1105',
-            '1106',
-            '1107',
-            '1109',
-            '110A',
-            '110B',
-        ]:
+        elif LaserballEvent.is_laserball_event(ev_type):
             description = self._process_event_laserball(event)
         else:
             description = self._process_event_other(event)

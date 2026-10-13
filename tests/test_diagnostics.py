@@ -7,6 +7,14 @@ from lfdata.model import (
     LFRole,
     PlayerStateHistory,
 )
+from lfdata.model.gametypes.sm5_events import (
+    SM5_EVENT_AMMO_BOOST,
+    SM5_EVENT_CLAIM_BEACON,
+    SM5_EVENT_DOWNED_OPPONENT,
+    SM5_EVENT_LIFE_BOOST,
+    SM5_EVENT_MISSILE_DAMAGE_OPPONENT,
+    SM5_EVENT_WARBOT_ZAP,
+)
 from lfdata.replay.diagnostics import (
     LFReplayDiagnostics,
     describe_player_state_at_ms,
@@ -112,7 +120,7 @@ def test_dump_mismatches_lives_discrepancy(capsys: object) -> None:
     boost_event = GameEvent(
         game_id='diag_test_game',
         time=170000,
-        event_type='0512',
+        event_type=SM5_EVENT_LIFE_BOOST,
         actor_entity_id='player_2',
         action='resupplies team',
     )
@@ -120,7 +128,7 @@ def test_dump_mismatches_lives_discrepancy(capsys: object) -> None:
     zap_event = GameEvent(
         game_id='diag_test_game',
         time=169200,
-        event_type='0206',
+        event_type=SM5_EVENT_DOWNED_OPPONENT,
         actor_entity_id='player_enemy',
         target_entity_id='player_1',
         action='zaps',
@@ -208,7 +216,7 @@ def test_dump_mismatches_ammo_discrepancy(capsys: object) -> None:
     boost_event = GameEvent(
         game_id='ammo_test_game',
         time=100000,
-        event_type='0510',
+        event_type=SM5_EVENT_AMMO_BOOST,
         actor_entity_id='player_2',
         action='resupplies team',
     )
@@ -598,7 +606,7 @@ def test_dump_mismatches_unhandled_events(capsys: object) -> None:
         GameEvent(
             game_id='diag_unhandled_game',
             time=45000,
-            event_type='0305',
+            event_type=SM5_EVENT_MISSILE_DAMAGE_OPPONENT,
             action='missile damage opponent',
             actor_entity_id='p1',
             target_entity_id='p2',
@@ -665,7 +673,7 @@ def test_dump_mismatches_warbot_zaps_and_beacon_claims(
         GameEvent(
             game_id='diag_wb_beacon_game',
             time=15000,
-            event_type='0209',
+            event_type=SM5_EVENT_WARBOT_ZAP,
             action='zaps',
             actor_entity_id='wb1',
             target_entity_id='p1',
@@ -674,7 +682,7 @@ def test_dump_mismatches_warbot_zaps_and_beacon_claims(
         GameEvent(
             game_id='diag_wb_beacon_game',
             time=30000,
-            event_type='0B00',
+            event_type=SM5_EVENT_CLAIM_BEACON,
             action='claims a beacon',
             actor_entity_id='p1',
             raw_message='claims a beacon',
@@ -682,7 +690,7 @@ def test_dump_mismatches_warbot_zaps_and_beacon_claims(
         GameEvent(
             game_id='diag_wb_beacon_game',
             time=45000,
-            event_type='0B00',
+            event_type=SM5_EVENT_CLAIM_BEACON,
             action='claims a beacon',
             actor_entity_id='p2',
             raw_message='claims a beacon',

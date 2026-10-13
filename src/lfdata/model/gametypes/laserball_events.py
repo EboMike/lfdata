@@ -15,6 +15,20 @@ import dataclasses
 import enum
 
 
+# Laserball game event ID constants
+LASERBALL_EVENT_PASS: str = '1100'
+LASERBALL_EVENT_GOAL: str = '1101'
+LASERBALL_EVENT_ASSIST: str = '1102'
+LASERBALL_EVENT_STEAL: str = '1103'
+LASERBALL_EVENT_BLOCK: str = '1104'
+LASERBALL_EVENT_ROUND_START: str = '1105'
+LASERBALL_EVENT_ROUND_END: str = '1106'
+LASERBALL_EVENT_GETS_BALL: str = '1107'
+LASERBALL_EVENT_CLEAR: str = '1109'
+LASERBALL_EVENT_FAIL_CLEAR: str = '110A'
+LASERBALL_EVENT_RESET_ON_BASE: str = '110B'
+
+
 @dataclasses.dataclass(frozen=True)
 class LaserballEventInfo:
     """Metadata for a Laserball event type.
@@ -48,57 +62,57 @@ class LaserballEvent(enum.Enum):
     """
 
     PASS = LaserballEventInfo(
-        event_id='1100',
+        event_id=LASERBALL_EVENT_PASS,
         name='PASS',
         description='Player passes the ball to another player on the team.',
     )
     GOAL = LaserballEventInfo(
-        event_id='1101',
+        event_id=LASERBALL_EVENT_GOAL,
         name='GOAL',
         description='The player scores.',
     )
     ASSIST = LaserballEventInfo(
-        event_id='1102',
+        event_id=LASERBALL_EVENT_ASSIST,
         name='ASSIST',
         description='The player assisted someone else.',
     )
     STEAL = LaserballEventInfo(
-        event_id='1103',
+        event_id=LASERBALL_EVENT_STEAL,
         name='STEAL',
         description='Player steals a ball from the enemy ball carrier.',
     )
     BLOCK = LaserballEventInfo(
-        event_id='1104',
+        event_id=LASERBALL_EVENT_BLOCK,
         name='BLOCK',
         description='Player zaps an enemy player.',
     )
     ROUND_START = LaserballEventInfo(
-        event_id='1105',
+        event_id=LASERBALL_EVENT_ROUND_START,
         name='ROUND_START',
         description='A new round begins.',
     )
     ROUND_END = LaserballEventInfo(
-        event_id='1106',
+        event_id=LASERBALL_EVENT_ROUND_END,
         name='ROUND_END',
         description='The round is over.',
     )
     GETS_BALL = LaserballEventInfo(
-        event_id='1107',
+        event_id=LASERBALL_EVENT_GETS_BALL,
         name='GETS_BALL',
         description='A player receives a ball at the beginning of a round.',
     )
     CLEAR = LaserballEventInfo(
-        event_id='1109',
+        event_id=LASERBALL_EVENT_CLEAR,
         name='CLEAR',
         description='A player clears the ball, a new player receives it.',
     )
     FAIL_CLEAR = LaserballEventInfo(
-        event_id='110A',
+        event_id=LASERBALL_EVENT_FAIL_CLEAR,
         name='FAIL_CLEAR',
         description='A player tried to clear, but no teammate was up.',
     )
     RESET_ON_BASE = LaserballEventInfo(
-        event_id='110B',
+        event_id=LASERBALL_EVENT_RESET_ON_BASE,
         name='RESET_ON_BASE',
         description='The player zaps a neutral base.',
     )

@@ -16,6 +16,10 @@ from typing import TYPE_CHECKING, Any
 
 from lfdata.model.constants.role import LFRole
 from lfdata.model.constants.time import MS_PER_MINUTE
+from lfdata.model.gametypes.sm5_events import (
+    SM5_EVENT_DAMAGED_OPPONENT,
+    SM5_EVENT_DOWNED_OPPONENT,
+)
 from lfdata.model.gametypes.sm5_constants import (
     SM5_NOTABILITY_ALMOST_ELIM_MAX_LIVES,
     SM5_NOTABILITY_CLOSE_GAME_MAX_DIFF,
@@ -432,7 +436,11 @@ class Sm5NotabilityChecks:
             for ev in game.events
             if ev.actor_entity_id == focus_entity.entity_id
             and ev.target_entity_id in enemy_medics
-            and ev.event_type in ('0205', '0206')
+            and ev.event_type
+            in (
+                SM5_EVENT_DAMAGED_OPPONENT,
+                SM5_EVENT_DOWNED_OPPONENT,
+            )
         )
         if zaps >= SM5_NOTABILITY_MEDIC_ZAPPED_MEDIC_MIN:
             return Sm5NotabilityResult(

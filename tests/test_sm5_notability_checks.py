@@ -8,6 +8,10 @@ from lfdata.model import (
     Sm5NotabilityCondition,
     Sm5Stats,
 )
+from lfdata.model.gametypes.sm5_events import (
+    SM5_EVENT_DAMAGED_OPPONENT,
+    SM5_EVENT_DOWNED_OPPONENT,
+)
 from lfdata.model.gametypes.sm5_notability_checks import Sm5NotabilityChecks
 
 
@@ -315,7 +319,7 @@ def test_checks_medic_zapped_medic() -> None:
         GameEvent(
             game_id=game.game_id,
             time=1000,
-            event_type='0205',
+            event_type=SM5_EVENT_DAMAGED_OPPONENT,
             actor_entity_id='M1',
             target_entity_id='M2',
             action='zaps',
@@ -324,7 +328,7 @@ def test_checks_medic_zapped_medic() -> None:
         GameEvent(
             game_id=game.game_id,
             time=2000,
-            event_type='0206',
+            event_type=SM5_EVENT_DOWNED_OPPONENT,
             actor_entity_id='M1',
             target_entity_id='M2',
             action='zaps',
@@ -333,7 +337,7 @@ def test_checks_medic_zapped_medic() -> None:
         GameEvent(
             game_id=game.game_id,
             time=3000,
-            event_type='0205',
+            event_type=SM5_EVENT_DAMAGED_OPPONENT,
             actor_entity_id='M1',
             target_entity_id='M2',
             action='zaps',

@@ -24,7 +24,40 @@ import jinja2
 
 from lfdata.model import GameEvent, LFGame, LFRole
 from lfdata.model.constants.time import MS_PER_SECOND
+from lfdata.model.gametypes.laserball_events import (
+    LASERBALL_EVENT_BLOCK,
+    LASERBALL_EVENT_CLEAR,
+    LASERBALL_EVENT_GOAL,
+    LASERBALL_EVENT_PASS,
+    LASERBALL_EVENT_ROUND_END,
+    LASERBALL_EVENT_ROUND_START,
+    LASERBALL_EVENT_STEAL,
+)
 from lfdata.model.gametypes.sm5_constants import SM5_SPECIAL_POINTS_NUKE
+from lfdata.model.gametypes.sm5_events import (
+    SM5_EVENT_ACTIVATE_NUKE,
+    SM5_EVENT_AMMO_BOOST,
+    SM5_EVENT_DAMAGED_OPPONENT,
+    SM5_EVENT_DAMAGED_TEAM,
+    SM5_EVENT_DESTROY_BASE,
+    SM5_EVENT_DETONATE_NUKE,
+    SM5_EVENT_DOWNED_OPPONENT,
+    SM5_EVENT_DOWNED_TEAM,
+    SM5_EVENT_HIT_BASE,
+    SM5_EVENT_LIFE_BOOST,
+    SM5_EVENT_LOCKING,
+    SM5_EVENT_MISSILE_BASE_DAMAGE,
+    SM5_EVENT_MISSILE_BASE_DESTROY,
+    SM5_EVENT_MISSILE_BASE_MISS,
+    SM5_EVENT_MISSILE_DOWN_OPPONENT,
+    SM5_EVENT_MISSILE_DOWN_TEAM,
+    SM5_EVENT_MISSILE_MISS,
+    SM5_EVENT_MISSION_END,
+    SM5_EVENT_NUKE_CANCEL,
+    SM5_EVENT_PENALTY,
+    SM5_EVENT_RESUPPLY_AMMO,
+    SM5_EVENT_RESUPPLY_LIVES,
+)
 from lfdata.replay import LFReplaySystem
 from lfdata.replay.state import LFReplayPlayerState, LFReplayTeamState
 from lfdata.video.constants import (
@@ -435,23 +468,27 @@ class VisualElementGenerator:
             )
 
             if self.game.is_laserball:
-                is_important = event.event_type in ('1101', '1105', '1106')
-                if event.event_type == '1105':
+                is_important = event.event_type in (
+                    LASERBALL_EVENT_GOAL,
+                    LASERBALL_EVENT_ROUND_START,
+                    LASERBALL_EVENT_ROUND_END,
+                )
+                if event.event_type == LASERBALL_EVENT_ROUND_START:
                     desc = 'ROUND STARTS'
-                elif event.event_type == '1106':
+                elif event.event_type == LASERBALL_EVENT_ROUND_END:
                     desc = 'ROUND END'
-                elif event.event_type == '1101':
+                elif event.event_type == LASERBALL_EVENT_GOAL:
                     actor_name = self.entity_names.get(
                         event.actor_entity_id or '',
                         event.actor_entity_id or '',
                     )
                     desc = f'{actor_name} scored a goal'
             else:
-                is_important = event.event_type in [
-                    '0404',
-                    '0405',
-                    'nuke_cancel',
-                ]
+                is_important = event.event_type in (
+                    SM5_EVENT_ACTIVATE_NUKE,
+                    SM5_EVENT_DETONATE_NUKE,
+                    SM5_EVENT_NUKE_CANCEL,
+                )
             if desc and 'misses' not in desc:
                 self.event_log.append(
                     LFEventLogEntry(
@@ -472,7 +509,7 @@ class VisualElementGenerator:
                 last_trans_time_ms=last_trans_time_ms,
                 visual_rank_at_last_trans=visual_rank_at_last_trans,
             )
-            if event.event_type == '0101':
+            if event.event_type == SM5_EVENT_MISSION_END:
                 replay.game_ended_at_ms = event.time
                 break
 
@@ -508,7 +545,11 @@ class VisualElementGenerator:
             sorted_events: Chronologically sorted game events list.
         """
         self.nuke_intervals: list[LFNukeInterval] = []
-        activations = [ev for ev in sorted_events if ev.event_type == '0404']
+        activations = [
+            ev
+            for ev in sorted_events
+            if ev.event_type == SM5_EVENT_ACTIVATE_NUKE
+        ]
 
         for act in activations:
             nuker_id = act.actor_entity_id
@@ -521,7 +562,10 @@ class VisualElementGenerator:
 
             for ev in sorted_events:
                 if ev.time > t_start and ev.actor_entity_id == nuker_id:
-                    if ev.event_type in ('0405', 'nuke_cancel'):
+                    if ev.event_type in (
+                        SM5_EVENT_DETONATE_NUKE,
+                        SM5_EVENT_NUKE_CANCEL,
+                    ):
                         t_end = ev.time
                         break
 
@@ -561,7 +605,7 @@ class VisualElementGenerator:
             target_color_override = None
             et = event.event_type
 
-            if et in ('0203', '0204'):
+            if et in (SM5_EVENT_HIT_BASE, SM5_EVENT_DESTROY_BASE):
                 msg = self._process_hud_base_event(
                     event=event,
                     et=et,
@@ -570,7 +614,12 @@ class VisualElementGenerator:
                     target_name=target_name,
                 )
 
-            elif et in ('0205', '0206', '0207', '0208'):
+            elif et in (
+                SM5_EVENT_DAMAGED_OPPONENT,
+                SM5_EVENT_DOWNED_OPPONENT,
+                SM5_EVENT_DAMAGED_TEAM,
+                SM5_EVENT_DOWNED_TEAM,
+            ):
                 target_state = None
                 if actor_id == self.entity_id:
                     t_state = replay.game_state.players.get(target_id or '')
@@ -600,7 +649,12 @@ class VisualElementGenerator:
                         last_event = self.player_event_log[-1]
                         if (
                             last_event.event_type
-                            in ('0205', '0206', '0207', '0208')
+                            in (
+                                SM5_EVENT_DAMAGED_OPPONENT,
+                                SM5_EVENT_DOWNED_OPPONENT,
+                                SM5_EVENT_DAMAGED_TEAM,
+                                SM5_EVENT_DOWNED_TEAM,
+                            )
                             and last_event.actor_id == actor_id
                             and last_event.target_id == target_id
                         ):
@@ -664,7 +718,7 @@ class VisualElementGenerator:
                             t_color = t_team.color_rgb if t_team else '#ffffff'
                             target_color_override = {boxes: t_color}
 
-            elif et == '0300':
+            elif et == SM5_EVENT_LOCKING:
                 if actor_id == self.entity_id:
                     t_state = replay.game_state.players.get(target_id or '')
                     self_state = replay.game_state.players.get(self.entity_id)
@@ -686,11 +740,18 @@ class VisualElementGenerator:
                     else:
                         msg = f'Locked by {actor_name}'
 
-            elif et in ('0306', '0308', '0304', '0301', '0302', '0303'):
+            elif et in (
+                SM5_EVENT_MISSILE_DOWN_OPPONENT,
+                SM5_EVENT_MISSILE_DOWN_TEAM,
+                SM5_EVENT_MISSILE_MISS,
+                SM5_EVENT_MISSILE_BASE_MISS,
+                SM5_EVENT_MISSILE_BASE_DAMAGE,
+                SM5_EVENT_MISSILE_BASE_DESTROY,
+            ):
                 found_lock = None
                 for ev_entry in reversed(self.player_event_log):
                     if (
-                        ev_entry.event_type == '0300'
+                        ev_entry.event_type == SM5_EVENT_LOCKING
                         and ev_entry.actor_id == actor_id
                         and ev_entry.follow_up_time is None
                     ):
@@ -703,7 +764,7 @@ class VisualElementGenerator:
                             break
 
                 follow_up_msg = None
-                if et == '0306':
+                if et == SM5_EVENT_MISSILE_DOWN_OPPONENT:
                     if actor_id == self.entity_id:
                         t_state = replay.game_state.players.get(target_id or '')
                         self_state = replay.game_state.players.get(
@@ -728,12 +789,12 @@ class VisualElementGenerator:
                                 )
                             else:
                                 follow_up_msg = f'Missiled by {actor_name}'
-                elif et == '0308':
+                elif et == SM5_EVENT_MISSILE_DOWN_TEAM:
                     if actor_id == self.entity_id:
                         follow_up_msg = f'FRIENDLY missile {target_name}'
                     elif target_id == self.entity_id:
                         follow_up_msg = f'FRIENDLY missile by {actor_name}'
-                elif et == '0304':
+                elif et == SM5_EVENT_MISSILE_MISS:
                     if actor_id == self.entity_id:
                         follow_up_msg = 'Missile MISSES'
                     else:
@@ -757,9 +818,13 @@ class VisualElementGenerator:
                                     follow_up_msg = (
                                         f'Missile from {actor_name} MISSES'
                                     )
-                elif et in ('0301', '0302', '0303'):
+                elif et in (
+                    SM5_EVENT_MISSILE_BASE_MISS,
+                    SM5_EVENT_MISSILE_BASE_DAMAGE,
+                    SM5_EVENT_MISSILE_BASE_DESTROY,
+                ):
                     if actor_id == self.entity_id:
-                        if et == '0301':
+                        if et == SM5_EVENT_MISSILE_BASE_MISS:
                             follow_up_msg = f'Missile misses {target_name}'
                         else:
                             follow_up_msg = f'Missiled base {target_name}'
@@ -779,12 +844,18 @@ class VisualElementGenerator:
                         event.time - found_lock.time
                     ) + fade_time_ms
                 elif follow_up_msg:
-                    if et in ('0306', '0308', '0302', '0303') or (
-                        et == '0304' and actor_id == self.entity_id
+                    if et in (
+                        SM5_EVENT_MISSILE_DOWN_OPPONENT,
+                        SM5_EVENT_MISSILE_DOWN_TEAM,
+                        SM5_EVENT_MISSILE_BASE_DAMAGE,
+                        SM5_EVENT_MISSILE_BASE_DESTROY,
+                    ) or (
+                        et == SM5_EVENT_MISSILE_MISS
+                        and actor_id == self.entity_id
                     ):
                         msg = follow_up_msg
 
-            elif et in ('0500', '0502'):
+            elif et in (SM5_EVENT_RESUPPLY_AMMO, SM5_EVENT_RESUPPLY_LIVES):
                 msg = self._process_hud_resupply_event(
                     event=event,
                     et=et,
@@ -794,7 +865,7 @@ class VisualElementGenerator:
                     target_name=target_name,
                 )
 
-            elif et in ('0510', '0512'):
+            elif et in (SM5_EVENT_AMMO_BOOST, SM5_EVENT_LIFE_BOOST):
                 msg = self._process_hud_boost_event(
                     event=event,
                     et=et,
@@ -804,33 +875,33 @@ class VisualElementGenerator:
                     replay=replay,
                 )
 
-            elif et == '0600':
+            elif et == SM5_EVENT_PENALTY:
                 if actor_id == self.entity_id:
                     msg = 'Received a penalty'
 
-            elif et == '1104':
+            elif et == LASERBALL_EVENT_BLOCK:
                 if actor_id == self.entity_id:
                     msg = f'Blocked {target_name}'
                 elif target_id == self.entity_id:
                     msg = f'Blocked by {actor_name}'
 
-            elif et == '1103':
+            elif et == LASERBALL_EVENT_STEAL:
                 if actor_id == self.entity_id:
                     msg = f'Stole ball from {target_name}'
                 elif target_id == self.entity_id:
                     msg = f'Ball stolen by {actor_name}'
 
-            elif et == '1100':
+            elif et == LASERBALL_EVENT_PASS:
                 if actor_id == self.entity_id:
                     msg = f'Passed ball to {target_name}'
                 elif target_id == self.entity_id:
                     msg = f'Ball passed by {actor_name}'
 
-            elif et == '1101':
+            elif et == LASERBALL_EVENT_GOAL:
                 if actor_id == self.entity_id:
                     msg = 'SCORED A GOAL'
 
-            elif et == '1109':
+            elif et == LASERBALL_EVENT_CLEAR:
                 if actor_id == self.entity_id:
                     msg = f'Cleared ball to {target_name}'
                 elif target_id == self.entity_id:
@@ -845,10 +916,15 @@ class VisualElementGenerator:
                     event_type=et,
                     target_color_override=target_color_override,
                 )
-                if et in ('0205', '0206', '0207', '0208'):
+                if et in (
+                    SM5_EVENT_DAMAGED_OPPONENT,
+                    SM5_EVENT_DOWNED_OPPONENT,
+                    SM5_EVENT_DAMAGED_TEAM,
+                    SM5_EVENT_DOWNED_TEAM,
+                ):
                     log_entry.base_desc = base_msg
                     log_entry.zap_count = 1
-                elif et in ('0203', '0204'):
+                elif et in (SM5_EVENT_HIT_BASE, SM5_EVENT_DESTROY_BASE):
                     log_entry.base_desc = msg
                     log_entry.zap_count = 1
                 self.player_event_log.append(log_entry)
@@ -1078,7 +1154,11 @@ class VisualElementGenerator:
             if (
                 ev.actor_id == self.entity_id
                 and ev.target_id == target_id
-                and ev.event_type in ('0203', '0204')
+                and ev.event_type
+                in (
+                    SM5_EVENT_HIT_BASE,
+                    SM5_EVENT_DESTROY_BASE,
+                )
             ):
                 if ev.desc.startswith('Destroyed base') or any(
                     u.desc.startswith('Destroyed base') for u in ev.updates
@@ -1110,7 +1190,7 @@ class VisualElementGenerator:
         """
         count = ev.zap_count + 1
         ev.zap_count = count
-        if et == '0204':
+        if et == SM5_EVENT_DESTROY_BASE:
             new_desc = f'Destroyed base {target_name}'
         else:
             new_desc = f'{count}x Zapped base {target_name}'
@@ -1172,9 +1252,9 @@ class VisualElementGenerator:
                 )
                 return None
 
-        if et == '0203':
+        if et == SM5_EVENT_HIT_BASE:
             return f'Zapped base {target_name}'
-        if et == '0204':
+        if et == SM5_EVENT_DESTROY_BASE:
             return f'Destroyed base {target_name}'
         return None
 
@@ -1207,7 +1287,7 @@ class VisualElementGenerator:
         """
         msg: str | None = None
         if target_id == self.entity_id:
-            if et == '0500':
+            if et == SM5_EVENT_RESUPPLY_AMMO:
                 self._last_ammo_resup = LFResupplyTracker(
                     time_ms=event.time, actor_name=actor_name
                 )
@@ -1252,7 +1332,7 @@ class VisualElementGenerator:
                     msg = f'Resupplied lives by {actor_name}'
 
         elif actor_id == self.entity_id and target_id:
-            if et == '0500':
+            if et == SM5_EVENT_RESUPPLY_AMMO:
                 self._last_ammo_resup_by_me[target_id] = event.time
                 prev_medic = self._last_medic_resup_by_me.get(target_id)
                 if prev_medic and event.time - prev_medic <= 1000:
@@ -1310,7 +1390,7 @@ class VisualElementGenerator:
         """
         msg: str | None = None
         if actor_id == self.entity_id:
-            if et == '0510':
+            if et == SM5_EVENT_AMMO_BOOST:
                 msg = 'Ammo-boosted team'
             else:
                 msg = 'Life-boosted team'
@@ -1328,7 +1408,7 @@ class VisualElementGenerator:
                     prev_self.can_receive_resupply(event.time)
                     and prev_self.lives > 0
                 ):
-                    if et == '0510':
+                    if et == SM5_EVENT_AMMO_BOOST:
                         msg = f'Shot-boosted by {actor_name}'
                     else:
                         msg = f'Life-boosted by {actor_name}'
@@ -2484,7 +2564,11 @@ class VisualElementGenerator:
         for event in self.game.events:
             # 1. Player is missiled (0.01 strength, 500 ms duration)
             if (
-                event.event_type in ('0306', '0308')
+                event.event_type
+                in (
+                    SM5_EVENT_MISSILE_DOWN_OPPONENT,
+                    SM5_EVENT_MISSILE_DOWN_TEAM,
+                )
                 and event.target_entity_id == self.entity_id
             ):
                 self.camera_shakes.append(
@@ -2497,7 +2581,7 @@ class VisualElementGenerator:
                 self.missile_flashes_ms.append(event.time)
 
             # 2. Enemy commander detonates a nuke (0.03 strength, 1000 ms duration)
-            elif event.event_type == '0405':
+            elif event.event_type == SM5_EVENT_DETONATE_NUKE:
                 actor_id = event.actor_entity_id
                 actor_entity = next(
                     (e for e in self.game.entities if e.entity_id == actor_id),
@@ -2547,11 +2631,22 @@ class VisualElementGenerator:
 
         for event in self.game.events:
             event_type = event.event_type
-            is_zap = event_type in ('0205', '0206', '0207', '0208')
-            is_missile = event_type in ('0306', '0308')
-            is_resupply = event_type in ('0500', '0502')
-            is_nuke = event_type == '0405'
-            is_penalty = event_type == '0600'
+            is_zap = event_type in (
+                SM5_EVENT_DAMAGED_OPPONENT,
+                SM5_EVENT_DOWNED_OPPONENT,
+                SM5_EVENT_DAMAGED_TEAM,
+                SM5_EVENT_DOWNED_TEAM,
+            )
+            is_missile = event_type in (
+                SM5_EVENT_MISSILE_DOWN_OPPONENT,
+                SM5_EVENT_MISSILE_DOWN_TEAM,
+            )
+            is_resupply = event_type in (
+                SM5_EVENT_RESUPPLY_AMMO,
+                SM5_EVENT_RESUPPLY_LIVES,
+            )
+            is_nuke = event_type == SM5_EVENT_DETONATE_NUKE
+            is_penalty = event_type == SM5_EVENT_PENALTY
 
             is_hit = False
             if (is_zap or is_missile or is_resupply) and (

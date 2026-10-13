@@ -3,6 +3,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from lfdata.model import Base, GameEvent, LFGame
+from lfdata.model.gametypes.sm5_events import SM5_EVENT_RESUPPLY_LIVES
 
 
 def test_create_event() -> None:
@@ -21,7 +22,7 @@ def test_create_event() -> None:
         event = GameEvent(
             game_id='test_game_123',
             time=224,
-            event_type='0502',
+            event_type=SM5_EVENT_RESUPPLY_LIVES,
             actor_entity_id='#ciufC',
             target_entity_id='#7ghHvV',
             action='resupplies',
@@ -36,12 +37,13 @@ def test_create_event() -> None:
             .first()
         )
         assert retrieved is not None
-        assert retrieved.event_type == '0502'
+        assert retrieved.event_type == SM5_EVENT_RESUPPLY_LIVES
         assert retrieved.actor_entity_id == '#ciufC'
         assert retrieved.target_entity_id == '#7ghHvV'
         assert retrieved.action == 'resupplies'
         assert retrieved.raw_message == '#ciufC\tresupplies\t#7ghHvV'
         assert retrieved.game.game_id == 'test_game_123'
         assert repr(retrieved) == (
-            "GameEvent(id=1, time=224, event_type='0502', action='resupplies')"
+            f"GameEvent(id=1, time=224, event_type='{SM5_EVENT_RESUPPLY_LIVES}',"
+            " action='resupplies')"
         )

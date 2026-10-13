@@ -1,6 +1,20 @@
 import pytest
 from datetime import datetime
 from lfdata.model import LFGame
+from lfdata.model.gametypes.sm5_events import (
+    SM5_EVENT_AMMO_BOOST,
+    SM5_EVENT_DAMAGED_OPPONENT,
+    SM5_EVENT_DAMAGED_TEAM,
+    SM5_EVENT_DETONATE_NUKE,
+    SM5_EVENT_LIFE_BOOST,
+    SM5_EVENT_MISSILE_DOWN_OPPONENT,
+    SM5_EVENT_MISSILE_MISS,
+    SM5_EVENT_MISSION_END,
+    SM5_EVENT_MISSION_START,
+    SM5_EVENT_PENALTY,
+    SM5_EVENT_RESUPPLY_AMMO,
+    SM5_EVENT_RESUPPLY_LIVES,
+)
 from lfdata.video import VideoGenerator
 
 
@@ -54,7 +68,7 @@ def test_video_generator_custom_config(tmp_path) -> None:
         GameEvent(
             game_id='custom_config_game',
             time=0,
-            event_type='0100',
+            event_type=SM5_EVENT_MISSION_START,
             action='start',
             raw_message='',
         )
@@ -128,7 +142,7 @@ def test_video_generator_font_fallback(tmp_path) -> None:
         GameEvent(
             game_id='font_fallback_game',
             time=0,
-            event_type='0100',
+            event_type=SM5_EVENT_MISSION_START,
             action='start',
             raw_message='',
         )
@@ -289,28 +303,28 @@ def test_sm5_event_generation() -> None:
         GameEvent(
             game_id='test_sm5_events',
             time=0,
-            event_type='0100',
+            event_type=SM5_EVENT_MISSION_START,
             action='start',
         ),
         # Zaps and Missiles
         GameEvent(
             game_id='test_sm5_events',
             time=1000,
-            event_type='0205',  # Damage opponent
+            event_type=SM5_EVENT_DAMAGED_OPPONENT,
             actor_entity_id='P1',
             target_entity_id='P3',
         ),
         GameEvent(
             game_id='test_sm5_events',
             time=2000,
-            event_type='0207',  # Damage teammate
+            event_type=SM5_EVENT_DAMAGED_TEAM,
             actor_entity_id='P1',
             target_entity_id='P2',
         ),
         GameEvent(
             game_id='test_sm5_events',
             time=3000,
-            event_type='0306',  # Missile down opponent
+            event_type=SM5_EVENT_MISSILE_DOWN_OPPONENT,
             actor_entity_id='P1',
             target_entity_id='P3',
         ),
@@ -318,14 +332,14 @@ def test_sm5_event_generation() -> None:
         GameEvent(
             game_id='test_sm5_events',
             time=4000,
-            event_type='0500',  # Ammo resupply
+            event_type=SM5_EVENT_RESUPPLY_AMMO,
             actor_entity_id='P1',
             target_entity_id='P2',
         ),
         GameEvent(
             game_id='test_sm5_events',
             time=4500,
-            event_type='0502',  # Medic resupply
+            event_type=SM5_EVENT_RESUPPLY_LIVES,
             actor_entity_id='P2',
             target_entity_id='P1',
         ),
@@ -333,13 +347,13 @@ def test_sm5_event_generation() -> None:
         GameEvent(
             game_id='test_sm5_events',
             time=6000,
-            event_type='0512',  # Life boost
+            event_type=SM5_EVENT_LIFE_BOOST,
             actor_entity_id='P2',
         ),
         GameEvent(
             game_id='test_sm5_events',
             time=10000,
-            event_type='0101',
+            event_type=SM5_EVENT_MISSION_END,
             action='end',
         ),
     ]
@@ -399,14 +413,14 @@ def test_hud_giver_resupply_and_boost_events() -> None:
         GameEvent(
             game_id='test_giver_events',
             time=0,
-            event_type='0100',
+            event_type=SM5_EVENT_MISSION_START,
             action='start',
         ),
         # 1. PlayerOne (focused player) resupplies PlayerTwo with ammo (shots)
         GameEvent(
             game_id='test_giver_events',
             time=1000,
-            event_type='0500',  # Ammo resupply
+            event_type=SM5_EVENT_RESUPPLY_AMMO,
             actor_entity_id='P1',
             target_entity_id='P2',
         ),
@@ -414,7 +428,7 @@ def test_hud_giver_resupply_and_boost_events() -> None:
         GameEvent(
             game_id='test_giver_events',
             time=3000,
-            event_type='0502',  # Medic resupply
+            event_type=SM5_EVENT_RESUPPLY_LIVES,
             actor_entity_id='P1',
             target_entity_id='P2',
         ),
@@ -422,7 +436,7 @@ def test_hud_giver_resupply_and_boost_events() -> None:
         GameEvent(
             game_id='test_giver_events',
             time=5000,
-            event_type='0500',  # Ammo resupply
+            event_type=SM5_EVENT_RESUPPLY_AMMO,
             actor_entity_id='P1',
             target_entity_id='P2',
         ),
@@ -430,7 +444,7 @@ def test_hud_giver_resupply_and_boost_events() -> None:
         GameEvent(
             game_id='test_giver_events',
             time=5500,
-            event_type='0502',  # Medic resupply
+            event_type=SM5_EVENT_RESUPPLY_LIVES,
             actor_entity_id='P1',
             target_entity_id='P2',
         ),
@@ -438,27 +452,27 @@ def test_hud_giver_resupply_and_boost_events() -> None:
         GameEvent(
             game_id='test_giver_events',
             time=7000,
-            event_type='0510',  # Ammo boost
+            event_type=SM5_EVENT_AMMO_BOOST,
             actor_entity_id='P1',
         ),
         # 6. PlayerOne performs Life Boost
         GameEvent(
             game_id='test_giver_events',
             time=8000,
-            event_type='0512',  # Life boost
+            event_type=SM5_EVENT_LIFE_BOOST,
             actor_entity_id='P1',
         ),
-        # 7. PlayerOne fires missile and misses (event 0304)
+        # 7. PlayerOne fires missile and misses
         GameEvent(
             game_id='test_giver_events',
             time=9000,
-            event_type='0304',  # Missile miss
+            event_type=SM5_EVENT_MISSILE_MISS,
             actor_entity_id='P1',
         ),
         GameEvent(
             game_id='test_giver_events',
             time=15000,
-            event_type='0101',
+            event_type=SM5_EVENT_MISSION_END,
             action='end',
         ),
     ]
@@ -1975,7 +1989,7 @@ def test_hit_borders_rendering() -> None:
     e1 = GameEvent(
         game_id='test_hit_borders',
         time=1000,
-        event_type='0205',
+        event_type=SM5_EVENT_DAMAGED_OPPONENT,
         actor_entity_id='p2',
         target_entity_id='p1',
         action='zap',
@@ -1985,7 +1999,7 @@ def test_hit_borders_rendering() -> None:
     e2 = GameEvent(
         game_id='test_hit_borders',
         time=2000,
-        event_type='0500',
+        event_type=SM5_EVENT_RESUPPLY_AMMO,
         actor_entity_id='p2',
         target_entity_id='p1',
         action='resupply',
@@ -1995,7 +2009,7 @@ def test_hit_borders_rendering() -> None:
     e3 = GameEvent(
         game_id='test_hit_borders',
         time=3000,
-        event_type='0405',
+        event_type=SM5_EVENT_DETONATE_NUKE,
         actor_entity_id='p2',
         target_entity_id=None,
         action='nuke',
@@ -2005,7 +2019,7 @@ def test_hit_borders_rendering() -> None:
     e4 = GameEvent(
         game_id='test_hit_borders',
         time=4000,
-        event_type='0600',
+        event_type=SM5_EVENT_PENALTY,
         actor_entity_id='p1',
         action='penalty',
         raw_message='',

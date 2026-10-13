@@ -20,6 +20,52 @@ from typing import TYPE_CHECKING
 
 from lfdata.model import LFGame
 from lfdata.model.constants.time import MS_PER_MINUTE, MS_PER_SECOND
+from lfdata.model.gametypes.laserball_events import (
+    LASERBALL_EVENT_ASSIST,
+    LASERBALL_EVENT_BLOCK,
+    LASERBALL_EVENT_CLEAR,
+    LASERBALL_EVENT_FAIL_CLEAR,
+    LASERBALL_EVENT_GETS_BALL,
+    LASERBALL_EVENT_GOAL,
+    LASERBALL_EVENT_PASS,
+    LASERBALL_EVENT_RESET_ON_BASE,
+    LASERBALL_EVENT_ROUND_END,
+    LASERBALL_EVENT_ROUND_START,
+    LASERBALL_EVENT_STEAL,
+)
+from lfdata.model.gametypes.sm5_events import (
+    SM5_EVENT_ACHIEVEMENT,
+    SM5_EVENT_ACTIVATE_NUKE,
+    SM5_EVENT_ACTIVATE_RAPID_FIRE,
+    SM5_EVENT_AMMO_BOOST,
+    SM5_EVENT_BASE_AWARDED,
+    SM5_EVENT_CLAIM_BEACON,
+    SM5_EVENT_DAMAGED_OPPONENT,
+    SM5_EVENT_DAMAGED_TEAM,
+    SM5_EVENT_DESTROY_BASE,
+    SM5_EVENT_DETONATE_NUKE,
+    SM5_EVENT_DOWNED_OPPONENT,
+    SM5_EVENT_DOWNED_TEAM,
+    SM5_EVENT_HIT_BASE,
+    SM5_EVENT_LIFE_BOOST,
+    SM5_EVENT_LOCKING,
+    SM5_EVENT_MISS,
+    SM5_EVENT_MISS_BASE,
+    SM5_EVENT_MISSILE_BASE_DAMAGE,
+    SM5_EVENT_MISSILE_BASE_DESTROY,
+    SM5_EVENT_MISSILE_BASE_MISS,
+    SM5_EVENT_MISSILE_DOWN_OPPONENT,
+    SM5_EVENT_MISSILE_DOWN_TEAM,
+    SM5_EVENT_MISSILE_MISS,
+    SM5_EVENT_MISSION_END,
+    SM5_EVENT_MISSION_START,
+    SM5_EVENT_NUKE_CANCEL,
+    SM5_EVENT_PENALTY,
+    SM5_EVENT_RESUPPLY_AMMO,
+    SM5_EVENT_RESUPPLY_LIVES,
+    SM5_EVENT_REWARD,
+    SM5_EVENT_WARBOT_ZAP,
+)
 
 if TYPE_CHECKING:
     from lfdata.replay.diagnostics import PlayerDiscrepancy
@@ -45,48 +91,48 @@ def format_timestamp_ms(time_ms: int) -> str:
 
 HANDLED_EVENT_TYPES: frozenset[str] = frozenset(
     {
-        '0100',  # Mission start
-        '0101',  # Mission end
-        '0201',  # Shot miss
-        '0202',  # Shot miss base
-        '0203',  # Shot zap (shielded)
-        '0204',  # Base destroy (zap)
-        '0205',  # Damaged opponent zap
-        '0206',  # Downed opponent zap
-        '0207',  # Damaged teammate zap
-        '0208',  # Downed teammate zap
-        '0209',  # Warbot zap
-        '0300',  # Missile locking
-        '0301',  # Missile miss base
-        '0302',  # Missile zap (shielded)
-        '0303',  # Base destroy (missile)
-        '0304',  # Missile miss
-        '0306',  # Missile downed opponent
-        '0308',  # Missile downed teammate
-        '0400',  # Rapid fire activate
-        '0404',  # Nuke activate
-        '0405',  # Nuke detonate
-        '0500',  # Resupply ammo (team member)
-        '0502',  # Resupply lives (team member)
-        '0510',  # Resupply ammo (team boost)
-        '0512',  # Resupply lives (team boost)
-        '0600',  # Penalty
-        '0900',  # Achievement
-        '0902',  # Reward
-        '0B00',  # Claim beacon
-        '0B03',  # Base awarded
-        '1100',  # Laserball pass
-        '1101',  # Laserball goal
-        '1102',  # Laserball assist
-        '1103',  # Laserball steal
-        '1104',  # Laserball block
-        '1105',  # Laserball round start
-        '1106',  # Laserball round end
-        '1107',  # Laserball gets ball
-        '1109',  # Laserball clear
-        '110A',  # Laserball fail clear
-        '110B',  # Laserball reset on base
-        'nuke_cancel',  # Inferred nuke cancel
+        SM5_EVENT_MISSION_START,
+        SM5_EVENT_MISSION_END,
+        SM5_EVENT_MISS,
+        SM5_EVENT_MISS_BASE,
+        SM5_EVENT_HIT_BASE,
+        SM5_EVENT_DESTROY_BASE,
+        SM5_EVENT_DAMAGED_OPPONENT,
+        SM5_EVENT_DOWNED_OPPONENT,
+        SM5_EVENT_DAMAGED_TEAM,
+        SM5_EVENT_DOWNED_TEAM,
+        SM5_EVENT_WARBOT_ZAP,
+        SM5_EVENT_LOCKING,
+        SM5_EVENT_MISSILE_BASE_MISS,
+        SM5_EVENT_MISSILE_BASE_DAMAGE,
+        SM5_EVENT_MISSILE_BASE_DESTROY,
+        SM5_EVENT_MISSILE_MISS,
+        SM5_EVENT_MISSILE_DOWN_OPPONENT,
+        SM5_EVENT_MISSILE_DOWN_TEAM,
+        SM5_EVENT_ACTIVATE_RAPID_FIRE,
+        SM5_EVENT_ACTIVATE_NUKE,
+        SM5_EVENT_DETONATE_NUKE,
+        SM5_EVENT_RESUPPLY_AMMO,
+        SM5_EVENT_RESUPPLY_LIVES,
+        SM5_EVENT_AMMO_BOOST,
+        SM5_EVENT_LIFE_BOOST,
+        SM5_EVENT_PENALTY,
+        SM5_EVENT_ACHIEVEMENT,
+        SM5_EVENT_REWARD,
+        SM5_EVENT_CLAIM_BEACON,
+        SM5_EVENT_BASE_AWARDED,
+        SM5_EVENT_NUKE_CANCEL,
+        LASERBALL_EVENT_PASS,
+        LASERBALL_EVENT_GOAL,
+        LASERBALL_EVENT_ASSIST,
+        LASERBALL_EVENT_STEAL,
+        LASERBALL_EVENT_BLOCK,
+        LASERBALL_EVENT_ROUND_START,
+        LASERBALL_EVENT_ROUND_END,
+        LASERBALL_EVENT_GETS_BALL,
+        LASERBALL_EVENT_CLEAR,
+        LASERBALL_EVENT_FAIL_CLEAR,
+        LASERBALL_EVENT_RESET_ON_BASE,
     }
 )
 

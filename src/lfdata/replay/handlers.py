@@ -12,6 +12,19 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 from lfdata.model import GameEvent, LFRole
+from lfdata.model.gametypes.laserball_events import (
+    LASERBALL_EVENT_ASSIST,
+    LASERBALL_EVENT_BLOCK,
+    LASERBALL_EVENT_CLEAR,
+    LASERBALL_EVENT_FAIL_CLEAR,
+    LASERBALL_EVENT_GETS_BALL,
+    LASERBALL_EVENT_GOAL,
+    LASERBALL_EVENT_PASS,
+    LASERBALL_EVENT_RESET_ON_BASE,
+    LASERBALL_EVENT_ROUND_END,
+    LASERBALL_EVENT_ROUND_START,
+    LASERBALL_EVENT_STEAL,
+)
 from lfdata.model.gametypes.sm5_constants import (
     DEFAULT_BOOST_GRACE_PERIOD_MS,
     DEFAULT_MISSION_PENALTY,
@@ -36,6 +49,34 @@ from lfdata.model.gametypes.sm5_constants import (
     SM5_SPECIAL_POINTS_NUKE,
     SM5_SPECIAL_POINTS_RAPID_FIRE,
     SM5_SPECIAL_POINTS_ZAP_ENEMY,
+)
+from lfdata.model.gametypes.sm5_events import (
+    SM5_EVENT_ACHIEVEMENT,
+    SM5_EVENT_ACTIVATE_NUKE,
+    SM5_EVENT_ACTIVATE_RAPID_FIRE,
+    SM5_EVENT_AMMO_BOOST,
+    SM5_EVENT_BASE_AWARDED,
+    SM5_EVENT_CLAIM_BEACON,
+    SM5_EVENT_DESTROY_BASE,
+    SM5_EVENT_DOWNED_OPPONENT,
+    SM5_EVENT_DOWNED_TEAM,
+    SM5_EVENT_HIT_BASE,
+    SM5_EVENT_LIFE_BOOST,
+    SM5_EVENT_LOCKING,
+    SM5_EVENT_MISS,
+    SM5_EVENT_MISS_BASE,
+    SM5_EVENT_MISSILE_BASE_DAMAGE,
+    SM5_EVENT_MISSILE_BASE_DESTROY,
+    SM5_EVENT_MISSILE_BASE_MISS,
+    SM5_EVENT_MISSILE_DOWN_OPPONENT,
+    SM5_EVENT_MISSILE_MISS,
+    SM5_EVENT_MISSION_END,
+    SM5_EVENT_MISSION_START,
+    SM5_EVENT_PENALTY,
+    SM5_EVENT_RESUPPLY_AMMO,
+    SM5_EVENT_RESUPPLY_LIVES,
+    SM5_EVENT_REWARD,
+    SM5_EVENT_WARBOT_ZAP,
 )
 
 if TYPE_CHECKING:
@@ -93,7 +134,10 @@ class LFReplayHandlersMixin:
             target.score += SM5_SCORE_ZAPPED_PENALTY
 
             # Check if target goes down or resets downtime
-            if event.event_type in ['0206', '0208']:
+            if event.event_type in (
+                SM5_EVENT_DOWNED_OPPONENT,
+                SM5_EVENT_DOWNED_TEAM,
+            ):
                 was_already_down = target.is_down(event.time)
                 target.lives = max(0, target.lives - SM5_LIVES_LOST_ZAPPED)
                 if target.has_authoritative_state:
@@ -189,9 +233,9 @@ class LFReplayHandlersMixin:
             event.target_entity_id, event.target_entity_id
         )
 
-        if event.event_type == '0303':
+        if event.event_type == SM5_EVENT_MISSILE_BASE_DESTROY:
             self._decrement_missiles(event.actor_entity_id)
-        elif event.event_type == '0204':
+        elif event.event_type == SM5_EVENT_DESTROY_BASE:
             self._decrement_shots(event.actor_entity_id)
 
         target_entity = None
@@ -213,7 +257,7 @@ class LFReplayHandlersMixin:
                 ):
                     actor.special_points += SM5_BASE_CAPTURE_SPECIAL_POINTS
 
-        if event.event_type == '0B03':
+        if event.event_type == SM5_EVENT_BASE_AWARDED:
             return f'{actor_name} is awarded {target_name}'
         return f'{actor_name} destroys {target_name}'
 
@@ -278,7 +322,7 @@ class LFReplayHandlersMixin:
         """
         target = self.game_state.players.get(event.target_entity_id)
         if target and not target.is_eliminated():
-            is_medic = event.event_type == '0502'
+            is_medic = event.event_type == SM5_EVENT_RESUPPLY_LIVES
             if is_medic:
                 target.resupply_lives_from_medic()
             else:
@@ -315,7 +359,7 @@ class LFReplayHandlersMixin:
             str: The event description string.
         """
         if actor:
-            is_medic = event.event_type == '0512'
+            is_medic = event.event_type == SM5_EVENT_LIFE_BOOST
             if is_medic:
                 actor.special_points = max(
                     0, actor.special_points - SM5_SPECIAL_POINTS_MEDIC_BOOST
@@ -393,7 +437,10 @@ class LFReplayHandlersMixin:
         if actor and actor.is_eliminated():
             return ''
 
-        if event.event_type in ('0500', '0502'):
+        if event.event_type in (
+            SM5_EVENT_RESUPPLY_AMMO,
+            SM5_EVENT_RESUPPLY_LIVES,
+        ):
             return self._process_individual_resupply(
                 event=event,
                 actor=actor,
@@ -401,7 +448,7 @@ class LFReplayHandlersMixin:
                 target_name=target_name,
             )
 
-        if event.event_type in ('0510', '0512'):
+        if event.event_type in (SM5_EVENT_AMMO_BOOST, SM5_EVENT_LIFE_BOOST):
             return self._process_team_resupply(
                 event=event, actor=actor, actor_name=actor_name
             )
@@ -422,11 +469,11 @@ class LFReplayHandlersMixin:
         actor_name = self.entity_names.get(
             event.actor_entity_id, event.actor_entity_id
         )
-        if event.event_type == '0100':
+        if event.event_type == SM5_EVENT_MISSION_START:
             return '* Mission Start *'
-        if event.event_type == '0101':
+        if event.event_type == SM5_EVENT_MISSION_END:
             return '* Mission End *'
-        if event.event_type == '0600':
+        if event.event_type == SM5_EVENT_PENALTY:
             actor = self.game_state.players.get(event.actor_entity_id)
             if actor and not actor.is_eliminated():
                 gp = self.game.penalty
@@ -464,31 +511,31 @@ class LFReplayHandlersMixin:
         Returns:
             str | None: The event description or None if not handled.
         """
-        if event.event_type == '0201':
+        if event.event_type == SM5_EVENT_MISS:
             self._decrement_shots(event.actor_entity_id)
             return f'{actor_name} misses'
-        if event.event_type == '0202':
+        if event.event_type == SM5_EVENT_MISS_BASE:
             self._decrement_shots(event.actor_entity_id)
             return f'{actor_name} misses base'
-        if event.event_type == '0203':
+        if event.event_type == SM5_EVENT_HIT_BASE:
             self._decrement_shots(event.actor_entity_id)
             return f'{actor_name} zaps {target_name}'
-        if event.event_type == '0209':
+        if event.event_type == SM5_EVENT_WARBOT_ZAP:
             return f'{actor_name} zaps {target_name}'
-        if event.event_type == '0B00':
+        if event.event_type == SM5_EVENT_CLAIM_BEACON:
             self._decrement_shots(
                 event.actor_entity_id, count=SM5_BEACON_CLAIM_SHOTS_LOST
             )
             return f'{actor_name} claims a beacon'
-        if event.event_type == '0300':
+        if event.event_type == SM5_EVENT_LOCKING:
             return f'{actor_name} locking {target_name}'
-        if event.event_type == '0301':
+        if event.event_type == SM5_EVENT_MISSILE_BASE_MISS:
             self._decrement_missiles(event.actor_entity_id)
             return f'{actor_name} misses base'
-        if event.event_type == '0302':
+        if event.event_type == SM5_EVENT_MISSILE_BASE_DAMAGE:
             self._decrement_missiles(event.actor_entity_id)
             return f'{actor_name} zaps {target_name}'
-        if event.event_type == '0304':
+        if event.event_type == SM5_EVENT_MISSILE_MISS:
             self._decrement_missiles(event.actor_entity_id)
             return f'{actor_name} misses'
         return None
@@ -519,7 +566,7 @@ class LFReplayHandlersMixin:
         if res_action is not None:
             return res_action
 
-        if event.event_type == '0400':
+        if event.event_type == SM5_EVENT_ACTIVATE_RAPID_FIRE:
             actor = self.game_state.players.get(event.actor_entity_id)
             if actor and not actor.is_eliminated():
                 actor.special_points = max(
@@ -527,7 +574,7 @@ class LFReplayHandlersMixin:
                 )
                 actor.has_rapid_fire = True
             return f'{actor_name} activates rapid fire'
-        if event.event_type == '0404':
+        if event.event_type == SM5_EVENT_ACTIVATE_NUKE:
             actor = self.game_state.players.get(event.actor_entity_id)
             if actor and not actor.is_eliminated():
                 actor.special_points = max(
@@ -535,9 +582,9 @@ class LFReplayHandlersMixin:
                 )
                 actor.nukes_activated += 1
             return f'{actor_name} activates nuke'
-        if event.event_type == '0900':
+        if event.event_type == SM5_EVENT_ACHIEVEMENT:
             return f'{actor_name} completes an achievement!'
-        if event.event_type == '0902':
+        if event.event_type == SM5_EVENT_REWARD:
             return f'{actor_name} earns a reward!'
 
         return event.action
@@ -562,7 +609,10 @@ class LFReplayHandlersMixin:
                     ev.time == event.time
                     and ev.target_entity_id == actor.entity_id
                 ):
-                    if ev.event_type in ('0206', '0306'):
+                    if ev.event_type in (
+                        SM5_EVENT_DOWNED_OPPONENT,
+                        SM5_EVENT_MISSILE_DOWN_OPPONENT,
+                    ):
                         enemy = self.game_state.players.get(ev.actor_entity_id)
                         if enemy and not enemy.is_eliminated():
                             enemy.nuke_cancels += 1
@@ -650,17 +700,17 @@ class LFReplayHandlersMixin:
         Returns:
             str | None: Description string, or None if not a round event.
         """
-        if event.event_type == '1105':
+        if event.event_type == LASERBALL_EVENT_ROUND_START:
             self._last_laserball_passer = None
             self._last_laserball_pass_target = None
             return '* Round Start *'
-        if event.event_type == '1106':
+        if event.event_type == LASERBALL_EVENT_ROUND_END:
             self._last_laserball_passer = None
             self._last_laserball_pass_target = None
             for p in self.game_state.players.values():
                 p.has_ball = False
             return '* Round End *'
-        if event.event_type == '1107':
+        if event.event_type == LASERBALL_EVENT_GETS_BALL:
             self._last_laserball_passer = None
             self._last_laserball_pass_target = None
             actor = self.game_state.players.get(event.actor_entity_id)
@@ -694,7 +744,7 @@ class LFReplayHandlersMixin:
             event.target_entity_id, event.target_entity_id
         )
 
-        if event.event_type == '1100':
+        if event.event_type == LASERBALL_EVENT_PASS:
             if actor:
                 actor.has_ball = False
                 actor.passes += 1
@@ -704,7 +754,7 @@ class LFReplayHandlersMixin:
             self._last_laserball_pass_target = target
             return f'{actor_name} passes to {target_name}'
 
-        if event.event_type == '1109':
+        if event.event_type == LASERBALL_EVENT_CLEAR:
             if actor:
                 actor.has_ball = False
                 actor.clears += 1
@@ -716,7 +766,7 @@ class LFReplayHandlersMixin:
                 return f'{actor_name} clears to {target_name}'
             return f'{actor_name} clears the ball'
 
-        if event.event_type == '110A':
+        if event.event_type == LASERBALL_EVENT_FAIL_CLEAR:
             return f'{actor_name} fails clear'
 
         return None
@@ -737,7 +787,7 @@ class LFReplayHandlersMixin:
             event.actor_entity_id, event.actor_entity_id
         )
 
-        if event.event_type == '1101':
+        if event.event_type == LASERBALL_EVENT_GOAL:
             self._last_assisted_scorer = None
             self._last_assisted_passer = None
             if actor:
@@ -756,7 +806,7 @@ class LFReplayHandlersMixin:
             self._last_laserball_pass_target = None
             return f'{actor_name} scores a goal'
 
-        if event.event_type == '1102':
+        if event.event_type == LASERBALL_EVENT_ASSIST:
             target_name = self.entity_names.get(
                 event.target_entity_id, event.target_entity_id
             )
@@ -796,7 +846,7 @@ class LFReplayHandlersMixin:
             event.target_entity_id, event.target_entity_id
         )
 
-        if event.event_type == '1103':
+        if event.event_type == LASERBALL_EVENT_STEAL:
             if actor:
                 actor.steals += 1
                 actor.has_ball = True
@@ -810,7 +860,7 @@ class LFReplayHandlersMixin:
             self._last_laserball_pass_target = None
             return f'{actor_name} steals from {target_name}'
 
-        if event.event_type == '1104':
+        if event.event_type == LASERBALL_EVENT_BLOCK:
             if actor:
                 actor.blocks += 1
                 actor.times_zapped_opponents += 1
@@ -820,7 +870,7 @@ class LFReplayHandlersMixin:
                 self._apply_laserball_downtime(target, event.time)
             return f'{actor_name} blocks {target_name}'
 
-        if event.event_type == '110B':
+        if event.event_type == LASERBALL_EVENT_RESET_ON_BASE:
             if actor:
                 actor.downtime_ends_at_ms = event.time
                 actor.resettable_starts_at_ms = event.time

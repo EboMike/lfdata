@@ -15,6 +15,10 @@ import dataclasses
 
 from lfdata.model import GameEvent, LFGame, LFRole
 from lfdata.model.constants.time import MS_PER_SECOND, SECONDS_PER_MINUTE
+from lfdata.model.gametypes.sm5_events import (
+    SM5_EVENT_DETONATE_NUKE,
+    SM5_EVENT_NUKE_CANCEL,
+)
 from lfdata.replay import LFReplaySystem
 from lfdata.video.constants import (
     CHAPTER_GETTING_READY_THRESHOLD_MS,
@@ -241,7 +245,7 @@ class LFChapterGenerator:
                     )
 
             # 2. Check nuke events
-            if event.event_type == 'nuke_cancel':
+            if event.event_type == SM5_EVENT_NUKE_CANCEL:
                 candidates.append(
                     LFChapter(
                         time_ms=event.time,
@@ -249,7 +253,7 @@ class LFChapterGenerator:
                         importance=3,
                     )
                 )
-            elif event.event_type == '0405':
+            elif event.event_type == SM5_EVENT_DETONATE_NUKE:
                 nuke_detonations.append(
                     (event, description, newly_eliminated_teams)
                 )
