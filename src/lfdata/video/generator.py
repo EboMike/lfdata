@@ -558,7 +558,14 @@ class VisualElementGenerator:
             target_color_override = None
             et = event.event_type
 
-            if et in ('0205', '0206', '0207', '0208'):
+            if et in ('0203', '0204'):
+                msg = self._process_hud_base_event(
+                    et=et,
+                    actor_id=actor_id,
+                    target_name=target_name,
+                )
+
+            elif et in ('0205', '0206', '0207', '0208'):
                 target_state = None
                 if actor_id == self.entity_id:
                     t_state = replay.game_state.players.get(target_id or '')
@@ -750,7 +757,7 @@ class VisualElementGenerator:
                         if et == '0301':
                             follow_up_msg = f'Missile misses {target_name}'
                         else:
-                            follow_up_msg = f'Missiled {target_name}'
+                            follow_up_msg = f'Missiled base {target_name}'
 
                 if found_lock and follow_up_msg:
                     el_config = self.config.get('elements', {}).get(
@@ -767,7 +774,7 @@ class VisualElementGenerator:
                         event.time - found_lock.time
                     ) + fade_time_ms
                 elif follow_up_msg:
-                    if et in ('0306', '0308') or (
+                    if et in ('0306', '0308', '0302', '0303') or (
                         et == '0304' and actor_id == self.entity_id
                     ):
                         msg = follow_up_msg
@@ -1045,6 +1052,35 @@ class VisualElementGenerator:
             if match:
                 parsed = int(match.group())
                 return parsed if parsed > 0 else None
+        return None
+
+    def _process_hud_base_event(
+        self,
+        et: str,
+        actor_id: str | None,
+        target_name: str,
+    ) -> str | None:
+        """Processes a base interaction event and returns the HUD message.
+
+        Checks whether the focused player interacted with a base (zapping or
+        destroying without a missile) and returns the corresponding player
+        message string to display.
+
+        Args:
+            et: The event type string code (e.g. '0203', '0204').
+            actor_id: The entity ID of the actor player, or None.
+            target_name: The display name of the target base entity.
+
+        Returns:
+            str | None: The event message description, or None if no message
+                should be shown.
+        """
+        if actor_id != self.entity_id:
+            return None
+        if et == '0203':
+            return f'Zapped base {target_name}'
+        if et == '0204':
+            return f'Destroyed base {target_name}'
         return None
 
     def _process_hud_resupply_event(

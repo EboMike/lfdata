@@ -2846,3 +2846,254 @@ def test_laserball_player_events_target_view():
     assert 'Blocked by Gamma' in p_evs
     assert 'Cleared ball by Beta' in p_evs
     assert 'SCORED A GOAL' in p_evs
+
+
+def test_player_events_base_zap_and_destroy() -> None:
+    game = LFGame(
+        game_id='sm5_base_events',
+        game_type='SM5',
+        duration=60000,
+    )
+    p1 = GameEntity(
+        game_id='sm5_base_events',
+        entity_id='P1',
+        type='player',
+        desc='Player1',
+        team_index=0,
+        category=1,
+    )
+    p2 = GameEntity(
+        game_id='sm5_base_events',
+        entity_id='P2',
+        type='player',
+        desc='Player2',
+        team_index=1,
+        category=2,
+    )
+    base = GameEntity(
+        game_id='sm5_base_events',
+        entity_id='B1',
+        type='base',
+        desc='Earth Base',
+        team_index=1,
+    )
+    game.entities = [p1, p2, base]
+    game.teams = [
+        GameTeam(
+            game_id='sm5_base_events',
+            team_index=0,
+            desc='Fire Team',
+            color_enum=11,
+            color_desc='Fire',
+            color_rgb='#FF5000',
+        ),
+        GameTeam(
+            game_id='sm5_base_events',
+            team_index=1,
+            desc='Earth Team',
+            color_enum=12,
+            color_desc='Earth',
+            color_rgb='#00FF00',
+        ),
+    ]
+    game.events = [
+        GameEvent(
+            time=1000,
+            event_type='0203',
+            actor_entity_id='P1',
+            target_entity_id='B1',
+        ),
+        GameEvent(
+            time=2000,
+            event_type='0203',
+            actor_entity_id='P2',
+            target_entity_id='B1',
+        ),
+        GameEvent(
+            time=3000,
+            event_type='0204',
+            actor_entity_id='P2',
+            target_entity_id='B1',
+        ),
+        GameEvent(
+            time=4000,
+            event_type='0204',
+            actor_entity_id='P1',
+            target_entity_id='B1',
+        ),
+    ]
+
+    hud_gen = VisualElementGenerator(game=game, player_name='Player1')
+    p_evs = [ev.desc for ev in hud_gen.player_event_log]
+    assert p_evs == ['Zapped base Earth Base', 'Destroyed base Earth Base']
+    assert hud_gen.player_event_log[0].time == 1000
+    assert hud_gen.player_event_log[0].actor_id == 'P1'
+    assert hud_gen.player_event_log[0].target_id == 'B1'
+    assert hud_gen.player_event_log[0].event_type == '0203'
+    assert hud_gen.player_event_log[1].time == 4000
+    assert hud_gen.player_event_log[1].actor_id == 'P1'
+    assert hud_gen.player_event_log[1].target_id == 'B1'
+    assert hud_gen.player_event_log[1].event_type == '0204'
+
+
+def test_player_events_base_missile() -> None:
+    game = LFGame(
+        game_id='sm5_base_missile',
+        game_type='SM5',
+        duration=60000,
+    )
+    p1 = GameEntity(
+        game_id='sm5_base_missile',
+        entity_id='P1',
+        type='player',
+        desc='Player1',
+        team_index=0,
+        category=1,
+    )
+    p2 = GameEntity(
+        game_id='sm5_base_missile',
+        entity_id='P2',
+        type='player',
+        desc='Player2',
+        team_index=1,
+        category=2,
+    )
+    base = GameEntity(
+        game_id='sm5_base_missile',
+        entity_id='B1',
+        type='base',
+        desc='Earth Base',
+        team_index=1,
+    )
+    game.entities = [p1, p2, base]
+    game.teams = [
+        GameTeam(
+            game_id='sm5_base_missile',
+            team_index=0,
+            desc='Fire Team',
+            color_enum=11,
+            color_desc='Fire',
+            color_rgb='#FF5000',
+        ),
+        GameTeam(
+            game_id='sm5_base_missile',
+            team_index=1,
+            desc='Earth Team',
+            color_enum=12,
+            color_desc='Earth',
+            color_rgb='#00FF00',
+        ),
+    ]
+    game.events = [
+        GameEvent(
+            time=1000,
+            event_type='0302',
+            actor_entity_id='P1',
+            target_entity_id='B1',
+        ),
+        GameEvent(
+            time=2000,
+            event_type='0302',
+            actor_entity_id='P2',
+            target_entity_id='B1',
+        ),
+        GameEvent(
+            time=3000,
+            event_type='0303',
+            actor_entity_id='P1',
+            target_entity_id='B1',
+        ),
+        GameEvent(
+            time=4000,
+            event_type='0300',
+            actor_entity_id='P1',
+            target_entity_id='B1',
+        ),
+        GameEvent(
+            time=5000,
+            event_type='0303',
+            actor_entity_id='P1',
+            target_entity_id='B1',
+        ),
+    ]
+
+    hud_gen = VisualElementGenerator(game=game, player_name='Player1')
+    assert len(hud_gen.player_event_log) == 3
+    assert hud_gen.player_event_log[0].desc == 'Missiled base Earth Base'
+    assert hud_gen.player_event_log[0].time == 1000
+    assert hud_gen.player_event_log[0].event_type == '0302'
+
+    assert hud_gen.player_event_log[1].desc == 'Missiled base Earth Base'
+    assert hud_gen.player_event_log[1].time == 3000
+    assert hud_gen.player_event_log[1].event_type == '0303'
+
+    assert hud_gen.player_event_log[2].desc == 'Locking Earth Base'
+    assert hud_gen.player_event_log[2].time == 4000
+    assert (
+        hud_gen.player_event_log[2].follow_up_desc == 'Missiled base Earth Base'
+    )
+    assert hud_gen.player_event_log[2].follow_up_time == 5000
+
+
+def test_player_events_base_rendering() -> None:
+    game = LFGame(
+        game_id='sm5_base_render',
+        game_type='SM5',
+        duration=60000,
+    )
+    p1 = GameEntity(
+        game_id='sm5_base_render',
+        entity_id='P1',
+        type='player',
+        desc='Player1',
+        team_index=0,
+        category=1,
+    )
+    base = GameEntity(
+        game_id='sm5_base_render',
+        entity_id='B1',
+        type='base',
+        desc='Earth Base',
+        team_index=1,
+    )
+    game.entities = [p1, base]
+    game.teams = [
+        GameTeam(
+            game_id='sm5_base_render',
+            team_index=0,
+            desc='Fire Team',
+            color_enum=11,
+            color_desc='Fire',
+            color_rgb='#FF5000',
+        ),
+        GameTeam(
+            game_id='sm5_base_render',
+            team_index=1,
+            desc='Earth Team',
+            color_enum=12,
+            color_desc='Earth',
+            color_rgb='#00FF00',
+        ),
+    ]
+    game.events = [
+        GameEvent(
+            time=1000,
+            event_type='0203',
+            actor_entity_id='P1',
+            target_entity_id='B1',
+        ),
+        GameEvent(
+            time=5000,
+            event_type='0204',
+            actor_entity_id='P1',
+            target_entity_id='B1',
+        ),
+    ]
+    hud_gen = VisualElementGenerator(game=game, player_name='Player1')
+    elements_at_2000 = hud_gen.generate_at(2000)
+    pe_at_2000 = [el for el in elements_at_2000 if el.element_type == 'text']
+    assert any(el.text == 'Zapped base Earth Base' for el in pe_at_2000)
+
+    elements_at_6000 = hud_gen.generate_at(6000)
+    pe_at_6000 = [el for el in elements_at_6000 if el.element_type == 'text']
+    assert any(el.text == 'Destroyed base Earth Base' for el in pe_at_6000)

@@ -286,6 +286,9 @@ by default:
 | Shot-boosted by <ammo name>                     | An ammo used their ammo boost and this player received shots |
 | Life-boosted by <medic name>                    | A medic used their life boost and this player received lives |
 | Received a penalty                              | Focus player receives a penalty                              |
+| Zapped base <base name>                         | Player zapped a base, base is not destroyed yet              |
+| Missiled base <base name>                       | Player missiled a base                                       |
+| Destroyed base <base name>                      | Player destroyed a base, not with a missile                  |
 
 ### Important game events
 
