@@ -21,16 +21,16 @@ import argparse
 import dataclasses
 import json
 import os
-from pathlib import Path
 import subprocess
 import tempfile
+from pathlib import Path
 
 try:
     import cv2
     import numpy as np
+    import yaml
     from scipy.io import wavfile
     from scipy.signal import spectrogram
-    import yaml
 except ImportError as err:
     raise ImportError(
         'Audio matching requires numpy, scipy, opencv-python, and PyYAML. '
@@ -226,6 +226,7 @@ class AudioMatcher:
         freq_max_hz: float | None = None,
         template_duration_ms: int | None = None,
         min_energy_ratio: float | None = None,
+        cluster_sequence: bool = False,
     ) -> list[AudioMatchResult]:
         """Finds timestamps where the reference sound effect occurs.
 
@@ -246,6 +247,8 @@ class AudioMatcher:
             freq_max_hz: Optional upper frequency bound in Hz for filtering.
             template_duration_ms: Optional duration in ms to crop template to.
             min_energy_ratio: Optional minimum in-band energy ratio for gating.
+            cluster_sequence: Whether to group detections into sequence
+                clusters.
 
         Returns:
             list[AudioMatchResult]: Candidate matches sorted by highest
@@ -289,10 +292,231 @@ class AudioMatcher:
                 )
             )
 
+        if cluster_sequence:
+            results = self.cluster_sequence_matches(matches=results)
+
         if max_matches is not None and max_matches > 0:
             results = results[:max_matches]
 
         return results
+
+    def cluster_sequence_matches(
+        self,
+        matches: list[AudioMatchResult],
+        min_step_ms: int = 700,
+        max_step_ms: int = 1300,
+        max_gap_missed_ms: int = 2300,
+        max_cluster_span_ms: int = 3500,
+    ) -> list[AudioMatchResult]:
+        """Groups candidate sound detections into sequence clusters.
+
+        Identifies candidate sound sequences (such as countdown horn blasts)
+        spaced by nominal intervals or intervals with a missed blast. Each
+        cluster is represented by its earliest blast timestamp with the peak
+        confidence score of the cluster.
+
+        Args:
+            matches: List of candidate detections to group.
+            min_step_ms: Minimum millisecond distance for adjacent blast step.
+            max_step_ms: Maximum millisecond distance for adjacent blast step.
+            max_gap_missed_ms: Maximum gap when one intermediate blast is
+                missed.
+            max_cluster_span_ms: Maximum total millisecond span of a cluster.
+
+        Returns:
+            list[AudioMatchResult]: Cluster representatives sorted by highest
+                confidence descending.
+        """
+        if not matches:
+            return []
+
+        sorted_matches = sorted(matches, key=lambda m: m.timestamp_ms)
+        clusters: list[list[AudioMatchResult]] = []
+        current_cluster: list[AudioMatchResult] = [sorted_matches[0]]
+
+        for candidate in sorted_matches[1:]:
+            step_ms = candidate.timestamp_ms - current_cluster[-1].timestamp_ms
+            span_ms = candidate.timestamp_ms - current_cluster[0].timestamp_ms
+
+            is_adjacent = min_step_ms <= step_ms <= max_step_ms
+            is_missed_step = 1600 <= step_ms <= max_gap_missed_ms
+            in_span = span_ms <= max_cluster_span_ms
+
+            if (is_adjacent or is_missed_step) and in_span:
+                current_cluster.append(candidate)
+            else:
+                clusters.append(current_cluster)
+                current_cluster = [candidate]
+
+        clusters.append(current_cluster)
+
+        representatives: list[AudioMatchResult] = []
+        for cluster in clusters:
+            earliest_ms = cluster[0].timestamp_ms
+            peak_conf = max(item.confidence for item in cluster)
+            representatives.append(
+                AudioMatchResult(
+                    timestamp_ms=earliest_ms,
+                    confidence=peak_conf,
+                )
+            )
+
+        representatives.sort(key=lambda r: r.confidence, reverse=True)
+        return representatives
+
+    def match_two_stage(
+        self,
+        video_or_audio_path: str | Path,
+        reference_sound_path: str | Path,
+        threshold: float = DEFAULT_AUDIO_THRESHOLD,
+        min_interval_ms: int | None = None,
+        start_ms: int | None = None,
+        end_ms: int | None = None,
+        max_matches: int | None = None,
+        freq_min_hz: float | None = None,
+        freq_max_hz: float | None = None,
+        template_duration_ms: int | None = None,
+        min_energy_ratio: float | None = None,
+        stage1_threshold: float | None = None,
+        alignment_tolerance_ms: int = 1500,
+    ) -> list[AudioMatchResult]:
+        """Performs two-stage matching using full and cropped templates.
+
+        Stage 1 matches against the full uncropped reference template to anchor
+        the exact start without blast ambiguity. Stage 2 matches using the
+        cropped template and clusters consecutive blasts. Results are combined
+        so that aligned detections use Stage 1's exact anchor timestamp.
+
+        Args:
+            video_or_audio_path: Path to target media file.
+            reference_sound_path: Path to reference sound effect audio.
+            threshold: Minimum correlation threshold for Stage 2.
+            min_interval_ms: Optional minimum interval between detections.
+            start_ms: Optional search start offset in ms.
+            end_ms: Optional search end offset in ms.
+            max_matches: Optional limit on the number of returned matches.
+            freq_min_hz: Optional lower frequency bound in Hz.
+            freq_max_hz: Optional upper frequency bound in Hz.
+            template_duration_ms: Duration in ms to crop template for Stage 2.
+            min_energy_ratio: Optional minimum in-band energy ratio for gating.
+            stage1_threshold: Optional threshold override for Stage 1.
+            alignment_tolerance_ms: Max difference in ms to align stages.
+
+        Returns:
+            list[AudioMatchResult]: Candidate matches sorted by highest
+                confidence descending.
+
+        Raises:
+            FileNotFoundError: If the media file or reference sound is missing.
+            ValueError: If target audio is shorter than the reference sound.
+        """
+        eff_stage1_thresh = (
+            stage1_threshold if stage1_threshold is not None else threshold
+        )
+        stage1_matches = self.match(
+            video_or_audio_path=video_or_audio_path,
+            reference_sound_path=reference_sound_path,
+            threshold=eff_stage1_thresh,
+            min_interval_ms=min_interval_ms,
+            start_ms=start_ms,
+            end_ms=end_ms,
+            max_matches=None,
+            freq_min_hz=freq_min_hz,
+            freq_max_hz=freq_max_hz,
+            template_duration_ms=None,
+            min_energy_ratio=min_energy_ratio,
+            cluster_sequence=False,
+        )
+
+        stage2_matches = self.match(
+            video_or_audio_path=video_or_audio_path,
+            reference_sound_path=reference_sound_path,
+            threshold=threshold,
+            min_interval_ms=min_interval_ms,
+            start_ms=start_ms,
+            end_ms=end_ms,
+            max_matches=None,
+            freq_min_hz=freq_min_hz,
+            freq_max_hz=freq_max_hz,
+            template_duration_ms=template_duration_ms,
+            min_energy_ratio=min_energy_ratio,
+            cluster_sequence=True,
+        )
+
+        combined = self._combine_two_stage_matches(
+            stage1_matches=stage1_matches,
+            stage2_matches=stage2_matches,
+            alignment_tolerance_ms=alignment_tolerance_ms,
+        )
+
+        if max_matches is not None and max_matches > 0:
+            combined = combined[:max_matches]
+
+        return combined
+
+    def _combine_two_stage_matches(
+        self,
+        stage1_matches: list[AudioMatchResult],
+        stage2_matches: list[AudioMatchResult],
+        alignment_tolerance_ms: int = 1500,
+    ) -> list[AudioMatchResult]:
+        """Combines uncropped template matches with clustered cropped matches.
+
+        If a Stage 1 uncropped match aligns with a Stage 2 cluster start
+        within the alignment tolerance, Stage 1's exact anchor timestamp is
+        used along with the higher confidence score. Otherwise, stronger
+        standalone matches or clusters are preserved.
+
+        Args:
+            stage1_matches: Full template candidate detections.
+            stage2_matches: Cropped and clustered sequence detections.
+            alignment_tolerance_ms: Window in ms to align Stage 1 with Stage 2.
+
+        Returns:
+            list[AudioMatchResult]: Combined candidate matches sorted by
+                highest confidence descending.
+        """
+        if not stage1_matches:
+            return list(stage2_matches)
+        if not stage2_matches:
+            return list(stage1_matches)
+
+        used_s1_indices: set[int] = set()
+        combined: list[AudioMatchResult] = []
+
+        for s2 in stage2_matches:
+            matching_s1_indices = [
+                idx
+                for idx, s1 in enumerate(stage1_matches)
+                if idx not in used_s1_indices
+                and abs(s1.timestamp_ms - s2.timestamp_ms)
+                <= alignment_tolerance_ms
+            ]
+
+            if matching_s1_indices:
+                best_idx = min(
+                    matching_s1_indices,
+                    key=lambda idx: abs(
+                        stage1_matches[idx].timestamp_ms - s2.timestamp_ms
+                    ),
+                )
+                used_s1_indices.add(best_idx)
+                s1_match = stage1_matches[best_idx]
+                combined.append(
+                    AudioMatchResult(
+                        timestamp_ms=s1_match.timestamp_ms,
+                        confidence=max(s1_match.confidence, s2.confidence),
+                    )
+                )
+            else:
+                combined.append(s2)
+
+        for idx, s1 in enumerate(stage1_matches):
+            if idx not in used_s1_indices:
+                combined.append(s1)
+
+        combined.sort(key=lambda m: m.confidence, reverse=True)
+        return combined
 
     def match_diagnostic(
         self,
@@ -548,6 +772,8 @@ class AudioMatcher:
         freq_max_hz: float | None = None,
         template_duration_ms: int | None = None,
         min_energy_ratio: float | None = None,
+        cluster_sequence: bool = False,
+        two_stage: bool = False,
     ) -> list[AudioMatchResult]:
         """Matches a reference sound using a configuration object or file.
 
@@ -567,6 +793,10 @@ class AudioMatcher:
             freq_max_hz: Optional upper frequency bound override in Hz.
             template_duration_ms: Optional duration in ms to crop template to.
             min_energy_ratio: Optional minimum in-band energy ratio for gating.
+            cluster_sequence: Whether to group detections into sequence
+                clusters.
+            two_stage: Whether to use two-stage matching (full template anchor
+                combined with cropped sequence clusters).
 
         Returns:
             list[AudioMatchResult]: Candidate matches sorted by confidence.
@@ -601,6 +831,21 @@ class AudioMatcher:
             else match_cfg.min_energy_ratio
         )
 
+        if two_stage:
+            return self.match_two_stage(
+                video_or_audio_path=video_or_audio_path,
+                reference_sound_path=match_cfg.reference_sound_path,
+                threshold=eff_threshold,
+                min_interval_ms=min_interval_ms,
+                start_ms=start_ms,
+                end_ms=end_ms,
+                max_matches=max_matches,
+                freq_min_hz=eff_freq_min,
+                freq_max_hz=eff_freq_max,
+                template_duration_ms=eff_template_dur,
+                min_energy_ratio=eff_energy_ratio,
+            )
+
         return self.match(
             video_or_audio_path=video_or_audio_path,
             reference_sound_path=match_cfg.reference_sound_path,
@@ -613,6 +858,7 @@ class AudioMatcher:
             freq_max_hz=eff_freq_max,
             template_duration_ms=eff_template_dur,
             min_energy_ratio=eff_energy_ratio,
+            cluster_sequence=cluster_sequence,
         )
 
     def _load_audio(
@@ -905,6 +1151,31 @@ def main() -> None:
         help='Maximum number of matches to return.',
     )
     parser.add_argument(
+        '--cluster-sequence',
+        action='store_true',
+        help=(
+            'Group repeated matches into sequence clusters and return earliest'
+            ' timestamps.'
+        ),
+    )
+    parser.add_argument(
+        '--template-duration-ms',
+        type=int,
+        default=None,
+        help=(
+            'Override template crop duration in ms (0 disables cropping to'
+            ' use full reference audio).'
+        ),
+    )
+    parser.add_argument(
+        '--two-stage',
+        action='store_true',
+        help=(
+            'Use two-stage matching (full template anchor + cropped'
+            ' clustering).'
+        ),
+    )
+    parser.add_argument(
         '--json',
         action='store_true',
         help='Output results as a JSON array.',
@@ -941,6 +1212,11 @@ def main() -> None:
         eff_template_duration = cfg.template_duration_ms
         eff_min_energy_ratio = cfg.min_energy_ratio
 
+    if args.template_duration_ms is not None:
+        eff_template_duration = (
+            args.template_duration_ms if args.template_duration_ms > 0 else None
+        )
+
     if not ref_path or not Path(ref_path).exists():
         raise FileNotFoundError(f'Reference sound not found: {ref_path}')
 
@@ -948,19 +1224,35 @@ def main() -> None:
         eff_threshold = 0.2
 
     matcher = AudioMatcher()
-    results = matcher.match(
-        video_or_audio_path=args.video,
-        reference_sound_path=ref_path,
-        threshold=eff_threshold,
-        min_interval_ms=args.min_interval_ms,
-        start_ms=args.start_ms,
-        end_ms=args.end_ms,
-        max_matches=args.max_matches,
-        freq_min_hz=eff_freq_min,
-        freq_max_hz=eff_freq_max,
-        template_duration_ms=eff_template_duration,
-        min_energy_ratio=eff_min_energy_ratio,
-    )
+    if args.two_stage:
+        results = matcher.match_two_stage(
+            video_or_audio_path=args.video,
+            reference_sound_path=ref_path,
+            threshold=eff_threshold,
+            min_interval_ms=args.min_interval_ms,
+            start_ms=args.start_ms,
+            end_ms=args.end_ms,
+            max_matches=args.max_matches,
+            freq_min_hz=eff_freq_min,
+            freq_max_hz=eff_freq_max,
+            template_duration_ms=eff_template_duration,
+            min_energy_ratio=eff_min_energy_ratio,
+        )
+    else:
+        results = matcher.match(
+            video_or_audio_path=args.video,
+            reference_sound_path=ref_path,
+            threshold=eff_threshold,
+            min_interval_ms=args.min_interval_ms,
+            start_ms=args.start_ms,
+            end_ms=args.end_ms,
+            max_matches=args.max_matches,
+            freq_min_hz=eff_freq_min,
+            freq_max_hz=eff_freq_max,
+            template_duration_ms=eff_template_duration,
+            min_energy_ratio=eff_min_energy_ratio,
+            cluster_sequence=args.cluster_sequence,
+        )
 
     if args.json:
         data = [

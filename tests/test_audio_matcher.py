@@ -1,6 +1,7 @@
 import os
-from pathlib import Path
 import tempfile
+from pathlib import Path
+
 import numpy as np
 import pytest
 from scipy.io import wavfile
@@ -8,8 +9,8 @@ from scipy.io import wavfile
 from lfdata.video import (
     AudioMatchConfig,
     AudioMatchDiagnostic,
-    AudioMatchResult,
     AudioMatcher,
+    AudioMatchResult,
     load_sound_config,
 )
 
@@ -169,9 +170,11 @@ def test_file_not_found_errors() -> None:
     with pytest.raises(FileNotFoundError):
         matcher.match('nonexistent_video.mp4', 'ref.wav')
 
-    with tempfile.NamedTemporaryFile(suffix='.wav') as tmp:
-        with pytest.raises(FileNotFoundError):
-            matcher.match(tmp.name, 'nonexistent_ref.wav')
+    with (
+        tempfile.NamedTemporaryFile(suffix='.wav') as tmp,
+        pytest.raises(FileNotFoundError),
+    ):
+        matcher.match(tmp.name, 'nonexistent_ref.wav')
 
 
 def test_target_shorter_than_reference_error() -> None:
@@ -303,6 +306,7 @@ def test_cli_main(capsys: pytest.CaptureFixture[str]) -> None:
         wavfile.write(target_wav, sample_rate, np.int16(target * 32767))
 
         from unittest.mock import patch
+
         from lfdata.video.audio_matcher import main
 
         test_args = ['audio_matcher.py', target_wav, ref_wav, '--json']
@@ -459,6 +463,7 @@ def test_cli_main_with_config(capsys: pytest.CaptureFixture[str]) -> None:
             )
 
         from unittest.mock import patch
+
         from lfdata.video.audio_matcher import main
 
         # Invoke CLI with --config instead of reference WAV positional argument
@@ -479,16 +484,17 @@ def test_cli_main_with_config(capsys: pytest.CaptureFixture[str]) -> None:
 
 def test_cli_main_error_without_ref_or_config() -> None:
     from unittest.mock import patch
+
     from lfdata.video.audio_matcher import main
 
     test_args = ['audio_matcher.py', 'video.mp4']
-    with patch('sys.argv', test_args):
-        with pytest.raises(SystemExit):
-            main()
+    with patch('sys.argv', test_args), pytest.raises(SystemExit):
+        main()
 
 
 def test_cli_main_error_video_not_found(tmp_path: Path) -> None:
     from unittest.mock import patch
+
     from lfdata.video.audio_matcher import main
 
     ref_file = tmp_path / 'ref.wav'
@@ -498,13 +504,16 @@ def test_cli_main_error_video_not_found(tmp_path: Path) -> None:
         str(tmp_path / 'missing_video.mp4'),
         str(ref_file),
     ]
-    with patch('sys.argv', test_args):
-        with pytest.raises(FileNotFoundError, match='Video file not found'):
-            main()
+    with (
+        patch('sys.argv', test_args),
+        pytest.raises(FileNotFoundError, match='Video file not found'),
+    ):
+        main()
 
 
 def test_cli_main_error_ref_not_found(tmp_path: Path) -> None:
     from unittest.mock import patch
+
     from lfdata.video.audio_matcher import main
 
     video_file = tmp_path / 'video.mp4'
@@ -514,11 +523,11 @@ def test_cli_main_error_ref_not_found(tmp_path: Path) -> None:
         str(video_file),
         str(tmp_path / 'missing_ref.wav'),
     ]
-    with patch('sys.argv', test_args):
-        with pytest.raises(
-            FileNotFoundError, match='Reference sound not found'
-        ):
-            main()
+    with (
+        patch('sys.argv', test_args),
+        pytest.raises(FileNotFoundError, match='Reference sound not found'),
+    ):
+        main()
 
 
 def test_audio_match_diagnostic() -> None:
@@ -662,3 +671,365 @@ def test_match_config_yaml_with_template_duration_and_energy_ratio() -> None:
         )
         assert len(matches) >= 1
         assert abs(matches[0].timestamp_ms - 1000) < 30
+
+
+def test_cluster_sequence_matches_empty_and_single() -> None:
+    matcher = AudioMatcher()
+    assert matcher.cluster_sequence_matches(matches=[]) == []
+
+    single = [AudioMatchResult(timestamp_ms=5000, confidence=0.75)]
+    clustered = matcher.cluster_sequence_matches(matches=single)
+    assert len(clustered) == 1
+    assert clustered[0].timestamp_ms == 5000
+    assert clustered[0].confidence == 0.75
+
+
+def test_cluster_sequence_matches_consecutive_blasts() -> None:
+    matcher = AudioMatcher()
+    # 3 blasts at ~950ms spacing, blast 3 has highest confidence
+    matches = [
+        AudioMatchResult(timestamp_ms=125345, confidence=0.643),
+        AudioMatchResult(timestamp_ms=124410, confidence=0.510),
+        AudioMatchResult(timestamp_ms=123464, confidence=0.286),
+    ]
+    clustered = matcher.cluster_sequence_matches(matches=matches)
+    assert len(clustered) == 1
+    # Earliest blast timestamp is selected with peak confidence
+    assert clustered[0].timestamp_ms == 123464
+    assert clustered[0].confidence == 0.643
+
+
+def test_cluster_sequence_matches_missed_intermediate_blast() -> None:
+    matcher = AudioMatcher()
+    # Blast 2 missed: gap between Blast 1 and Blast 3 is 1900ms (1600-2300ms)
+    matches = [
+        AudioMatchResult(timestamp_ms=2900, confidence=0.82),
+        AudioMatchResult(timestamp_ms=1000, confidence=0.35),
+    ]
+    clustered = matcher.cluster_sequence_matches(matches=matches)
+    assert len(clustered) == 1
+    assert clustered[0].timestamp_ms == 1000
+    assert clustered[0].confidence == 0.82
+
+
+def test_cluster_sequence_matches_multiple_clusters_and_sorting() -> None:
+    matcher = AudioMatcher()
+    matches = [
+        # Cluster A at ~1000ms, peak confidence 0.6
+        AudioMatchResult(timestamp_ms=1000, confidence=0.4),
+        AudioMatchResult(timestamp_ms=1950, confidence=0.6),
+        # Cluster B at ~50000ms, peak confidence 0.9
+        AudioMatchResult(timestamp_ms=50000, confidence=0.5),
+        AudioMatchResult(timestamp_ms=50950, confidence=0.9),
+    ]
+    clustered = matcher.cluster_sequence_matches(matches=matches)
+    assert len(clustered) == 2
+    # Sorted by peak confidence descending: Cluster B (0.9) before Cluster A (0.6)
+    assert clustered[0].timestamp_ms == 50000
+    assert clustered[0].confidence == 0.9
+    assert clustered[1].timestamp_ms == 1000
+    assert clustered[1].confidence == 0.6
+
+
+def test_cluster_sequence_matches_span_limit_and_custom_bounds() -> None:
+    matcher = AudioMatcher()
+    matches = [
+        AudioMatchResult(timestamp_ms=1000, confidence=0.5),
+        AudioMatchResult(timestamp_ms=1800, confidence=0.6),
+        AudioMatchResult(timestamp_ms=2600, confidence=0.7),
+        AudioMatchResult(timestamp_ms=3400, confidence=0.8),
+    ]
+    # With max_cluster_span_ms=2000, 2600ms is span 1600 (ok), 3400ms is span 2400 (> 2000)
+    clustered = matcher.cluster_sequence_matches(
+        matches=matches,
+        min_step_ms=700,
+        max_step_ms=900,
+        max_gap_missed_ms=1900,
+        max_cluster_span_ms=2000,
+    )
+    assert len(clustered) == 2
+    # First cluster: 1000..2600 with peak 0.7
+    assert clustered[0].timestamp_ms == 3400
+    assert clustered[0].confidence == 0.8
+    assert clustered[1].timestamp_ms == 1000
+    assert clustered[1].confidence == 0.7
+
+
+def test_match_with_cluster_sequence_synthetic_audio() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        target_wav = os.path.join(tmpdir, 'target_cluster.wav')
+        ref_wav = os.path.join(tmpdir, 'ref_blast.wav')
+
+        sample_rate = 22050
+        duration = 0.3
+        t = np.linspace(0, duration, int(duration * sample_rate))
+        chirp = np.sin(2 * np.pi * 1500.0 * t)
+        wavfile.write(ref_wav, sample_rate, np.int16(chirp * 32767))
+
+        rng = np.random.default_rng(seed=42)
+        target = rng.normal(0, 0.15, int(5.0 * sample_rate)).astype(np.float32)
+        # Blast 1 at 1000ms (weaker, amplitude 0.25)
+        s1 = int(1.0 * sample_rate)
+        target[s1 : s1 + len(chirp)] += chirp * 0.25
+        # Blast 2 at 1950ms (amplitude 0.6)
+        s2 = int(1.95 * sample_rate)
+        target[s2 : s2 + len(chirp)] += chirp * 0.6
+        # Blast 3 at 2900ms (stronger, amplitude 1.8)
+        s3 = int(2.9 * sample_rate)
+        target[s3 : s3 + len(chirp)] += chirp * 1.8
+
+        wavfile.write(
+            target_wav,
+            sample_rate,
+            np.int16(np.clip(target, -1.0, 1.0) * 32767),
+        )
+
+        matcher = AudioMatcher(sample_rate=22050, hop_length=256)
+
+        # Without cluster_sequence, max_matches=1 picks the strongest blast (Blast 3 ~2900ms)
+        unclustered = matcher.match(
+            video_or_audio_path=target_wav,
+            reference_sound_path=ref_wav,
+            threshold=0.3,
+            min_interval_ms=500,
+            max_matches=1,
+            cluster_sequence=False,
+        )
+        assert len(unclustered) == 1
+        assert abs(unclustered[0].timestamp_ms - 2900) < 30
+
+        # With cluster_sequence, max_matches=1 groups them and picks Blast 1 (~1000ms)
+        clustered = matcher.match(
+            video_or_audio_path=target_wav,
+            reference_sound_path=ref_wav,
+            threshold=0.3,
+            min_interval_ms=500,
+            max_matches=1,
+            cluster_sequence=True,
+        )
+        assert len(clustered) == 1
+        assert abs(clustered[0].timestamp_ms - 1000) < 30
+        assert clustered[0].confidence > 0.5
+
+
+def test_cli_main_cluster_sequence(capsys: pytest.CaptureFixture[str]) -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        target_wav = os.path.join(tmpdir, 'cli_cluster.wav')
+        ref_wav = os.path.join(tmpdir, 'cli_ref.wav')
+
+        sample_rate = 22050
+        duration = 0.3
+        t = np.linspace(0, duration, int(duration * sample_rate))
+        chirp = np.sin(2 * np.pi * 1400.0 * t)
+        wavfile.write(ref_wav, sample_rate, np.int16(chirp * 32767))
+
+        target = np.zeros(int(4.5 * sample_rate), dtype=np.float32)
+        # Blast 1 at 1000ms (amplitude 0.5)
+        s1 = int(1.0 * sample_rate)
+        target[s1 : s1 + len(chirp)] = chirp * 0.5
+        # Blast 2 at 1950ms (amplitude 1.0)
+        s2 = int(1.95 * sample_rate)
+        target[s2 : s2 + len(chirp)] = chirp * 1.0
+        wavfile.write(target_wav, sample_rate, np.int16(target * 32767))
+
+        from unittest.mock import patch
+
+        from lfdata.video.audio_matcher import main
+
+        test_args = [
+            'audio_matcher.py',
+            target_wav,
+            ref_wav,
+            '--cluster-sequence',
+            '--max-matches',
+            '1',
+            '--json',
+        ]
+        with patch('sys.argv', test_args):
+            main()
+
+        import json
+
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
+        assert len(data) == 1
+        # Earliest blast ~1000ms selected
+        assert abs(data[0]['timestamp_ms'] - 1000) < 30
+
+
+def test_cli_main_template_duration_override(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        target_wav = os.path.join(tmpdir, 'cli_target.wav')
+        ref_wav = os.path.join(tmpdir, 'cli_ref.wav')
+        cfg_file = os.path.join(tmpdir, 'sound.yaml')
+
+        sample_rate = 22050
+        duration = 0.4
+        t = np.linspace(0, duration, int(duration * sample_rate))
+        chirp = np.sin(2 * np.pi * 1500.0 * t)
+        wavfile.write(ref_wav, sample_rate, np.int16(chirp * 32767))
+
+        target = np.zeros(int(3.0 * sample_rate), dtype=np.float32)
+        target[sample_rate : sample_rate + len(chirp)] = chirp
+        wavfile.write(target_wav, sample_rate, np.int16(target * 32767))
+
+        with open(cfg_file, 'w', encoding='utf-8') as f:
+            f.write(
+                f"reference_sound_path: '{ref_wav}'\n"
+                f'threshold: 0.3\n'
+                f'template_duration_ms: 200\n'
+            )
+
+        from unittest.mock import patch
+
+        from lfdata.video.audio_matcher import main
+
+        # Test overriding template_duration_ms with 0 (disabling crop)
+        test_args = [
+            'audio_matcher.py',
+            target_wav,
+            '--config',
+            cfg_file,
+            '--template-duration-ms',
+            '0',
+            '--json',
+        ]
+        with patch('sys.argv', test_args):
+            main()
+
+        captured = capsys.readouterr()
+        assert 'timestamp_ms' in captured.out
+
+
+def test_combine_two_stage_matches() -> None:
+    matcher = AudioMatcher()
+    # Case 1: Stage 1 and Stage 2 align within 1500ms
+    s1 = [AudioMatchResult(timestamp_ms=1010, confidence=0.35)]
+    s2 = [AudioMatchResult(timestamp_ms=1000, confidence=0.88)]
+    combined = matcher._combine_two_stage_matches(
+        stage1_matches=s1,
+        stage2_matches=s2,
+        alignment_tolerance_ms=1500,
+    )
+    assert len(combined) == 1
+    # Exact anchor of Stage 1 (1010) with peak confidence (0.88)
+    assert combined[0].timestamp_ms == 1010
+    assert combined[0].confidence == 0.88
+
+    # Case 2: Stage 1 has no match -> returns Stage 2
+    combined_no_s1 = matcher._combine_two_stage_matches(
+        stage1_matches=[],
+        stage2_matches=s2,
+    )
+    assert len(combined_no_s1) == 1
+    assert combined_no_s1[0].timestamp_ms == 1000
+    assert combined_no_s1[0].confidence == 0.88
+
+    # Case 3: Stage 2 has no match -> returns Stage 1
+    combined_no_s2 = matcher._combine_two_stage_matches(
+        stage1_matches=s1,
+        stage2_matches=[],
+    )
+    assert len(combined_no_s2) == 1
+    assert combined_no_s2[0].timestamp_ms == 1010
+    assert combined_no_s2[0].confidence == 0.35
+
+    # Case 4: Not aligned (> 1500ms) -> stronger match is first
+    s1_far = [AudioMatchResult(timestamp_ms=50000, confidence=0.4)]
+    s2_far = [AudioMatchResult(timestamp_ms=1000, confidence=0.9)]
+    combined_far = matcher._combine_two_stage_matches(
+        stage1_matches=s1_far,
+        stage2_matches=s2_far,
+        alignment_tolerance_ms=1500,
+    )
+    assert len(combined_far) == 2
+    assert combined_far[0].timestamp_ms == 1000
+    assert combined_far[0].confidence == 0.9
+    assert combined_far[1].timestamp_ms == 50000
+    assert combined_far[1].confidence == 0.4
+
+
+def test_match_two_stage_synthetic() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        target_wav = os.path.join(tmpdir, 'target_twostage.wav')
+        ref_wav = os.path.join(tmpdir, 'ref_twostage.wav')
+
+        sample_rate = 22050
+        # Reference has 2 chirps at 0ms and 950ms
+        dur_ref = 1.3
+        ref_audio = np.zeros(int(dur_ref * sample_rate), dtype=np.float32)
+        chirp_dur = 0.3
+        t_c = np.linspace(0, chirp_dur, int(chirp_dur * sample_rate))
+        chirp = np.sin(2 * np.pi * 1600.0 * t_c)
+        ref_audio[: len(chirp)] = chirp
+        s2_ref = int(0.95 * sample_rate)
+        ref_audio[s2_ref : s2_ref + len(chirp)] = chirp
+        wavfile.write(
+            ref_wav,
+            sample_rate,
+            np.int16(np.clip(ref_audio, -1.0, 1.0) * 32767),
+        )
+
+        # Target has the same 2 chirps starting at 1200ms
+        target_audio = np.zeros(int(4.0 * sample_rate), dtype=np.float32)
+        start_idx = int(1.2 * sample_rate)
+        target_audio[start_idx : start_idx + len(ref_audio)] = ref_audio
+        wavfile.write(
+            target_wav,
+            sample_rate,
+            np.int16(np.clip(target_audio, -1.0, 1.0) * 32767),
+        )
+
+        matcher = AudioMatcher(sample_rate=22050, hop_length=256)
+        results = matcher.match_two_stage(
+            video_or_audio_path=target_wav,
+            reference_sound_path=ref_wav,
+            threshold=0.3,
+            template_duration_ms=400,
+            max_matches=1,
+        )
+
+        assert len(results) == 1
+        assert abs(results[0].timestamp_ms - 1200) < 30
+        assert results[0].confidence > 0.5
+
+
+def test_cli_main_two_stage(capsys: pytest.CaptureFixture[str]) -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        target_wav = os.path.join(tmpdir, 'cli_ts_target.wav')
+        ref_wav = os.path.join(tmpdir, 'cli_ts_ref.wav')
+
+        sample_rate = 22050
+        duration = 0.3
+        t = np.linspace(0, duration, int(duration * sample_rate))
+        chirp = np.sin(2 * np.pi * 1500.0 * t)
+        wavfile.write(ref_wav, sample_rate, np.int16(chirp * 32767))
+
+        target = np.zeros(int(3.0 * sample_rate), dtype=np.float32)
+        target[sample_rate : sample_rate + len(chirp)] = chirp
+        wavfile.write(target_wav, sample_rate, np.int16(target * 32767))
+
+        from unittest.mock import patch
+
+        from lfdata.video.audio_matcher import main
+
+        test_args = [
+            'audio_matcher.py',
+            target_wav,
+            ref_wav,
+            '--two-stage',
+            '--max-matches',
+            '1',
+            '--json',
+        ]
+        with patch('sys.argv', test_args):
+            main()
+
+        import json
+
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
+        assert len(data) == 1
+        assert abs(data[0]['timestamp_ms'] - 1000) < 30
