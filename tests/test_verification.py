@@ -111,11 +111,15 @@ def test_verifier_with_discrepancies_resolved() -> None:
         'lfdata.replay.verification.LFReplaySystem'
     ) as mock_replay_class:
         mock_inst_no_align = MagicMock()
+        mock_inst_no_align.game_ended_at_ms = None
+        mock_inst_no_align.first_team_elimination_time_ms = None
         mock_inst_no_align.game_state.players = {
             'player_1': mock_player_state_discrepant
         }
 
         mock_inst_aligned = MagicMock()
+        mock_inst_aligned.game_ended_at_ms = None
+        mock_inst_aligned.first_team_elimination_time_ms = None
         mock_inst_aligned.game_state.players = {
             'player_1': mock_player_state_aligned
         }
@@ -219,10 +223,14 @@ def test_verify_prints_grace_period_results(capsys: object) -> None:
     mock_state_pass.shots = 30
 
     inst_fail = MagicMock()
+    inst_fail.game_ended_at_ms = None
+    inst_fail.first_team_elimination_time_ms = None
     inst_fail.game_state.players = {'player_1': mock_state_fail}
     inst_fail.resolved_ambiguities = []
 
     inst_pass = MagicMock()
+    inst_pass.game_ended_at_ms = None
+    inst_pass.first_team_elimination_time_ms = None
     inst_pass.game_state.players = {'player_1': mock_state_pass}
 
     with patch('lfdata.replay.verification.LFReplaySystem') as mock_rep_cls:

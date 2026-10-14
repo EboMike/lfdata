@@ -27,6 +27,24 @@
 * Unused imports must be removed.
 * All imports *MUST* be on the top of the file, unless there is a reason to
   import later.
+* Do *NOT* use `Any` unless absolutely necessary.
+  * If a function expects a specific class, use that class as the type
+    annotation.
+  * If 2 or 3 types are possible, use a Union with `|` or a `TypedDict`.
+    If this particular combination of types is used multiple times in the
+    code base, make it a named alias in a common file. Do not consider
+    `None` for this consideration, do NOT add it to a named alias.
+    Example: If 5 places in code expect an optional "node ID" that could be
+    an `int` or `str`, define it as such:
+    ```
+    NodeId = int | str
+
+    def foo(node: NodeId | None) -> NodeId:
+    ```
+  
+  * Do not use `getattr` to verify that a type has a member. Assume that
+    classes are complete. If a test fails, update the test to mock that
+    particular object correctly.
 * All functions must have docstrings, except in test files.
 * The docstring for a function must have a one-line summary, then a blank
   line, then a more detailed description.

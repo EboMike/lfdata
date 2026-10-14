@@ -224,15 +224,7 @@ class ImagePreview(ttk.LabelFrame):
         """
         try:
             with Image.open(path) as raw_img:
-                # Store a copy in memory for resizing (fallback if copy is mocked)
-                try:
-                    copied = raw_img.copy()
-                    if not isinstance(getattr(copied, 'size', None), tuple):
-                        self.last_rendered_image = raw_img
-                    else:
-                        self.last_rendered_image = copied
-                except Exception:
-                    self.last_rendered_image = raw_img
+                self.last_rendered_image = raw_img.copy()
                 self._show_image(self.last_rendered_image)
         except Exception as e:
             self.lbl_image.config(text=f'Error displaying image: {e}')

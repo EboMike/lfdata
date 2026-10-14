@@ -157,6 +157,8 @@ def test_dump_mismatches_lives_discrepancy(capsys: object) -> None:
     )
 
     replay = MagicMock()
+    replay.game_ended_at_ms = None
+    replay.first_team_elimination_time_ms = None
     replay.game_state.players = {
         'player_1': p1_state,
         'player_2': p2_state,
@@ -235,6 +237,8 @@ def test_dump_mismatches_ammo_discrepancy(capsys: object) -> None:
     )
 
     replay = MagicMock()
+    replay.game_ended_at_ms = None
+    replay.first_team_elimination_time_ms = None
     replay.game_state.players = {
         'player_1': p1_state,
         'player_2': p2_state,

@@ -11,7 +11,7 @@ Usage example:
 """
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 from sqlalchemy import DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -96,7 +96,7 @@ class LFGame(Base):
         cascade='all, delete-orphan',
     )
 
-    def __init__(self, **kwargs: Any) -> None:
+    def __init__(self, **kwargs: object) -> None:
         """Initializes a new game session.
 
         Sets database column attributes from the provided keyword arguments
@@ -106,15 +106,15 @@ class LFGame(Base):
             **kwargs: The column values for the game.
         """
         super().__init__(**kwargs)
-        if getattr(self, 'normalized_game_type', None) is None:
-            game_type_val = getattr(self, 'game_type', None)
+        if self.normalized_game_type is None:
+            game_type_val = self.game_type
             if game_type_val is not None:
                 from lfdata.importer.normalizer import GameTypeNormalizer
 
                 self.normalized_game_type = GameTypeNormalizer().normalize(
                     game_type_val
                 )
-        if getattr(self, 'mission_type', None) is None:
+        if self.mission_type is None:
             from lfdata.model.constants.game_type import (
                 GAME_TYPE_NAME_LASERBALL,
                 GAME_TYPE_NAME_SM5,
@@ -122,15 +122,9 @@ class LFGame(Base):
                 MISSION_TYPE_SM5,
             )
 
-            if (
-                getattr(self, 'normalized_game_type', None)
-                == GAME_TYPE_NAME_SM5
-            ):
+            if self.normalized_game_type == GAME_TYPE_NAME_SM5:
                 self.mission_type = MISSION_TYPE_SM5
-            elif (
-                getattr(self, 'normalized_game_type', None)
-                == GAME_TYPE_NAME_LASERBALL
-            ):
+            elif self.normalized_game_type == GAME_TYPE_NAME_LASERBALL:
                 self.mission_type = MISSION_TYPE_LASERBALL
 
     @property

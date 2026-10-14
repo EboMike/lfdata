@@ -12,7 +12,7 @@ Usage example:
 
 import tkinter as tk
 from tkinter import ttk
-from typing import Any, Callable
+from typing import Callable
 from lfdata.ui.config_manager import UIConfigManager
 from lfdata.ui.animation_overview import AnimationOverviewPanel
 
@@ -31,7 +31,7 @@ class PropertiesPanel(ttk.LabelFrame):
         parent: tk.Widget,
         config_manager: UIConfigManager,
         on_update_callback: Callable[[], None],
-        **kwargs: Any,
+        **kwargs: object,
     ) -> None:
         """Initializes the properties panel.
 

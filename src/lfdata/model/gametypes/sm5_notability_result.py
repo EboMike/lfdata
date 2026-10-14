@@ -15,7 +15,6 @@ Usage example:
 """
 
 import dataclasses
-from typing import Any
 
 from lfdata.model.gametypes.sm5_notability_condition import (
     Sm5NotabilityCondition,
@@ -34,4 +33,6 @@ class Sm5NotabilityResult:
 
     condition: Sm5NotabilityCondition | None
     tagline: str
-    details: dict[str, Any] = dataclasses.field(default_factory=dict)
+    details: dict[str, int | float | str] = dataclasses.field(
+        default_factory=dict
+    )

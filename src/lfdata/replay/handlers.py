@@ -377,11 +377,7 @@ class LFReplayHandlersMixin:
                 ):
                     default_val = player.can_receive_resupply(
                         event.time,
-                        grace_period_ms=getattr(
-                            self,
-                            'boost_grace_period_ms',
-                            DEFAULT_BOOST_GRACE_PERIOD_MS,
-                        ),
+                        grace_period_ms=self.boost_grace_period_ms,
                     )
                     is_ambig = self._is_player_boost_ambiguous(
                         player, event.time

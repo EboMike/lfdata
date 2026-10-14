@@ -13,7 +13,7 @@ Usage example:
 """
 
 import dataclasses
-from typing import Any
+from typing import TypedDict
 
 from lfdata.model import GameEvent, LFGame, LFRole, LFTeamType
 from lfdata.model.gametypes.laserball_events import LaserballEvent
@@ -63,6 +63,16 @@ class LFNukeCancelDetails:
 
     cancel_ms: int
     cancel_reason: str
+
+
+class ResolvedAmbiguity(TypedDict):
+    """Represents a resolved boost ambiguity decision."""
+
+    time_ms: int
+    player_id: str
+    default: bool
+    chosen: bool
+    event_type: str
 
 
 class LFReplaySystem(LFReplayHandlersMixin):
@@ -118,7 +128,7 @@ class LFReplaySystem(LFReplayHandlersMixin):
         self.game_ended_at_ms: int | None = None
         self._team_elimination_processed = False
         self.first_team_elimination_time_ms: int | None = None
-        self.resolved_ambiguities: list[dict[str, Any]] = []
+        self.resolved_ambiguities: list[ResolvedAmbiguity] = []
         self._last_laserball_passer: LFReplayPlayerState | None = None
         self._last_laserball_pass_target: LFReplayPlayerState | None = None
         self._last_assisted_scorer: LFReplayPlayerState | None = None
@@ -191,7 +201,7 @@ class LFReplaySystem(LFReplayHandlersMixin):
             bool: True if all stats match, False otherwise.
         """
         if self.game.is_laserball:
-            if not getattr(self.game, 'laserball_stats', None):
+            if not self.game.laserball_stats:
                 return True
             matched = True
             for lstats in self.game.laserball_stats:

@@ -14,7 +14,6 @@ Usage example:
 import copy
 import os
 import sys
-from typing import Any
 import yaml
 
 from lfdata.importer import TdfImporter
@@ -40,7 +39,7 @@ class UIConfigManager:
 
     def __init__(self) -> None:
         """Initializes the UIConfigManager with default configuration."""
-        self.config: dict[str, Any] = copy.deepcopy(DEFAULT_CONFIG)
+        self.config: dict[str, object] = copy.deepcopy(DEFAULT_CONFIG)
         self.tdf_path: str | None = None
         self.game: LFGame | None = None
         self.players: list[str] = []
@@ -99,7 +98,7 @@ class UIConfigManager:
         except Exception as e:
             raise RuntimeError(f'Failed to load TDF: {e}') from e
 
-    def get_element(self, element_name: str) -> dict[str, Any] | None:
+    def get_element(self, element_name: str) -> dict[str, object] | None:
         """Retrieves configuration dictionary for a specific UI element.
 
         Args:
@@ -113,14 +112,14 @@ class UIConfigManager:
             return None
         return elements.get(element_name)
 
-    def resolve_val(self, val: Any) -> Any:
+    def resolve_val(self, val: object) -> object:
         """Resolves a value at the current preview time.
 
         Args:
             val: The configuration value (constant or keyframe dict).
 
         Returns:
-            Any: The resolved value or coordinate pair.
+            object: The resolved value or coordinate pair.
         """
         pregame_delay_ms = self.config.get('pregame_delay_ms', 0)
         if (
@@ -236,7 +235,9 @@ class UIConfigManager:
                     prop_parent[prop_key] = 0.0
         return new_state
 
-    def update_element(self, element_name: str, key: str, value: Any) -> None:
+    def update_element(
+        self, element_name: str, key: str, value: object
+    ) -> None:
         """Updates a property of a specific UI element.
 
         Args:
@@ -338,7 +339,7 @@ class UIConfigManager:
         """
         return self.players
 
-    def update_global_setting(self, key: str, value: Any) -> None:
+    def update_global_setting(self, key: str, value: object) -> None:
         """Updates a global configuration setting.
 
         Args:

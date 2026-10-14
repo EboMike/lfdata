@@ -10,7 +10,6 @@ Usage example:
 """
 
 import dataclasses
-from typing import Any
 
 from lfdata.model.constants.time import MS_PER_SECOND
 from lfdata.video.constants import (
@@ -38,7 +37,7 @@ class LFTeamTransition:
     ranking: int
 
 
-DEFAULT_CONFIG: dict[str, Any] = {
+DEFAULT_CONFIG: dict[str, object] = {
     'font': 'GoogleSans-Bold',
     'style': 'normal',
     'size': 20,
@@ -308,8 +307,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
 
 
 def _merge_configs(
-    base: dict[str, Any], loaded: dict[str, Any]
-) -> dict[str, Any]:
+    base: dict[str, object], loaded: dict[str, object]
+) -> dict[str, object]:
     """Recursively merges a loaded configuration dict into base defaults.
 
     Args:
@@ -317,9 +316,9 @@ def _merge_configs(
         loaded: The user-supplied configuration dictionary.
 
     Returns:
-        dict[str, Any]: The recursively merged configuration dictionary.
+        dict[str, object]: The recursively merged configuration dictionary.
     """
-    result: dict[str, Any] = {}
+    result: dict[str, object] = {}
     for k, v in base.items():
         if k in loaded:
             if isinstance(v, dict) and isinstance(loaded[k], dict):
@@ -489,7 +488,9 @@ def get_visual_rank(
     return float(last_trans.ranking)
 
 
-def _interpolate_values(val_start: Any, val_end: Any, p_anim: float) -> Any:
+def _interpolate_values(
+    val_start: object, val_end: object, p_anim: float
+) -> object:
     """Interpolates between two values or value pairs.
 
     Uses the animated progress fraction to calculate the intermediate value.
@@ -501,7 +502,7 @@ def _interpolate_values(val_start: Any, val_end: Any, p_anim: float) -> Any:
         p_anim: The animated progress fraction (0.0 to 1.0).
 
     Returns:
-        Any: The interpolated value or value pair.
+        object: The interpolated value or value pair.
     """
     if isinstance(val_start, (list, tuple)) and isinstance(
         val_end, (list, tuple)
@@ -521,11 +522,11 @@ def _interpolate_values(val_start: Any, val_end: Any, p_anim: float) -> Any:
 
 
 def resolve_animated_value(
-    config_val: Any,
+    config_val: object,
     time_ms: int,
     pregame_delay_ms: int = 0,
     game_duration_ms: int = 0,
-) -> Any:
+) -> object:
     """Resolves a configured value at a specific timestamp.
 
     If the value defines keyframes, interpolates the value based on the current
@@ -538,7 +539,7 @@ def resolve_animated_value(
         game_duration_ms: The duration of the game in milliseconds.
 
     Returns:
-        Any: The resolved value or value pair at the specified timestamp.
+        object: The resolved value or value pair at the specified timestamp.
     """
     if not isinstance(config_val, dict) or 'keyframes' not in config_val:
         return config_val
@@ -611,11 +612,11 @@ def resolve_animated_value(
 
 
 def resolve_config_dict(
-    config_dict: dict[str, Any],
+    config_dict: dict[str, object],
     time_ms: int,
     pregame_delay_ms: int = 0,
     game_duration_ms: int = 0,
-) -> dict[str, Any]:
+) -> dict[str, object]:
     """Recursively resolves all values in a config dictionary at a timestamp.
 
     Iterates through the dictionary structure and resolves any animated values
@@ -628,9 +629,9 @@ def resolve_config_dict(
         game_duration_ms: The duration of the game in milliseconds.
 
     Returns:
-        dict[str, Any]: A new dictionary with resolved values.
+        dict[str, object]: A new dictionary with resolved values.
     """
-    resolved: dict[str, Any] = {}
+    resolved: dict[str, object] = {}
     for k, v in config_dict.items():
         if isinstance(v, dict):
             if 'keyframes' in v:

@@ -78,7 +78,7 @@ class GameEntity(Base):
             for stat in self.game.sm5_stats:
                 if stat.entity_id == self.entity_id:
                     return stat.hit_diff
-        if getattr(self.game, 'laserball_stats', None):
+        if self.game.laserball_stats:
             for stat in self.game.laserball_stats:
                 if stat.entity_id == self.entity_id:
                     return stat.hit_diff

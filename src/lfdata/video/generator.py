@@ -17,8 +17,6 @@ import bisect
 import dataclasses
 import random
 import re
-from typing import Any
-
 import jinja2
 
 
@@ -172,7 +170,7 @@ class VisualElementGenerator:
         self,
         game: LFGame,
         player_name: str | None = None,
-        config: dict[str, Any] | None = None,
+        config: dict[str, object] | None = None,
     ) -> None:
         """Initializes the HUD element generator.
 
@@ -1046,7 +1044,7 @@ class VisualElementGenerator:
         return cloned_players, cloned_teams
 
     def _resolve_element_style(
-        self, el_config: dict[str, Any]
+        self, el_config: dict[str, object]
     ) -> UIElementStyle:
         """Resolves styling properties from configuration.
 
@@ -1109,7 +1107,7 @@ class VisualElementGenerator:
             return 'top left'
         return ''
 
-    def _parse_indicator_interval(self, val: Any) -> int | None:
+    def _parse_indicator_interval(self, val: int | str | None) -> int | None:
         """Parses a visual indicator interval from configuration value.
 
         Args:
@@ -1436,7 +1434,7 @@ class VisualElementGenerator:
         Returns:
             bool: True if the previous event was found and updated, else False.
         """
-        el_config: dict[str, Any] = self.config.get('elements', {}).get(
+        el_config: dict[str, object] = self.config.get('elements', {}).get(
             'player_events', {}
         )
         fade_time_s: float | None = el_config.get('fade_out_time')
@@ -1566,7 +1564,7 @@ class VisualElementGenerator:
         return rendered
 
     def _create_ui_element(
-        self, element_key: str, text: str | None = None, **kwargs: Any
+        self, element_key: str, text: str | None = None, **kwargs: object
     ) -> UIElement | None:
         """Resolves configuration and styling to construct a UIElement.
 
@@ -2006,7 +2004,7 @@ class VisualElementGenerator:
         color_map = player_to_color if player_events_in_color else None
 
         for key, text in stats_defs:
-            kwargs: dict[str, Any] = {}
+            kwargs: dict[str, object] = {}
             if key == 'player_name' and color_map:
                 kwargs['player_to_color'] = color_map
             el = self._create_ui_element(
@@ -2135,7 +2133,7 @@ class VisualElementGenerator:
 
     def _get_active_multiline_lines(
         self,
-        event_list: list[dict[str, Any]],
+        event_list: list[LFPlayerEventLogEntry] | list[LFEventLogEntry],
         time_ms: int,
         fade_time_ms: int,
         max_lines: int = 3,
@@ -2170,11 +2168,18 @@ class VisualElementGenerator:
                     slots[i] = None
 
             is_nuke_act = False
-            duration = getattr(ev, 'duration', None)
-            if duration is None:
-                duration = fade_time_ms
+            duration = fade_time_ms
+            if (
+                isinstance(ev, LFPlayerEventLogEntry)
+                and ev.duration is not None
+            ):
+                duration = ev.duration
 
-            if is_game_events and getattr(ev, 'is_important', False):
+            if (
+                is_game_events
+                and isinstance(ev, LFEventLogEntry)
+                and ev.is_important
+            ):
                 if 'activates nuke' in ev.desc:
                     is_nuke_act = True
                     t_end = time_ms
@@ -2195,27 +2200,29 @@ class VisualElementGenerator:
 
             if slot_idx != -1:
                 text: str = ev.desc
-                target_color_override = getattr(
-                    ev, 'target_color_override', None
-                )
-                if getattr(
-                    ev, 'double_resup_desc', None
-                ) is not None and time_ms >= getattr(
-                    ev, 'double_resup_time', 0
-                ):
-                    text = getattr(ev, 'double_resup_desc', '')
-                elif getattr(
-                    ev, 'follow_up_desc', None
-                ) is not None and time_ms >= getattr(ev, 'follow_up_time', 0):
-                    text = getattr(ev, 'follow_up_desc', '')
-                else:
-                    for update in getattr(ev, 'updates', []):
-                        if time_ms >= update.time:
-                            text = update.desc
-                            if update.target_color_override is not None:
-                                target_color_override = (
-                                    update.target_color_override
-                                )
+                target_color_override = None
+                if isinstance(ev, LFPlayerEventLogEntry):
+                    target_color_override = ev.target_color_override
+                    if (
+                        ev.double_resup_desc is not None
+                        and ev.double_resup_time is not None
+                        and time_ms >= ev.double_resup_time
+                    ):
+                        text = ev.double_resup_desc
+                    elif (
+                        ev.follow_up_desc is not None
+                        and ev.follow_up_time is not None
+                        and time_ms >= ev.follow_up_time
+                    ):
+                        text = ev.follow_up_desc
+                    else:
+                        for update in ev.updates:
+                            if time_ms >= update.time:
+                                text = update.desc
+                                if update.target_color_override is not None:
+                                    target_color_override = (
+                                        update.target_color_override
+                                    )
 
                 slots[slot_idx] = LFMultilineSlot(
                     text=text,

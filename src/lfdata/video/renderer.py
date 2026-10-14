@@ -19,7 +19,7 @@ import subprocess
 import tempfile
 import threading
 import time
-from typing import Any
+from concurrent.futures import Future, ProcessPoolExecutor
 
 from PIL import Image, ImageChops, ImageDraw, ImageFont
 
@@ -73,7 +73,7 @@ def _render_frame_worker(
     frame_idx: int,
     time_ms: int,
     temp_path: Path,
-    config: dict[str, Any],
+    config: dict[str, object],
 ) -> None:
     """Renders a single frame using the process-local generator.
 
@@ -100,7 +100,7 @@ def _render_frame_worker(
 
 def _render_frame_bytes_worker(
     time_ms: int,
-    config: dict[str, Any],
+    config: dict[str, object],
 ) -> bytes:
     """Renders a single frame and returns its raw RGBA bytes.
 
@@ -228,7 +228,9 @@ class VideoGenerator:
         self._downtime_cache_size: tuple[int, int] | None = None
         self._downtime_full_resized: Image.Image | None = None
         self._downtime_empty_resized: Image.Image | None = None
-        self._icon_cache: dict[tuple[Any, ...], Image.Image] = {}
+        self._icon_cache: dict[
+            tuple[str, int, tuple[int, int, int, int]], Image.Image
+        ] = {}
         self._icon_cache_lock = threading.Lock()
         self._penalty_card_cache: dict[int, Image.Image] = {}
         self._penalty_card_cache_lock = threading.Lock()
@@ -244,13 +246,13 @@ class VideoGenerator:
         self._hit_border_img: Image.Image | None = None
         self._hit_border_lock = threading.Lock()
 
-    def __getstate__(self) -> dict[str, Any]:
+    def __getstate__(self) -> dict[str, object]:
         """Prepares the object state for serialization.
 
         Removes non-picklable locks and cache objects prior to pickling.
 
         Returns:
-            dict[str, Any]: The picklable object state.
+            dict[str, object]: The picklable object state.
         """
         state = self.__dict__.copy()
         if '_text_cache_lock' in state:
@@ -288,7 +290,7 @@ class VideoGenerator:
                 del state[key]
         return state
 
-    def __setstate__(self, state: dict[str, Any]) -> None:
+    def __setstate__(self, state: dict[str, object]) -> None:
         """Restores the object state from serialization.
 
         Re-initializes the thread lock and text cache for the current process.
@@ -476,7 +478,7 @@ class VideoGenerator:
     def _determine_video_end_ms(
         self,
         hud_gen: VisualElementGenerator,
-        config: dict[str, Any],
+        config: dict[str, object],
         video_end_ms: int | None,
     ) -> int:
         """Determines the end timestamp in milliseconds for video generation.
@@ -592,14 +594,14 @@ class VideoGenerator:
                 self._compile_video(temp_path, fps_val, output_path)
         return output_path
 
-    def _load_config(self, config_path: str | Path | None) -> dict[str, Any]:
+    def _load_config(self, config_path: str | Path | None) -> dict[str, object]:
         """Loads and parses the optional YAML configuration file.
 
         Args:
             config_path: Optional config file path.
 
         Returns:
-            dict[str, Any]: Loaded config dictionary.
+            dict[str, object]: Loaded config dictionary.
         """
         import copy
 
@@ -644,7 +646,7 @@ class VideoGenerator:
     def _render_frame_bytes(
         self,
         time_ms: int,
-        config: dict[str, Any],
+        config: dict[str, object],
         hud_gen: VisualElementGenerator,
     ) -> bytes:
         """Renders a single frame and returns its raw RGBA bytes.
@@ -669,7 +671,7 @@ class VideoGenerator:
         frame_idx: int,
         time_ms: int,
         temp_path: Path,
-        config: dict[str, Any],
+        config: dict[str, object],
         hud_gen: VisualElementGenerator,
     ) -> None:
         """Renders a single frame and saves it as a PNG image.
@@ -694,7 +696,7 @@ class VideoGenerator:
         start_ms: int,
         end_ms: int,
         fps: int,
-        config: dict[str, Any],
+        config: dict[str, object],
         hud_gen: VisualElementGenerator,
     ) -> None:
         """Generates all PNG frame images in parallel and saves them.
@@ -802,7 +804,7 @@ class VideoGenerator:
         start_ms: int,
         end_ms: int,
         fps: int,
-        config: dict[str, Any],
+        config: dict[str, object],
         hud_gen: VisualElementGenerator,
         alpha_output_path: Path | None = None,
     ) -> None:
@@ -947,7 +949,7 @@ class VideoGenerator:
                 initargs=(self, hud_gen),
             ) as executor:
                 total_frames = len(tasks)
-                active_futures: dict[int, Any] = {}
+                active_futures: dict[int, Future[bytes]] = {}
 
                 # Submit first batch of tasks up to window size
                 window_size = max_workers * 2
@@ -1174,7 +1176,7 @@ class VideoGenerator:
         self,
         elements: list[UIElement],
         time_ms: int,
-        config: dict[str, Any],
+        config: dict[str, object],
         hud_gen: VisualElementGenerator,
     ) -> Image.Image:
         """Renders all active UI elements onto an Image object.
@@ -1284,7 +1286,7 @@ class VideoGenerator:
         self,
         image: Image.Image,
         time_ms: int,
-        config: dict[str, Any],
+        config: dict[str, object],
         hud_gen: VisualElementGenerator,
     ) -> None:
         """Draws active hit border flashes overlay.
@@ -1631,11 +1633,11 @@ class VideoGenerator:
         draw: ImageDraw.ImageDraw,
         xy: tuple[float, float],
         text: str,
-        fill: Any,
+        fill: str | tuple[int, ...] | list[int],
         font: ImageFont.ImageFont,
         anchor: str = 'la',
         stroke_width: int = 0,
-        stroke_fill: Any = None,
+        stroke_fill: str | tuple[int, ...] | list[int] | None = None,
     ) -> None:
         """Draws text on a canvas using font fallbacks.
 
@@ -1739,7 +1741,7 @@ class VideoGenerator:
         self,
         image: Image.Image,
         el: UIElement,
-        config: dict[str, Any],
+        config: dict[str, object],
         time_ms: int = 0,
     ) -> None:
         """Draws the animated scoreboard table onto the image.
@@ -1864,9 +1866,7 @@ class VideoGenerator:
         # to ensure it expands the column correctly.
         max_player_w += max_hp_w
 
-        is_lb = getattr(self.game, 'is_laserball', False) or (
-            'laserball' in getattr(self.game, 'game_type', '').lower()
-        )
+        is_lb = bool(self.game.is_laserball)
         if is_lb:
             icon_size = int(row_h * 0.8)
             ball_space = icon_size + max(
@@ -2361,13 +2361,8 @@ class VideoGenerator:
             ty = int(team.y_pos or 0)
 
             columns = ['Player']
-            is_sm5 = (
-                'sm5' in self.game.game_type.lower()
-                or 'space marines' in self.game.game_type.lower()
-            )
-            is_lb = getattr(self.game, 'is_laserball', False) or (
-                'laserball' in getattr(self.game, 'game_type', '').lower()
-            )
+            is_sm5 = bool(self.game.is_sm5)
+            is_lb = bool(self.game.is_laserball)
             if is_sm5:
                 columns.append('Role')
 
@@ -2464,13 +2459,8 @@ class VideoGenerator:
         Returns:
             tuple: Active column headers and absolute X coordinates.
         """
-        is_sm5 = (
-            'sm5' in self.game.game_type.lower()
-            or 'space marines' in self.game.game_type.lower()
-        )
-        is_lb = getattr(self.game, 'is_laserball', False) or (
-            'laserball' in getattr(self.game, 'game_type', '').lower()
-        )
+        is_sm5 = bool(self.game.is_sm5)
+        is_lb = bool(self.game.is_laserball)
 
         if is_lb:
             columns = [
@@ -2765,7 +2755,7 @@ class VideoGenerator:
         self,
         image: Image.Image,
         elements: list[UIElement],
-        config: dict[str, Any],
+        config: dict[str, object],
     ) -> None:
         """Draws all text elements onto the image.
 
@@ -3175,7 +3165,7 @@ class VideoGenerator:
         self,
         image: Image.Image,
         el: UIElement,
-        config: dict[str, Any],
+        config: dict[str, object],
     ) -> None:
         """Draws a Counter element with a circular arc, icon, and text.
 
@@ -3353,7 +3343,7 @@ class VideoGenerator:
         image: Image.Image,
         el: UIElement,
         time_ms: int,
-        config: dict[str, Any],
+        config: dict[str, object],
     ) -> None:
         """Draws a tilted Event Scroller list of game events.
 

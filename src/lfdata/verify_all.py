@@ -26,14 +26,9 @@ import argparse
 import glob
 from pathlib import Path
 import sys
-from typing import Any
 
 from lfdata.importer import TdfImporter
 from lfdata.model import LFGame
-from lfdata.model.constants.game_type import (
-    GAME_TYPE_NAME_SM5,
-    MISSION_TYPE_SM5,
-)
 from lfdata.model.gametypes.sm5_constants import (
     DEFAULT_BOOST_GRACE_PERIOD_MS,
 )
@@ -168,17 +163,7 @@ class TdfDirectoryVerifier:
         Returns:
             True if the game is SM5, False otherwise.
         """
-        is_sm5_attr = getattr(game, 'is_sm5', None)
-        if isinstance(is_sm5_attr, bool):
-            return is_sm5_attr
-        mission_type = getattr(game, 'mission_type', None)
-        if mission_type == MISSION_TYPE_SM5:
-            return True
-        if hasattr(mission_type, '_mock_return_value'):
-            return True
-        if mission_type is not None:
-            return False
-        return getattr(game, 'normalized_game_type', None) == GAME_TYPE_NAME_SM5
+        return bool(game.is_sm5)
 
     def _is_supported_game(self, game: LFGame) -> bool:
         """Checks whether the game is a supported game type (SM5 or Laserball).
@@ -360,13 +345,17 @@ def main() -> None:
     paths = args.path if args.path else ['.']
     all_passed = True
     for target in paths:
-        kwargs: dict[str, Any] = {
-            'target_path': target,
-            'boost_grace_period_ms': args.boost_grace_period_ms,
-        }
         if args.allow_laserball:
-            kwargs['allow_laserball'] = True
-        verifier = TdfDirectoryVerifier(**kwargs)
+            verifier = TdfDirectoryVerifier(
+                target_path=target,
+                boost_grace_period_ms=args.boost_grace_period_ms,
+                allow_laserball=True,
+            )
+        else:
+            verifier = TdfDirectoryVerifier(
+                target_path=target,
+                boost_grace_period_ms=args.boost_grace_period_ms,
+            )
         if not verifier.verify_all():
             all_passed = False
 

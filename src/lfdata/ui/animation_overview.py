@@ -12,7 +12,7 @@ Usage example:
 
 import tkinter as tk
 from tkinter import ttk
-from typing import Any, Callable
+from typing import Callable
 
 from lfdata.ui.config_manager import UIConfigManager
 from lfdata.video.constants import (
@@ -421,11 +421,11 @@ class AnimationOverviewPanel(ttk.LabelFrame):
         finally:
             self.config_manager.current_time_ms = old_time
 
-    def _get_keyframes_list(self) -> list[dict[str, Any]] | None:
+    def _get_keyframes_list(self) -> list[dict[str, object]] | None:
         """Gets the list of keyframes for the active property.
 
         Returns:
-            list[dict[str, Any]] | None: The active keyframes list.
+            list[dict[str, object]] | None: The active keyframes list.
         """
         if not self.element_name:
             return None

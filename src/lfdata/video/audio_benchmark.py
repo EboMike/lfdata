@@ -20,7 +20,6 @@ import argparse
 import dataclasses
 import json
 from pathlib import Path
-from typing import Any
 import yaml
 
 from lfdata.video.audio_matcher import (
@@ -361,7 +360,7 @@ class AudioBenchmarkRunner:
         dest_path = Path(path)
         dest_path.parent.mkdir(parents=True, exist_ok=True)
 
-        data: dict[str, Any] = {
+        data: dict[str, object] = {
             'name': sound_def.name,
             'description': sound_def.description,
             'reference_sound_path': sound_def.reference_sound_path,

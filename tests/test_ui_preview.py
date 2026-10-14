@@ -175,6 +175,7 @@ def test_preview_update(
     # Setup mock image size and PhotoImage
     mock_img = MagicMock()
     mock_img.size = (1920, 1080)
+    mock_img.copy.return_value = mock_img
     mock_img.resize.return_value = mock_img
     mock_open.return_value.__enter__.return_value = mock_img
     mock_photo.return_value = 'mock_photo_image'

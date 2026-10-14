@@ -11,7 +11,7 @@ Usage example:
 """
 
 import tkinter as tk
-from typing import Any, Callable
+from typing import Callable
 from lfdata.ui.config_manager import UIConfigManager
 
 
@@ -145,7 +145,7 @@ class LayoutCanvas(tk.Canvas):
                 )
 
     def _get_element_bounds(
-        self, name: str, el: dict[str, Any]
+        self, name: str, el: dict[str, object]
     ) -> tuple[float, float, float, float]:
         """Calculates canvas coordinates for an element.
 

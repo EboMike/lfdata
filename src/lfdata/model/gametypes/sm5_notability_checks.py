@@ -12,7 +12,7 @@ Usage example:
     result = checks.check_draw(team0_score=5000, team1_score=5000)
 """
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from lfdata.model.constants.role import LFRole
 from lfdata.model.constants.time import MS_PER_MINUTE
@@ -36,6 +36,7 @@ from lfdata.model.gametypes.sm5_notability_condition import (
 from lfdata.model.gametypes.sm5_notability_result import Sm5NotabilityResult
 
 if TYPE_CHECKING:
+    from lfdata.model.gametypes.sm5_stats import Sm5Stats
     from lfdata.model.objects.entity import GameEntity
     from lfdata.model.objects.game import LFGame
 
@@ -335,7 +336,7 @@ class Sm5NotabilityChecks:
         self,
         game: 'LFGame',
         team_idx: int,
-        stats_by_id: dict[str, Any],
+        stats_by_id: dict[str, 'Sm5Stats'],
     ) -> int:
         """Returns the total lives left for players on a specific team.
 

@@ -1767,19 +1767,11 @@ def test_renderer_font_fallback() -> None:
 
     # Stub primary font getmask to support ASCII but not '☺'
     font = MagicMock()
-    mock_notdef = MagicMock()
-    mock_notdef.size = (10, 10)
-    mock_notdef.histogram = MagicMock(return_value=[0] * 256)
+    mock_notdef = Image.new('L', (10, 10), 0).im
+    mock_a = Image.new('L', (12, 12), 255).im
+    mock_smiley = Image.new('L', (10, 10), 0).im
 
-    mock_a = MagicMock()
-    mock_a.size = (12, 12)
-    mock_a.histogram = MagicMock(return_value=[1] * 256)
-
-    mock_smiley = MagicMock()
-    mock_smiley.size = (10, 10)
-    mock_smiley.histogram = MagicMock(return_value=[0] * 256)
-
-    def mock_getmask(char: str) -> MagicMock:
+    def mock_getmask(char: str, *args: object, **kwargs: object) -> object:
         if char == '\uffff':
             return mock_notdef
         elif char == '☺':
@@ -1812,11 +1804,9 @@ def test_renderer_font_fallback() -> None:
 
     # Mock fallback fonts
     fb_font = MagicMock()
-    mock_fb_smiley = MagicMock()
-    mock_fb_smiley.size = (12, 12)
-    mock_fb_smiley.histogram = MagicMock(return_value=[1] * 256)
+    mock_fb_smiley = Image.new('L', (12, 12), 255).im
 
-    def mock_fb_getmask(char: str) -> MagicMock:
+    def mock_fb_getmask(char: str, *args: object, **kwargs: object) -> object:
         if char == '☺':
             return mock_fb_smiley
         return mock_notdef

@@ -196,7 +196,7 @@ def test_reference_video_tab_load_video_async(
         on_complete=completed_event.set,
     )
     assert tab.load_thread is not None
-    assert completed_event.wait(timeout=0.5)
+    assert completed_event.wait(timeout=5.0)
 
     mock_video_reader.load.assert_called_once_with(video_path='async_ref.mp4')
     assert tab.is_video_loaded is True

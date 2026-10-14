@@ -458,9 +458,7 @@ class LFReplayDiagnostics:
         Usage:
             term_info = diag.analyze_game_termination()
         """
-        end_ms = getattr(self.replay, 'game_ended_at_ms', None)
-        if not isinstance(end_ms, int):
-            end_ms = None
+        end_ms = self.replay.game_ended_at_ms
         if end_ms is None:
             for ev in self.game.events:
                 if ev.event_type == SM5_EVENT_MISSION_END:
@@ -472,9 +470,7 @@ class LFReplayDiagnostics:
                 end_ms = self.game.duration or 0
 
         scheduled_ms = self.game.duration
-        elim_ms = getattr(self.replay, 'first_team_elimination_time_ms', None)
-        if not isinstance(elim_ms, int):
-            elim_ms = None
+        elim_ms = self.replay.first_team_elimination_time_ms
 
         eliminated_teams: list[int] = []
         all_teams = {

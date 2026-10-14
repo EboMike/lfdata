@@ -10,7 +10,7 @@ Usage example:
     generator.render_video(output_path='game.mp4')
 """
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from lfdata.video.element import UIElement, UIElementStyle
 from lfdata.video.generator import VisualElementGenerator
@@ -63,14 +63,14 @@ __all__ = [
 ]
 
 
-def __getattr__(name: str) -> Any:
+def __getattr__(name: str) -> object:
     """Lazy imports audio matching and benchmark classes on first access.
 
     Args:
         name: Name of the attribute being requested.
 
     Returns:
-        Any: Imported class or attribute.
+        object: Imported class or attribute.
 
     Raises:
         AttributeError: If attribute is not recognized.
