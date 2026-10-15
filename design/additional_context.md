@@ -100,6 +100,21 @@ importance:
 3. tying the game: `{player} scores, tying the game` (importance 2).
 4. Other goals: `{player} scores a goal` (importance 1).
 
+## Laserball Game Notability
+
+The game highlight tagline evaluates conditions in order of priority:
+1. Focus player had at least one goal: `1 goal` or `{goals} goals`.
+2. Focus player had at least one assist: `1 assist` or `{assists} assists`.
+3. Focus player had multiple steals (>= 2): `{steals} steals`.
+4. Focus player had a hit diff over 1.4: `{hit_diff:.1f} hit diff`.
+5. Focus player cleared more than once (>= 2): `{clears} clears`.
+
+In any of these 5 cases, if the player had more than 20 blocks, `, {blocks} blocks`
+is appended.
+
+If none apply, the fallback is: `{blocks}/{blocked_by_others} blocks`.
+
+
 
 
 

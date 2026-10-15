@@ -10,14 +10,20 @@ Usage example:
     game = LFGame(game_id='g1', timestamp=datetime.now(), game_type='SM5')
 """
 
+from __future__ import annotations
+
 from datetime import datetime
 from typing import TYPE_CHECKING
+
 from sqlalchemy import DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from lfdata.model.base import Base
 
 if TYPE_CHECKING:
+    from lfdata.model.gametypes.laserball_notability_condition import (
+        LaserballNotabilityCondition,
+    )
     from lfdata.model.gametypes.laserball_stats import LaserballStats
     from lfdata.model.gametypes.sm5_notability import Sm5NotabilityCondition
     from lfdata.model.objects.entity import GameEntity
@@ -70,27 +76,27 @@ class LFGame(Base):
     mission_type: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # Relationships using string references to avoid circular imports.
-    teams: Mapped[list['GameTeam']] = relationship(
+    teams: Mapped[list[GameTeam]] = relationship(
         'GameTeam', back_populates='game', cascade='all, delete-orphan'
     )
-    entities: Mapped[list['GameEntity']] = relationship(
+    entities: Mapped[list[GameEntity]] = relationship(
         'GameEntity', back_populates='game', cascade='all, delete-orphan'
     )
-    events: Mapped[list['GameEvent']] = relationship(
+    events: Mapped[list[GameEvent]] = relationship(
         'GameEvent', back_populates='game', cascade='all, delete-orphan'
     )
-    sm5_stats: Mapped[list['Sm5Stats']] = relationship(
+    sm5_stats: Mapped[list[Sm5Stats]] = relationship(
         'Sm5Stats', back_populates='game', cascade='all, delete-orphan'
     )
-    laserball_stats: Mapped[list['LaserballStats']] = relationship(
+    laserball_stats: Mapped[list[LaserballStats]] = relationship(
         'LaserballStats',
         back_populates='game',
         cascade='all, delete-orphan',
     )
-    score_history: Mapped[list['ScoreHistory']] = relationship(
+    score_history: Mapped[list[ScoreHistory]] = relationship(
         'ScoreHistory', back_populates='game', cascade='all, delete-orphan'
     )
-    state_history: Mapped[list['PlayerStateHistory']] = relationship(
+    state_history: Mapped[list[PlayerStateHistory]] = relationship(
         'PlayerStateHistory',
         back_populates='game',
         cascade='all, delete-orphan',
@@ -175,40 +181,53 @@ class LFGame(Base):
 
     def get_notability(
         self,
-        focus_player: 'GameEntity | Player | str | None' = None,
-    ) -> 'Sm5NotabilityCondition | None':
+        focus_player: GameEntity | Player | str | None = None,
+    ) -> Sm5NotabilityCondition | LaserballNotabilityCondition | None:
         """Returns the most notable condition for this game, if any.
 
-        Evaluates the game's notability conditions in priority order.
+        Evaluates the game's notability conditions in priority order based on
+        the game type (Laserball or SM5).
 
         Args:
             focus_player: Optional focus player entity, Player, or identifier.
 
         Returns:
-            Sm5NotabilityCondition | None: The most notable condition, or None
-                if the game is not notable.
+            Sm5NotabilityCondition | LaserballNotabilityCondition | None:
+                The most notable condition, or None if not notable.
 
         Raises:
-            NotImplementedError: If the game is not an SM5 game.
+            NotImplementedError: If notability is not implemented for game type.
         """
-        if self.normalized_game_type != 'SM5':
-            raise NotImplementedError(
-                'Notability is only implemented for SM5 games.'
+        if self.is_laserball:
+            from lfdata.model.gametypes.laserball_notability import (
+                LaserballNotabilityEvaluator,
             )
-        from lfdata.model.gametypes.sm5_notability import Sm5NotabilityEvaluator
 
-        evaluator = Sm5NotabilityEvaluator()
-        result = evaluator.evaluate(self, focus_player=focus_player)
-        return result.condition
+            evaluator = LaserballNotabilityEvaluator()
+            result = evaluator.evaluate(self, focus_player=focus_player)
+            return result.condition
+
+        if self.is_sm5:
+            from lfdata.model.gametypes.sm5_notability import (
+                Sm5NotabilityEvaluator,
+            )
+
+            evaluator = Sm5NotabilityEvaluator()
+            result = evaluator.evaluate(self, focus_player=focus_player)
+            return result.condition
+
+        raise NotImplementedError(
+            f'Notability is not implemented for game type: {self.game_type}'
+        )
 
     def get_highlight_tagline(
         self,
-        focus_player: 'GameEntity | Player | str | None' = None,
+        focus_player: GameEntity | Player | str | None = None,
     ) -> str:
         """Returns the highlight tagline describing the game's key element.
 
         Generates a concise 3-5 word tagline based on the most notable
-        condition, or falls back to a score and role summary.
+        condition, or falls back to a game-type specific summary.
 
         Args:
             focus_player: Optional focus player entity, Player, or identifier.
@@ -217,17 +236,30 @@ class LFGame(Base):
             str: The 3-5 word highlight tagline.
 
         Raises:
-            NotImplementedError: If the game is not an SM5 game.
+            NotImplementedError: If highlight tagline is not implemented for
+                the game type.
         """
-        if self.normalized_game_type != 'SM5':
-            raise NotImplementedError(
-                'Highlight tagline is only implemented for SM5 games.'
+        if self.is_laserball:
+            from lfdata.model.gametypes.laserball_notability import (
+                LaserballNotabilityEvaluator,
             )
-        from lfdata.model.gametypes.sm5_notability import Sm5NotabilityEvaluator
 
-        evaluator = Sm5NotabilityEvaluator()
-        result = evaluator.evaluate(self, focus_player=focus_player)
-        return result.tagline
+            evaluator = LaserballNotabilityEvaluator()
+            result = evaluator.evaluate(self, focus_player=focus_player)
+            return result.tagline
+
+        if self.is_sm5:
+            from lfdata.model.gametypes.sm5_notability import (
+                Sm5NotabilityEvaluator,
+            )
+
+            evaluator = Sm5NotabilityEvaluator()
+            result = evaluator.evaluate(self, focus_player=focus_player)
+            return result.tagline
+
+        raise NotImplementedError(
+            f'Highlight tagline is not implemented for game type: {self.game_type}'
+        )
 
     def __repr__(self) -> str:
         """Returns a string representation of the game.

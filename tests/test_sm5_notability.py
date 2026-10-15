@@ -1,5 +1,6 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
+
 import pytest
 
 from lfdata.importer import parse_tdf
@@ -24,7 +25,7 @@ def _create_sm5_game(
 ) -> LFGame:
     game = LFGame(
         game_id=game_id,
-        timestamp=datetime.now(),
+        timestamp=datetime.now(timezone.utc),
         game_type='Space Marines 5',
     )
     game.normalized_game_type = normalized_game_type
@@ -954,8 +955,12 @@ def test_focus_player_resolution_by_player_object() -> None:
     )
 
 
-def test_non_sm5_raises_not_implemented_error() -> None:
-    game = _create_sm5_game(normalized_game_type='Laserball')
+def test_unsupported_game_type_raises_not_implemented_error() -> None:
+    game = LFGame(
+        game_id='g_unknown',
+        timestamp=datetime.now(timezone.utc),
+        game_type='UnknownGameType',
+    )
     with pytest.raises(NotImplementedError):
         game.get_notability()
 

@@ -83,3 +83,23 @@ The following events can happen in a TDF file:
 Penalties are shown as game events. If a player is penalized, they're beginning
 a new downtime. They will also incur the penalty specified in the mission data
 type. The game keeps track of how many penalties each player has.
+
+## Game notability
+
+The game highlight tagline is a string of 3-5 words that describes the most
+interesting element of a game. It will consider a list of conditions and create
+a string based on the most notable condition.
+
+It will pick the most first one of these in order that applies:
+
+* If the focus player had at least one goal: "{goals} goals"
+* If the focus player had at least one assist: "{assists} assists"
+* If the focus player had multiple steals: "{steals} steals"
+* If the player had a hit diff over 1.4: "{hit_diff} hit diff"
+* If the player cleared more than once: "{clears} clears"
+
+In any of these cases, if the player had more than 20 blocks, also add
+", {blocks} blocks" to the message.
+
+If still no conditions apply, simply write "{blocks}/{blocked_by_others} blocks",
+like "10/30 blocks" if the player blocked 10 others and was blocked 30 times.
