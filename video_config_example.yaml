@@ -363,3 +363,13 @@ elements:
     align: left
     style:
       size: 20
+
+  # Team scores (Laserball only)
+  team_scores:
+    enabled: true
+    x: 0.02
+    y: 0.2
+    align: left
+    style:
+      size: 64
+

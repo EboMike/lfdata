@@ -224,3 +224,18 @@ def test_resolve_config_dict() -> None:
     assert resolved['elements']['time']['y'] == pytest.approx(0.5)
     assert resolved['elements']['time']['extents'] == pytest.approx([0.1, 0.15])
     assert resolved['simple_list'] == pytest.approx([1, 15])
+
+
+def test_default_config_team_scores() -> None:
+    from lfdata.video.helpers import DEFAULT_CONFIG
+
+    elements = DEFAULT_CONFIG['elements']
+    assert isinstance(elements, dict)
+    assert 'team_scores' in elements
+    team_scores_cfg = elements['team_scores']
+    assert isinstance(team_scores_cfg, dict)
+    assert team_scores_cfg['enabled'] is True
+    assert team_scores_cfg['x'] == 0.02
+    assert team_scores_cfg['y'] == 0.2
+    assert team_scores_cfg['align'] == 'left'
+    assert team_scores_cfg['style'] == {'size': 64}

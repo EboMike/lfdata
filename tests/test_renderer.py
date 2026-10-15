@@ -2229,3 +2229,44 @@ def test_laserball_ball_carrier_row_rendering() -> None:
         assert called_fill[0] == 255
         assert 120 <= called_fill[1] <= 135
         assert 120 <= called_fill[2] <= 135
+
+
+def test_renderer_draw_text_segments() -> None:
+    from unittest.mock import patch
+
+    from PIL import Image, ImageDraw
+
+    from lfdata.model import LFGame
+    from lfdata.video.element import UIElement, UIElementStyle
+
+    game = LFGame(game_id='test_render_segments', game_type='Laserball')
+    vg = VideoGenerator(game)
+    img = Image.new('RGBA', (800, 600), (0, 0, 0, 0))
+
+    segments = [('1', '#ff0000'), (' : ', None), ('3', '#0000ff')]
+    el = UIElement(
+        element_type='text',
+        x=0.5,
+        y=0.06,
+        text='1 : 3',
+        style=UIElementStyle(size=64, color='#ffffffff'),
+        text_segments=segments,
+    )
+
+    draw_text_calls = []
+    original_text = ImageDraw.ImageDraw.text
+
+    def mock_text(self, xy, text, fill, *args, **kwargs):
+        draw_text_calls.append((text, fill))
+        return original_text(self, xy, text, fill, *args, **kwargs)
+
+    with patch.object(ImageDraw.ImageDraw, 'text', mock_text):
+        vg._draw_text_elements(img, [el], {})
+
+    assert len(draw_text_calls) >= 3
+    assert draw_text_calls[0][0] == '1'
+    assert draw_text_calls[0][1] == (255, 0, 0, 255)
+    assert draw_text_calls[1][0] == ' : '
+    assert draw_text_calls[1][1] == (255, 255, 255, 255)
+    assert draw_text_calls[2][0] == '3'
+    assert draw_text_calls[2][1] == (0, 0, 255, 255)

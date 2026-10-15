@@ -43,3 +43,15 @@ def test_ui_element_visibility_defaults() -> None:
     assert element.fade_in_ms == 0
     assert element.fade_out_ms == 0
     assert element.formatted_text is None
+    assert element.text_segments is None
+
+
+def test_ui_element_text_segments() -> None:
+    segments = [('1', '#ff0000'), (' : ', None), ('3', '#0000ff')]
+    element = UIElement(
+        element_type='text',
+        text='1 : 3',
+        text_segments=segments,
+    )
+    assert element.text == '1 : 3'
+    assert element.text_segments == segments

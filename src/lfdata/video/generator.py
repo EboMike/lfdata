@@ -1458,12 +1458,14 @@ class VisualElementGenerator:
         self,
         game_time_ms: int,
         players: dict[str, LFReplayPlayerState],
+        teams: dict[int, LFReplayTeamState] | None = None,
     ) -> dict[str, str]:
         """Builds a dictionary of text variables for Jinja rendering.
 
         Args:
             game_time_ms: The current game time in milliseconds.
             players: The dictionary of player states.
+            teams: Optional dictionary of team states.
 
         Returns:
             dict[str, str]: A dictionary mapping variable names to their values.
@@ -1531,6 +1533,15 @@ class VisualElementGenerator:
             variables['player_name'] = ''
             variables['player_role'] = ''
             variables['player_score'] = ''
+
+        # Team scores variable (Laserball only)
+        if self.game.is_laserball and teams:
+            sorted_teams = sorted(teams.values(), key=lambda t: t.team_index)
+            variables['team_scores'] = ' : '.join(
+                str(t.score) for t in sorted_teams
+            )
+        else:
+            variables['team_scores'] = ''
 
         return variables
 
@@ -1628,6 +1639,25 @@ class VisualElementGenerator:
                 template_str=formatted_text,
                 local_vars=local_vars,
             )
+
+        text_segments = kwargs_copy.pop('text_segments', None)
+        if text_segments is not None:
+            raw_val = text if text is not None else el_config.get('text', '')
+            if raw_val and text_val and raw_val != text_val:
+                if raw_val in text_val:
+                    idx = text_val.find(raw_val)
+                    prefix = text_val[:idx]
+                    suffix = text_val[idx + len(raw_val) :]
+                    adjusted_segments: list[tuple[str, str | None]] = []
+                    if prefix:
+                        adjusted_segments.append((prefix, None))
+                    adjusted_segments.extend(text_segments)
+                    if suffix:
+                        adjusted_segments.append((suffix, None))
+                    text_segments = adjusted_segments
+                else:
+                    text_segments = [(text_val, None)]
+            kwargs_copy['text_segments'] = text_segments
 
         pregame_delay = self.config.get(
             'pregame_delay_ms', DEFAULT_PREGAME_DELAY_MS
@@ -1959,6 +1989,24 @@ class VisualElementGenerator:
         )
         if el_centre:
             elements.append(el_centre)
+
+        if self.game.is_laserball and teams:
+            sorted_teams = sorted(teams.values(), key=lambda t: t.team_index)
+            score_text = ' : '.join(str(t.score) for t in sorted_teams)
+            lb_segments: list[tuple[str, str | None]] = []
+            for idx, team in enumerate(sorted_teams):
+                if idx > 0:
+                    lb_segments.append((' : ', None))
+                lb_segments.append((str(team.score), team.color_rgb))
+
+            el_team_scores = self._create_ui_element(
+                'team_scores',
+                text=score_text,
+                element_type='text',
+                text_segments=lb_segments,
+            )
+            if el_team_scores:
+                elements.append(el_team_scores)
 
     def _add_player_stats_hud_elements(
         self,
@@ -2484,6 +2532,7 @@ class VisualElementGenerator:
             self.current_variables = self._build_variables_blob(
                 game_time_ms=game_time_ms,
                 players=players,
+                teams=teams,
             )
             elements: list[UIElement] = []
 

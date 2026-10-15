@@ -175,6 +175,7 @@ If specified, the extents are the length and width as X, Y using the same units.
 | Date of the game                                                                    | Text            | 0.98, 0.92       |            | right  |          | 18        |
 | User defined text 1 (disabled by default)                                           | Text            | 0.1, 0.6         |            | left   |          | 20        |
 | User defined text 2 (disabled by default)                                           | Text            | 0.1, 0.7         |            | left   |          | 20        |
+| Team Scores (Laserball only)                                                        | Text            | 0.02, 0.2        |            | left   |          | 64        |
 
 Special considerations:
 
@@ -188,11 +189,14 @@ Special considerations:
 * **Date of the game**: The date is extracted from the game TDF file. This
   field takes an optional additional parameter, `format`, that specifies
   how to format the date using a Python date formatting string.
+* **Team Scores**: This is Laserball only and shows the scores of the teams
+  like "1 : 3". Each number will be in the color of the team that it
+  belongs to.
 
 ## Scoreboard
 
 The scoreboard shows as a table for each team underneath each other. The scoreboards
-are ordered by which team has a higher combined score. If the order changes, the
+are ordered by whichever team has the most goals. If the order changes, the
 scoreboards animate to change their ordering.
 
 The header text is white and by default uses the font `D Day Stencil`.

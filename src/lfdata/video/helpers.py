@@ -302,6 +302,13 @@ DEFAULT_CONFIG: dict[str, object] = {
             'align': 'left',
             'style': {'size': 20},
         },
+        'team_scores': {
+            'enabled': True,
+            'x': 0.02,
+            'y': 0.2,
+            'align': 'left',
+            'style': {'size': 64},
+        },
     },
 }
 

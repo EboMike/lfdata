@@ -2788,6 +2788,7 @@ class VideoGenerator:
                 el.style.background_color,
                 height,
                 alpha_val,
+                tuple(el.text_segments) if el.text_segments else None,
             )
 
             with self._text_cache_lock:
@@ -2810,38 +2811,60 @@ class VideoGenerator:
                 margin = stroke_width + padding
 
                 # Parse text into segments of text and images
-                parts = IMAGE_TAG_PATTERN.split(el.text)
-                segments = []
-                for idx, part in enumerate(parts):
-                    if idx % 2 == 1:
-                        segments.append(
-                            {
-                                'type': 'image',
-                                'path': Path('assets') / part,
-                                'name': part,
-                            }
-                        )
-                    else:
-                        if part:
-                            if el.player_to_color:
-                                sub_segs = self._split_by_player_names(
-                                    part, el.player_to_color
+                if el.text_segments:
+                    segments = []
+                    for seg_text, seg_color in el.text_segments:
+                        parts = IMAGE_TAG_PATTERN.split(seg_text)
+                        for idx, part in enumerate(parts):
+                            if idx % 2 == 1:
+                                segments.append(
+                                    {
+                                        'type': 'image',
+                                        'path': Path('assets') / part,
+                                        'name': part,
+                                    }
                                 )
-                                for sub_text, color_hex in sub_segs:
-                                    segments.append(
-                                        {
-                                            'type': 'text',
-                                            'text': sub_text,
-                                            'color': color_hex,
-                                        }
-                                    )
-                            else:
+                            elif part:
                                 segments.append(
                                     {
                                         'type': 'text',
                                         'text': part,
+                                        'color': seg_color,
                                     }
                                 )
+                else:
+                    parts = IMAGE_TAG_PATTERN.split(el.text)
+                    segments = []
+                    for idx, part in enumerate(parts):
+                        if idx % 2 == 1:
+                            segments.append(
+                                {
+                                    'type': 'image',
+                                    'path': Path('assets') / part,
+                                    'name': part,
+                                }
+                            )
+                        else:
+                            if part:
+                                if el.player_to_color:
+                                    sub_segs = self._split_by_player_names(
+                                        part, el.player_to_color
+                                    )
+                                    for sub_text, color_hex in sub_segs:
+                                        segments.append(
+                                            {
+                                                'type': 'text',
+                                                'text': sub_text,
+                                                'color': color_hex,
+                                            }
+                                        )
+                                else:
+                                    segments.append(
+                                        {
+                                            'type': 'text',
+                                            'text': part,
+                                        }
+                                    )
 
                 # Measure dimensions of segments using a temp image
                 temp_img = Image.new('RGBA', (1, 1), (0, 0, 0, 0))

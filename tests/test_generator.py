@@ -3454,3 +3454,218 @@ def test_player_name_element_team_color() -> None:
     )
     assert name_el_disabled is not None
     assert name_el_disabled.player_to_color is None
+
+
+def _create_test_laserball_game() -> LFGame:
+    game = LFGame(
+        game_id='test_lb_game',
+        timestamp=datetime.now(),
+        game_type='Laserball',
+        normalized_game_type='Laserball',
+    )
+    t1 = GameTeam(
+        game_id='test_lb_game',
+        team_index=0,
+        desc='Red Team',
+        color_enum=0,
+        color_desc='Red',
+        color_rgb='#FF0000',
+    )
+    t2 = GameTeam(
+        game_id='test_lb_game',
+        team_index=1,
+        desc='Blue Team',
+        color_enum=1,
+        color_desc='Blue',
+        color_rgb='#0000FF',
+    )
+    game.teams = [t1, t2]
+
+    p1 = GameEntity(
+        game_id='test_lb_game',
+        entity_id='P1',
+        type='player',
+        desc='RedStriker',
+        team_index=0,
+        level=1,
+        category=1,
+        battlesuit='Suit1',
+    )
+    p2 = GameEntity(
+        game_id='test_lb_game',
+        entity_id='P2',
+        type='player',
+        desc='BlueStriker',
+        team_index=1,
+        level=1,
+        category=1,
+        battlesuit='Suit2',
+    )
+    game.entities = [p1, p2]
+
+    game.events = [
+        GameEvent(
+            game_id='test_lb_game',
+            time=5000,
+            event_type=LASERBALL_EVENT_GOAL,
+            actor_entity_id='P1',
+            action='goal',
+            raw_message='',
+        ),
+        GameEvent(
+            game_id='test_lb_game',
+            time=8000,
+            event_type=LASERBALL_EVENT_GOAL,
+            actor_entity_id='P2',
+            action='goal',
+            raw_message='',
+        ),
+        GameEvent(
+            game_id='test_lb_game',
+            time=11000,
+            event_type=LASERBALL_EVENT_GOAL,
+            actor_entity_id='P2',
+            action='goal',
+            raw_message='',
+        ),
+    ]
+    return game
+
+
+def test_laserball_team_scores_element_generated() -> None:
+    game = _create_test_laserball_game()
+    hud_gen = VisualElementGenerator(game=game, player_name='RedStriker')
+
+    # Before any goals (time=1000)
+    elements = hud_gen.generate_at(1000)
+    team_scores_el = next((el for el in elements if el.text == '0 : 0'), None)
+    assert team_scores_el is not None
+    assert team_scores_el.element_type == 'text'
+    assert team_scores_el.x == 0.02
+    assert team_scores_el.y == 0.2
+    assert team_scores_el.align == 'left'
+    assert team_scores_el.style.size == 64
+    assert team_scores_el.text_segments == [
+        ('0', '#FF0000'),
+        (' : ', None),
+        ('0', '#0000FF'),
+    ]
+    assert hud_gen.current_variables['team_scores'] == '0 : 0'
+
+    # After P1 scores (time=6000)
+    elements_6s = hud_gen.generate_at(6000)
+    team_scores_6s = next(
+        (el for el in elements_6s if el.text == '1 : 0'), None
+    )
+    assert team_scores_6s is not None
+    assert team_scores_6s.text_segments == [
+        ('1', '#FF0000'),
+        (' : ', None),
+        ('0', '#0000FF'),
+    ]
+    assert hud_gen.current_variables['team_scores'] == '1 : 0'
+
+    # After P2 scores twice (time=12000)
+    elements_12s = hud_gen.generate_at(12000)
+    team_scores_12s = next(
+        (el for el in elements_12s if el.text == '1 : 2'), None
+    )
+    assert team_scores_12s is not None
+    assert team_scores_12s.text_segments == [
+        ('1', '#FF0000'),
+        (' : ', None),
+        ('2', '#0000FF'),
+    ]
+    assert hud_gen.current_variables['team_scores'] == '1 : 2'
+
+
+def test_laserball_team_scores_disabled_in_config() -> None:
+    game = _create_test_laserball_game()
+    config = {'elements': {'team_scores': {'enabled': False}}}
+    hud_gen = VisualElementGenerator(
+        game=game, player_name='RedStriker', config=config
+    )
+    elements = hud_gen.generate_at(1000)
+    team_scores_el = next((el for el in elements if el.text == '0 : 0'), None)
+    assert team_scores_el is None
+
+
+def test_team_scores_not_generated_for_sm5() -> None:
+    game = LFGame(
+        game_id='sm5_no_scores',
+        timestamp=datetime.now(),
+        game_type='SM5',
+        normalized_game_type='Space Marines 5',
+    )
+    game.teams = [
+        GameTeam(
+            game_id='sm5_no_scores',
+            team_index=0,
+            desc='Red',
+            color_enum=0,
+            color_desc='Red',
+            color_rgb='#FF0000',
+        ),
+        GameTeam(
+            game_id='sm5_no_scores',
+            team_index=1,
+            desc='Blue',
+            color_enum=1,
+            color_desc='Blue',
+            color_rgb='#0000FF',
+        ),
+    ]
+    game.entities = [
+        GameEntity(
+            game_id='sm5_no_scores',
+            entity_id='P1',
+            type='player',
+            desc='Player1',
+            team_index=0,
+            level=1,
+            category=1,
+            battlesuit='Suit1',
+        )
+    ]
+    game.events = []
+    hud_gen = VisualElementGenerator(game=game, player_name='Player1')
+    elements = hud_gen.generate_at(1000)
+    team_scores_el = next(
+        (el for el in elements if el.text and ' : ' in el.text), None
+    )
+    assert team_scores_el is None
+    assert hud_gen.current_variables['team_scores'] == ''
+
+
+def test_laserball_team_scores_custom_formatting_and_position() -> None:
+    game = _create_test_laserball_game()
+    config = {
+        'elements': {
+            'team_scores': {
+                'x': 0.45,
+                'y': 0.08,
+                'align': 'left',
+                'style': {'size': 48},
+                'formatted_text': 'Score: {{ team_scores }} FT',
+            }
+        }
+    }
+    hud_gen = VisualElementGenerator(
+        game=game, player_name='RedStriker', config=config
+    )
+    elements = hud_gen.generate_at(6000)
+    team_scores_el = next(
+        (el for el in elements if 'Score: 1 : 0 FT' in (el.text or '')), None
+    )
+    assert team_scores_el is not None
+    assert team_scores_el.x == 0.45
+    assert team_scores_el.y == 0.08
+    assert team_scores_el.align == 'left'
+    assert team_scores_el.style.size == 48
+    assert team_scores_el.text_segments == [
+        ('Score: ', None),
+        ('1', '#FF0000'),
+        (' : ', None),
+        ('0', '#0000FF'),
+        (' FT', None),
+    ]
