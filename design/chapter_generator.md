@@ -14,6 +14,8 @@ text of the event that triggered it.
 
 The following events are candidates for chapter markers, in order of importance from highest to lowest:
 
+#### SM5
+
 *   A medic is eliminated
 *   A commander is eliminated
 *   A nuke is detonated, or canceled
@@ -22,6 +24,15 @@ The following events are candidates for chapter markers, in order of importance 
         10 seconds, consider this one event called "Commander {name} double-nukes."
 *   A player of a role not mentioned above is eliminated
 *   A medic is down to 10 lives
+
+#### Laserball
+
+*   A team reaches a goal count that is a multiple of 5
+*   A player scored a goal, now putting their team in the lead
+*   A player scored a goal, tying the game
+*   A player scored a goal
+
+### Chapter selection and consolidation
 
 After collecting the list of potential events, narrow it down to up to the maximum mentioned above by
 applying the following rules:

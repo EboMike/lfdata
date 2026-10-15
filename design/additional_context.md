@@ -90,5 +90,16 @@ SM5 notability conditions evaluate games in priority order:
 * If more than 8 seconds elapse between zaps on that base, a new event entry
   is created.
 
+## Laserball Chapter Markers
+
+In Laserball, chapter markers are generated from goal events in order of
+importance:
+1. Team milestone goal (multiple of 5): `{team} reaches {count} goals`
+   (importance 4).
+2. Lead change: `{player} scores, putting {team} in the lead` (importance 3).
+3. tying the game: `{player} scores, tying the game` (importance 2).
+4. Other goals: `{player} scores a goal` (importance 1).
+
+
 
 

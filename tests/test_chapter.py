@@ -1,7 +1,11 @@
 """Tests for the game chapter generator."""
 
-from datetime import datetime
-from lfdata.model import LFGame, GameTeam, GameEntity, GameEvent
+from datetime import datetime, timezone
+
+from lfdata.model import GameEntity, GameEvent, GameTeam, LFGame
+from lfdata.model.gametypes.laserball_events import (
+    LASERBALL_EVENT_GOAL,
+)
 from lfdata.model.gametypes.sm5_events import (
     SM5_EVENT_ACTIVATE_NUKE,
     SM5_EVENT_DETONATE_NUKE,
@@ -21,7 +25,7 @@ def test_chapter_dataclass() -> None:
 def _create_test_game() -> LFGame:
     game = LFGame(
         game_id='test_chapter_game',
-        timestamp=datetime.now(),
+        timestamp=datetime.now(timezone.utc),
         game_type='SM5',
     )
     t1 = GameTeam(
@@ -247,7 +251,7 @@ def test_collect_candidates_nuke_detonate_and_cancel() -> None:
 
 def test_filter_and_consolidate() -> None:
     generator = LFChapterGenerator(
-        LFGame(game_id='dummy', timestamp=datetime.now())
+        LFGame(game_id='dummy', timestamp=datetime.now(timezone.utc))
     )
 
     # Setup chapters:
@@ -277,7 +281,7 @@ def test_filter_and_consolidate() -> None:
 
 def test_filter_and_consolidate_three_player_eliminations() -> None:
     generator = LFChapterGenerator(
-        LFGame(game_id='dummy', timestamp=datetime.now())
+        LFGame(game_id='dummy', timestamp=datetime.now(timezone.utc))
     )
 
     ch1 = LFChapter(time_ms=10000, message='David eliminated', importance=2)
@@ -291,7 +295,7 @@ def test_filter_and_consolidate_three_player_eliminations() -> None:
 
 def test_limit_chapters() -> None:
     generator = LFChapterGenerator(
-        LFGame(game_id='dummy', timestamp=datetime.now())
+        LFGame(game_id='dummy', timestamp=datetime.now(timezone.utc))
     )
 
     # Build 22 chapters of varying importance
@@ -324,7 +328,7 @@ def test_limit_chapters() -> None:
 
 def test_format_youtube_chapters() -> None:
     generator = LFChapterGenerator(
-        LFGame(game_id='dummy', timestamp=datetime.now())
+        LFGame(game_id='dummy', timestamp=datetime.now(timezone.utc))
     )
 
     ch = [
@@ -345,7 +349,7 @@ def test_format_youtube_chapters() -> None:
 
 def test_format_youtube_chapters_preroll_over_20s() -> None:
     generator = LFChapterGenerator(
-        LFGame(game_id='dummy', timestamp=datetime.now())
+        LFGame(game_id='dummy', timestamp=datetime.now(timezone.utc))
     )
 
     ch = [
@@ -366,7 +370,7 @@ def test_format_youtube_chapters_preroll_over_20s() -> None:
 
 def test_format_youtube_chapters_preroll_exactly_20s() -> None:
     generator = LFChapterGenerator(
-        LFGame(game_id='dummy', timestamp=datetime.now())
+        LFGame(game_id='dummy', timestamp=datetime.now(timezone.utc))
     )
 
     ch = [
@@ -381,7 +385,7 @@ def test_format_youtube_chapters_preroll_exactly_20s() -> None:
 
 def test_format_youtube_chapters_over_20s_delay_truncation() -> None:
     generator = LFChapterGenerator(
-        LFGame(game_id='dummy', timestamp=datetime.now())
+        LFGame(game_id='dummy', timestamp=datetime.now(timezone.utc))
     )
 
     ch = [
@@ -595,3 +599,366 @@ def test_collect_candidates_team_elimination_on_nuke_detonation() -> None:
     assert len(nuke_team_elim) >= 1
     # Check that the nuke event or elimination message has team eliminated
     assert any('Earth team eliminated' in c.message for c in candidates)
+
+
+def _create_laserball_test_game() -> LFGame:
+    """Creates a basic Laserball game model for testing.
+
+    Sets up a two-team Laserball game with two players for chapter
+    candidate evaluation tests.
+
+    Returns:
+        LFGame: The initialized Laserball game instance.
+    """
+    game = LFGame(
+        game_id='test_lb_chapter_game',
+        timestamp=datetime.now(timezone.utc),
+        game_type='Laserball',
+    )
+    t1 = GameTeam(
+        game_id='test_lb_chapter_game',
+        team_index=0,
+        desc='Fire Team',
+        color_enum=11,
+        color_desc='Fire',
+        color_rgb='#FF5000',
+    )
+    t2 = GameTeam(
+        game_id='test_lb_chapter_game',
+        team_index=1,
+        desc='Earth Team',
+        color_enum=13,
+        color_desc='Earth',
+        color_rgb='#00FF00',
+    )
+    game.teams = [t1, t2]
+
+    p1 = GameEntity(
+        game_id='test_lb_chapter_game',
+        entity_id='P1',
+        type='player',
+        desc='Player1',
+        team_index=0,
+        level=1,
+        battlesuit='Suit1',
+    )
+    p2 = GameEntity(
+        game_id='test_lb_chapter_game',
+        entity_id='P2',
+        type='player',
+        desc='Player2',
+        team_index=1,
+        level=1,
+        battlesuit='Suit2',
+    )
+    game.entities = [p1, p2]
+    return game
+
+
+def test_classify_laserball_goal() -> None:
+    game = _create_laserball_test_game()
+    gen = LFChapterGenerator(game)
+
+    # 1. Multiple of 5 (Importance 4)
+    msg, imp = gen._classify_laserball_goal(
+        actor_name='Player1',
+        team_name='Fire Team',
+        score_before=4,
+        score_after=5,
+        max_other_before=2,
+        max_other_after=2,
+    )
+    assert msg == 'Fire Team reaches 5 goals'
+    assert imp == 4
+
+    # Multiple of 5 at 10 goals
+    msg, imp = gen._classify_laserball_goal(
+        actor_name='Player1',
+        team_name='Fire Team',
+        score_before=9,
+        score_after=10,
+        max_other_before=11,
+        max_other_after=11,
+    )
+    assert msg == 'Fire Team reaches 10 goals'
+    assert imp == 4
+
+    # 2. Lead change (Importance 3)
+    # Tied (2-2) -> lead (3-2)
+    msg, imp = gen._classify_laserball_goal(
+        actor_name='Player1',
+        team_name='Fire Team',
+        score_before=2,
+        score_after=3,
+        max_other_before=2,
+        max_other_after=2,
+    )
+    assert msg == 'Player1 scores, putting Fire Team in the lead'
+    assert imp == 3
+
+    # Trailing (1-2) -> lead (3-2)
+    msg, imp = gen._classify_laserball_goal(
+        actor_name='Player1',
+        team_name='Fire Team',
+        score_before=1,
+        score_after=3,
+        max_other_before=2,
+        max_other_after=2,
+    )
+    assert msg == 'Player1 scores, putting Fire Team in the lead'
+    assert imp == 3
+
+    # 3. Tie game (Importance 2)
+    # Trailing (1-2) -> tied (2-2)
+    msg, imp = gen._classify_laserball_goal(
+        actor_name='Player2',
+        team_name='Earth Team',
+        score_before=1,
+        score_after=2,
+        max_other_before=2,
+        max_other_after=2,
+    )
+    assert msg == 'Player2 scores, tying the game'
+    assert imp == 2
+
+    # 4. Regular goal (Importance 1)
+    # Already leading (3-1 -> 4-1)
+    msg, imp = gen._classify_laserball_goal(
+        actor_name='Player1',
+        team_name='Fire Team',
+        score_before=3,
+        score_after=4,
+        max_other_before=1,
+        max_other_after=1,
+    )
+    assert msg == 'Player1 scores a goal'
+    assert imp == 1
+
+    # Still trailing (0-3 -> 1-3)
+    msg, imp = gen._classify_laserball_goal(
+        actor_name='Player2',
+        team_name='Earth Team',
+        score_before=0,
+        score_after=1,
+        max_other_before=3,
+        max_other_after=3,
+    )
+    assert msg == 'Player2 scores a goal'
+    assert imp == 1
+
+
+def test_collect_candidates_laserball_all_rules() -> None:
+    game = _create_laserball_test_game()
+
+    events = [
+        # Game start at 0
+        GameEvent(
+            game_id='test_lb_chapter_game',
+            time=0,
+            event_type=SM5_EVENT_MISSION_START,
+            action='start',
+            raw_message='',
+        ),
+        # 1. P1 scores at 20000ms: 1-0 -> Fire Team takes lead (imp 3)
+        GameEvent(
+            game_id='test_lb_chapter_game',
+            time=20000,
+            event_type=LASERBALL_EVENT_GOAL,
+            actor_entity_id='P1',
+            action='scores a goal',
+            raw_message='',
+        ),
+        # 2. P2 scores at 40000ms: 1-1 -> ties game (imp 2)
+        GameEvent(
+            game_id='test_lb_chapter_game',
+            time=40000,
+            event_type=LASERBALL_EVENT_GOAL,
+            actor_entity_id='P2',
+            action='scores a goal',
+            raw_message='',
+        ),
+        # 3. P2 scores at 60000ms: 1-2 -> Earth Team takes lead (imp 3)
+        GameEvent(
+            game_id='test_lb_chapter_game',
+            time=60000,
+            event_type=LASERBALL_EVENT_GOAL,
+            actor_entity_id='P2',
+            action='scores a goal',
+            raw_message='',
+        ),
+        # 4. P2 scores at 80000ms: 1-3 -> regular goal (imp 1)
+        GameEvent(
+            game_id='test_lb_chapter_game',
+            time=80000,
+            event_type=LASERBALL_EVENT_GOAL,
+            actor_entity_id='P2',
+            action='scores a goal',
+            raw_message='',
+        ),
+        # 5. P2 scores at 100000ms: 1-4 -> regular goal (imp 1)
+        GameEvent(
+            game_id='test_lb_chapter_game',
+            time=100000,
+            event_type=LASERBALL_EVENT_GOAL,
+            actor_entity_id='P2',
+            action='scores a goal',
+            raw_message='',
+        ),
+        # 6. P2 scores at 120000ms: 1-5 -> multiple of 5 (imp 4)
+        GameEvent(
+            game_id='test_lb_chapter_game',
+            time=120000,
+            event_type=LASERBALL_EVENT_GOAL,
+            actor_entity_id='P2',
+            action='scores a goal',
+            raw_message='',
+        ),
+    ]
+    game.events = events
+
+    gen = LFChapterGenerator(game)
+    candidates = gen._collect_candidates()
+
+    assert len(candidates) == 6
+
+    # 1. Lead change: Fire Team leads
+    assert candidates[0].time_ms == 20000
+    assert candidates[0].message == (
+        'Player1 scores, putting Fire Team in the lead'
+    )
+    assert candidates[0].importance == 3
+
+    # 2. Tie game
+    assert candidates[1].time_ms == 40000
+    assert candidates[1].message == 'Player2 scores, tying the game'
+    assert candidates[1].importance == 2
+
+    # 3. Lead change: Earth Team leads
+    assert candidates[2].time_ms == 60000
+    assert candidates[2].message == (
+        'Player2 scores, putting Earth Team in the lead'
+    )
+    assert candidates[2].importance == 3
+
+    # 4. Regular goal
+    assert candidates[3].time_ms == 80000
+    assert candidates[3].message == 'Player2 scores a goal'
+    assert candidates[3].importance == 1
+
+    # 5. Regular goal
+    assert candidates[4].time_ms == 100000
+    assert candidates[4].message == 'Player2 scores a goal'
+    assert candidates[4].importance == 1
+
+    # 6. Multiple of 5
+    assert candidates[5].time_ms == 120000
+    assert candidates[5].message == 'Earth Team reaches 5 goals'
+    assert candidates[5].importance == 4
+
+
+def test_laserball_differentiates_game_types() -> None:
+    # 1. Laserball game should collect goal events, not SM5 events
+    lb_game = _create_laserball_test_game()
+    lb_game.events = [
+        GameEvent(
+            game_id='test_lb_chapter_game',
+            time=10000,
+            event_type=LASERBALL_EVENT_GOAL,
+            actor_entity_id='P1',
+            action='scores a goal',
+            raw_message='',
+        ),
+        # SM5 nuke event placed in a Laserball game should be ignored
+        GameEvent(
+            game_id='test_lb_chapter_game',
+            time=25000,
+            event_type=SM5_EVENT_DETONATE_NUKE,
+            actor_entity_id='P1',
+            action='detonates nuke',
+            raw_message='',
+        ),
+    ]
+    lb_gen = LFChapterGenerator(lb_game)
+    lb_candidates = lb_gen._collect_candidates()
+    assert len(lb_candidates) == 1
+    assert lb_candidates[0].time_ms == 10000
+    assert 'scores' in lb_candidates[0].message
+
+    # 2. SM5 game should collect SM5 events, not Laserball events
+    sm5_game = _create_test_game()
+    sm5_game.events = [
+        # Laserball goal in SM5 game should be ignored
+        GameEvent(
+            game_id='test_chapter_game',
+            time=10000,
+            event_type=LASERBALL_EVENT_GOAL,
+            actor_entity_id='C1',
+            action='scores a goal',
+            raw_message='',
+        ),
+        # SM5 nuke in SM5 game
+        GameEvent(
+            game_id='test_chapter_game',
+            time=25000,
+            event_type=SM5_EVENT_DETONATE_NUKE,
+            actor_entity_id='C1',
+            action='detonates nuke',
+            raw_message='',
+        ),
+    ]
+    sm5_gen = LFChapterGenerator(sm5_game)
+    sm5_candidates = sm5_gen._collect_candidates()
+    assert len(sm5_candidates) == 1
+    assert sm5_candidates[0].time_ms == 25000
+    assert 'detonates nuke' in sm5_candidates[0].message
+
+
+def test_laserball_filter_and_consolidate() -> None:
+    game = _create_laserball_test_game()
+    # Goal 1 at 10000ms: P1 scores (1-0, lead, imp 3)
+    # Goal 2 at 15000ms (within 10s): P1 scores (2-0, regular, imp 1)
+    # The 15000ms goal should be suppressed because it is lower importance
+    game.events = [
+        GameEvent(
+            game_id='test_lb_chapter_game',
+            time=10000,
+            event_type=LASERBALL_EVENT_GOAL,
+            actor_entity_id='P1',
+            action='scores a goal',
+            raw_message='',
+        ),
+        GameEvent(
+            game_id='test_lb_chapter_game',
+            time=15000,
+            event_type=LASERBALL_EVENT_GOAL,
+            actor_entity_id='P1',
+            action='scores a goal',
+            raw_message='',
+        ),
+    ]
+    gen = LFChapterGenerator(game)
+    chapters = gen.generate()
+
+    assert len(chapters) == 1
+    assert chapters[0].time_ms == 10000
+    assert chapters[0].importance == 3
+    assert 'lead' in chapters[0].message
+
+
+def test_laserball_generate_and_format_youtube_chapters() -> None:
+    game = _create_laserball_test_game()
+    game.events = [
+        GameEvent(
+            game_id='test_lb_chapter_game',
+            time=30000,
+            event_type=LASERBALL_EVENT_GOAL,
+            actor_entity_id='P1',
+            action='scores a goal',
+            raw_message='',
+        ),
+    ]
+    gen = LFChapterGenerator(game)
+    chapters = gen.generate()
+    formatted = gen.format_youtube_chapters(chapters, pregame_delay_ms=0)
+    assert '00:00 Game Starts' in formatted
+    assert '00:30 Player1 scores, putting Fire Team in the lead' in formatted

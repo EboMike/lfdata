@@ -11,10 +11,13 @@ Usage example:
     formatted_str = generator.format_youtube_chapters(chapters)
 """
 
+from __future__ import annotations
+
 import dataclasses
 
 from lfdata.model import GameEvent, LFGame, LFRole
 from lfdata.model.constants.time import MS_PER_SECOND, SECONDS_PER_MINUTE
+from lfdata.model.gametypes.laserball_events import LASERBALL_EVENT_GOAL
 from lfdata.model.gametypes.sm5_events import (
     SM5_EVENT_DETONATE_NUKE,
     SM5_EVENT_NUKE_CANCEL,
@@ -144,6 +147,127 @@ class LFChapterGenerator:
 
     def _collect_candidates(self) -> list[LFChapter]:
         """Collects all initial chapter candidates from game playback.
+
+        Differentiates between Laserball and SM5 game types to apply the
+        appropriate candidate collection rules.
+
+        Returns:
+            list[LFChapter]: Collected initial chapter candidates.
+        """
+        if self.game.is_laserball:
+            return self._collect_laserball_candidates()
+        return self._collect_sm5_candidates()
+
+    def _classify_laserball_goal(
+        self,
+        actor_name: str,
+        team_name: str,
+        score_before: int,
+        score_after: int,
+        max_other_before: int,
+        max_other_after: int,
+    ) -> tuple[str, int]:
+        """Classifies a goal event into a message and importance level.
+
+        Args:
+            actor_name: The name of the player who scored.
+            team_name: The name of the scoring team.
+            score_before: Team score before the goal.
+            score_after: Team score after the goal.
+            max_other_before: Opponent leading score before the goal.
+            max_other_after: Opponent leading score after the goal.
+
+        Returns:
+            tuple[str, int]: A tuple containing the chapter message string
+              and the importance rating integer (1 to 4).
+        """
+        # 1. Team reaches a goal count that is a multiple of 5
+        if score_after % 5 == 0 and score_after > 0 and score_before % 5 != 0:
+            return f'{team_name} reaches {score_after} goals', 4
+
+        # 2. Player scored a goal putting their team in the lead
+        if score_before <= max_other_before and score_after > max_other_after:
+            return f'{actor_name} scores, putting {team_name} in the lead', 3
+
+        # 3. Player scored a goal tying the game
+        if score_before < max_other_before and score_after == max_other_after:
+            return f'{actor_name} scores, tying the game', 2
+
+        # 4. A player scored a goal
+        return f'{actor_name} scores a goal', 1
+
+    def _collect_laserball_candidates(self) -> list[LFChapter]:
+        """Collects candidate chapters from Laserball game events.
+
+        Evaluates goal events and assigns importance rankings based on
+        game milestones and score changes.
+
+        Returns:
+            list[LFChapter]: Candidate chapter markers.
+        """
+        candidates: list[LFChapter] = []
+        replay = LFReplaySystem(self.game)
+        sorted_events = sorted(self.game.events, key=lambda e: e.time)
+
+        for event in sorted_events:
+            for player in replay.game_state.players.values():
+                player.update_downtime(event.time)
+
+            if event.event_type != LASERBALL_EVENT_GOAL:
+                replay._dispatch_event(event)
+                replay.game_state.update_team_scores_and_rankings()
+                continue
+
+            actor = replay.game_state.players.get(event.actor_entity_id)
+            actor_name = replay.entity_names.get(
+                event.actor_entity_id, event.actor_entity_id
+            )
+            scoring_team = (
+                replay.game_state.teams.get(actor.team_index) if actor else None
+            )
+
+            score_before = scoring_team.score if scoring_team else 0
+            other_before = [
+                t.score
+                for t in replay.game_state.teams.values()
+                if scoring_team is None
+                or t.team_index != scoring_team.team_index
+            ]
+            max_other_before = max(other_before) if other_before else 0
+
+            replay._dispatch_event(event)
+            replay.game_state.update_team_scores_and_rankings()
+
+            score_after = scoring_team.score if scoring_team else 0
+            other_after = [
+                t.score
+                for t in replay.game_state.teams.values()
+                if scoring_team is None
+                or t.team_index != scoring_team.team_index
+            ]
+            max_other_after = max(other_after) if other_after else 0
+            team_name = scoring_team.name if scoring_team else 'Team'
+
+            msg, importance = self._classify_laserball_goal(
+                actor_name=actor_name,
+                team_name=team_name,
+                score_before=score_before,
+                score_after=score_after,
+                max_other_before=max_other_before,
+                max_other_after=max_other_after,
+            )
+            candidates.append(
+                LFChapter(
+                    time_ms=event.time,
+                    message=msg,
+                    importance=importance,
+                )
+            )
+
+        return candidates
+
+    def _collect_sm5_candidates(self) -> list[LFChapter]:
+        """Collects initial chapter candidates from SM5 game playback.
 
         Returns:
             list[LFChapter]: Collected initial chapter candidates.
