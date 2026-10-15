@@ -42,28 +42,31 @@ elements:
     y: 0.94
   downtime:
     enabled: true
+    end_time_offset: end of game
     extents:
     - 0.4
     - 0.03
     fade_in_ms: 1000
-    fade_out_ms: 0
+    fade_out_ms: 1000
     formatted_text: ''
+    start_time_offset: beginning of video
     tilt: 0.0
-    visible_end_ms: 0
+    visible_end_ms: 2000
     visible_start_ms: 3000
     x: 0.3
     y: 0.14
   game_events:
     align: center
     enabled: true
-    fade_in_ms: 1000
-    fade_out_ms: 0
+    end_time_offset: end of game
+    fade_in_ms: 0
+    fade_out_ms: 1000
     formatted_text: ''
     start_time_offset: beginning of video
     style:
       size: 20
     tilt: 0.0
-    visible_end_ms: 0
+    visible_end_ms: 2000
     visible_start_ms: 3000
     x: 0.5
     y: 0.3
@@ -82,6 +85,7 @@ elements:
     y: 0.96
   hit_border:
     color_other: '#ff0000'
+    color_penalty: '#ffff00'
     color_resupplied: '#ffffff'
     color_zapped_hp: '#ffff00'
     duration_down_s: 1.0
@@ -98,9 +102,17 @@ elements:
   player_events:
     align: center
     enabled: true
+    end_time_offset: end of game
+    fade_in_ms: 0
+    fade_out_ms: 1000
+    formatted_text: ''
     max_lines: 4
+    start_time_offset: beginning of video
     style:
       size: 18
+    tilt: 0.0
+    visible_end_ms: 2000
+    visible_start_ms: 0
     x: 0.5
     y: 0.18
   player_hitpoints:
@@ -277,6 +289,21 @@ elements:
         reference: end_of_game
         time: 6000
         value: 0.17
+  team_scores:
+    align: left
+    enabled: true
+    end_time_offset: beginning of game
+    fade_in_ms: 2000
+    fade_out_ms: 0
+    formatted_text: ''
+    start_time_offset: beginning of video
+    style:
+      size: 64
+    tilt: 0.0
+    visible_end_ms: 0
+    visible_start_ms: 3000
+    x: 0.02
+    y: 0.2
   time:
     align: right
     enabled: true
