@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import bisect
 import dataclasses
+import math
 import random
 import re
 import jinja2
@@ -60,6 +61,7 @@ from lfdata.replay import LFReplaySystem
 from lfdata.replay.state import LFReplayPlayerState, LFReplayTeamState
 from lfdata.video.constants import (
     BASE_ZAP_BUNDLE_WINDOW_MS,
+    DEFAULT_BALL_INDICATOR_SPEED,
     DEFAULT_EXTRA_FOOTAGE_MS,
     DEFAULT_FADE_DURATION_S,
     DEFAULT_PREGAME_DELAY_MS,
@@ -2232,6 +2234,57 @@ class VisualElementGenerator:
             if el_dt:
                 elements.append(el_dt)
 
+    def _get_ball_indicator_speed(self) -> float:
+        """Returns the configured speed multiplier for ball indicators.
+
+        Checks the ball indicator element configs, style blocks, and top-level
+        config for a speed setting, falling back to the default speed.
+
+        Returns:
+            The positive speed multiplier (default: 3.0).
+        """
+        elements_cfg = self.config.get('elements', {})
+        b1_cfg = elements_cfg.get('ball_indicator', {})
+        b2_cfg = elements_cfg.get('ball_indicator_2', {})
+
+        speed_val = self.config.get('ball_indicator_speed')
+        if speed_val is None:
+            if isinstance(b1_cfg, dict) and 'speed' in b1_cfg:
+                b1_speed = b1_cfg.get('speed')
+                if b1_speed != DEFAULT_BALL_INDICATOR_SPEED:
+                    speed_val = b1_speed
+            if (
+                speed_val is None
+                and isinstance(b2_cfg, dict)
+                and 'speed' in b2_cfg
+            ):
+                b2_speed = b2_cfg.get('speed')
+                if b2_speed != DEFAULT_BALL_INDICATOR_SPEED:
+                    speed_val = b2_speed
+            if speed_val is None and isinstance(b1_cfg, dict):
+                b1_style = b1_cfg.get('style')
+                if isinstance(b1_style, dict):
+                    speed_val = b1_style.get('speed')
+            if speed_val is None and isinstance(b2_cfg, dict):
+                b2_style = b2_cfg.get('style')
+                if isinstance(b2_style, dict):
+                    speed_val = b2_style.get('speed')
+            if speed_val is None:
+                speed_val = self.config.get('speed')
+            if speed_val is None and isinstance(b1_cfg, dict):
+                speed_val = b1_cfg.get('speed')
+            if speed_val is None and isinstance(b2_cfg, dict):
+                speed_val = b2_cfg.get('speed')
+
+        if speed_val is not None:
+            try:
+                parsed_speed = float(speed_val)
+                if parsed_speed > 0:
+                    return parsed_speed
+            except (ValueError, TypeError):
+                pass
+        return DEFAULT_BALL_INDICATOR_SPEED
+
     def _add_player_ball_hud_element(
         self,
         elements: list[UIElement],
@@ -2239,6 +2292,10 @@ class VisualElementGenerator:
         time_ms: int,
     ) -> None:
         """Adds a flashing ball indicator HUD element if player holds the ball.
+
+        Alternates visibility between ball_indicator and ball_indicator_2 based
+        on the configured speed multiplier, fading the active indicator in and
+        out over each toggle interval.
 
         Args:
             elements: List of visual elements to append to.
@@ -2248,14 +2305,20 @@ class VisualElementGenerator:
         if not self.game.is_laserball or not p_state.has_ball:
             return
 
-        # Flashes once per second (1 second on, 1 second off).
-        # ball_indicator and ball_indicator_2 alternate every second.
-        is_even_second = (time_ms // 1000) % 2 == 0
-        element_key = 'ball_indicator' if is_even_second else 'ball_indicator_2'
+        speed = self._get_ball_indicator_speed()
+        cycle_float = (time_ms * speed) / 1000.0
+        cycle_idx = math.floor(cycle_float)
+        is_even = cycle_idx % 2 == 0
+        element_key = 'ball_indicator' if is_even else 'ball_indicator_2'
+
+        progress = cycle_float - cycle_idx
+        alpha = max(0.0, min(1.0, math.sin(math.pi * progress)))
+
         el_indicator = self._create_ui_element(
             element_key,
             text='[img:ball.png]',
             element_type='text',
+            alpha=alpha,
         )
         if el_indicator:
             elements.append(el_indicator)

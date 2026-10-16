@@ -4,6 +4,7 @@ from lfdata.video.constants import (
     CHAPTER_SPAN_THRESHOLD_MS,
     DEFAULT_AUDIO_THRESHOLD,
     DEFAULT_AUDIO_TOLERANCE_MS,
+    DEFAULT_BALL_INDICATOR_SPEED,
     DEFAULT_EXTRA_FOOTAGE_MS,
     DEFAULT_FADE_DURATION_S,
     DEFAULT_FPS,
@@ -26,6 +27,7 @@ from lfdata.video.constants import (
 
 def test_video_constants():
     assert DEFAULT_FPS == 60
+    assert DEFAULT_BALL_INDICATOR_SPEED == 3.0
     assert DEFAULT_EXTRA_FOOTAGE_MS == 10000
     assert DEFAULT_PREGAME_DELAY_MS == 0
     assert DEFAULT_FADE_DURATION_S == 1.0

@@ -114,7 +114,15 @@ is appended.
 
 If none apply, the fallback is: `{blocks}/{blocked_by_others} blocks`.
 
+## Laserball Focus Player Ball Indicators
 
-
-
-
+* In Laserball games, the focus player ball indicators (`ball_indicator` and
+  `ball_indicator_2`) toggle their visibility between each other.
+* Default speed multiplier is 3.0 (3 toggles per second, toggle interval of
+  333.33 ms).
+* Speed is configurable via `speed` in element configuration (`ball_indicator`
+  or `ball_indicator_2`), `style.speed`, or `ball_indicator_speed` / `speed`
+  in the top-level HUD configuration.
+* Ball indicators fade in and out during each toggle interval using a sinusoidal
+  alpha curve (`alpha = sin(pi * progress)` where progress goes from 0.0 to 1.0
+  during the toggle interval).

@@ -269,6 +269,7 @@ def test_default_config_ball_indicator() -> None:
     assert indicator_cfg['y'] == 0.025
     assert indicator_cfg['align'] == 'center'
     assert indicator_cfg['style'] == {'size': 72}
+    assert indicator_cfg['speed'] == 3.0
 
 
 def test_default_config_ball_indicator_2() -> None:
@@ -284,3 +285,4 @@ def test_default_config_ball_indicator_2() -> None:
     assert indicator_cfg['y'] == 0.025
     assert indicator_cfg['align'] == 'center'
     assert indicator_cfg['style'] == {'size': 72}
+    assert indicator_cfg['speed'] == 3.0

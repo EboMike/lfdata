@@ -13,6 +13,7 @@ import dataclasses
 
 from lfdata.model.constants.time import MS_PER_SECOND
 from lfdata.video.constants import (
+    DEFAULT_BALL_INDICATOR_SPEED,
     DEFAULT_EXTRA_FOOTAGE_MS,
     DEFAULT_FADE_DURATION_S,
     DEFAULT_FPS,
@@ -322,6 +323,7 @@ DEFAULT_CONFIG: dict[str, object] = {
             'y': 0.025,
             'align': 'center',
             'style': {'size': 72},
+            'speed': DEFAULT_BALL_INDICATOR_SPEED,
         },
         'ball_indicator_2': {
             'enabled': True,
@@ -329,6 +331,7 @@ DEFAULT_CONFIG: dict[str, object] = {
             'y': 0.025,
             'align': 'center',
             'style': {'size': 72},
+            'speed': DEFAULT_BALL_INDICATOR_SPEED,
         },
     },
 }
