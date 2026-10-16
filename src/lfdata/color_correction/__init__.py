@@ -16,6 +16,8 @@ from lfdata.color_correction.color_averages_bar import (
 )
 from lfdata.color_correction.color_correction_tab import ColorCorrectionTab
 from lfdata.color_correction.editor import ColorCorrectionEditorApp
+from lfdata.color_correction.noise_reduction import NoiseReductionSettings
+from lfdata.color_correction.noise_reduction_tab import NoiseReductionTab
 from lfdata.color_correction.reference_video_tab import ReferenceVideoTab
 from lfdata.color_correction.time_range import TimeRange
 from lfdata.color_correction.timeline_widget import TimelineWidget
@@ -25,6 +27,8 @@ __all__ = [
     'ColorAveragesBar',
     'ColorCorrectionEditorApp',
     'ColorCorrectionTab',
+    'NoiseReductionSettings',
+    'NoiseReductionTab',
     'ReferenceVideoTab',
     'TimeRange',
     'TimelineWidget',

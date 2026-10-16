@@ -94,3 +94,28 @@ def test_video_reader_frame_read_failure(sample_video_path: Path) -> None:
         reader.load(sample_video_path)
         with pytest.raises(RuntimeError, match='Failed to extract video frame'):
             reader.get_frame_at(timestamp_ms=200)
+
+
+def test_video_reader_clone(sample_video_path: Path) -> None:
+    reader = VideoReader()
+    reader.load(sample_video_path)
+    cloned = reader.clone()
+    try:
+        assert cloned is not reader
+        assert cloned.duration_ms == reader.duration_ms
+        assert cloned.fps == reader.fps
+        assert cloned.width == reader.width
+        assert cloned.height == reader.height
+        frame_orig = reader.get_frame_at(timestamp_ms=100)
+        frame_clone = cloned.get_frame_at(timestamp_ms=100)
+        assert frame_orig.size == frame_clone.size
+    finally:
+        cloned.close()
+        reader.close()
+
+
+def test_video_reader_clone_unloaded() -> None:
+    reader = VideoReader()
+    cloned = reader.clone()
+    assert cloned.video_path is None
+    assert cloned.duration_ms == 0

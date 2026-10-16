@@ -158,6 +158,8 @@ def create_mocked_app() -> ColorCorrectionEditorApp:
         patch('tkinter.ttk.Treeview', DummyWidget),
         patch('tkinter.ttk.Scrollbar', DummyWidget),
         patch('tkinter.ttk.Scale', DummyWidget),
+        patch('tkinter.ttk.Checkbutton', DummyWidget),
+        patch('tkinter.ttk.Combobox', DummyWidget),
         patch('tkinter.Canvas', DummyCanvas),
     ):
         return ColorCorrectionEditorApp()
@@ -169,31 +171,79 @@ def test_editor_app_init() -> None:
     assert app.notebook is not None
     assert app.tab_reference is not None
     assert app.tab_color_correction is not None
+    assert app.tab_noise_reduction is not None
     assert app.notebook.tab(1, option='state') == 'disabled'
+    assert app.notebook.tab(2, option='state') == 'disabled'
 
 
 def test_editor_app_tab_state_transitions() -> None:
     app = create_mocked_app()
     assert app.notebook.tab(1, option='state') == 'disabled'
+    assert app.notebook.tab(2, option='state') == 'disabled'
 
-    # Adding a range enables Tab 1
+    # Adding a range enables Tab 1 and Tab 2
     sample_range = TimeRange(start_ms=1000, end_ms=4000)
     app.tab_reference.add_range(time_range=sample_range)
     assert app.notebook.tab(1, option='state') == 'normal'
+    assert app.notebook.tab(2, option='state') == 'normal'
 
-    # Select tab 1 and delete range -> disables Tab 1 and resets to Tab 0
-    app.notebook.select(1)
+    # Select tab 2 and delete range -> disables Tabs and resets to Tab 0
+    app.notebook.select(2)
     app.tab_reference.delete_range_at(index=0)
     assert app.notebook.tab(1, option='state') == 'disabled'
+    assert app.notebook.tab(2, option='state') == 'disabled'
     assert app.notebook.index('current') == 0
 
 
 def test_editor_app_enforce_no_switch_when_empty() -> None:
     app = create_mocked_app()
-    app.notebook.select(1)
     mock_event = MagicMock()
+
+    app.notebook.select(1)
     app._on_tab_changed(event=mock_event)
     assert app.notebook.index('current') == 0
+
+    app.notebook.select(2)
+    app._on_tab_changed(event=mock_event)
+    assert app.notebook.index('current') == 0
+
+
+def test_editor_app_tab_switch_sync_and_pause() -> None:
+    app = create_mocked_app()
+    sample_range = TimeRange(start_ms=1000, end_ms=4000)
+    app.tab_reference.add_range(time_range=sample_range)
+
+    with (
+        patch.object(
+            app.tab_noise_reduction,
+            'set_reference_data',
+        ) as mock_nr_set,
+        patch.object(
+            app.tab_color_correction,
+            'pause_playback',
+        ) as mock_cc_pause,
+        patch.object(
+            app.tab_noise_reduction,
+            'pause_playback',
+        ) as mock_nr_pause,
+    ):
+        # Switch to Noise Reduction tab
+        app.notebook.select(2)
+        mock_event = MagicMock()
+        app._on_tab_changed(event=mock_event)
+
+        mock_cc_pause.assert_called_once()
+        mock_nr_set.assert_called_once_with(
+            video_reader=app.tab_reference.video_reader,
+            ranges=app.tab_reference.ranges,
+            lut=app.tab_color_correction.lut,
+        )
+
+        # Switch to Reference Video tab -> pauses both
+        app.notebook.select(0)
+        app._on_tab_changed(event=mock_event)
+        assert mock_cc_pause.call_count == 2
+        mock_nr_pause.assert_called_once()
 
 
 def test_editor_main() -> None:

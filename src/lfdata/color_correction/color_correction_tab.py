@@ -79,6 +79,7 @@ class ColorCorrectionTab(ttk.Frame):
 
         self.lut: Lut3D = Lut3D()
         self.reference_video: ReferenceVideo | None = None
+        self._reader_clone: VideoReader | None = None
         self.is_playing: bool = False
         self.current_time_ms: int = 0
         self._lut_file_path: Path | None = None
@@ -431,8 +432,18 @@ class ColorCorrectionTab(ttk.Frame):
             tab.set_reference_data(video_reader=reader, ranges=my_ranges)
         """
         self.pause_playback()
+        if self._reader_clone is not None:
+            self._reader_clone.close()
+            self._reader_clone = None
+
+        if type(video_reader) is VideoReader:
+            self._reader_clone = video_reader.clone()
+            active_reader = self._reader_clone
+        else:
+            active_reader = video_reader
+
         self.reference_video = ReferenceVideo(
-            video_reader=video_reader,
+            video_reader=active_reader,
             ranges=ranges,
         )
         self.current_time_ms = 0
@@ -894,3 +905,7 @@ class ColorCorrectionTab(ttk.Frame):
 
         if self._worker_thread is not None and self._worker_thread.is_alive():
             self._worker_thread.join(timeout=0.5)
+
+        if self._reader_clone is not None:
+            self._reader_clone.close()
+            self._reader_clone = None

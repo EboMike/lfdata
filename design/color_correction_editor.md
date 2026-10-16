@@ -86,4 +86,14 @@ video with the LUT applied. In both cases, the video is the reference video.
 There is a play button that will make it play in a loop. The play button will
 toggle with a pause button.
 
+### Third tab: Noise reduction
 
+On the top, there are settings that control noise reduction using options that are available in
+ffmpeg.
+
+Underneath is a side-by-side comparison of the video without (left) and with (right)
+noise reduction applied. In both cases, the reference video with color correction applied
+will be used as the base.
+
+There is a play button that will make it play in a loop. The play button will
+toggle with a pause button.

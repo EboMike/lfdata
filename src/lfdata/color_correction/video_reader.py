@@ -12,7 +12,10 @@ Usage example:
     reader.close()
 """
 
+from __future__ import annotations
+
 from pathlib import Path
+import threading
 import cv2
 from PIL import Image
 
@@ -47,6 +50,7 @@ class VideoReader:
         self.width: int = 0
         self.height: int = 0
         self._capture: cv2.VideoCapture | None = None
+        self._lock: threading.RLock = threading.RLock()
 
     def load(self, video_path: str | Path) -> int:
         """Opens a video file and calculates its duration in milliseconds.
@@ -71,38 +75,39 @@ class VideoReader:
         if not path_obj.exists():
             raise FileNotFoundError(f'Video file not found: {video_path}')
 
-        self.close()
+        with self._lock:
+            self._close_internal()
 
-        cap = cv2.VideoCapture(str(path_obj))
-        if not cap.isOpened():
-            cap.release()
-            raise ValueError(f'Could not open video file: {video_path}')
+            cap = cv2.VideoCapture(str(path_obj))
+            if not cap.isOpened():
+                cap.release()
+                raise ValueError(f'Could not open video file: {video_path}')
 
-        fps = float(cap.get(cv2.CAP_PROP_FPS))
-        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            fps = float(cap.get(cv2.CAP_PROP_FPS))
+            frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
-        if fps <= 0.0 or frame_count <= 0:
-            cap.release()
-            raise ValueError(
-                f'Invalid video properties: fps={fps}, frames={frame_count}'
-            )
+            if fps <= 0.0 or frame_count <= 0:
+                cap.release()
+                raise ValueError(
+                    f'Invalid video properties: fps={fps}, frames={frame_count}'
+                )
 
-        duration_ms = int((frame_count / fps) * MS_PER_SECOND)
-        if duration_ms <= 0:
-            cap.release()
-            raise ValueError('Video duration must be greater than zero')
+            duration_ms = int((frame_count / fps) * MS_PER_SECOND)
+            if duration_ms <= 0:
+                cap.release()
+                raise ValueError('Video duration must be greater than zero')
 
-        self._capture = cap
-        self.video_path = path_obj
-        self.fps = fps
-        self.frame_count = frame_count
-        self.width = width
-        self.height = height
-        self.duration_ms = duration_ms
+            self._capture = cap
+            self.video_path = path_obj
+            self.fps = fps
+            self.frame_count = frame_count
+            self.width = width
+            self.height = height
+            self.duration_ms = duration_ms
 
-        return self.duration_ms
+            return self.duration_ms
 
     def get_frame_at(self, timestamp_ms: int) -> Image.Image:
         """Extracts a still video frame as a PIL Image at the given timestamp.
@@ -122,37 +127,34 @@ class VideoReader:
         Usage example:
             image = reader.get_frame_at(timestamp_ms=500)
         """
-        if self._capture is None or not self._capture.isOpened():
-            raise RuntimeError('No video file currently loaded.')
+        with self._lock:
+            if self._capture is None or not self._capture.isOpened():
+                raise RuntimeError('No video file currently loaded.')
 
-        clamped_ms = max(0, min(self.duration_ms, timestamp_ms))
+            clamped_ms = max(0, min(self.duration_ms, timestamp_ms))
 
-        self._capture.set(cv2.CAP_PROP_POS_MSEC, float(clamped_ms))
-        success, frame = self._capture.read()
-
-        if not success or frame is None:
-            # Fallback to seeking by frame index
-            target_frame_idx = int((clamped_ms / MS_PER_SECOND) * self.fps)
-            target_frame_idx = max(
-                0, min(self.frame_count - 1, target_frame_idx)
-            )
-            self._capture.set(cv2.CAP_PROP_POS_FRAMES, target_frame_idx)
+            self._capture.set(cv2.CAP_PROP_POS_MSEC, float(clamped_ms))
             success, frame = self._capture.read()
 
-        if not success or frame is None:
-            raise RuntimeError(
-                f'Failed to extract video frame at {timestamp_ms} ms'
-            )
+            if not success or frame is None:
+                # Fallback to seeking by frame index
+                target_frame_idx = int((clamped_ms / MS_PER_SECOND) * self.fps)
+                target_frame_idx = max(
+                    0, min(self.frame_count - 1, target_frame_idx)
+                )
+                self._capture.set(cv2.CAP_PROP_POS_FRAMES, target_frame_idx)
+                success, frame = self._capture.read()
 
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        return Image.fromarray(rgb_frame)
+            if not success or frame is None:
+                raise RuntimeError(
+                    f'Failed to extract video frame at {timestamp_ms} ms'
+                )
 
-    def close(self) -> None:
-        """Releases the underlying video capture resources if open.
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            return Image.fromarray(rgb_frame)
 
-        Usage example:
-            reader.close()
-        """
+    def _close_internal(self) -> None:
+        """Internal helper to release capture resources without locking."""
         if self._capture is not None:
             self._capture.release()
             self._capture = None
@@ -162,3 +164,33 @@ class VideoReader:
         self.frame_count = 0
         self.width = 0
         self.height = 0
+
+    def close(self) -> None:
+        """Releases the underlying video capture resources if open.
+
+        Usage example:
+            reader.close()
+        """
+        with self._lock:
+            self._close_internal()
+
+    def clone(self) -> VideoReader:
+        """Creates an independent VideoReader instance opening the same video.
+
+        Returns:
+            VideoReader: A new independent VideoReader with its own capture.
+
+        Usage example:
+            cloned = reader.clone()
+        """
+        with self._lock:
+            new_reader = VideoReader()
+            if self.video_path is not None and self.video_path.exists():
+                new_reader.load(video_path=self.video_path)
+            else:
+                new_reader.duration_ms = self.duration_ms
+                new_reader.fps = self.fps
+                new_reader.frame_count = self.frame_count
+                new_reader.width = self.width
+                new_reader.height = self.height
+            return new_reader

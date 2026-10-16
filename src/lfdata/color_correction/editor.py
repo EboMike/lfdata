@@ -15,6 +15,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from lfdata.color_correction.color_correction_tab import ColorCorrectionTab
+from lfdata.color_correction.noise_reduction_tab import NoiseReductionTab
 from lfdata.color_correction.reference_video_tab import ReferenceVideoTab
 from lfdata.color_correction.time_range import TimeRange
 
@@ -27,6 +28,7 @@ class ColorCorrectionEditorApp(tk.Tk):
         notebook: Tabbed notebook container dividing the editor workflow.
         tab_reference: Reference video loader and range selector tab.
         tab_color_correction: Color correction adjustment tab.
+        tab_noise_reduction: Noise reduction adjustment tab.
     """
 
     def __init__(self) -> None:
@@ -59,45 +61,65 @@ class ColorCorrectionEditorApp(tk.Tk):
             on_ranges_changed=self._on_ranges_changed,
         )
         self.tab_color_correction = ColorCorrectionTab(parent=self.notebook)
+        self.tab_noise_reduction = NoiseReductionTab(parent=self.notebook)
 
         self.notebook.add(self.tab_reference, text='Reference Video')
         self.notebook.add(self.tab_color_correction, text='Color Correction')
+        self.notebook.add(self.tab_noise_reduction, text='Noise Reduction')
 
-        # Tab 2 cannot be selected if no range has been added
+        # Tabs 2 and 3 cannot be selected if no range has been added
         self.notebook.tab(1, state='disabled')
+        self.notebook.tab(2, state='disabled')
         self.notebook.bind('<<NotebookTabChanged>>', self._on_tab_changed)
 
     def _on_ranges_changed(self, ranges: list[TimeRange]) -> None:
         """Updates tab availability when reference ranges are added or removed.
 
-        Enables the Color Correction tab when one or more ranges exist,
-        and disables it when no ranges are present.
+        Enables the Color Correction and Noise Reduction tabs when one or
+        more ranges exist, and disables them when no ranges are present.
 
         Args:
             ranges: The current list of configured TimeRange instances.
         """
         if len(ranges) > 0:
             self.notebook.tab(1, state='normal')
+            self.notebook.tab(2, state='normal')
             self.tab_color_correction.set_reference_data(
                 video_reader=self.tab_reference.video_reader,
                 ranges=ranges,
             )
+            self.tab_noise_reduction.set_reference_data(
+                video_reader=self.tab_reference.video_reader,
+                ranges=ranges,
+                lut=self.tab_color_correction.lut,
+            )
         else:
             self.notebook.tab(1, state='disabled')
+            self.notebook.tab(2, state='disabled')
             self.tab_color_correction.set_reference_data(
                 video_reader=self.tab_reference.video_reader,
                 ranges=[],
             )
-            if self.notebook.index('current') == 1:
+            self.tab_noise_reduction.set_reference_data(
+                video_reader=self.tab_reference.video_reader,
+                ranges=[],
+                lut=self.tab_color_correction.lut,
+            )
+            if self.notebook.index('current') in (1, 2):
                 self.notebook.select(0)
 
     def _on_tab_changed(self, event: tk.Event) -> None:
-        """Enforces that Color Correction tab cannot be visited without ranges.
+        """Enforces range prerequisites and synchronizes active tab states.
 
         Args:
             event: The notebook tab changed event.
         """
         current_index = self.notebook.index('current')
+        if current_index != 1:
+            self.tab_color_correction.pause_playback()
+        if current_index != 2:
+            self.tab_noise_reduction.pause_playback()
+
         if current_index == 1:
             if len(self.tab_reference.ranges) == 0:
                 self.notebook.select(0)
@@ -106,8 +128,15 @@ class ColorCorrectionEditorApp(tk.Tk):
                     video_reader=self.tab_reference.video_reader,
                     ranges=self.tab_reference.ranges,
                 )
-        else:
-            self.tab_color_correction.pause_playback()
+        elif current_index == 2:
+            if len(self.tab_reference.ranges) == 0:
+                self.notebook.select(0)
+            else:
+                self.tab_noise_reduction.set_reference_data(
+                    video_reader=self.tab_reference.video_reader,
+                    ranges=self.tab_reference.ranges,
+                    lut=self.tab_color_correction.lut,
+                )
 
 
 def main() -> None:
