@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
+
 from PIL import Image
 
 from lfdata.color_correction.lut import Lut3D
@@ -15,6 +16,10 @@ def test_lut3d_default_initialization() -> None:
     assert lut.title == 'Identity'
     assert lut.brightness == 0.0
     assert lut.contrast == 1.0
+    assert lut.shadows == 0.0
+    assert lut.highlights == 0.0
+    assert lut.gamma == 1.0
+    assert lut.highlight_rolloff == 0.0
     assert lut.saturation == 1.0
     assert lut.temperature == 0.0
     assert lut.tint == 0.0
@@ -26,6 +31,10 @@ def test_lut3d_reset_to_identity() -> None:
     lut = Lut3D(size=3)
     lut.brightness = 0.25
     lut.contrast = 1.4
+    lut.shadows = 0.3
+    lut.highlights = -0.2
+    lut.gamma = 1.5
+    lut.highlight_rolloff = 0.4
     lut.saturation = 0.8
     lut.temperature = -0.3
     lut.tint = 0.5
@@ -34,9 +43,26 @@ def test_lut3d_reset_to_identity() -> None:
     lut.reset_to_identity()
     assert lut.brightness == 0.0
     assert lut.contrast == 1.0
+    assert lut.shadows == 0.0
+    assert lut.highlights == 0.0
+    assert lut.gamma == 1.0
+    assert lut.highlight_rolloff == 0.0
     assert lut.saturation == 1.0
     assert lut.temperature == 0.0
     assert lut.tint == 0.0
+    assert lut.table == lut.base_table
+
+
+def test_lut3d_reset_adjustments() -> None:
+    lut = Lut3D(size=3)
+    lut.shadows = 0.4
+    lut.gamma = 1.8
+    lut.recompute()
+    assert lut.table != lut.base_table
+
+    lut.reset_adjustments()
+    assert lut.shadows == 0.0
+    assert lut.gamma == 1.0
     assert lut.table == lut.base_table
 
 
@@ -50,6 +76,37 @@ def test_lut3d_brightness_contrast_adjustment() -> None:
     assert lut.contrast == 1.2
     # Verify values differ from identity
     assert lut.table != lut.base_table
+
+
+def test_lut3d_shadows_and_highlights_adjustment() -> None:
+    lut = Lut3D(size=5)
+    lut.shadows = 0.5
+    lut.highlights = -0.3
+    lut.recompute()
+
+    assert lut.shadows == 0.5
+    assert lut.highlights == -0.3
+    assert lut.table != lut.base_table
+
+    # Test that black remains 0.0
+    assert lut.table[0] == 0.0
+    assert lut.table[1] == 0.0
+    assert lut.table[2] == 0.0
+
+
+def test_lut3d_gamma_and_highlight_rolloff() -> None:
+    lut = Lut3D(size=5)
+    lut.gamma = 1.6
+    lut.highlight_rolloff = 0.5
+    lut.recompute()
+
+    assert lut.gamma == 1.6
+    assert lut.highlight_rolloff == 0.5
+    assert lut.table != lut.base_table
+
+    # Pure black stays 0.0 and peak values do not exceed 1.0
+    assert lut.table[0] == 0.0
+    assert max(lut.table) <= 1.0
 
 
 def test_lut3d_saturation_temperature_tint_adjustment() -> None:

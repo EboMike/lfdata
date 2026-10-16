@@ -126,3 +126,17 @@ If none apply, the fallback is: `{blocks}/{blocked_by_others} blocks`.
 * Ball indicators fade in and out during each toggle interval using a sinusoidal
   alpha curve (`alpha = sin(pi * progress)` where progress goes from 0.0 to 1.0
   during the toggle interval).
+
+## Laser Tag GoPro LUT Tone Curve Controls
+
+* To handle dark laser tag footage with bright lights (vest LEDs, lasers, bases):
+  - `Shadows`: Brightens dark tones with weight $4v(1-v)^2$, peaking in the
+    shadows ($v \approx 0.33$) and tapering to zero at pure black ($v=0$) and
+    pure white ($v=1$).
+  - `Highlights`: Adjusts bright areas with weight $v^2$ to recover detail and
+    prevent overexposure.
+  - `Gamma`: Midtone power curve $v^{1/\gamma}$ that brightens shadows and
+    midtones while mathematically pinning 0.0 at 0.0 and 1.0 at 1.0.
+  - `Light Rolloff`: Soft shoulder compression using $\tanh$ above a knee
+    threshold ($1 - 0.35 \times \text{rolloff}$) to prevent harsh digital
+    clipping of laser tag LEDs and lasers.

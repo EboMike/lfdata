@@ -67,9 +67,23 @@ On the top, this tab has a visualization of the current LUT. The LUT is derived 
 `.cube` file. If none was loaded, it is a default LUT that does not modify the image in any way.
 
 Below are controls to modify the LUT, together by clicking on the LUT panel itself.
+To address laser tag GoPro footage that is dark with bright lights, the controls
+include:
+* **Brightness & Contrast**: Global offset and mid-point contrast.
+* **Shadows**: Lifts dark tones while tapering off towards highlights to reveal
+  arena details without blowing out lights.
+* **Highlights**: Adjusts bright highlights to recover detail or tone down intense
+  reflections.
+* **Gamma**: Midtone gamma power curve ($v^{1/\gamma}$) boosting dark and
+  middle tones while pinning peak white at 1.0.
+* **Light Rolloff**: Soft shoulder compression ($C^1$ continuous $\tanh$ knee)
+  preventing bright vest LEDs, laser phasers, and base targets from harshly
+  clipping.
+* **Saturation, Temperature & Tint**: Color balance adjustments.
 
-Underneath is a side-by-side comparison of the original video and the processed video with the LUT
-applied. In both cases, the video is the reference video. There is a play button that will make it play
-in a loop. The play button will toggle with a pause button.
+Underneath is a side-by-side comparison of the original video and the processed
+video with the LUT applied. In both cases, the video is the reference video.
+There is a play button that will make it play in a loop. The play button will
+toggle with a pause button.
 
 

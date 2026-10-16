@@ -6,6 +6,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
+
 from PIL import Image
 
 from lfdata.color_correction.color_correction_tab import ColorCorrectionTab
@@ -94,6 +95,10 @@ def test_color_correction_tab_init() -> None:
         assert tab.lut_panel is not None
         assert tab.scale_brightness is not None
         assert tab.scale_contrast is not None
+        assert tab.scale_shadows is not None
+        assert tab.scale_highlights is not None
+        assert tab.scale_gamma is not None
+        assert tab.scale_highlight_rolloff is not None
         assert tab.scale_saturation is not None
         assert tab.scale_temperature is not None
         assert tab.scale_tint is not None
@@ -114,6 +119,18 @@ def test_color_correction_tab_slider_adjustments() -> None:
 
         tab._on_contrast_changed('40.0')
         assert tab.lut.contrast == 1.4
+
+        tab._on_shadows_changed('35.0')
+        assert round(tab.lut.shadows, 2) == 0.35
+
+        tab._on_highlights_changed('-25.0')
+        assert round(tab.lut.highlights, 2) == -0.25
+
+        tab._on_gamma_changed('50.0')
+        assert round(tab.lut.gamma, 2) == 2.0
+
+        tab._on_highlight_rolloff_changed('70.0')
+        assert round(tab.lut.highlight_rolloff, 2) == 0.7
 
         tab._on_saturation_changed('-30.0')
         assert tab.lut.saturation == 0.7
@@ -142,11 +159,19 @@ def test_color_correction_tab_reset() -> None:
     try:
         tab.lut.brightness = 0.5
         tab.lut.contrast = 1.8
+        tab.lut.shadows = 0.4
+        tab.lut.highlights = -0.3
+        tab.lut.gamma = 2.0
+        tab.lut.highlight_rolloff = 0.8
         tab.lut.recompute()
 
         tab._on_reset_lut_click()
         assert tab.lut.brightness == 0.0
         assert tab.lut.contrast == 1.0
+        assert tab.lut.shadows == 0.0
+        assert tab.lut.highlights == 0.0
+        assert tab.lut.gamma == 1.0
+        assert tab.lut.highlight_rolloff == 0.0
         assert 'Identity' in tab.lbl_lut_status.text
     finally:
         tab.close()

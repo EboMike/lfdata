@@ -17,8 +17,8 @@ Usage example:
 
 from __future__ import annotations
 
-import math
 from pathlib import Path
+
 import numpy as np
 from PIL import Image, ImageFilter
 
@@ -33,6 +33,10 @@ class Lut3D:
         title: Descriptive title string stored in .cube metadata.
         brightness: Brightness offset parameter in range [-1.0, 1.0].
         contrast: Contrast multiplier parameter in range [0.0, 2.0].
+        shadows: Shadow tone boost/cut parameter in range [-1.0, 1.0].
+        highlights: Highlight adjustment parameter in range [-1.0, 1.0].
+        gamma: Midtone gamma power curve parameter (default 1.0).
+        highlight_rolloff: Highlight rolloff for bright lights [0.0, 1.0].
         saturation: Saturation multiplier parameter in range [0.0, 2.0].
         temperature: Warm/cool color temperature bias in range [-1.0, 1.0].
         tint: Green/magenta color tint bias in range [-1.0, 1.0].
@@ -50,6 +54,10 @@ class Lut3D:
         self.title: str = 'Identity'
         self.brightness: float = 0.0
         self.contrast: float = 1.0
+        self.shadows: float = 0.0
+        self.highlights: float = 0.0
+        self.gamma: float = 1.0
+        self.highlight_rolloff: float = 0.0
         self.saturation: float = 1.0
         self.temperature: float = 0.0
         self.tint: float = 0.0
@@ -69,6 +77,10 @@ class Lut3D:
         self.title = 'Identity'
         self.brightness = 0.0
         self.contrast = 1.0
+        self.shadows = 0.0
+        self.highlights = 0.0
+        self.gamma = 1.0
+        self.highlight_rolloff = 0.0
         self.saturation = 1.0
         self.temperature = 0.0
         self.tint = 0.0
@@ -101,6 +113,10 @@ class Lut3D:
         """
         self.brightness = 0.0
         self.contrast = 1.0
+        self.shadows = 0.0
+        self.highlights = 0.0
+        self.gamma = 1.0
+        self.highlight_rolloff = 0.0
         self.saturation = 1.0
         self.temperature = 0.0
         self.tint = 0.0
@@ -109,8 +125,9 @@ class Lut3D:
     def recompute(self) -> None:
         """Recomputes active table values from base table and grading parameters.
 
-        Applies brightness, contrast, saturation, temperature, and tint
-        adjustments across all LUT entries.
+        Applies brightness, contrast, shadows, highlights, gamma, highlight
+        rolloff, saturation, temperature, and tint adjustments across all
+        LUT entries.
 
         Usage example:
             lut.recompute()
@@ -128,20 +145,56 @@ class Lut3D:
             g = (g - 0.5) * self.contrast + 0.5
             b = (b - 0.5) * self.contrast + 0.5
 
-        # 3. Saturation (Rec. 709 luminance)
+        # 3. Shadows (lifts dark tones without blowing out highlights)
+        if self.shadows != 0.0:
+            r_c = np.clip(r, 0.0, 1.0)
+            g_c = np.clip(g, 0.0, 1.0)
+            b_c = np.clip(b, 0.0, 1.0)
+            r = r + self.shadows * 0.5 * (4.0 * r_c * ((1.0 - r_c) ** 2))
+            g = g + self.shadows * 0.5 * (4.0 * g_c * ((1.0 - g_c) ** 2))
+            b = b + self.shadows * 0.5 * (4.0 * b_c * ((1.0 - b_c) ** 2))
+
+        # 4. Highlights (adjusts bright tones / prevents highlight clipping)
+        if self.highlights != 0.0:
+            r_c = np.clip(r, 0.0, 1.0)
+            g_c = np.clip(g, 0.0, 1.0)
+            b_c = np.clip(b, 0.0, 1.0)
+            r = r + self.highlights * 0.3 * (r_c**2)
+            g = g + self.highlights * 0.3 * (g_c**2)
+            b = b + self.highlights * 0.3 * (b_c**2)
+
+        # 5. Gamma power curve (brightens midtones/shadows while pinning 1.0)
+        if self.gamma != 1.0 and self.gamma > 0.0:
+            inv_gamma = 1.0 / self.gamma
+            r = np.power(np.clip(r, 0.0, None), inv_gamma)
+            g = np.power(np.clip(g, 0.0, None), inv_gamma)
+            b = np.power(np.clip(b, 0.0, None), inv_gamma)
+
+        # 6. Highlight rolloff / soft clip for bright lights and LEDs
+        if self.highlight_rolloff > 0.0:
+            knee = 1.0 - 0.35 * self.highlight_rolloff
+            denom = max(1e-5, 1.0 - knee)
+            r_over = np.maximum(0.0, r - knee)
+            g_over = np.maximum(0.0, g - knee)
+            b_over = np.maximum(0.0, b - knee)
+            r = np.where(r > knee, knee + denom * np.tanh(r_over / denom), r)
+            g = np.where(g > knee, knee + denom * np.tanh(g_over / denom), g)
+            b = np.where(b > knee, knee + denom * np.tanh(b_over / denom), b)
+
+        # 7. Saturation (Rec. 709 luminance)
         if self.saturation != 1.0:
             lum = 0.2126 * r + 0.7152 * g + 0.0722 * b
             r = lum + self.saturation * (r - lum)
             g = lum + self.saturation * (g - lum)
             b = lum + self.saturation * (b - lum)
 
-        # 4. Temperature (Warm shifts red up and blue down, cool opposite)
+        # 8. Temperature (Warm shifts red up and blue down, cool opposite)
         if self.temperature != 0.0:
             temp_shift = self.temperature * 0.15
             r = r + temp_shift
             b = b - temp_shift
 
-        # 5. Tint (Magenta shifts green down and red/blue up, green opposite)
+        # 9. Tint (Magenta shifts green down and red/blue up, green opposite)
         if self.tint != 0.0:
             tint_shift = self.tint * 0.15
             g = g - tint_shift

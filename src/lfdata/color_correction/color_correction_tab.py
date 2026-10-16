@@ -18,11 +18,13 @@ Usage example:
 
 from __future__ import annotations
 
-from pathlib import Path
+import math
 import threading
 import tkinter as tk
+from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 from typing import Callable
+
 from PIL import Image, ImageTk
 
 from lfdata.color_correction.lut import Lut3D
@@ -43,6 +45,15 @@ class ColorCorrectionTab(ttk.Frame):
         lut: Lut3D instance managing the active color lookup table.
         reference_video: Composite ReferenceVideo combining selected ranges.
         lut_panel: LutPanel widget visualizing the LUT and balance marker.
+        scale_brightness: Slider for overall brightness offset.
+        scale_contrast: Slider for contrast adjustment.
+        scale_shadows: Slider for boosting or reducing dark shadow tones.
+        scale_highlights: Slider for controlling highlight overexposure.
+        scale_gamma: Slider for midtone gamma curve adjustment.
+        scale_highlight_rolloff: Slider for soft rolloff on bright lights.
+        scale_saturation: Slider for color saturation.
+        scale_temperature: Slider for warm/cool color temperature.
+        scale_tint: Slider for green/magenta color tint.
         btn_play_pause: Button toggling looping reference video playback.
         scale_scrub: Slider for scrubbing along composite reference duration.
         lbl_playback_time: Label showing current and total reference timestamp.
@@ -199,9 +210,49 @@ class ColorCorrectionTab(ttk.Frame):
             init_val=0.0,
             callback=self._on_contrast_changed,
         )
-        self.scale_saturation = self._add_slider_row(
+        self.scale_shadows = self._add_slider_row(
             parent=slider_grid,
             row=1,
+            col=0,
+            label='Shadows:',
+            min_val=-100.0,
+            max_val=100.0,
+            init_val=0.0,
+            callback=self._on_shadows_changed,
+        )
+        self.scale_highlights = self._add_slider_row(
+            parent=slider_grid,
+            row=1,
+            col=1,
+            label='Highlights:',
+            min_val=-100.0,
+            max_val=100.0,
+            init_val=0.0,
+            callback=self._on_highlights_changed,
+        )
+        self.scale_gamma = self._add_slider_row(
+            parent=slider_grid,
+            row=2,
+            col=0,
+            label='Gamma:',
+            min_val=-100.0,
+            max_val=100.0,
+            init_val=0.0,
+            callback=self._on_gamma_changed,
+        )
+        self.scale_highlight_rolloff = self._add_slider_row(
+            parent=slider_grid,
+            row=2,
+            col=1,
+            label='Light Rolloff:',
+            min_val=0.0,
+            max_val=100.0,
+            init_val=0.0,
+            callback=self._on_highlight_rolloff_changed,
+        )
+        self.scale_saturation = self._add_slider_row(
+            parent=slider_grid,
+            row=3,
             col=0,
             label='Saturation:',
             min_val=-100.0,
@@ -211,7 +262,7 @@ class ColorCorrectionTab(ttk.Frame):
         )
         self.scale_temperature = self._add_slider_row(
             parent=slider_grid,
-            row=1,
+            row=3,
             col=1,
             label='Temperature:',
             min_val=-100.0,
@@ -221,7 +272,7 @@ class ColorCorrectionTab(ttk.Frame):
         )
         self.scale_tint = self._add_slider_row(
             parent=slider_grid,
-            row=2,
+            row=4,
             col=0,
             label='Tint:',
             min_val=-100.0,
@@ -526,6 +577,58 @@ class ColorCorrectionTab(ttk.Frame):
         self.lut.contrast = max(0.0, mult)
         self._apply_lut_modifications()
 
+    def _on_shadows_changed(self, value_str: str) -> None:
+        """Updates LUT shadow boost parameter.
+
+        Adjusts the shadow tones in dark areas while tapering off to prevent
+        overexposing bright areas.
+
+        Args:
+            value_str: Scale value string between -100.0 and 100.0.
+        """
+        val = float(value_str) / 100.0
+        self.lut.shadows = val
+        self._apply_lut_modifications()
+
+    def _on_highlights_changed(self, value_str: str) -> None:
+        """Updates LUT highlight adjustment parameter.
+
+        Adjusts the highlight tones to prevent bright lights from overexposing
+        or to pull back clipped highlights.
+
+        Args:
+            value_str: Scale value string between -100.0 and 100.0.
+        """
+        val = float(value_str) / 100.0
+        self.lut.highlights = val
+        self._apply_lut_modifications()
+
+    def _on_gamma_changed(self, value_str: str) -> None:
+        """Updates LUT midtone gamma power curve parameter.
+
+        Applies a power curve that brightens shadows and midtones while pinning
+        peak whites to prevent overexposure of bright laser tag lights.
+
+        Args:
+            value_str: Scale value string between -100.0 and 100.0.
+        """
+        slider_val = float(value_str)
+        self.lut.gamma = 2.0 ** (slider_val / 50.0)
+        self._apply_lut_modifications()
+
+    def _on_highlight_rolloff_changed(self, value_str: str) -> None:
+        """Updates LUT bright light highlight rolloff parameter.
+
+        Smoothly compresses the highest luminance values using a soft shoulder
+        curve to prevent harsh clipping of bright LEDs and lasers.
+
+        Args:
+            value_str: Scale value string between 0.0 and 100.0.
+        """
+        slider_val = float(value_str)
+        self.lut.highlight_rolloff = max(0.0, min(1.0, slider_val / 100.0))
+        self._apply_lut_modifications()
+
     def _on_saturation_changed(self, value_str: str) -> None:
         """Updates LUT saturation parameter.
 
@@ -650,6 +753,13 @@ class ColorCorrectionTab(ttk.Frame):
         try:
             self.scale_brightness.set(self.lut.brightness * 100.0)
             self.scale_contrast.set((self.lut.contrast - 1.0) * 100.0)
+            self.scale_shadows.set(self.lut.shadows * 100.0)
+            self.scale_highlights.set(self.lut.highlights * 100.0)
+            gamma_val = (
+                50.0 * math.log2(self.lut.gamma) if self.lut.gamma > 0 else 0.0
+            )
+            self.scale_gamma.set(gamma_val)
+            self.scale_highlight_rolloff.set(self.lut.highlight_rolloff * 100.0)
             self.scale_saturation.set((self.lut.saturation - 1.0) * 100.0)
             self.scale_temperature.set(self.lut.temperature * 100.0)
             self.scale_tint.set(self.lut.tint * 100.0)
