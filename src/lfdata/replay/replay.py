@@ -133,6 +133,9 @@ class LFReplaySystem(LFReplayHandlersMixin):
         self._last_laserball_pass_target: LFReplayPlayerState | None = None
         self._last_assisted_scorer: LFReplayPlayerState | None = None
         self._last_assisted_passer: LFReplayPlayerState | None = None
+        self._sorted_events: list[GameEvent] | None = None
+        self._processed_event_idx: int = 0
+        self._last_simulated_time_ms: int = -1
 
         if self.game.sm5_stats and align_stats:
             self._search_choices()
@@ -158,6 +161,8 @@ class LFReplaySystem(LFReplayHandlersMixin):
         self._last_laserball_pass_target = None
         self._last_assisted_scorer = None
         self._last_assisted_passer = None
+        self._processed_event_idx = 0
+        self._last_simulated_time_ms = -1
 
     def _is_player_boost_ambiguous(
         self, player: LFReplayPlayerState, event_time: int
@@ -672,9 +677,17 @@ class LFReplaySystem(LFReplayHandlersMixin):
         Args:
             time_ms: The millisecond timestamp to simulate up to (inclusive).
         """
-        sorted_events = sorted(self.game.events, key=lambda e: e.time)
+        if (
+            self._sorted_events is None
+            or time_ms < self._last_simulated_time_ms
+        ):
+            self._sorted_events = sorted(self.game.events, key=lambda e: e.time)
+            self._reset_simulation()
+            self._processed_event_idx = 0
+            self._last_simulated_time_ms = 0
 
-        for event in sorted_events:
+        while self._processed_event_idx < len(self._sorted_events):
+            event = self._sorted_events[self._processed_event_idx]
             if event.time > time_ms:
                 break
 
@@ -683,11 +696,13 @@ class LFReplaySystem(LFReplayHandlersMixin):
 
             self._dispatch_event(event)
             self.game_state.update_team_scores_and_rankings()
+            self._processed_event_idx += 1
 
             if event.event_type == SM5_EVENT_MISSION_END:
                 self.game_ended_at_ms = event.time
                 return
 
+        self._last_simulated_time_ms = time_ms
         # Final update to the target timestamp
         for player in self.game_state.players.values():
             player.update_downtime(time_ms)

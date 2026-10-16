@@ -78,8 +78,16 @@ class ColorCorrectionEditorApp(tk.Tk):
         """
         if len(ranges) > 0:
             self.notebook.tab(1, state='normal')
+            self.tab_color_correction.set_reference_data(
+                video_reader=self.tab_reference.video_reader,
+                ranges=ranges,
+            )
         else:
             self.notebook.tab(1, state='disabled')
+            self.tab_color_correction.set_reference_data(
+                video_reader=self.tab_reference.video_reader,
+                ranges=[],
+            )
             if self.notebook.index('current') == 1:
                 self.notebook.select(0)
 
@@ -90,8 +98,16 @@ class ColorCorrectionEditorApp(tk.Tk):
             event: The notebook tab changed event.
         """
         current_index = self.notebook.index('current')
-        if current_index == 1 and len(self.tab_reference.ranges) == 0:
-            self.notebook.select(0)
+        if current_index == 1:
+            if len(self.tab_reference.ranges) == 0:
+                self.notebook.select(0)
+            else:
+                self.tab_color_correction.set_reference_data(
+                    video_reader=self.tab_reference.video_reader,
+                    ranges=self.tab_reference.ranges,
+                )
+        else:
+            self.tab_color_correction.pause_playback()
 
 
 def main() -> None:

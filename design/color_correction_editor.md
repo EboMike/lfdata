@@ -55,7 +55,21 @@ video frame.
 Because this is an expensive computation, it needs to be done in a separate thread. Every 5 seconds, the
 UI should be updated with the data that has been computed so far.
 
+### A node on the reference video
+
+The list of ranges combined result in one reference video, meaning that whenever "reference video" is
+mentioned here, it is a single video that comprises all the ranges from the list taken from the source
+video strung together.
+
 ## Second tab: Color Correction
 
-More information will be added here. This tab is empty for now.
-This tab can only be selected if at least one range of the video has been added.
+On the top, this tab has a visualization of the current LUT. The LUT is derived from the contents of a
+`.cube` file. If none was loaded, it is a default LUT that does not modify the image in any way.
+
+Below are controls to modify the LUT, together by clicking on the LUT panel itself.
+
+Underneath is a side-by-side comparison of the original video and the processed video with the LUT
+applied. In both cases, the video is the reference video. There is a play button that will make it play
+in a loop. The play button will toggle with a pause button.
+
+

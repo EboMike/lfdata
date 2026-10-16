@@ -81,6 +81,7 @@ class TdfStateDumper:
         output_format: TdfDumpFormat = TdfDumpFormat.CSV,
         player_selection: TdfPlayerSelection = TdfPlayerSelection.ALL,
         interval_ms: int = DEFAULT_DUMP_INTERVAL_MS,
+        align_stats: bool = False,
     ) -> None:
         """Initializes the TDF state dumper with replay parameters.
 
@@ -90,13 +91,14 @@ class TdfStateDumper:
             output_format: Output format for the serialized data.
             player_selection: Whether to include all players or changed only.
             interval_ms: Millisecond interval when trigger is INTERVAL.
+            align_stats: Whether to align stats via backtracking DFS.
         """
         self.game = game
         self.trigger = trigger
         self.output_format = output_format
         self.player_selection = player_selection
         self.interval_ms = max(1, interval_ms)
-        self.replay = LFReplaySystem(game=game, align_stats=True)
+        self.replay = LFReplaySystem(game=game, align_stats=align_stats)
 
     def collect_entries(self) -> list[TdfGameStateEntry]:
         """Simulates replay events and collects recorded game state entries.

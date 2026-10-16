@@ -1,5 +1,7 @@
 """Tests for ColorCorrectionEditorApp main window."""
 
+from __future__ import annotations
+
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -137,9 +139,8 @@ class DummyNotebook(DummyWidget):
         return 0
 
     def select(self, tab_id: Any = None) -> Any:
-        if tab_id is not None:
-            if isinstance(tab_id, int):
-                self._current_index = tab_id
+        if isinstance(tab_id, int):
+            self._current_index = tab_id
         return self._current_index
 
 
@@ -156,6 +157,7 @@ def create_mocked_app() -> ColorCorrectionEditorApp:
         patch('tkinter.ttk.LabelFrame', DummyWidget),
         patch('tkinter.ttk.Treeview', DummyWidget),
         patch('tkinter.ttk.Scrollbar', DummyWidget),
+        patch('tkinter.ttk.Scale', DummyWidget),
         patch('tkinter.Canvas', DummyCanvas),
     ):
         return ColorCorrectionEditorApp()

@@ -286,19 +286,13 @@ def main() -> None:
         start_ms = args.state_start_ms
         interval_ms = args.state_interval_ms
 
+        replay = LFReplaySystem(game)
         if args.state_end_ms is not None:
             end_ms = args.state_end_ms
         else:
-            full_replay = LFReplaySystem(game)
-            full_replay.run()
-            end_ms = game.duration
-            if full_replay.game_ended_at_ms is not None:
-                end_ms = full_replay.game_ended_at_ms
-            else:
-                sorted_events = sorted(game.events, key=lambda e: e.time)
-                mission_end = full_replay._find_mission_end_ms(sorted_events)
-                if mission_end is not None:
-                    end_ms = mission_end
+            sorted_events = sorted(game.events, key=lambda e: e.time)
+            mission_end = replay._find_mission_end_ms(sorted_events)
+            end_ms = mission_end if mission_end is not None else game.duration
             if end_ms is None:
                 end_ms = 0
 
@@ -310,7 +304,6 @@ def main() -> None:
             else:
                 first = False
 
-            replay = LFReplaySystem(game)
             replay.run_up_to(current_ms)
             _print_game_state(replay, current_ms)
             current_ms += interval_ms

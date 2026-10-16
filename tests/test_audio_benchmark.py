@@ -313,8 +313,10 @@ def test_cli_evaluate_and_tune(capsys: pytest.CaptureFixture[str]) -> None:
         target = os.path.join(tmpdir, 'target.wav')
         config_path = os.path.join(tmpdir, 'config.yaml')
 
-        _create_synthetic_chirp(ref_file)
-        _create_synthetic_target(target, ref_file, insert_timestamps_ms=[1000])
+        _create_synthetic_chirp(ref_file, duration_s=0.1)
+        _create_synthetic_target(
+            target, ref_file, insert_timestamps_ms=[400], total_duration_s=1.0
+        )
 
         sound_def = SoundDefinition(
             name='cli_sound',
@@ -325,7 +327,7 @@ def test_cli_evaluate_and_tune(capsys: pytest.CaptureFixture[str]) -> None:
             test_cases=[
                 AudioTestCase(
                     video_path=target,
-                    expected_timestamp_ms=1000,
+                    expected_timestamp_ms=400,
                     tolerance_ms=100,
                 )
             ],
