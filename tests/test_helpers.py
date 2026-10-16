@@ -239,3 +239,48 @@ def test_default_config_team_scores() -> None:
     assert team_scores_cfg['y'] == 0.2
     assert team_scores_cfg['align'] == 'left'
     assert team_scores_cfg['style'] == {'size': 64}
+
+
+def test_default_config_ball_carrier() -> None:
+    from lfdata.video.helpers import DEFAULT_CONFIG
+
+    elements = DEFAULT_CONFIG['elements']
+    assert isinstance(elements, dict)
+    assert 'ball_carrier' in elements
+    carrier_cfg = elements['ball_carrier']
+    assert isinstance(carrier_cfg, dict)
+    assert carrier_cfg['enabled'] is True
+    assert carrier_cfg['x'] == 0.16
+    assert carrier_cfg['y'] == 0.23
+    assert carrier_cfg['align'] == 'left'
+    assert carrier_cfg['style'] == {'size': 24}
+
+
+def test_default_config_ball_indicator() -> None:
+    from lfdata.video.helpers import DEFAULT_CONFIG
+
+    elements = DEFAULT_CONFIG['elements']
+    assert isinstance(elements, dict)
+    assert 'ball_indicator' in elements
+    indicator_cfg = elements['ball_indicator']
+    assert isinstance(indicator_cfg, dict)
+    assert indicator_cfg['enabled'] is True
+    assert indicator_cfg['x'] == 0.35
+    assert indicator_cfg['y'] == 0.025
+    assert indicator_cfg['align'] == 'center'
+    assert indicator_cfg['style'] == {'size': 72}
+
+
+def test_default_config_ball_indicator_2() -> None:
+    from lfdata.video.helpers import DEFAULT_CONFIG
+
+    elements = DEFAULT_CONFIG['elements']
+    assert isinstance(elements, dict)
+    assert 'ball_indicator_2' in elements
+    indicator_cfg = elements['ball_indicator_2']
+    assert isinstance(indicator_cfg, dict)
+    assert indicator_cfg['enabled'] is True
+    assert indicator_cfg['x'] == 0.65
+    assert indicator_cfg['y'] == 0.025
+    assert indicator_cfg['align'] == 'center'
+    assert indicator_cfg['style'] == {'size': 72}

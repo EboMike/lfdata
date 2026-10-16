@@ -166,7 +166,7 @@ If specified, the extents are the length and width as X, Y using the same units.
 | Player's number of missiles, if applicable                                          | Counter         | 0.45, 0.92       | 0.05, 0.05 | left   | missiles | 18        |
 | Player's number of hitpoints, if applicable                                         | Counter         | 0.55, 0.92       | 0.05, 0.05 | left   | shields  | 18        |
 | Player's number of special points, if applicable. Special rule: always green        | Counter         | 0.65, 0.92       |            | left   | sp       | 18        |
-| Player's score                                                                      | Text            | 0.98, 0.05       |            | right  |          | 36        |
+| Player's score (not Laserball)                                                      | Text            | 0.98, 0.05       |            | right  |          | 36        |
 | Scoreboard                                                                          | Scoreboard      | 0.02, 0.3        | 0.4, 0.4   | left   |          | 15        | 
 | Downtime                                                                            | Downtime bar    | 0.3, 0.14        | 0.4, 0.03  | left   |          | 18        |
 | Player events: Events relevant to the current player                                | Multi-line text | 0.5, 0.18        |            | center |          | 18        |
@@ -176,6 +176,9 @@ If specified, the extents are the length and width as X, Y using the same units.
 | User defined text 1 (disabled by default)                                           | Text            | 0.1, 0.6         |            | left   |          | 20        |
 | User defined text 2 (disabled by default)                                           | Text            | 0.1, 0.7         |            | left   |          | 20        |
 | Team Scores (Laserball only)                                                        | Text            | 0.02, 0.2        |            | left   |          | 64        |
+| Ball Carrier (Laserball only)                                                       | Text            | 0.16, 0.23       |            | left   |          | 24        |
+| Ball Indicator (Laserball only)                                                     | Text            | 0.35, 0.025      |            | center |          | 72        |
+| Ball Indicator 2 (Laserball only)                                                   | Text            | 0.65, 0.025      |            | center |          | 72        |
 
 Special considerations:
 
@@ -192,6 +195,14 @@ Special considerations:
 * **Team Scores**: This is Laserball only and shows the scores of the teams
   like "1 : 3". Each number will be in the color of the team that it
   belongs to.
+* **Ball Carrier**: This is a ball icon, followed by the name of the player
+  currently carrying the ball, in the color of their team.
+* **Ball Indicator**: If the focus player currently has the ball, the ball
+  indicator is simply the icon of a ball. It will flash at the interval of
+  once per second (1 second on, 1 second off).
+* **Ball Indicator 2**: Same as ball indicator, but its visibility is the
+  opposite of the other ball indicator. That is, if this one is shown,
+  the other is not, and vice versa.
 
 ## Scoreboard
 

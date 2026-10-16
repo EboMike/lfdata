@@ -309,6 +309,27 @@ DEFAULT_CONFIG: dict[str, object] = {
             'align': 'left',
             'style': {'size': 64},
         },
+        'ball_carrier': {
+            'enabled': True,
+            'x': 0.16,
+            'y': 0.23,
+            'align': 'left',
+            'style': {'size': 24},
+        },
+        'ball_indicator': {
+            'enabled': True,
+            'x': 0.35,
+            'y': 0.025,
+            'align': 'center',
+            'style': {'size': 72},
+        },
+        'ball_indicator_2': {
+            'enabled': True,
+            'x': 0.65,
+            'y': 0.025,
+            'align': 'center',
+            'style': {'size': 72},
+        },
     },
 }
 

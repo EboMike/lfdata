@@ -373,3 +373,31 @@ elements:
     style:
       size: 64
 
+  # Ball carrier (Laserball only)
+  ball_carrier:
+    enabled: true
+    x: 0.16
+    y: 0.23
+    align: left
+    style:
+      size: 24
+
+  # Ball indicator (Laserball only)
+  ball_indicator:
+    enabled: true
+    x: 0.35
+    y: 0.025
+    align: center
+    style:
+      size: 72
+
+  # Ball indicator 2 (Laserball only, alternates with ball_indicator)
+  ball_indicator_2:
+    enabled: true
+    x: 0.65
+    y: 0.025
+    align: center
+    style:
+      size: 72
+
+

@@ -1534,14 +1534,54 @@ class VisualElementGenerator:
             variables['player_role'] = ''
             variables['player_score'] = ''
 
-        # Team scores variable (Laserball only)
-        if self.game.is_laserball and teams:
-            sorted_teams = sorted(teams.values(), key=lambda t: t.team_index)
-            variables['team_scores'] = ' : '.join(
-                str(t.score) for t in sorted_teams
-            )
+        # Laserball variables
+        if self.game.is_laserball:
+            if teams:
+                sorted_teams = sorted(
+                    teams.values(), key=lambda t: t.team_index
+                )
+                variables['team_scores'] = ' : '.join(
+                    str(t.score) for t in sorted_teams
+                )
+            else:
+                variables['team_scores'] = ''
+
+            carrier_name = ''
+            carrier_team_name = ''
+            carrier_team_color = ''
+            for p in players.values():
+                if p.has_ball:
+                    carrier_name = self.entity_names.get(
+                        p.entity_id, p.entity_id
+                    )
+                    if teams and p.team_index in teams:
+                        carrier_team_name = teams[p.team_index].name or ''
+                        carrier_team_color = teams[p.team_index].color_rgb or ''
+                    break
+            variables['ball_carrier'] = carrier_name
+            variables['ball_carrier_team'] = carrier_team_name
+            variables['ball_carrier_team_color'] = carrier_team_color
+
+            if (
+                self.entity_id
+                and self.entity_id in players
+                and players[self.entity_id].has_ball
+            ):
+                variables['ball_indicator'] = '[img:ball.png]'
+                variables['ball_indicator_2'] = '[img:ball.png]'
+                variables['has_ball'] = 'True'
+            else:
+                variables['ball_indicator'] = ''
+                variables['ball_indicator_2'] = ''
+                variables['has_ball'] = 'False'
         else:
             variables['team_scores'] = ''
+            variables['ball_carrier'] = ''
+            variables['ball_carrier_team'] = ''
+            variables['ball_carrier_team_color'] = ''
+            variables['ball_indicator'] = ''
+            variables['ball_indicator_2'] = ''
+            variables['has_ball'] = 'False'
 
         return variables
 
@@ -1990,7 +2030,27 @@ class VisualElementGenerator:
         if el_centre:
             elements.append(el_centre)
 
-        if self.game.is_laserball and teams:
+        self._add_laserball_global_hud_elements(
+            elements=elements, teams=teams, players=players
+        )
+
+    def _add_laserball_global_hud_elements(
+        self,
+        elements: list[UIElement],
+        teams: dict[int, LFReplayTeamState],
+        players: dict[str, LFReplayPlayerState],
+    ) -> None:
+        """Adds Laserball-specific global HUD elements for scores and carrier.
+
+        Args:
+            elements: List of visual elements to append to.
+            teams: Current team states mapping.
+            players: Current player states mapping.
+        """
+        if not self.game.is_laserball:
+            return
+
+        if teams:
             sorted_teams = sorted(teams.values(), key=lambda t: t.team_index)
             score_text = ' : '.join(str(t.score) for t in sorted_teams)
             lb_segments: list[tuple[str, str | None]] = []
@@ -2007,6 +2067,25 @@ class VisualElementGenerator:
             )
             if el_team_scores:
                 elements.append(el_team_scores)
+
+        for p in players.values():
+            if p.has_ball:
+                carrier_name = self.entity_names.get(p.entity_id, p.entity_id)
+                carrier_team = teams.get(p.team_index) if teams else None
+                carrier_color = carrier_team.color_rgb if carrier_team else None
+                carrier_segments: list[tuple[str, str | None]] = [
+                    ('[img:ball.png] ', None),
+                    (carrier_name, carrier_color),
+                ]
+                el_carrier = self._create_ui_element(
+                    'ball_carrier',
+                    text=f'[img:ball.png] {carrier_name}',
+                    element_type='text',
+                    text_segments=carrier_segments,
+                )
+                if el_carrier:
+                    elements.append(el_carrier)
+                break
 
     def _add_player_stats_hud_elements(
         self,
@@ -2028,7 +2107,8 @@ class VisualElementGenerator:
         ]
         if p_state.role:
             stats_defs.append(('player_role', f'{p_state.role.display_name}'))
-        stats_defs.append(('player_score', f'{p_state.score}'))
+        if not self.game.is_laserball:
+            stats_defs.append(('player_score', f'{p_state.score}'))
 
         player_events_in_color = self.config.get('player_events_in_color', True)
         t_state = teams.get(p_state.team_index) if teams else None
@@ -2152,6 +2232,34 @@ class VisualElementGenerator:
             if el_dt:
                 elements.append(el_dt)
 
+    def _add_player_ball_hud_element(
+        self,
+        elements: list[UIElement],
+        p_state: LFReplayPlayerState,
+        time_ms: int,
+    ) -> None:
+        """Adds a flashing ball indicator HUD element if player holds the ball.
+
+        Args:
+            elements: List of visual elements to append to.
+            p_state: Player state of the focused player.
+            time_ms: Current millisecond timestamp into the game.
+        """
+        if not self.game.is_laserball or not p_state.has_ball:
+            return
+
+        # Flashes once per second (1 second on, 1 second off).
+        # ball_indicator and ball_indicator_2 alternate every second.
+        is_even_second = (time_ms // 1000) % 2 == 0
+        element_key = 'ball_indicator' if is_even_second else 'ball_indicator_2'
+        el_indicator = self._create_ui_element(
+            element_key,
+            text='[img:ball.png]',
+            element_type='text',
+        )
+        if el_indicator:
+            elements.append(el_indicator)
+
     def _add_player_hud_elements(
         self,
         elements: list[UIElement],
@@ -2178,6 +2286,7 @@ class VisualElementGenerator:
             players=players,
         )
         self._add_player_downtime_hud_element(elements, p_state, time_ms)
+        self._add_player_ball_hud_element(elements, p_state, time_ms)
 
     def _get_active_multiline_lines(
         self,

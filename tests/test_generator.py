@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from lfdata.model import (
     GameEntity,
     GameEvent,
@@ -3669,3 +3669,365 @@ def test_laserball_team_scores_custom_formatting_and_position() -> None:
         ('0', '#0000FF'),
         (' FT', None),
     ]
+
+
+def _create_test_laserball_ball_game() -> LFGame:
+    game = LFGame(
+        game_id='test_lb_ball_game',
+        timestamp=datetime.now(timezone.utc),
+        game_type='Laserball',
+        normalized_game_type='Laserball',
+    )
+    t1 = GameTeam(
+        game_id='test_lb_ball_game',
+        team_index=0,
+        desc='Red Team',
+        color_enum=0,
+        color_desc='Red',
+        color_rgb='#FF0000',
+    )
+    t2 = GameTeam(
+        game_id='test_lb_ball_game',
+        team_index=1,
+        desc='Blue Team',
+        color_enum=1,
+        color_desc='Blue',
+        color_rgb='#0000FF',
+    )
+    game.teams = [t1, t2]
+
+    p1 = GameEntity(
+        game_id='test_lb_ball_game',
+        entity_id='P1',
+        type='player',
+        desc='RedStriker',
+        team_index=0,
+        level=1,
+        category=1,
+        battlesuit='Suit1',
+    )
+    p2 = GameEntity(
+        game_id='test_lb_ball_game',
+        entity_id='P2',
+        type='player',
+        desc='BlueStriker',
+        team_index=1,
+        level=1,
+        category=1,
+        battlesuit='Suit2',
+    )
+    game.entities = [p1, p2]
+
+    game.events = [
+        GameEvent(
+            game_id='test_lb_ball_game',
+            time=2000,
+            event_type=LASERBALL_EVENT_GETS_BALL,
+            actor_entity_id='P1',
+            action='gets_ball',
+            raw_message='',
+        ),
+        GameEvent(
+            game_id='test_lb_ball_game',
+            time=6000,
+            event_type=LASERBALL_EVENT_PASS,
+            actor_entity_id='P1',
+            target_entity_id='P2',
+            action='pass',
+            raw_message='',
+        ),
+        GameEvent(
+            game_id='test_lb_ball_game',
+            time=10000,
+            event_type=LASERBALL_EVENT_GOAL,
+            actor_entity_id='P2',
+            action='goal',
+            raw_message='',
+        ),
+    ]
+    return game
+
+
+def test_laserball_ball_carrier_element_generated() -> None:
+    game = _create_test_laserball_ball_game()
+    hud_gen = VisualElementGenerator(game=game, player_name='RedStriker')
+
+    # Before ball is picked up (time=1000)
+    elements_1s = hud_gen.generate_at(1000)
+    carrier_el_1s = next(
+        (el for el in elements_1s if '[img:ball.png]' in (el.text or '')), None
+    )
+    assert carrier_el_1s is None
+    assert hud_gen.current_variables['ball_carrier'] == ''
+
+    # While P1 holds ball (time=4000)
+    elements_4s = hud_gen.generate_at(4000)
+    carrier_el_4s = next(
+        (el for el in elements_4s if el.text == '[img:ball.png] RedStriker'),
+        None,
+    )
+    assert carrier_el_4s is not None
+    assert carrier_el_4s.element_type == 'text'
+    assert carrier_el_4s.x == 0.16
+    assert carrier_el_4s.y == 0.23
+    assert carrier_el_4s.align == 'left'
+    assert carrier_el_4s.style.size == 24
+    assert carrier_el_4s.text_segments == [
+        ('[img:ball.png] ', None),
+        ('RedStriker', '#FF0000'),
+    ]
+    assert hud_gen.current_variables['ball_carrier'] == 'RedStriker'
+    assert hud_gen.current_variables['ball_carrier_team'] == 'Red Team'
+    assert hud_gen.current_variables['ball_carrier_team_color'] == '#FF0000'
+
+    # While P2 holds ball after pass (time=8000)
+    elements_8s = hud_gen.generate_at(8000)
+    carrier_el_8s = next(
+        (el for el in elements_8s if el.text == '[img:ball.png] BlueStriker'),
+        None,
+    )
+    assert carrier_el_8s is not None
+    assert carrier_el_8s.text_segments == [
+        ('[img:ball.png] ', None),
+        ('BlueStriker', '#0000FF'),
+    ]
+    assert hud_gen.current_variables['ball_carrier'] == 'BlueStriker'
+
+    # After P2 scores goal (time=12000, nobody has ball)
+    elements_12s = hud_gen.generate_at(12000)
+    carrier_el_12s = next(
+        (el for el in elements_12s if '[img:ball.png]' in (el.text or '')), None
+    )
+    assert carrier_el_12s is None
+    assert hud_gen.current_variables['ball_carrier'] == ''
+
+
+def test_laserball_ball_carrier_disabled_in_config() -> None:
+    game = _create_test_laserball_ball_game()
+    config = {'elements': {'ball_carrier': {'enabled': False}}}
+    hud_gen = VisualElementGenerator(
+        game=game, player_name='RedStriker', config=config
+    )
+    elements = hud_gen.generate_at(4000)
+    carrier_el = next(
+        (
+            el
+            for el in elements
+            if '[img:ball.png]' in (el.text or '')
+            and 'RedStriker' in (el.text or '')
+        ),
+        None,
+    )
+    assert carrier_el is None
+
+
+def test_laserball_ball_carrier_custom_formatting_and_position() -> None:
+    game = _create_test_laserball_ball_game()
+    config = {
+        'elements': {
+            'ball_carrier': {
+                'x': 0.15,
+                'y': 0.25,
+                'align': 'left',
+                'style': {'size': 30},
+                'formatted_text': 'Carrier: {{ ball_carrier }}',
+            }
+        }
+    }
+    hud_gen = VisualElementGenerator(
+        game=game, player_name='RedStriker', config=config
+    )
+    elements = hud_gen.generate_at(4000)
+    carrier_el = next(
+        (
+            el
+            for el in elements
+            if 'Carrier: [img:ball.png] RedStriker' in (el.text or '')
+        ),
+        None,
+    )
+    assert carrier_el is not None
+    assert carrier_el.x == 0.15
+    assert carrier_el.y == 0.25
+    assert carrier_el.align == 'left'
+    assert carrier_el.style.size == 30
+    assert carrier_el.text_segments == [
+        ('Carrier: ', None),
+        ('[img:ball.png] ', None),
+        ('RedStriker', '#FF0000'),
+    ]
+
+
+def test_laserball_ball_indicator_flashing() -> None:
+    game = _create_test_laserball_ball_game()
+    hud_gen = VisualElementGenerator(game=game, player_name='RedStriker')
+
+    # Before ball is picked up (time=1000, even though odd/even, no ball)
+    elements_1s = hud_gen.generate_at(1000)
+    indicator_1s = next(
+        (el for el in elements_1s if el.text == '[img:ball.png]'), None
+    )
+    assert indicator_1s is None
+    assert hud_gen.current_variables['has_ball'] == 'False'
+    assert hud_gen.current_variables['ball_indicator'] == ''
+    assert hud_gen.current_variables['ball_indicator_2'] == ''
+
+    # P1 has ball: time=2000
+    # (even second: ball_indicator ON, ball_indicator_2 OFF)
+    elements_2s = hud_gen.generate_at(2000)
+    indicator_2s = next(
+        (
+            el
+            for el in elements_2s
+            if el.formatted_text == '{{ ball_indicator }}'
+        ),
+        None,
+    )
+    assert indicator_2s is not None
+    assert indicator_2s.element_type == 'text'
+    assert indicator_2s.x == 0.35
+    assert indicator_2s.y == 0.025
+    assert indicator_2s.align == 'center'
+    assert indicator_2s.style.size == 72
+    assert not any(
+        el.formatted_text == '{{ ball_indicator_2 }}' for el in elements_2s
+    )
+    assert hud_gen.current_variables['has_ball'] == 'True'
+    assert hud_gen.current_variables['ball_indicator'] == '[img:ball.png]'
+    assert hud_gen.current_variables['ball_indicator_2'] == '[img:ball.png]'
+
+    # P1 has ball: time=3000
+    # (odd second: ball_indicator OFF, ball_indicator_2 ON)
+    elements_3s = hud_gen.generate_at(3000)
+    assert not any(
+        el.formatted_text == '{{ ball_indicator }}' for el in elements_3s
+    )
+    indicator2_3s = next(
+        (
+            el
+            for el in elements_3s
+            if el.formatted_text == '{{ ball_indicator_2 }}'
+        ),
+        None,
+    )
+    assert indicator2_3s is not None
+    assert indicator2_3s.element_type == 'text'
+    assert indicator2_3s.x == 0.65
+    assert indicator2_3s.y == 0.025
+    assert indicator2_3s.align == 'center'
+    assert indicator2_3s.style.size == 72
+
+    # P1 has ball: time=4000
+    # (even second: ball_indicator ON, ball_indicator_2 OFF)
+    elements_4s = hud_gen.generate_at(4000)
+    assert any(
+        el.formatted_text == '{{ ball_indicator }}' for el in elements_4s
+    )
+    assert not any(
+        el.formatted_text == '{{ ball_indicator_2 }}' for el in elements_4s
+    )
+
+    # P1 has ball: time=5000
+    # (odd second: ball_indicator OFF, ball_indicator_2 ON)
+    elements_5s = hud_gen.generate_at(5000)
+    assert not any(
+        el.formatted_text == '{{ ball_indicator }}' for el in elements_5s
+    )
+    assert any(
+        el.formatted_text == '{{ ball_indicator_2 }}' for el in elements_5s
+    )
+
+    # After P1 passes ball to P2 (time=8000, even second,
+    # but focus player P1 has no ball)
+    elements_8s = hud_gen.generate_at(8000)
+    assert not any(
+        el.formatted_text in ('{{ ball_indicator }}', '{{ ball_indicator_2 }}')
+        for el in elements_8s
+    )
+    assert hud_gen.current_variables['has_ball'] == 'False'
+    assert hud_gen.current_variables['ball_indicator'] == ''
+    assert hud_gen.current_variables['ball_indicator_2'] == ''
+
+
+def test_laserball_ball_indicator_disabled_in_config() -> None:
+    game = _create_test_laserball_ball_game()
+    config = {'elements': {'ball_indicator': {'enabled': False}}}
+    hud_gen = VisualElementGenerator(
+        game=game, player_name='RedStriker', config=config
+    )
+    elements = hud_gen.generate_at(2000)
+    indicator = next(
+        (el for el in elements if el.formatted_text == '{{ ball_indicator }}'),
+        None,
+    )
+    assert indicator is None
+
+
+def test_laserball_ball_indicator_2_disabled_in_config() -> None:
+    game = _create_test_laserball_ball_game()
+    config = {'elements': {'ball_indicator_2': {'enabled': False}}}
+    hud_gen = VisualElementGenerator(
+        game=game, player_name='RedStriker', config=config
+    )
+    elements = hud_gen.generate_at(3000)
+    indicator = next(
+        (
+            el
+            for el in elements
+            if el.formatted_text == '{{ ball_indicator_2 }}'
+        ),
+        None,
+    )
+    assert indicator is None
+
+
+def test_laserball_ball_elements_not_generated_for_sm5() -> None:
+    game = LFGame(
+        game_id='sm5_no_ball',
+        timestamp=datetime.now(timezone.utc),
+        game_type='SM5',
+        normalized_game_type='Space Marines 5',
+    )
+    game.teams = [
+        GameTeam(
+            game_id='sm5_no_ball',
+            team_index=0,
+            desc='Red',
+            color_enum=0,
+            color_desc='Red',
+            color_rgb='#FF0000',
+        ),
+    ]
+    game.entities = [
+        GameEntity(
+            game_id='sm5_no_ball',
+            entity_id='P1',
+            type='player',
+            desc='Player1',
+            team_index=0,
+            level=1,
+            category=1,
+            battlesuit='Suit1',
+        )
+    ]
+    game.events = []
+    hud_gen = VisualElementGenerator(game=game, player_name='Player1')
+    elements = hud_gen.generate_at(2000)
+    ball_el = next(
+        (el for el in elements if '[img:ball.png]' in (el.text or '')), None
+    )
+    assert ball_el is None
+    assert hud_gen.current_variables['ball_carrier'] == ''
+    assert hud_gen.current_variables['ball_indicator'] == ''
+    assert hud_gen.current_variables['has_ball'] == 'False'
+
+
+def test_laserball_player_score_not_shown() -> None:
+    game = _create_test_laserball_ball_game()
+    hud_gen = VisualElementGenerator(game=game, player_name='RedStriker')
+    elements = hud_gen.generate_at(4000)
+    score_el = next(
+        (el for el in elements if el.formatted_text == '{{ player_score }}'),
+        None,
+    )
+    assert score_el is None

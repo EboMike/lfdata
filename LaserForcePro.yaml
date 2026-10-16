@@ -18,6 +18,51 @@ elements:
     visible_start_ms: 2000
     x: 0.75
     y: 0.6
+  ball_carrier:
+    align: left
+    enabled: true
+    end_time_offset: end of game
+    fade_in_ms: 1000
+    fade_out_ms: 1000
+    formatted_text: ''
+    start_time_offset: beginning of video
+    style:
+      size: 24
+    tilt: 0.0
+    visible_end_ms: 2000
+    visible_start_ms: 3000
+    x: 0.16
+    y: 0.23
+  ball_indicator:
+    align: center
+    enabled: true
+    end_time_offset: end of game
+    fade_in_ms: 1000
+    fade_out_ms: 1000
+    formatted_text: ''
+    start_time_offset: beginning of video
+    style:
+      size: 72
+    tilt: 0.0
+    visible_end_ms: 2000
+    visible_start_ms: 3000
+    x: 0.35
+    y: 0.025
+  ball_indicator_2:
+    align: center
+    enabled: true
+    end_time_offset: end of game
+    fade_in_ms: 1000
+    fade_out_ms: 1000
+    formatted_text: ''
+    start_time_offset: beginning of video
+    style:
+      size: 72
+    tilt: 0.0
+    visible_end_ms: 2000
+    visible_start_ms: 3000
+    x: 0.65
+    y: 0.025
   centre_name:
     align: left
     enabled: false
