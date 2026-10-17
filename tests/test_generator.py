@@ -4431,3 +4431,116 @@ def test_laserball_player_score_not_shown() -> None:
         None,
     )
     assert score_el is None
+
+
+def test_laserball_block_and_steal_hit_borders() -> None:
+    game = LFGame(
+        game_id='test_lb_block_steal',
+        timestamp=datetime.now(timezone.utc),
+        game_type='Laserball',
+        normalized_game_type='Laserball',
+    )
+    t1 = GameTeam(
+        game_id='test_lb_block_steal',
+        team_index=0,
+        desc='Red',
+        color_enum=0,
+        color_desc='Red',
+        color_rgb='#FF0000',
+    )
+    t2 = GameTeam(
+        game_id='test_lb_block_steal',
+        team_index=1,
+        desc='Blue',
+        color_enum=1,
+        color_desc='Blue',
+        color_rgb='#0000FF',
+    )
+    game.teams = [t1, t2]
+    p1 = GameEntity(
+        game_id='test_lb_block_steal',
+        entity_id='P1',
+        type='player',
+        desc='RedCarrier',
+        team_index=0,
+        level=1,
+        category=1,
+        battlesuit='Suit1',
+    )
+    p2 = GameEntity(
+        game_id='test_lb_block_steal',
+        entity_id='P2',
+        type='player',
+        desc='BlueDefender',
+        team_index=1,
+        level=1,
+        category=1,
+        battlesuit='Suit2',
+    )
+    game.entities = [p1, p2]
+    game.events = [
+        GameEvent(
+            game_id='test_lb_block_steal',
+            time=1000,
+            event_type=LASERBALL_EVENT_GETS_BALL,
+            actor_entity_id='P1',
+            action='gets_ball',
+            raw_message='',
+        ),
+        GameEvent(
+            game_id='test_lb_block_steal',
+            time=3000,
+            event_type=LASERBALL_EVENT_STEAL,
+            actor_entity_id='P2',
+            target_entity_id='P1',
+            action='steal',
+            raw_message='',
+        ),
+        GameEvent(
+            game_id='test_lb_block_steal',
+            time=7000,
+            event_type=LASERBALL_EVENT_BLOCK,
+            actor_entity_id='P2',
+            target_entity_id='P1',
+            action='block',
+            raw_message='',
+        ),
+    ]
+
+    hud_gen = VisualElementGenerator(
+        game=game,
+        player_name='RedCarrier',
+        config={'elements': {'hit_border': {'duration_down_s': 1.5}}},
+    )
+    assert len(hud_gen.hit_borders) == 2
+
+    # Verify steal zap animation on target
+    hb_steal = hud_gen.hit_borders[0]
+    assert hb_steal.start_ms == 3000
+    assert hb_steal.duration_ms == 1500
+    assert hb_steal.tint_hex == '#ff0000'
+
+    # Verify block zap animation on target
+    hb_block = hud_gen.hit_borders[1]
+    assert hb_block.start_ms == 7000
+    assert hb_block.duration_ms == 1500
+    assert hb_block.tint_hex == '#ff0000'
+
+
+def test_laserball_player_has_ball_at() -> None:
+    game = _create_test_laserball_ball_game()
+    hud_gen = VisualElementGenerator(game=game, player_name='RedStriker')
+
+    # Before receiving ball at 2000ms
+    assert not hud_gen.player_has_ball_at(0)
+    assert not hud_gen.player_has_ball_at(1999)
+
+    # Holding ball between 2000ms and 6000ms (when passed)
+    assert hud_gen.player_has_ball_at(2000)
+    assert hud_gen.player_has_ball_at(4000)
+    assert hud_gen.player_has_ball_at(5999)
+
+    # After passing ball at 6000ms
+    assert not hud_gen.player_has_ball_at(6000)
+    assert not hud_gen.player_has_ball_at(8000)
+

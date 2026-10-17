@@ -203,6 +203,7 @@ class VisualElementGenerator:
                 dict[int, LFReplayTeamState],
             ]
         ] = []
+        self._snapshot_times: list[int] = []
         self.event_log: list[LFEventLogEntry] = []
         self.player_event_log: list[LFPlayerEventLogEntry] = []
         self._last_ammo_resup: LFResupplyTracker | None = None
@@ -538,6 +539,7 @@ class VisualElementGenerator:
         )
 
         self.game_ended_at_ms = replay.game_ended_at_ms
+        self._snapshot_times = [snap[0] for snap in self.snapshots]
         self._precompute_nuke_intervals(sorted_events)
 
     def _precompute_nuke_intervals(
@@ -1030,7 +1032,11 @@ class VisualElementGenerator:
         Returns:
             tuple: Cloned player and team states at the timestamp.
         """
-        times = [snap[0] for snap in self.snapshots]
+        times = (
+            self._snapshot_times
+            if self._snapshot_times
+            else [snap[0] for snap in self.snapshots]
+        )
         idx = bisect.bisect_right(times, time_ms)
         if idx == 0:
             _, players, teams = self.snapshots[0]
@@ -2341,6 +2347,33 @@ class VisualElementGenerator:
         if el_right:
             elements.append(el_right)
 
+    def player_has_ball_at(self, time_ms: int) -> bool:
+        """Determines whether the focused player possesses the ball.
+
+        Checks the precomputed replay state snapshots at the specified game
+        time to determine if the player is holding the ball.
+
+        Args:
+            time_ms: Current millisecond timestamp into the game.
+
+        Returns:
+            bool: True if the focused player is holding the ball at time_ms.
+        """
+        if not self.entity_id or not self.snapshots:
+            return False
+        times = (
+            self._snapshot_times
+            if self._snapshot_times
+            else [snap[0] for snap in self.snapshots]
+        )
+        idx = bisect.bisect_right(times, time_ms)
+        if idx == 0:
+            _, players, _ = self.snapshots[0]
+        else:
+            _, players, _ = self.snapshots[idx - 1]
+        p_state = players.get(self.entity_id)
+        return bool(p_state and p_state.has_ball)
+
     def _add_player_hud_elements(
         self,
         elements: list[UIElement],
@@ -2893,11 +2926,18 @@ class VisualElementGenerator:
             )
             is_nuke = event_type == SM5_EVENT_DETONATE_NUKE
             is_penalty = event_type == SM5_EVENT_PENALTY
+            is_laserball_block = event_type in (
+                LASERBALL_EVENT_BLOCK,
+                LASERBALL_EVENT_STEAL,
+            )
 
             is_hit = False
-            if (is_zap or is_missile or is_resupply) and (
-                event.target_entity_id == self.entity_id
-            ):
+            if (
+                is_zap
+                or is_missile
+                or is_resupply
+                or is_laserball_block
+            ) and event.target_entity_id == self.entity_id:
                 is_hit = True
             elif is_penalty and event.actor_entity_id == self.entity_id:
                 is_hit = True
@@ -2918,28 +2958,32 @@ class VisualElementGenerator:
             if not is_hit:
                 continue
 
-            hp = 1
-            for snap_time, players, _ in self.snapshots:
-                if snap_time == event.time:
-                    p_state = players.get(self.entity_id)
-                    if p_state:
-                        hp = p_state.hp
-                        break
-
-            is_down = hp == 0
-            if is_down:
+            if is_laserball_block:
                 dur_ms = int(dur_down_s * 1000)
-            else:
-                dur_ms = int(dur_hp_s * 1000)
-
-            if is_penalty:
-                tint_hex = color_penalty
-            elif is_resupply:
-                tint_hex = color_resupplied
-            elif is_zap and not is_down:
-                tint_hex = color_zapped_hp
-            else:
                 tint_hex = color_other
+            else:
+                hp = 1
+                for snap_time, players, _ in self.snapshots:
+                    if snap_time == event.time:
+                        p_state = players.get(self.entity_id)
+                        if p_state:
+                            hp = p_state.hp
+                            break
+
+                is_down = hp == 0
+                if is_down:
+                    dur_ms = int(dur_down_s * 1000)
+                else:
+                    dur_ms = int(dur_hp_s * 1000)
+
+                if is_penalty:
+                    tint_hex = color_penalty
+                elif is_resupply:
+                    tint_hex = color_resupplied
+                elif is_zap and not is_down:
+                    tint_hex = color_zapped_hp
+                else:
+                    tint_hex = color_other
 
             self.hit_borders.append(
                 LFHitBorderInstance(

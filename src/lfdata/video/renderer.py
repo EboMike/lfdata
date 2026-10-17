@@ -1290,6 +1290,78 @@ class VideoGenerator:
 
         return img
 
+    def _draw_single_border(
+        self,
+        image: Image.Image,
+        raw_border: Image.Image,
+        tint_hex: str,
+        scale: float,
+        fade_alpha: float,
+    ) -> None:
+        """Renders and blends a single hit border instance onto the image.
+
+        Args:
+            image: Canvas image to draw onto.
+            raw_border: Base hit border texture.
+            tint_hex: Hex color code to tint the border with.
+            scale: Scale factor for scaling the border.
+            fade_alpha: Alpha opacity factor (0.0 to 1.0).
+        """
+        w, h = image.size
+        scaled_w = int(w * scale)
+        scaled_h = int(h * scale)
+        if scaled_w <= 0 or scaled_h <= 0:
+            return
+
+        try:
+            scaled_border = raw_border.resize(
+                (scaled_w, scaled_h), Image.Resampling.BILINEAR
+            )
+            try:
+                tint_rgba = parse_color_with_alpha(tint_hex)
+                tint_rgb = tint_rgba[:3]
+
+                solid_tint = Image.new(
+                    'RGBA',
+                    (scaled_w, scaled_h),
+                    tint_rgb + (255,),
+                )
+                try:
+                    tinted = ImageChops.multiply(scaled_border, solid_tint)
+                    try:
+                        r, g, b, a = tinted.split()
+                        try:
+                            new_a = a.point(lambda val: int(val * fade_alpha))
+                            try:
+                                final_img = Image.merge(
+                                    'RGBA', (r, g, b, new_a)
+                                )
+                                try:
+                                    x_off = (w - scaled_w) // 2
+                                    y_off = (h - scaled_h) // 2
+                                    image.paste(
+                                        final_img,
+                                        (x_off, y_off),
+                                        mask=final_img,
+                                    )
+                                finally:
+                                    final_img.close()
+                            finally:
+                                new_a.close()
+                        finally:
+                            r.close()
+                            g.close()
+                            b.close()
+                            a.close()
+                    finally:
+                        tinted.close()
+                finally:
+                    solid_tint.close()
+            finally:
+                scaled_border.close()
+        except Exception as e:
+            print(f'Warning: failed to draw hit border instance: {e}')
+
     def _draw_hit_borders(
         self,
         image: Image.Image,
@@ -1305,90 +1377,62 @@ class VideoGenerator:
             config: Merged video configuration options.
             hud_gen: Precomputed visual element HUD generator.
         """
-        if not hasattr(hud_gen, 'hit_borders') or not hud_gen.hit_borders:
-            return
-
         hb_config = config.get('elements', {}).get('hit_border', {})
+        if not isinstance(hb_config, dict):
+            return
         enabled = hb_config.get('enabled', True)
         if not enabled:
-            return
-
-        w, h = image.size
-
-        active_instances = []
-        for hb in hud_gen.hit_borders:
-            if hb.start_ms <= time_ms < hb.start_ms + hb.duration_ms:
-                active_instances.append(hb)
-
-        if not active_instances:
             return
 
         raw_border = self._get_hit_border_image()
         if raw_border is None:
             return
 
-        for hb in active_instances:
-            elapsed = time_ms - hb.start_ms
-            p = elapsed / hb.duration_ms
-
-            fade_alpha = 1.0 - p
-            scale = 1.0 + (hb.max_scale - 1.0) * p
-
-            scaled_w = int(w * scale)
-            scaled_h = int(h * scale)
-            if scaled_w <= 0 or scaled_h <= 0:
-                continue
-
-            try:
-                scaled_border = raw_border.resize(
-                    (scaled_w, scaled_h), Image.Resampling.BILINEAR
+        is_laserball = getattr(
+            getattr(hud_gen, 'game', None), 'is_laserball', False
+        )
+        if is_laserball and hasattr(hud_gen, 'player_has_ball_at'):
+            if hud_gen.player_has_ball_at(time_ms):
+                color_ball = str(
+                    hb_config.get('color_ball_carrier', '#0000ff')
                 )
                 try:
-                    tint_rgba = parse_color_with_alpha(hb.tint_hex)
-                    tint_rgb = tint_rgba[:3]
-
-                    solid_tint = Image.new(
-                        'RGBA',
-                        (scaled_w, scaled_h),
-                        tint_rgb + (255,),
+                    pulse_speed = float(
+                        hb_config.get('ball_pulse_speed', 1.0)
                     )
-                    try:
-                        tinted = ImageChops.multiply(scaled_border, solid_tint)
-                        try:
-                            r, g, b, a = tinted.split()
-                            try:
-                                new_a = a.point(
-                                    lambda val: int(val * fade_alpha)
-                                )
-                                try:
-                                    final_img = Image.merge(
-                                        'RGBA', (r, g, b, new_a)
-                                    )
-                                    try:
-                                        x_off = (w - scaled_w) // 2
-                                        y_off = (h - scaled_h) // 2
-                                        image.paste(
-                                            final_img,
-                                            (x_off, y_off),
-                                            mask=final_img,
-                                        )
-                                    finally:
-                                        final_img.close()
-                                finally:
-                                    new_a.close()
-                            finally:
-                                r.close()
-                                g.close()
-                                b.close()
-                                a.close()
-                        finally:
-                            tinted.close()
-                    finally:
-                        solid_tint.close()
-                finally:
-                    scaled_border.close()
-            except Exception as e:
-                print(f'Warning: failed to draw hit border instance: {e}')
+                except (ValueError, TypeError):
+                    pulse_speed = 1.0
+                try:
+                    max_scale = float(hb_config.get('max_scale', 1.2))
+                except (ValueError, TypeError):
+                    max_scale = 1.2
+
+                phase = 2.0 * math.pi * pulse_speed * (time_ms / 1000.0)
+                pulse = 0.5 + 0.5 * math.sin(phase)
+                ball_scale = 1.0 + (max_scale - 1.0) * 0.5 * pulse
+                ball_alpha = 0.3 + 0.7 * pulse
+                self._draw_single_border(
+                    image=image,
+                    raw_border=raw_border,
+                    tint_hex=color_ball,
+                    scale=ball_scale,
+                    fade_alpha=ball_alpha,
+                )
+
+        if hasattr(hud_gen, 'hit_borders') and hud_gen.hit_borders:
+            for hb in hud_gen.hit_borders:
+                if hb.start_ms <= time_ms < hb.start_ms + hb.duration_ms:
+                    elapsed = time_ms - hb.start_ms
+                    p = elapsed / hb.duration_ms
+                    fade_alpha = 1.0 - p
+                    scale = 1.0 + (hb.max_scale - 1.0) * p
+                    self._draw_single_border(
+                        image=image,
+                        raw_border=raw_border,
+                        tint_hex=hb.tint_hex,
+                        scale=scale,
+                        fade_alpha=fade_alpha,
+                    )
 
     def _calculate_team_y_positions(
         self,

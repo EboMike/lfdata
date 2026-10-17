@@ -61,6 +61,8 @@ DEFAULT_CONFIG: dict[str, object] = {
             'color_resupplied': '#ffffff',
             'color_other': '#ff0000',
             'color_penalty': '#ffff00',
+            'color_ball_carrier': '#0000ff',
+            'ball_pulse_speed': 1.0,
         },
         'game_type': {
             'enabled': True,

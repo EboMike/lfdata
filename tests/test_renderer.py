@@ -1,5 +1,7 @@
 import pytest
 from datetime import datetime
+from unittest.mock import MagicMock
+from PIL import Image
 from lfdata.model import LFGame
 from lfdata.model.gametypes.sm5_events import (
     SM5_EVENT_AMMO_BOOST,
@@ -16,6 +18,7 @@ from lfdata.model.gametypes.sm5_events import (
     SM5_EVENT_RESUPPLY_LIVES,
 )
 from lfdata.video import VideoGenerator
+from lfdata.video.generator import VisualElementGenerator
 
 
 def test_video_generator_generate(tmp_path) -> None:
@@ -2155,6 +2158,77 @@ def test_hit_borders_rendering() -> None:
         hud_gen=hud_gen,
     )
     assert mock_canvas.paste.call_count == 1
+
+
+def test_laserball_carrier_pulsating_hit_border() -> None:
+    game = LFGame(
+        game_id='test_lb_carrier_border',
+        game_type='Laserball',
+        normalized_game_type='Laserball',
+    )
+    hud_gen = MagicMock(spec=VisualElementGenerator)
+    hud_gen.game = game
+    hud_gen.hit_borders = []
+
+    # Mock player_has_ball_at to return True at 2000, False at 5000
+    hud_gen.player_has_ball_at = MagicMock(
+        side_effect=lambda t: t == 2000
+    )
+
+    vg = VideoGenerator(game)
+    vg.hud_gen = hud_gen
+
+    mock_border_img = Image.new('RGBA', (100, 100), (255, 255, 255, 255))
+    vg._get_hit_border_image = MagicMock(return_value=mock_border_img)
+    vg._draw_single_border = MagicMock()
+
+    config = {
+        'elements': {
+            'hit_border': {
+                'enabled': True,
+                'color_ball_carrier': '#0000ff',
+                'ball_pulse_speed': 2.0,
+                'max_scale': 1.4,
+            }
+        }
+    }
+
+    mock_canvas = MagicMock(spec=Image.Image)
+    mock_canvas.size = (1920, 1080)
+
+    # When player has the ball (t = 2000)
+    vg._draw_hit_borders(
+        mock_canvas,
+        time_ms=2000,
+        config=config,
+        hud_gen=hud_gen,
+    )
+    assert vg._draw_single_border.call_count == 1
+    call_args = vg._draw_single_border.call_args[1]
+    assert call_args['tint_hex'] == '#0000ff'
+    assert call_args['image'] is mock_canvas
+    assert call_args['raw_border'] is mock_border_img
+
+    # When player does not have the ball (t = 5000)
+    vg._draw_single_border.reset_mock()
+    vg._draw_hit_borders(
+        mock_canvas,
+        time_ms=5000,
+        config=config,
+        hud_gen=hud_gen,
+    )
+    assert vg._draw_single_border.call_count == 0
+
+    # When hit_border is disabled in config
+    disabled_config = {'elements': {'hit_border': {'enabled': False}}}
+    vg._draw_hit_borders(
+        mock_canvas,
+        time_ms=2000,
+        config=disabled_config,
+        hud_gen=hud_gen,
+    )
+    assert vg._draw_single_border.call_count == 0
+
 
 
 def test_laserball_scoreboard_columns_and_row_values() -> None:
