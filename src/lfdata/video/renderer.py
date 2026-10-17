@@ -31,6 +31,11 @@ from lfdata.video.constants import (
     DEFAULT_FRAME_WIDTH,
     DEFAULT_PREGAME_DELAY_MS,
 )
+from lfdata.video.downtime import (
+    DowntimeAnalyzer,
+    DowntimeParameters,
+    adjust_downtime_asset,
+)
 from lfdata.video.element import (
     LFScoreboardPlayerData,
     LFScoreboardTeamData,
@@ -221,6 +226,9 @@ class VideoGenerator:
             game: The LFGame data object.
         """
         self.game = game
+        self.downtime_params: DowntimeParameters = DowntimeAnalyzer().analyze(
+            game=self.game
+        )
         self._text_cache: dict[tuple, Image.Image] = {}
         self._text_cache_lock = threading.Lock()
         self._downtime_full: Image.Image | None = None
@@ -2625,7 +2633,19 @@ class VideoGenerator:
             return
 
         # Determine elapsed progress (0.0 to 1.0)
-        progress = max(0.0, min(1.0, (8000 - total_remaining_ms) / 8000.0))
+        total_downtime_ms = (
+            el.total_downtime_ms
+            if el.total_downtime_ms is not None and el.total_downtime_ms > 0
+            else self.downtime_params.total_downtime_ms
+        )
+        progress = max(
+            0.0,
+            min(
+                1.0,
+                (total_downtime_ms - total_remaining_ms)
+                / float(total_downtime_ms),
+            ),
+        )
 
         path_full = Path('assets') / 'downtime-full.png'
         path_empty = Path('assets') / 'downtime-empty.png'
@@ -2634,7 +2654,13 @@ class VideoGenerator:
             try:
                 # Lazily load original images once per process
                 if self._downtime_full is None:
-                    self._downtime_full = Image.open(path_full).convert('RGBA')
+                    raw_full = Image.open(path_full).convert('RGBA')
+                    self._downtime_full = adjust_downtime_asset(
+                        original_image=raw_full,
+                        resettable_percentage=self.downtime_params.resettable_percentage,
+                    )
+                    if self._downtime_full is not raw_full:
+                        raw_full.close()
                 if self._downtime_empty is None:
                     self._downtime_empty = Image.open(path_empty).convert(
                         'RGBA'

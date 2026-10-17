@@ -987,6 +987,66 @@ def test_downtime_bar_cropping() -> None:
         mock_combined.paste.assert_any_call(mock_crop_right, (80, 0))
 
 
+def test_downtime_bar_with_analyzed_parameters() -> None:
+    from PIL import Image
+
+    from lfdata.model import LFGame, PlayerStateHistory
+    from lfdata.model.constants.tdf import LFPlayerState
+    from lfdata.video.element import UIElement
+    from lfdata.video.renderer import VideoGenerator
+
+    # Total 10000 ms, resettable at 2500 ms (25% resettable percentage)
+    game = LFGame(game_id='test_dt_custom', game_type='SM5')
+    game.state_history = [
+        PlayerStateHistory(
+            game_id='test_dt_custom',
+            time=0,
+            entity_id='P1',
+            state=LFPlayerState.UP,
+        ),
+        PlayerStateHistory(
+            game_id='test_dt_custom',
+            time=1000,
+            entity_id='P1',
+            state=LFPlayerState.DOWN,
+        ),
+        PlayerStateHistory(
+            game_id='test_dt_custom',
+            time=3500,
+            entity_id='P1',
+            state=LFPlayerState.RESETTABLE,
+        ),
+        PlayerStateHistory(
+            game_id='test_dt_custom',
+            time=11000,
+            entity_id='P1',
+            state=LFPlayerState.UP,
+        ),
+    ]
+
+    vg = VideoGenerator(game)
+    assert vg.downtime_params.total_downtime_ms == 10000
+    assert vg.downtime_params.time_to_resettable_ms == 2500
+    assert vg.downtime_params.resettable_percentage == 0.25
+
+    # Test rendering downtime bar with actual images
+    canvas = Image.new('RGBA', (1000, 100), (0, 0, 0, 0))
+    el = UIElement(
+        element_type='downtime_bar',
+        x=0.1,
+        y=0.1,
+        extents=[0.8, 0.5],
+        safe_ms=1000,
+        resettable_ms=4000,
+    )
+    # total_remaining_ms = 5000 out of 10000 ms -> progress = 0.5
+    vg._draw_downtime_bar(canvas, el)
+    # Ensure downtime_full was adjusted and loaded
+    assert vg._downtime_full is not None
+    assert vg._downtime_empty is not None
+    canvas.close()
+
+
 def test_event_scroller_fade() -> None:
     from PIL import Image
     from lfdata.video.element import (

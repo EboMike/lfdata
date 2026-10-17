@@ -298,6 +298,7 @@ class UIElement:
         fade_out_ms: Fade-out animation duration in milliseconds.
         formatted_text: Optional preformatted text content string.
         text_segments: Optional list of (text, hex_color) segment tuples.
+        total_downtime_ms: Optional total downtime duration in milliseconds.
     """
 
     element_type: str
@@ -324,3 +325,4 @@ class UIElement:
     fade_out_ms: int = 0
     formatted_text: str | None = None
     text_segments: list[tuple[str, str | None]] | None = None
+    total_downtime_ms: int | None = None

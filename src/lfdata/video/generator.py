@@ -66,6 +66,7 @@ from lfdata.video.constants import (
     DEFAULT_FADE_DURATION_S,
     DEFAULT_PREGAME_DELAY_MS,
 )
+from lfdata.video.downtime import DowntimeAnalyzer, DowntimeParameters
 from lfdata.video.element import (
     LFCameraShake,
     LFEventLogEntry,
@@ -225,6 +226,9 @@ class VisualElementGenerator:
         self.hit_borders: list[LFHitBorderInstance] = []
         self._detect_camera_shakes()
         self._detect_hit_borders()
+        self.downtime_params: DowntimeParameters = DowntimeAnalyzer().analyze(
+            game=self.game
+        )
 
     def _find_player_entity_id(self) -> str | None:
         """Finds the entity ID matching the player codename.
@@ -2230,6 +2234,7 @@ class VisualElementGenerator:
                 element_type='downtime_bar',
                 safe_ms=safe_rem_ms,
                 resettable_ms=resettable_rem_ms,
+                total_downtime_ms=self.downtime_params.total_downtime_ms,
             )
             if el_dt:
                 elements.append(el_dt)
