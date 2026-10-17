@@ -2296,11 +2296,11 @@ class VisualElementGenerator:
         p_state: LFReplayPlayerState,
         time_ms: int,
     ) -> None:
-        """Adds a flashing ball indicator HUD element if player holds the ball.
+        """Adds fading ball indicator HUD elements if player holds the ball.
 
-        Alternates visibility between ball_indicator and ball_indicator_2 based
-        on the configured speed multiplier, fading the active indicator in and
-        out over each toggle interval.
+        Fades opacity between ball_indicator and ball_indicator_2 based on the
+        configured speed multiplier so that there is always an indicator
+        visible and their combined opacity is 1.0.
 
         Args:
             elements: List of visual elements to append to.
@@ -2314,19 +2314,32 @@ class VisualElementGenerator:
         cycle_float = (time_ms * speed) / 1000.0
         cycle_idx = math.floor(cycle_float)
         is_even = cycle_idx % 2 == 0
-        element_key = 'ball_indicator' if is_even else 'ball_indicator_2'
 
         progress = cycle_float - cycle_idx
-        alpha = max(0.0, min(1.0, math.sin(math.pi * progress)))
+        if is_even:
+            alpha_left = 1.0 - progress
+        else:
+            alpha_left = progress
+        alpha_left = max(0.0, min(1.0, alpha_left))
+        alpha_right = round(1.0 - alpha_left, 10)
 
-        el_indicator = self._create_ui_element(
-            element_key,
+        el_left = self._create_ui_element(
+            'ball_indicator',
             text='[img:ball.png]',
             element_type='text',
-            alpha=alpha,
+            alpha=alpha_left,
         )
-        if el_indicator:
-            elements.append(el_indicator)
+        if el_left:
+            elements.append(el_left)
+
+        el_right = self._create_ui_element(
+            'ball_indicator_2',
+            text='[img:ball.png]',
+            element_type='text',
+            alpha=alpha_right,
+        )
+        if el_right:
+            elements.append(el_right)
 
     def _add_player_hud_elements(
         self,

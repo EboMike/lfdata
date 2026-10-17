@@ -3872,10 +3872,10 @@ def test_laserball_ball_indicator_flashing() -> None:
     assert hud_gen.current_variables['ball_indicator'] == ''
     assert hud_gen.current_variables['ball_indicator_2'] == ''
 
-    # P1 has ball: time=2000 (toggle cycle 6, even: ball_indicator)
-    # Starts at alpha 0.0 at the beginning of the toggle interval.
+    # P1 has ball: time=2000 (toggle cycle 6, even: ball_indicator peak)
+    # Starts with left at 1.0 and right at 0.0 (combined opacity 1.0)
     elements_2s = hud_gen.generate_at(2000)
-    indicator_2s = next(
+    indicator_left_2s = next(
         (
             el
             for el in elements_2s
@@ -3883,23 +3883,31 @@ def test_laserball_ball_indicator_flashing() -> None:
         ),
         None,
     )
-    assert indicator_2s is not None
-    assert indicator_2s.element_type == 'text'
-    assert indicator_2s.x == 0.35
-    assert indicator_2s.y == 0.025
-    assert indicator_2s.align == 'center'
-    assert indicator_2s.style.size == 72
-    assert indicator_2s.alpha == 0.0
-    assert not any(
-        el.formatted_text == '{{ ball_indicator_2 }}' for el in elements_2s
+    indicator_right_2s = next(
+        (
+            el
+            for el in elements_2s
+            if el.formatted_text == '{{ ball_indicator_2 }}'
+        ),
+        None,
     )
+    assert indicator_left_2s is not None
+    assert indicator_right_2s is not None
+    assert indicator_left_2s.element_type == 'text'
+    assert indicator_left_2s.x == 0.35
+    assert indicator_left_2s.y == 0.025
+    assert indicator_left_2s.align == 'center'
+    assert indicator_left_2s.style.size == 72
+    assert indicator_left_2s.alpha == 1.0
+    assert indicator_right_2s.alpha == 0.0
+    assert indicator_left_2s.alpha + indicator_right_2s.alpha == 1.0
     assert hud_gen.current_variables['has_ball'] == 'True'
     assert hud_gen.current_variables['ball_indicator'] == '[img:ball.png]'
     assert hud_gen.current_variables['ball_indicator_2'] == '[img:ball.png]'
 
-    # Midpoint of first toggle (~2167 ms): ball_indicator at peak alpha (~1.0)
+    # Midpoint of first toggle (~2167 ms): both indicators at ~0.5
     elements_2_mid = hud_gen.generate_at(2167)
-    indicator_2_mid = next(
+    ind_left_mid = next(
         (
             el
             for el in elements_2_mid
@@ -3907,18 +3915,31 @@ def test_laserball_ball_indicator_flashing() -> None:
         ),
         None,
     )
-    assert indicator_2_mid is not None
-    assert indicator_2_mid.alpha > 0.99
-    assert not any(
-        el.formatted_text == '{{ ball_indicator_2 }}' for el in elements_2_mid
+    ind_right_mid = next(
+        (
+            el
+            for el in elements_2_mid
+            if el.formatted_text == '{{ ball_indicator_2 }}'
+        ),
+        None,
     )
+    assert ind_left_mid is not None
+    assert ind_right_mid is not None
+    assert round(ind_left_mid.alpha, 2) == 0.50
+    assert round(ind_right_mid.alpha, 2) == 0.50
+    assert round(ind_left_mid.alpha + ind_right_mid.alpha, 6) == 1.0
 
-    # Second toggle cycle (~2334 ms): toggles to ball_indicator_2 (odd cycle 7)
+    # Second toggle cycle (~2334 ms, odd cycle 7): right at ~1.0, left at ~0.0
     elements_c2 = hud_gen.generate_at(2334)
-    assert not any(
-        el.formatted_text == '{{ ball_indicator }}' for el in elements_c2
+    ind_left_c2 = next(
+        (
+            el
+            for el in elements_c2
+            if el.formatted_text == '{{ ball_indicator }}'
+        ),
+        None,
     )
-    indicator_c2 = next(
+    ind_right_c2 = next(
         (
             el
             for el in elements_c2
@@ -3926,12 +3947,23 @@ def test_laserball_ball_indicator_flashing() -> None:
         ),
         None,
     )
-    assert indicator_c2 is not None
-    assert indicator_c2.alpha > 0.0
+    assert ind_left_c2 is not None
+    assert ind_right_c2 is not None
+    assert ind_right_c2.alpha > 0.99
+    assert ind_left_c2.alpha < 0.01
+    assert round(ind_left_c2.alpha + ind_right_c2.alpha, 6) == 1.0
 
-    # Midpoint of second toggle (~2500 ms): ball_indicator_2 at peak alpha
+    # Midpoint of second toggle (~2500 ms): both indicators at 0.5
     elements_c2_mid = hud_gen.generate_at(2500)
-    indicator_c2_mid = next(
+    ind_left_c2_mid = next(
+        (
+            el
+            for el in elements_c2_mid
+            if el.formatted_text == '{{ ball_indicator }}'
+        ),
+        None,
+    )
+    ind_right_c2_mid = next(
         (
             el
             for el in elements_c2_mid
@@ -3939,22 +3971,45 @@ def test_laserball_ball_indicator_flashing() -> None:
         ),
         None,
     )
-    assert indicator_c2_mid is not None
-    assert indicator_c2_mid.alpha > 0.99
+    assert ind_left_c2_mid is not None
+    assert ind_right_c2_mid is not None
+    assert round(ind_left_c2_mid.alpha, 4) == 0.5
+    assert round(ind_right_c2_mid.alpha, 4) == 0.5
+    assert round(ind_left_c2_mid.alpha + ind_right_c2_mid.alpha, 6) == 1.0
 
-    # Third toggle cycle (~2667 ms): toggles back to ball_indicator (even cycle 8)
+    # Third toggle cycle (~2667 ms, even cycle 8): left back at ~1.0, right ~0.0
     elements_c3 = hud_gen.generate_at(2667)
-    assert any(
-        el.formatted_text == '{{ ball_indicator }}' for el in elements_c3
+    ind_left_c3 = next(
+        (
+            el
+            for el in elements_c3
+            if el.formatted_text == '{{ ball_indicator }}'
+        ),
+        None,
     )
-    assert not any(
-        el.formatted_text == '{{ ball_indicator_2 }}' for el in elements_c3
+    ind_right_c3 = next(
+        (
+            el
+            for el in elements_c3
+            if el.formatted_text == '{{ ball_indicator_2 }}'
+        ),
+        None,
     )
+    assert ind_left_c3 is not None
+    assert ind_right_c3 is not None
+    assert ind_left_c3.alpha > 0.99
+    assert ind_right_c3.alpha < 0.01
+    assert round(ind_left_c3.alpha + ind_right_c3.alpha, 6) == 1.0
 
-    # Fourth toggle cycle (time=3000 ms, odd cycle 9: ball_indicator_2)
+    # Fourth toggle cycle (time=3000 ms, odd cycle 9: ball_indicator_2 at 1.0)
     elements_3s = hud_gen.generate_at(3000)
-    assert not any(
-        el.formatted_text == '{{ ball_indicator }}' for el in elements_3s
+    ind_left_3s = next(
+        (
+            el
+            for el in elements_3s
+            if el.formatted_text == '{{ ball_indicator }}'
+        ),
+        None,
     )
     indicator2_3s = next(
         (
@@ -3964,16 +4019,27 @@ def test_laserball_ball_indicator_flashing() -> None:
         ),
         None,
     )
+    assert ind_left_3s is not None
     assert indicator2_3s is not None
     assert indicator2_3s.element_type == 'text'
     assert indicator2_3s.x == 0.65
     assert indicator2_3s.y == 0.025
     assert indicator2_3s.align == 'center'
     assert indicator2_3s.style.size == 72
-    assert indicator2_3s.alpha == 0.0
+    assert ind_left_3s.alpha == 0.0
+    assert indicator2_3s.alpha == 1.0
+    assert round(ind_left_3s.alpha + indicator2_3s.alpha, 6) == 1.0
 
-    # Midpoint of fourth toggle (~3167 ms): ball_indicator_2 at peak alpha
+    # Midpoint of fourth toggle (~3167 ms): both indicators at ~0.5
     elements_3_mid = hud_gen.generate_at(3167)
+    ind_left_3_mid = next(
+        (
+            el
+            for el in elements_3_mid
+            if el.formatted_text == '{{ ball_indicator }}'
+        ),
+        None,
+    )
     indicator2_3_mid = next(
         (
             el
@@ -3982,26 +4048,59 @@ def test_laserball_ball_indicator_flashing() -> None:
         ),
         None,
     )
+    assert ind_left_3_mid is not None
     assert indicator2_3_mid is not None
-    assert indicator2_3_mid.alpha > 0.99
+    assert round(ind_left_3_mid.alpha, 2) == 0.50
+    assert round(indicator2_3_mid.alpha, 2) == 0.50
+    assert round(ind_left_3_mid.alpha + indicator2_3_mid.alpha, 6) == 1.0
 
-    # P1 has ball: time=4000 (even cycle 12: ball_indicator ON)
+    # P1 has ball: time=4000 (even cycle 12: ball_indicator at 1.0)
     elements_4s = hud_gen.generate_at(4000)
-    assert any(
-        el.formatted_text == '{{ ball_indicator }}' for el in elements_4s
+    ind_left_4s = next(
+        (
+            el
+            for el in elements_4s
+            if el.formatted_text == '{{ ball_indicator }}'
+        ),
+        None,
     )
-    assert not any(
-        el.formatted_text == '{{ ball_indicator_2 }}' for el in elements_4s
+    ind_right_4s = next(
+        (
+            el
+            for el in elements_4s
+            if el.formatted_text == '{{ ball_indicator_2 }}'
+        ),
+        None,
     )
+    assert ind_left_4s is not None
+    assert ind_right_4s is not None
+    assert ind_left_4s.alpha == 1.0
+    assert ind_right_4s.alpha == 0.0
+    assert ind_left_4s.alpha + ind_right_4s.alpha == 1.0
 
-    # P1 has ball: time=5000 (odd cycle 15: ball_indicator_2 ON)
+    # P1 has ball: time=5000 (odd cycle 15: ball_indicator_2 at 1.0)
     elements_5s = hud_gen.generate_at(5000)
-    assert not any(
-        el.formatted_text == '{{ ball_indicator }}' for el in elements_5s
+    ind_left_5s = next(
+        (
+            el
+            for el in elements_5s
+            if el.formatted_text == '{{ ball_indicator }}'
+        ),
+        None,
     )
-    assert any(
-        el.formatted_text == '{{ ball_indicator_2 }}' for el in elements_5s
+    ind_right_5s = next(
+        (
+            el
+            for el in elements_5s
+            if el.formatted_text == '{{ ball_indicator_2 }}'
+        ),
+        None,
     )
+    assert ind_left_5s is not None
+    assert ind_right_5s is not None
+    assert ind_left_5s.alpha == 0.0
+    assert ind_right_5s.alpha == 1.0
+    assert ind_left_5s.alpha + ind_right_5s.alpha == 1.0
 
     # After P1 passes ball to P2 (time=8000, focus player P1 has no ball)
     elements_8s = hud_gen.generate_at(8000)
@@ -4022,69 +4121,211 @@ def test_laserball_ball_indicator_configurable_speed() -> None:
     hud_1x = VisualElementGenerator(
         game=game, player_name='RedStriker', config=config_1x
     )
-    # At 2000 ms: ball_indicator starts, alpha 0.0
+    # At 2000 ms: ball_indicator starts at 1.0, ball_indicator_2 at 0.0
     el_2000 = hud_1x.generate_at(2000)
     b_2000 = next(
         (el for el in el_2000 if el.formatted_text == '{{ ball_indicator }}'),
         None,
     )
-    assert b_2000 is not None
-    assert b_2000.alpha == 0.0
-    assert not any(
-        el.formatted_text == '{{ ball_indicator_2 }}' for el in el_2000
+    b2_2000 = next(
+        (
+            el
+            for el in el_2000
+            if el.formatted_text == '{{ ball_indicator_2 }}'
+        ),
+        None,
     )
+    assert b_2000 is not None
+    assert b2_2000 is not None
+    assert b_2000.alpha == 1.0
+    assert b2_2000.alpha == 0.0
+    assert b_2000.alpha + b2_2000.alpha == 1.0
 
-    # At 2500 ms: ball_indicator midpoint, alpha 1.0
+    # At 2500 ms: midpoint, both at 0.5
     el_2500 = hud_1x.generate_at(2500)
     b_2500 = next(
         (el for el in el_2500 if el.formatted_text == '{{ ball_indicator }}'),
         None,
     )
+    b2_2500 = next(
+        (
+            el
+            for el in el_2500
+            if el.formatted_text == '{{ ball_indicator_2 }}'
+        ),
+        None,
+    )
     assert b_2500 is not None
-    assert round(b_2500.alpha, 4) == 1.0
+    assert b2_2500 is not None
+    assert round(b_2500.alpha, 4) == 0.5
+    assert round(b2_2500.alpha, 4) == 0.5
+    assert round(b_2500.alpha + b2_2500.alpha, 6) == 1.0
 
     # At 3000 ms: toggles to ball_indicator_2 (1 second per toggle)
     el_3000 = hud_1x.generate_at(3000)
-    assert not any(
-        el.formatted_text == '{{ ball_indicator }}' for el in el_3000
+    b_3000 = next(
+        (el for el in el_3000 if el.formatted_text == '{{ ball_indicator }}'),
+        None,
     )
     b2_3000 = next(
-        (el for el in el_3000 if el.formatted_text == '{{ ball_indicator_2 }}'),
+        (
+            el
+            for el in el_3000
+            if el.formatted_text == '{{ ball_indicator_2 }}'
+        ),
         None,
     )
+    assert b_3000 is not None
     assert b2_3000 is not None
-    assert b2_3000.alpha == 0.0
+    assert b_3000.alpha == 0.0
+    assert b2_3000.alpha == 1.0
+    assert b_3000.alpha + b2_3000.alpha == 1.0
 
-    # At 3500 ms: ball_indicator_2 midpoint, alpha 1.0
+    # At 3500 ms: odd cycle midpoint, both at 0.5
     el_3500 = hud_1x.generate_at(3500)
-    b2_3500 = next(
-        (el for el in el_3500 if el.formatted_text == '{{ ball_indicator_2 }}'),
+    b_3500 = next(
+        (el for el in el_3500 if el.formatted_text == '{{ ball_indicator }}'),
         None,
     )
+    b2_3500 = next(
+        (
+            el
+            for el in el_3500
+            if el.formatted_text == '{{ ball_indicator_2 }}'
+        ),
+        None,
+    )
+    assert b_3500 is not None
     assert b2_3500 is not None
-    assert round(b2_3500.alpha, 4) == 1.0
+    assert round(b_3500.alpha, 4) == 0.5
+    assert round(b2_3500.alpha, 4) == 0.5
+    assert round(b_3500.alpha + b2_3500.alpha, 6) == 1.0
 
     # Test speed = 6.0 (toggle every 166.67 ms) via top-level ball_indicator_speed
     config_6x = {'ball_indicator_speed': 6.0}
     hud_6x = VisualElementGenerator(
         game=game, player_name='RedStriker', config=config_6x
     )
-    # At 2000 ms: cycle_idx = int(2000 * 6 / 1000) = 12 (even -> ball_indicator)
+    # At 2000 ms: cycle_idx = int(2000 * 6 / 1000) = 12 (ball_indicator at 1.0)
     el_6x_start = hud_6x.generate_at(2000)
-    assert any(
-        el.formatted_text == '{{ ball_indicator }}' for el in el_6x_start
+    b_6x_start = next(
+        (
+            el
+            for el in el_6x_start
+            if el.formatted_text == '{{ ball_indicator }}'
+        ),
+        None,
     )
-    # At 2083 ms: midpoint of first toggle (~83.3 ms in)
+    b2_6x_start = next(
+        (
+            el
+            for el in el_6x_start
+            if el.formatted_text == '{{ ball_indicator_2 }}'
+        ),
+        None,
+    )
+    assert b_6x_start is not None
+    assert b2_6x_start is not None
+    assert b_6x_start.alpha == 1.0
+    assert b2_6x_start.alpha == 0.0
+
+    # At 2083 ms: midpoint of first toggle (~83.3 ms in) -> both at ~0.5
     el_6x_mid = hud_6x.generate_at(2083)
     b_6x_mid = next(
         (el for el in el_6x_mid if el.formatted_text == '{{ ball_indicator }}'),
         None,
     )
+    b2_6x_mid = next(
+        (
+            el
+            for el in el_6x_mid
+            if el.formatted_text == '{{ ball_indicator_2 }}'
+        ),
+        None,
+    )
     assert b_6x_mid is not None
-    assert b_6x_mid.alpha > 0.99
-    # At 2167 ms: cycle_idx = int(2167 * 6 / 1000) = 13 (odd -> ball_indicator_2)
+    assert b2_6x_mid is not None
+    assert round(b_6x_mid.alpha, 2) == 0.50
+    assert round(b2_6x_mid.alpha, 2) == 0.50
+    assert round(b_6x_mid.alpha + b2_6x_mid.alpha, 6) == 1.0
+
+    # At 2167 ms: cycle_idx = int(2167 * 6 / 1000) = 13 (ball_indicator_2 ~1.0)
     el_6x_c2 = hud_6x.generate_at(2167)
-    assert any(el.formatted_text == '{{ ball_indicator_2 }}' for el in el_6x_c2)
+    b_6x_c2 = next(
+        (el for el in el_6x_c2 if el.formatted_text == '{{ ball_indicator }}'),
+        None,
+    )
+    b2_6x_c2 = next(
+        (
+            el
+            for el in el_6x_c2
+            if el.formatted_text == '{{ ball_indicator_2 }}'
+        ),
+        None,
+    )
+    assert b_6x_c2 is not None
+    assert b2_6x_c2 is not None
+    assert b2_6x_c2.alpha > 0.99
+    assert b_6x_c2.alpha < 0.01
+    assert round(b_6x_c2.alpha + b2_6x_c2.alpha, 6) == 1.0
+
+
+def test_laserball_ball_indicator_combined_opacity_and_example() -> None:
+    game = _create_test_laserball_ball_game()
+    config = {'elements': {'ball_indicator': {'speed': 1.0}}}
+    hud_gen = VisualElementGenerator(
+        game=game, player_name='RedStriker', config=config
+    )
+
+    # At 2700 ms: 70% into the even toggle (2000-3000ms interval).
+    # Left indicator should be 0.3, right indicator should be 0.7.
+    elements_2700 = hud_gen.generate_at(2700)
+    ind_left = next(
+        (
+            el
+            for el in elements_2700
+            if el.formatted_text == '{{ ball_indicator }}'
+        ),
+        None,
+    )
+    ind_right = next(
+        (
+            el
+            for el in elements_2700
+            if el.formatted_text == '{{ ball_indicator_2 }}'
+        ),
+        None,
+    )
+    assert ind_left is not None
+    assert ind_right is not None
+    assert round(ind_left.alpha, 4) == 0.3
+    assert round(ind_right.alpha, 4) == 0.7
+    assert round(ind_left.alpha + ind_right.alpha, 6) == 1.0
+
+    # At 2300 ms: 30% into the even toggle.
+    # Left indicator should be 0.7, right indicator should be 0.3.
+    elements_2300 = hud_gen.generate_at(2300)
+    ind_left_2300 = next(
+        (
+            el
+            for el in elements_2300
+            if el.formatted_text == '{{ ball_indicator }}'
+        ),
+        None,
+    )
+    ind_right_2300 = next(
+        (
+            el
+            for el in elements_2300
+            if el.formatted_text == '{{ ball_indicator_2 }}'
+        ),
+        None,
+    )
+    assert ind_left_2300 is not None
+    assert ind_right_2300 is not None
+    assert round(ind_left_2300.alpha, 4) == 0.7
+    assert round(ind_right_2300.alpha, 4) == 0.3
+    assert round(ind_left_2300.alpha + ind_right_2300.alpha, 6) == 1.0
 
     # Test configuring speed via ball_indicator_2 element
     config_b2 = {'elements': {'ball_indicator_2': {'speed': 2.5}}}
