@@ -260,3 +260,56 @@ def test_main_to_output_file(tmp_path: Path) -> None:
     assert out_file.exists()
     content = out_file.read_text(encoding='utf-8')
     assert 'COLOR ANALYSIS REPORT' in content
+
+
+def test_run_analysis_with_export_lut(tmp_path: Path) -> None:
+    video_file = tmp_path / 'test_clip.mp4'
+    _create_synthetic_test_video(video_file)
+    lut_file = tmp_path / 'custom_grade.cube'
+
+    buf = io.StringIO()
+    exit_code = run_analysis(
+        video_path=str(video_file),
+        sample_interval_ms=200,
+        max_frames=5,
+        output_format=AnalysisOutputFormat.TEXT,
+        output_stream=buf,
+        verbose=False,
+        export_lut_path=str(lut_file),
+        lut_size=5,
+    )
+    assert exit_code == 0
+    assert lut_file.exists()
+    content = lut_file.read_text(encoding='utf-8')
+    assert 'LUT_3D_SIZE 5' in content
+    assert 'Exported 3D LUT:' in buf.getvalue()
+
+
+def test_main_with_export_lut(tmp_path: Path) -> None:
+    video_file = tmp_path / 'test_clip.mp4'
+    _create_synthetic_test_video(video_file)
+    lut_file = tmp_path / 'exported.cube'
+
+    with patch.object(
+        sys,
+        'argv',
+        [
+            'color_analysis',
+            str(video_file),
+            '--export_lut',
+            str(lut_file),
+            '--lut_size',
+            '5',
+            '--sample_interval_ms',
+            '200',
+            '--max_frames',
+            '5',
+        ],
+    ):
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+        assert exc_info.value.code == 0
+
+    assert lut_file.exists()
+    content = lut_file.read_text(encoding='utf-8')
+    assert 'LUT_3D_SIZE 5' in content

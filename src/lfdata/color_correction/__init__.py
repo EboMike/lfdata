@@ -29,6 +29,10 @@ from lfdata.color_correction.editor import ColorCorrectionEditorApp
 from lfdata.color_correction.noise_reduction import NoiseReductionSettings
 from lfdata.color_correction.noise_reduction_tab import NoiseReductionTab
 from lfdata.color_correction.reference_video_tab import ReferenceVideoTab
+from lfdata.color_correction.suggested_lut import (
+    create_suggested_lut,
+    save_suggested_lut,
+)
 from lfdata.color_correction.time_range import TimeRange
 from lfdata.color_correction.timeline_widget import TimelineWidget
 from lfdata.color_correction.video_reader import VideoReader
@@ -52,4 +56,6 @@ __all__ = [
     'TimelineWidget',
     'VideoReader',
     'compute_frame_color_column',
+    'create_suggested_lut',
+    'save_suggested_lut',
 ]

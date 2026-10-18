@@ -16,6 +16,11 @@ from __future__ import annotations
 
 import dataclasses
 import enum
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from lfdata.color_correction.lut import Lut3D
 
 
 class CorrectionNeedLevel(str, enum.Enum):
@@ -331,3 +336,33 @@ class ColorAnalysisResult:
         if self.frame_samples:
             res['frame_samples'] = [s.to_dict() for s in self.frame_samples]
         return res
+
+    def to_lut3d(
+        self,
+        lut_size: int = 33,
+        title: str | None = None,
+    ) -> Lut3D:
+        """Builds a Lut3D instance configured with this result's recommendations.
+
+        Args:
+            lut_size: Grid dimension of the 3D LUT (default: 33).
+            title: Optional title string to write into metadata header.
+
+        Returns:
+            Lut3D: Configured 3D LUT with suggested adjustments applied.
+
+        Usage example:
+            lut = result.to_lut3d(lut_size=33)
+        """
+        from lfdata.color_correction.suggested_lut import create_suggested_lut
+
+        lut_title = (
+            title
+            if title is not None
+            else f'Suggested Grade - {Path(self.video_path).stem}'
+        )
+        return create_suggested_lut(
+            recommendations=self.recommendations,
+            lut_size=lut_size,
+            title=lut_title,
+        )

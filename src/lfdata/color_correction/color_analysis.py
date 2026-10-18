@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from pathlib import Path
 from typing import TextIO
 
 from lfdata.color_correction.color_analysis_types import (
@@ -24,6 +25,10 @@ from lfdata.color_correction.color_analyzer import (
     DEFAULT_ANALYSIS_MAX_FRAMES,
     DEFAULT_ANALYSIS_SAMPLE_INTERVAL_MS,
     ColorAnalyzer,
+)
+from lfdata.color_correction.suggested_lut import (
+    DEFAULT_SUGGESTED_LUT_SIZE,
+    save_suggested_lut,
 )
 
 
@@ -86,6 +91,20 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help='File path to write results to. Defaults to standard output.',
     )
     parser.add_argument(
+        '--export_lut',
+        '--lut_out',
+        dest='export_lut',
+        type=str,
+        default=None,
+        help='Output path to write suggested 3D LUT (.cube file).',
+    )
+    parser.add_argument(
+        '--lut_size',
+        type=int,
+        default=DEFAULT_SUGGESTED_LUT_SIZE,
+        help='Grid dimension size of exported 3D LUT (default: 33).',
+    )
+    parser.add_argument(
         '--verbose',
         '-v',
         action='store_true',
@@ -95,13 +114,16 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 
 def format_text_report(
-    result: ColorAnalysisResult, verbose: bool = False
+    result: ColorAnalysisResult,
+    verbose: bool = False,
+    suggested_lut_path: str | None = None,
 ) -> str:
     """Formats the color analysis result into a structured text report.
 
     Args:
         result: The ColorAnalysisResult object to format.
         verbose: If True, appends per-frame luminance breakdown.
+        suggested_lut_path: Optional path where suggested LUT was exported.
 
     Returns:
         str: Formatted human-readable report.
@@ -125,7 +147,9 @@ def format_text_report(
     lines.append(sub_bar)
     _append_temporal_profile(lines=lines, result=result)
     lines.append(sub_bar)
-    _append_recommendations(lines=lines, result=result)
+    _append_recommendations(
+        lines=lines, result=result, suggested_lut_path=suggested_lut_path
+    )
 
     if verbose and result.frame_samples:
         lines.append(sub_bar)
@@ -232,13 +256,16 @@ def _append_temporal_profile(
 
 
 def _append_recommendations(
-    lines: list[str], result: ColorAnalysisResult
+    lines: list[str],
+    result: ColorAnalysisResult,
+    suggested_lut_path: str | None = None,
 ) -> None:
     """Appends color correction recommendations and rationale notes.
 
     Args:
         lines: List of output report strings.
         result: The analysis result data.
+        suggested_lut_path: Optional path where suggested LUT was exported.
     """
     r = result.recommendations
     lines.append('Color Correction Assessment:')
@@ -251,6 +278,8 @@ def _append_recommendations(
     )
     lines.append(f'    Brightness:         {r.recommended_brightness:+.3f}')
     lines.append(f'    Contrast:            {r.recommended_contrast:.3f}')
+    if suggested_lut_path:
+        lines.append(f'    Exported 3D LUT:    {suggested_lut_path}')
 
     lines.append('  Assessment Notes:')
     for note in r.summary_notes:
@@ -299,6 +328,8 @@ def run_analysis(
     output_format: AnalysisOutputFormat,
     output_stream: TextIO,
     verbose: bool = False,
+    export_lut_path: str | None = None,
+    lut_size: int = DEFAULT_SUGGESTED_LUT_SIZE,
 ) -> int:
     """Executes color analysis on a video file and writes formatted output.
 
@@ -309,6 +340,8 @@ def run_analysis(
         output_format: Text or JSON format.
         output_stream: Destination stream for output text.
         verbose: Whether to include verbose per-frame data.
+        export_lut_path: Optional file path to save suggested 3D LUT.
+        lut_size: Dimension size of 3D LUT (default: 33).
 
     Returns:
         int: Exit status code (0 for success, non-zero for error).
@@ -321,6 +354,7 @@ def run_analysis(
             output_format=AnalysisOutputFormat.TEXT,
             output_stream=sys.stdout,
             verbose=False,
+            export_lut_path='grade.cube',
         )
     """
     analyzer = ColorAnalyzer(
@@ -332,11 +366,27 @@ def run_analysis(
         include_frame_samples=verbose,
     )
 
+    if export_lut_path:
+        save_suggested_lut(
+            recommendations=result.recommendations,
+            file_path=export_lut_path,
+            lut_size=lut_size,
+            title=f'Suggested Grade - {Path(video_path).stem}',
+        )
+
     if output_format == AnalysisOutputFormat.JSON:
-        output_stream.write(format_json_report(result=result) + '\n')
+        res_dict = result.to_dict()
+        if export_lut_path:
+            res_dict['suggested_lut_path'] = str(export_lut_path)
+        output_stream.write(json.dumps(res_dict, indent=2) + '\n')
     else:
         output_stream.write(
-            format_text_report(result=result, verbose=verbose) + '\n'
+            format_text_report(
+                result=result,
+                verbose=verbose,
+                suggested_lut_path=export_lut_path,
+            )
+            + '\n'
         )
 
     return 0
@@ -375,6 +425,8 @@ def main() -> None:
                     output_format=output_format,
                     output_stream=out_f,
                     verbose=args.verbose,
+                    export_lut_path=args.export_lut,
+                    lut_size=args.lut_size,
                 )
         else:
             exit_code = run_analysis(
@@ -384,6 +436,8 @@ def main() -> None:
                 output_format=output_format,
                 output_stream=sys.stdout,
                 verbose=args.verbose,
+                export_lut_path=args.export_lut,
+                lut_size=args.lut_size,
             )
         sys.exit(exit_code)
     except (FileNotFoundError, ValueError) as err:
