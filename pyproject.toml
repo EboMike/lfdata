@@ -32,6 +32,8 @@ match-audio = "lfdata.video.audio_matcher:main"
 tune-audio = "lfdata.video.audio_benchmark:main"
 dump-tdf = "lfdata.dump_tdf:main"
 color-correction-editor = "lfdata.color_correction.editor:main"
+color-analysis = "lfdata.color_correction.color_analysis:main"
+color_analysis = "lfdata.color_correction.color_analysis:main"
 
 
 [project.optional-dependencies]

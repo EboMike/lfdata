@@ -10,6 +10,16 @@ Usage example:
     app = ColorCorrectionEditorApp()
 """
 
+from lfdata.color_correction.color_analysis_types import (
+    AnalysisOutputFormat,
+    ColorAnalysisResult,
+    CorrectionNeedLevel,
+    CorrectionRecommendations,
+    FrameLuminanceSample,
+    LuminanceMetrics,
+    TemporalLuminanceMetrics,
+)
+from lfdata.color_correction.color_analyzer import ColorAnalyzer
 from lfdata.color_correction.color_averages_bar import (
     ColorAveragesBar,
     compute_frame_color_column,
@@ -24,12 +34,20 @@ from lfdata.color_correction.timeline_widget import TimelineWidget
 from lfdata.color_correction.video_reader import VideoReader
 
 __all__ = [
+    'AnalysisOutputFormat',
+    'ColorAnalysisResult',
+    'ColorAnalyzer',
     'ColorAveragesBar',
     'ColorCorrectionEditorApp',
     'ColorCorrectionTab',
+    'CorrectionNeedLevel',
+    'CorrectionRecommendations',
+    'FrameLuminanceSample',
+    'LuminanceMetrics',
     'NoiseReductionSettings',
     'NoiseReductionTab',
     'ReferenceVideoTab',
+    'TemporalLuminanceMetrics',
     'TimeRange',
     'TimelineWidget',
     'VideoReader',
