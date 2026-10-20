@@ -398,10 +398,10 @@ def test_recommendations_generation_laser_tag_scenario() -> None:
         metrics=metrics, temporal=temporal
     )
     assert recs.need_level == CorrectionNeedLevel.SEVERE
-    assert recs.recommended_shadow_lift >= 0.50
-    assert recs.recommended_gamma == 1.35
-    assert recs.recommended_highlight_rolloff == 0.50
-    assert recs.recommended_contrast == 1.10
+    assert recs.recommended_shadow_lift >= 0.70
+    assert recs.recommended_gamma >= 1.65
+    assert recs.recommended_highlight_rolloff >= 0.55
+    assert recs.recommended_contrast >= 1.12
     assert len(recs.summary_notes) >= 3
 
 

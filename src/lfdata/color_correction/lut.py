@@ -163,12 +163,33 @@ class Lut3D:
             g = g + self.highlights * 0.3 * (g_c**2)
             b = b + self.highlights * 0.3 * (b_c**2)
 
-        # 5. Gamma power curve (brightens midtones/shadows while pinning 1.0)
+        # 5. Gamma curve with dark-region expansion
+        # Brightens somewhat dark areas significantly (which are otherwise
+        # imperceptible in dark laser tag arena footage) while smoothly
+        # transitioning to pin peak white at 1.0.
         if self.gamma != 1.0 and self.gamma > 0.0:
-            inv_gamma = 1.0 / self.gamma
-            r = np.power(np.clip(r, 0.0, None), inv_gamma)
-            g = np.power(np.clip(g, 0.0, None), inv_gamma)
-            b = np.power(np.clip(b, 0.0, None), inv_gamma)
+            if self.gamma > 1.0:
+                r_c = np.clip(r, 0.0, 1.0)
+                g_c = np.clip(g, 0.0, 1.0)
+                b_c = np.clip(b, 0.0, 1.0)
+                # Boost effective gamma in dark regions where (1 - x)^2 is large
+                r_eff = 1.0 + (self.gamma - 1.0) * (
+                    1.0 + 1.6 * ((1.0 - r_c) ** 2)
+                )
+                g_eff = 1.0 + (self.gamma - 1.0) * (
+                    1.0 + 1.6 * ((1.0 - g_c) ** 2)
+                )
+                b_eff = 1.0 + (self.gamma - 1.0) * (
+                    1.0 + 1.6 * ((1.0 - b_c) ** 2)
+                )
+                r = np.power(r_c, 1.0 / r_eff)
+                g = np.power(g_c, 1.0 / g_eff)
+                b = np.power(b_c, 1.0 / b_eff)
+            else:
+                inv_gamma = 1.0 / self.gamma
+                r = np.power(np.clip(r, 0.0, None), inv_gamma)
+                g = np.power(np.clip(g, 0.0, None), inv_gamma)
+                b = np.power(np.clip(b, 0.0, None), inv_gamma)
 
         # 6. Highlight rolloff / soft clip for bright lights and LEDs
         if self.highlight_rolloff > 0.0:

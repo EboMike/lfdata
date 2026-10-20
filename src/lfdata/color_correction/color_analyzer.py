@@ -490,13 +490,13 @@ class ColorAnalyzer:
             float: Recommended shadow adjustment in range [0.0, 1.0].
         """
         if need == CorrectionNeedLevel.SEVERE:
-            return min(0.75, 0.45 + (metrics.shadow_fraction * 0.30))
+            return min(0.85, 0.60 + (metrics.shadow_fraction * 0.25))
         if need == CorrectionNeedLevel.HIGH:
-            return min(0.55, 0.30 + (metrics.shadow_fraction * 0.25))
+            return min(0.70, 0.45 + (metrics.shadow_fraction * 0.25))
         if need == CorrectionNeedLevel.MODERATE:
-            return min(0.35, 0.15 + (metrics.shadow_fraction * 0.20))
+            return min(0.50, 0.25 + (metrics.shadow_fraction * 0.25))
         if need == CorrectionNeedLevel.LOW:
-            return 0.10
+            return 0.20
         return 0.0
 
     def _calculate_gamma(
@@ -511,11 +511,17 @@ class ColorAnalyzer:
         Returns:
             float: Recommended gamma value (neutral 1.0).
         """
-        if need in (CorrectionNeedLevel.SEVERE, CorrectionNeedLevel.HIGH):
-            if metrics.median_luminance < 0.04:
-                return 1.35
-            return 1.25
+        if need == CorrectionNeedLevel.SEVERE:
+            if metrics.median_luminance < 0.03:
+                return 1.85
+            return 1.70
+        if need == CorrectionNeedLevel.HIGH:
+            if metrics.median_luminance < 0.06:
+                return 1.60
+            return 1.50
         if need == CorrectionNeedLevel.MODERATE:
+            return 1.35
+        if need == CorrectionNeedLevel.LOW:
             return 1.15
         return 1.0
 
@@ -531,12 +537,14 @@ class ColorAnalyzer:
         Returns:
             float: Recommended highlight rolloff in range [0.0, 1.0].
         """
-        if metrics.blown_fraction >= 0.008 or metrics.p99 >= 0.98:
-            return 0.50
-        if metrics.blown_fraction >= 0.002 or metrics.p95 >= 0.85:
-            return 0.35
-        if metrics.highlight_fraction >= 0.04 or metrics.p95 >= 0.70:
-            return 0.20
+        if metrics.blown_fraction >= 0.005 or metrics.p99 >= 0.96:
+            return 0.60
+        if metrics.blown_fraction >= 0.001 or metrics.p95 >= 0.80:
+            return 0.45
+        if metrics.highlight_fraction >= 0.03 or metrics.p95 >= 0.65:
+            return 0.30
+        if metrics.p95 >= 0.50:
+            return 0.15
         return 0.0
 
     def _generate_recommendations(
@@ -566,12 +574,16 @@ class ColorAnalyzer:
             CorrectionNeedLevel.SEVERE,
             CorrectionNeedLevel.HIGH,
         ):
-            brightness = 0.03
+            brightness = 0.04
         else:
             brightness = 0.0
 
-        # Contrast: slight boost to recover punch softened by shadow lifting
-        contrast = 1.10 if shadow_lift >= 0.30 else 1.0
+        # Contrast: boost to recover punch and avoid washed-out look from aggressive lift
+        contrast = (
+            1.15
+            if shadow_lift >= 0.45
+            else (1.08 if shadow_lift >= 0.20 else 1.0)
+        )
 
         notes = self._build_recommendation_notes(
             need_level=need_level,
@@ -615,13 +627,14 @@ class ColorAnalyzer:
         if need_level in (CorrectionNeedLevel.SEVERE, CorrectionNeedLevel.HIGH):
             notes.append(
                 f'Laser tag arena footage is predominantly dark ({shadow_pct:.1f}% '
-                f'shadows, median luminance {median_lum:.3f}). Lifting shadows '
-                'and boosting gamma is necessary to reveal arena features and players.'
+                f'shadows, median luminance {median_lum:.3f}). Aggressively lifting '
+                'shadows and expanding dark-region gamma reveals otherwise '
+                'imperceptible arena features, obstacles, and players.'
             )
         elif need_level == CorrectionNeedLevel.MODERATE:
             notes.append(
                 f'Footage has notable shadow content ({shadow_pct:.1f}% shadows). '
-                'Moderate shadow lifting will improve player and arena visibility.'
+                'Noticeable shadow lifting will improve player and arena visibility.'
             )
         else:
             notes.append(

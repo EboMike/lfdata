@@ -173,3 +173,20 @@ def test_lut3d_generate_visualization_image() -> None:
     vis = lut.generate_visualization_image(width=64, height=32)
     assert isinstance(vis, Image.Image)
     assert vis.size == (64, 32)
+
+
+def test_lut3d_gamma_aggressive_dark_boost() -> None:
+    lut = Lut3D(size=17)
+    lut.gamma = 1.6
+    lut.recompute()
+
+    # Step size is 1.0 / 16 = 0.0625. First non-zero point is at index 1 -> input value 0.0625
+    # In table, R channel for (r=1, g=0, b=0) is at index 3
+    r_dark_out = lut.table[3]
+    # Pure clean power curve would give: 0.0625 ** (1 / 1.6) ~= 0.1768
+    # Enhanced curve boosts somewhat dark areas significantly:
+    assert r_dark_out > 0.25
+    # Black stays 0
+    assert lut.table[0] == 0.0
+    # Peak white (last entry) stays 1.0
+    assert lut.table[-1] == 1.0
