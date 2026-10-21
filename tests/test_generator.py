@@ -4544,3 +4544,451 @@ def test_laserball_player_has_ball_at() -> None:
     assert not hud_gen.player_has_ball_at(6000)
     assert not hud_gen.player_has_ball_at(8000)
 
+
+def test_player_events_zap_resettable() -> None:
+    """Verifies that (Reset) is appended when zapping while resettable."""
+    from unittest.mock import MagicMock
+    from lfdata.model import LFGame, GameEvent, LFRole
+    from lfdata.replay.state import LFReplayPlayerState, LFReplayTeamState
+    from lfdata.model.gametypes.sm5_events import (
+        SM5_EVENT_DAMAGED_OPPONENT,
+        SM5_EVENT_DAMAGED_TEAM,
+    )
+
+    game = LFGame(
+        game_id='test_zap_resettable_game',
+        timestamp=datetime.now(),
+        game_type='SM5',
+    )
+    config = {'show_hit_points_in_events': False}
+    gen = VisualElementGenerator(
+        game=game,
+        player_name='Player1',
+        config=config,
+    )
+    gen.entity_id = 'P1'
+    gen.entity_names = {'P1': 'Player1', 'P2': 'Player2', 'P3': 'Player3'}
+
+    mock_replay = MagicMock()
+    p1_state = LFReplayPlayerState('P1', LFRole.SCOUT, 0)
+    p2_state = LFReplayPlayerState('P2', LFRole.SCOUT, 1)
+    p3_state = LFReplayPlayerState('P3', LFRole.SCOUT, 0)
+    mock_replay.game_state.players = {
+        'P1': p1_state,
+        'P2': p2_state,
+        'P3': p3_state,
+    }
+    t0 = LFReplayTeamState(0, 'Fire', '#ff0000')
+    t1 = LFReplayTeamState(1, 'Earth', '#00ff00')
+    mock_replay.game_state.teams = {0: t0, 1: t1}
+    gen.snapshots = [(0, {}, {}), (0, {}, {})]
+
+    # 1. P1 zaps P2 who is in resettable state
+    p2_state.resettable_starts_at_ms = 1000
+    p2_state.downtime_ends_at_ms = 8000
+    ev1 = GameEvent(
+        game_id='test_zap_resettable_game',
+        time=3000,
+        event_type=SM5_EVENT_DAMAGED_OPPONENT,
+        actor_entity_id='P1',
+        target_entity_id='P2',
+    )
+    gen._process_hud_event_triggers(
+        event=ev1,
+        replay=mock_replay,
+        desc='',
+        resettable_player_ids={'P2'},
+    )
+    assert len(gen.player_event_log) == 1
+    assert gen.player_event_log[0].desc == 'Zapped Player2 (Reset)'
+
+    # 2. P2 zaps P1 while P1 is in resettable state
+    p1_state.resettable_starts_at_ms = 1000
+    p1_state.downtime_ends_at_ms = 8000
+    ev2 = GameEvent(
+        game_id='test_zap_resettable_game',
+        time=4000,
+        event_type=SM5_EVENT_DAMAGED_OPPONENT,
+        actor_entity_id='P2',
+        target_entity_id='P1',
+    )
+    gen._process_hud_event_triggers(
+        event=ev2,
+        replay=mock_replay,
+        desc='',
+        resettable_player_ids={'P1'},
+    )
+    assert len(gen.player_event_log) == 2
+    assert gen.player_event_log[1].desc == 'Zapped by Player2 (Reset)'
+
+    # 3. P1 zaps P2 when P2 is NOT in resettable state
+    ev3 = GameEvent(
+        game_id='test_zap_resettable_game',
+        time=5000,
+        event_type=SM5_EVENT_DAMAGED_OPPONENT,
+        actor_entity_id='P1',
+        target_entity_id='P2',
+    )
+    gen._process_hud_event_triggers(
+        event=ev3,
+        replay=mock_replay,
+        desc='',
+        resettable_player_ids=set(),
+    )
+    assert len(gen.player_event_log) == 3
+    assert gen.player_event_log[2].desc == 'Zapped Player2'
+
+    # 4. Friendly fire: P1 zaps P3 (teammate) who is in resettable state
+    p3_state.resettable_starts_at_ms = 1000
+    p3_state.downtime_ends_at_ms = 8000
+    ev4 = GameEvent(
+        game_id='test_zap_resettable_game',
+        time=6000,
+        event_type=SM5_EVENT_DAMAGED_TEAM,
+        actor_entity_id='P1',
+        target_entity_id='P3',
+    )
+    gen._process_hud_event_triggers(
+        event=ev4,
+        replay=mock_replay,
+        desc='',
+        resettable_player_ids={'P3'},
+    )
+    assert len(gen.player_event_log) == 4
+    assert gen.player_event_log[3].desc == 'FRIENDLY zap Player3 (Reset)'
+
+    # 5. Friendly fire: P3 zaps P1 while P1 is in resettable state
+    ev5 = GameEvent(
+        game_id='test_zap_resettable_game',
+        time=7000,
+        event_type=SM5_EVENT_DAMAGED_TEAM,
+        actor_entity_id='P3',
+        target_entity_id='P1',
+    )
+    gen._process_hud_event_triggers(
+        event=ev5,
+        replay=mock_replay,
+        desc='',
+        resettable_player_ids={'P1'},
+    )
+    assert len(gen.player_event_log) == 5
+    assert gen.player_event_log[4].desc == 'FRIENDLY zap by Player3 (Reset)'
+
+
+def test_player_events_missile_resettable() -> None:
+    """Verifies that (Reset) is appended for resettable missile events."""
+    from unittest.mock import MagicMock
+    from lfdata.model import LFGame, GameEvent, LFRole
+    from lfdata.replay.state import LFReplayPlayerState, LFReplayTeamState
+    from lfdata.model.gametypes.sm5_events import (
+        SM5_EVENT_LOCKING,
+        SM5_EVENT_MISSILE_DOWN_OPPONENT,
+        SM5_EVENT_MISSILE_DOWN_TEAM,
+    )
+
+    game = LFGame(
+        game_id='test_missile_resettable_game',
+        timestamp=datetime.now(),
+        game_type='SM5',
+    )
+    gen = VisualElementGenerator(game=game, player_name='Player1')
+    gen.entity_id = 'P1'
+    gen.entity_names = {'P1': 'Player1', 'P2': 'Player2', 'P3': 'Player3'}
+
+    mock_replay = MagicMock()
+    p1_state = LFReplayPlayerState('P1', LFRole.HEAVY, 0)
+    p2_state = LFReplayPlayerState('P2', LFRole.HEAVY, 1)
+    p3_state = LFReplayPlayerState('P3', LFRole.HEAVY, 0)
+    mock_replay.game_state.players = {
+        'P1': p1_state,
+        'P2': p2_state,
+        'P3': p3_state,
+    }
+    t0 = LFReplayTeamState(0, 'Fire', '#ff0000')
+    t1 = LFReplayTeamState(1, 'Earth', '#00ff00')
+    mock_replay.game_state.teams = {0: t0, 1: t1}
+    gen.snapshots = [(0, {}, {}), (0, {}, {})]
+
+    # 1. P1 locks P2, then missiles P2 while P2 is resettable
+    ev_lock1 = GameEvent(
+        game_id='test_missile_resettable_game',
+        time=1000,
+        event_type=SM5_EVENT_LOCKING,
+        actor_entity_id='P1',
+        target_entity_id='P2',
+    )
+    gen._process_hud_event_triggers(
+        event=ev_lock1,
+        replay=mock_replay,
+        desc='',
+    )
+    assert len(gen.player_event_log) == 1
+    assert gen.player_event_log[0].desc == 'Locking Player2'
+
+    ev_miss1 = GameEvent(
+        game_id='test_missile_resettable_game',
+        time=3000,
+        event_type=SM5_EVENT_MISSILE_DOWN_OPPONENT,
+        actor_entity_id='P1',
+        target_entity_id='P2',
+    )
+    gen._process_hud_event_triggers(
+        event=ev_miss1,
+        replay=mock_replay,
+        desc='',
+        resettable_player_ids={'P2'},
+    )
+    assert len(gen.player_event_log) == 1
+    assert gen.player_event_log[0].follow_up_desc == 'Missiled Player2 (Reset)'
+
+    # 2. P2 locks P1, then missiles P1 while P1 is resettable
+    ev_lock2 = GameEvent(
+        game_id='test_missile_resettable_game',
+        time=4000,
+        event_type=SM5_EVENT_LOCKING,
+        actor_entity_id='P2',
+        target_entity_id='P1',
+    )
+    gen._process_hud_event_triggers(
+        event=ev_lock2,
+        replay=mock_replay,
+        desc='',
+    )
+    assert len(gen.player_event_log) == 2
+    assert gen.player_event_log[1].desc == 'Locked by Player2'
+
+    ev_miss2 = GameEvent(
+        game_id='test_missile_resettable_game',
+        time=6000,
+        event_type=SM5_EVENT_MISSILE_DOWN_OPPONENT,
+        actor_entity_id='P2',
+        target_entity_id='P1',
+    )
+    gen._process_hud_event_triggers(
+        event=ev_miss2,
+        replay=mock_replay,
+        desc='',
+        resettable_player_ids={'P1'},
+    )
+    assert len(gen.player_event_log) == 2
+    assert (
+        gen.player_event_log[1].follow_up_desc == 'Missiled by Player2 (Reset)'
+    )
+
+    # 3. P1 missiles P2 without lock while P2 is resettable
+    ev_miss3 = GameEvent(
+        game_id='test_missile_resettable_game',
+        time=8000,
+        event_type=SM5_EVENT_MISSILE_DOWN_OPPONENT,
+        actor_entity_id='P1',
+        target_entity_id='P2',
+    )
+    gen._process_hud_event_triggers(
+        event=ev_miss3,
+        replay=mock_replay,
+        desc='',
+        resettable_player_ids={'P2'},
+    )
+    assert len(gen.player_event_log) == 3
+    assert gen.player_event_log[2].desc == 'Missiled Player2 (Reset)'
+
+    # 4. Friendly fire missile: P1 missiles P3 while P3 is resettable
+    ev_miss4 = GameEvent(
+        game_id='test_missile_resettable_game',
+        time=9000,
+        event_type=SM5_EVENT_MISSILE_DOWN_TEAM,
+        actor_entity_id='P1',
+        target_entity_id='P3',
+    )
+    gen._process_hud_event_triggers(
+        event=ev_miss4,
+        replay=mock_replay,
+        desc='',
+        resettable_player_ids={'P3'},
+    )
+    assert len(gen.player_event_log) == 4
+    assert gen.player_event_log[3].desc == 'FRIENDLY missile Player3 (Reset)'
+
+
+def test_player_events_reset_bundling() -> None:
+    """Verifies that reset zaps bundle together and separate from normal."""
+    from unittest.mock import MagicMock
+    from lfdata.model import LFGame, GameEvent, LFRole
+    from lfdata.replay.state import LFReplayPlayerState, LFReplayTeamState
+    from lfdata.model.gametypes.sm5_events import SM5_EVENT_DOWNED_OPPONENT
+
+    game = LFGame(
+        game_id='test_bundle_reset_game',
+        timestamp=datetime.now(),
+        game_type='SM5',
+    )
+    config = {'show_hit_points_in_events': False}
+    gen = VisualElementGenerator(
+        game=game,
+        player_name='Player1',
+        config=config,
+    )
+    gen.entity_id = 'P1'
+    gen.entity_names = {'P1': 'Player1', 'P2': 'Player2'}
+
+    mock_replay = MagicMock()
+    p1_state = LFReplayPlayerState('P1', LFRole.SCOUT, 0)
+    p2_state = LFReplayPlayerState('P2', LFRole.SCOUT, 1)
+    mock_replay.game_state.players = {'P1': p1_state, 'P2': p2_state}
+    mock_replay.game_state.teams = {
+        0: LFReplayTeamState(0, 'Fire', '#ff0000'),
+        1: LFReplayTeamState(1, 'Earth', '#00ff00'),
+    }
+    gen.snapshots = [(0, {}, {}), (0, {}, {})]
+
+    # Normal zap (not resettable)
+    ev1 = GameEvent(
+        game_id='test_bundle_reset_game',
+        time=1000,
+        event_type=SM5_EVENT_DOWNED_OPPONENT,
+        actor_entity_id='P1',
+        target_entity_id='P2',
+    )
+    gen._process_hud_event_triggers(
+        event=ev1,
+        replay=mock_replay,
+        desc='',
+        resettable_player_ids=set(),
+    )
+    assert len(gen.player_event_log) == 1
+    assert gen.player_event_log[0].desc == 'Zapped Player2'
+
+    # Reset zap 1 (resettable) - should NOT bundle with normal zap
+    ev2 = GameEvent(
+        game_id='test_bundle_reset_game',
+        time=5000,
+        event_type=SM5_EVENT_DOWNED_OPPONENT,
+        actor_entity_id='P1',
+        target_entity_id='P2',
+    )
+    gen._process_hud_event_triggers(
+        event=ev2,
+        replay=mock_replay,
+        desc='',
+        resettable_player_ids={'P2'},
+    )
+    assert len(gen.player_event_log) == 2
+    assert gen.player_event_log[1].desc == 'Zapped Player2 (Reset)'
+
+    # Reset zap 2 (resettable) - should bundle with reset zap 1
+    ev3 = GameEvent(
+        game_id='test_bundle_reset_game',
+        time=6000,
+        event_type=SM5_EVENT_DOWNED_OPPONENT,
+        actor_entity_id='P1',
+        target_entity_id='P2',
+    )
+    gen._process_hud_event_triggers(
+        event=ev3,
+        replay=mock_replay,
+        desc='',
+        resettable_player_ids={'P2'},
+    )
+    assert len(gen.player_event_log) == 2
+    assert gen.player_event_log[1].zap_count == 2
+    assert (
+        gen.player_event_log[1].updates[-1].desc
+        == 'Zapped x2 Player2 (Reset)'
+    )
+
+
+def test_player_events_resettable_simulation() -> None:
+    """Verifies that full simulation correctly tags reset zaps and missiles."""
+    from lfdata.model import GameEntity, GameTeam, GameEvent, LFGame
+    from lfdata.model.gametypes.sm5_events import (
+        SM5_EVENT_DOWNED_OPPONENT,
+        SM5_EVENT_MISSILE_DOWN_OPPONENT,
+    )
+
+    game = LFGame(
+        game_id='sm5_resettable_sim',
+        game_type='SM5',
+        duration=60000,
+    )
+    game.entities = [
+        GameEntity(
+            game_id='sm5_resettable_sim',
+            entity_id='P1',
+            type='player',
+            desc='Player1',
+            team_index=0,
+            category=1,
+        ),
+        GameEntity(
+            game_id='sm5_resettable_sim',
+            entity_id='P2',
+            type='player',
+            desc='Player2',
+            team_index=1,
+            category=2,
+        ),
+    ]
+    game.teams = [
+        GameTeam(
+            game_id='sm5_resettable_sim',
+            team_index=0,
+            desc='Fire Team',
+            color_enum=11,
+            color_desc='Fire',
+            color_rgb='#FF5000',
+        ),
+        GameTeam(
+            game_id='sm5_resettable_sim',
+            team_index=1,
+            desc='Earth Team',
+            color_enum=12,
+            color_desc='Earth',
+            color_rgb='#00FF00',
+        ),
+    ]
+    # P1 downs P2 at t=1000. Downtime total = 8000ms, safe = 4000ms.
+    # P2 becomes resettable from 5000ms to 9000ms.
+    # At t=6000ms, P1 zaps P2 again (P2 is in resettable state).
+    # P2 downtime resets: safe until 10000ms, resettable 10000ms to 14000ms.
+    # At t=11000ms, P1 missiles P2 (P2 is in resettable state).
+    game.events = [
+        GameEvent(
+            time=1000,
+            event_type=SM5_EVENT_DOWNED_OPPONENT,
+            actor_entity_id='P1',
+            target_entity_id='P2',
+        ),
+        GameEvent(
+            time=6000,
+            event_type=SM5_EVENT_DOWNED_OPPONENT,
+            actor_entity_id='P1',
+            target_entity_id='P2',
+        ),
+        GameEvent(
+            time=11000,
+            event_type=SM5_EVENT_MISSILE_DOWN_OPPONENT,
+            actor_entity_id='P1',
+            target_entity_id='P2',
+        ),
+    ]
+
+    hud_gen = VisualElementGenerator(
+        game=game,
+        player_name='Player1',
+        config={'show_hit_points_in_events': False},
+    )
+
+    assert len(hud_gen.player_event_log) == 3
+    # First zap at 1000ms was against an active player:
+    assert hud_gen.player_event_log[0].desc == 'Zapped Player2'
+    assert hud_gen.player_event_log[0].time == 1000
+
+    # Second zap at 6000ms was against a resettable player:
+    assert hud_gen.player_event_log[1].desc == 'Zapped Player2 (Reset)'
+    assert hud_gen.player_event_log[1].time == 6000
+
+    # Third event at 11000ms was a missile against a resettable player:
+    assert hud_gen.player_event_log[2].desc == 'Missiled Player2 (Reset)'
+    assert hud_gen.player_event_log[2].time == 11000
+
+

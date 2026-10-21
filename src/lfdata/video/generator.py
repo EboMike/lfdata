@@ -453,6 +453,12 @@ class VisualElementGenerator:
             for player in replay.game_state.players.values():
                 player.update_downtime(event.time)
 
+            resettable_player_ids = {
+                pid
+                for pid, p in replay.game_state.players.items()
+                if p.is_resettable(event.time)
+            }
+
             desc = replay._dispatch_event(event)
             replay.game_state.update_team_scores_and_rankings()
 
@@ -505,7 +511,12 @@ class VisualElementGenerator:
                     )
                 )
 
-            self._process_hud_event_triggers(event, replay, desc)
+            self._process_hud_event_triggers(
+                event=event,
+                replay=replay,
+                desc=desc,
+                resettable_player_ids=resettable_player_ids,
+            )
 
             self._track_rank_transitions(
                 replay=replay,
@@ -587,6 +598,7 @@ class VisualElementGenerator:
         event: GameEvent,
         replay: LFReplaySystem,
         desc: str,
+        resettable_player_ids: set[str] | None = None,
     ) -> None:
         """Processes and logs player-specific and important global HUD events.
 
@@ -594,6 +606,8 @@ class VisualElementGenerator:
             event: The parsed GameEvent.
             replay: The active LFReplaySystem.
             desc: The default event description.
+            resettable_player_ids: Optional set of player entity IDs that are
+                currently in resettable state.
         """
         if len(self.snapshots) < 2:
             return
@@ -601,6 +615,24 @@ class VisualElementGenerator:
         prev_players = self.snapshots[-2][1]
         actor_id = event.actor_entity_id
         target_id = event.target_entity_id
+
+        is_target_resettable = False
+        if target_id:
+            if resettable_player_ids is not None:
+                is_target_resettable = target_id in resettable_player_ids
+            else:
+                player_obj = prev_players.get(target_id) or (
+                    replay.game_state.players.get(target_id)
+                    if hasattr(replay, 'game_state')
+                    and hasattr(replay.game_state, 'players')
+                    else None
+                )
+                if player_obj and callable(
+                    getattr(player_obj, 'is_resettable', None)
+                ):
+                    is_target_resettable = bool(
+                        player_obj.is_resettable(event.time) is True
+                    )
 
         actor_name = self.entity_names.get(actor_id or '', actor_id or '')
         target_name = self.entity_names.get(target_id or '', target_id or '')
@@ -647,6 +679,8 @@ class VisualElementGenerator:
                             msg = f'Zapped by {actor_name}'
 
                 if msg and target_state:
+                    if is_target_resettable:
+                        msg = f'{msg} (Reset)'
                     base_msg = msg
                     show_hp = self.config.get('show_hit_points_in_events', True)
                     bundle = self.config.get('bundle_zap_events', True)
@@ -663,6 +697,7 @@ class VisualElementGenerator:
                             )
                             and last_event.actor_id == actor_id
                             and last_event.target_id == target_id
+                            and last_event.base_desc == base_msg
                         ):
                             count = last_event.zap_count + 1
                             last_event.zap_count = count
@@ -834,6 +869,17 @@ class VisualElementGenerator:
                             follow_up_msg = f'Missile misses {target_name}'
                         else:
                             follow_up_msg = f'Missiled base {target_name}'
+
+                if (
+                    follow_up_msg
+                    and is_target_resettable
+                    and et
+                    in (
+                        SM5_EVENT_MISSILE_DOWN_OPPONENT,
+                        SM5_EVENT_MISSILE_DOWN_TEAM,
+                    )
+                ):
+                    follow_up_msg = f'{follow_up_msg} (Reset)'
 
                 if found_lock and follow_up_msg:
                     el_config = self.config.get('elements', {}).get(
