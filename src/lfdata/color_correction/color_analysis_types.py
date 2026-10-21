@@ -248,6 +248,9 @@ class CorrectionRecommendations:
         recommended_brightness: Recommended Lut3D brightness offset.
         recommended_contrast: Recommended Lut3D contrast multiplier.
         summary_notes: List of explanatory observations and rationale.
+        recommended_deep_shadows: Recommended Lut3D deep near-black lift.
+        recommended_black_level: Recommended Lut3D black pedestal lift/cut.
+        recommended_dark_expansion: Recommended Lut3D dark gamma expansion.
     """
 
     need_level: CorrectionNeedLevel
@@ -257,6 +260,9 @@ class CorrectionRecommendations:
     recommended_brightness: float
     recommended_contrast: float
     summary_notes: list[str]
+    recommended_deep_shadows: float = 0.0
+    recommended_black_level: float = 0.0
+    recommended_dark_expansion: float = 1.0
 
     def to_dict(self) -> dict[str, float | str | list[str]]:
         """Serializes recommendations to a dictionary.
@@ -276,6 +282,11 @@ class CorrectionRecommendations:
             ),
             'recommended_brightness': round(self.recommended_brightness, 3),
             'recommended_contrast': round(self.recommended_contrast, 3),
+            'recommended_deep_shadows': round(self.recommended_deep_shadows, 3),
+            'recommended_black_level': round(self.recommended_black_level, 3),
+            'recommended_dark_expansion': round(
+                self.recommended_dark_expansion, 3
+            ),
             'summary_notes': list(self.summary_notes),
         }
 
@@ -342,7 +353,7 @@ class ColorAnalysisResult:
         lut_size: int = 33,
         title: str | None = None,
     ) -> Lut3D:
-        """Builds a Lut3D instance configured with this result's recommendations.
+        """Builds a Lut3D instance configured with recommendations.
 
         Args:
             lut_size: Grid dimension of the 3D LUT (default: 33).

@@ -5,6 +5,7 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
+import pytest
 from PIL import Image
 
 from lfdata.color_correction.lut import Lut3D
@@ -17,8 +18,11 @@ def test_lut3d_default_initialization() -> None:
     assert lut.brightness == 0.0
     assert lut.contrast == 1.0
     assert lut.shadows == 0.0
+    assert lut.deep_shadows == 0.0
+    assert lut.black_level == 0.0
     assert lut.highlights == 0.0
     assert lut.gamma == 1.0
+    assert lut.dark_expansion == 1.0
     assert lut.highlight_rolloff == 0.0
     assert lut.saturation == 1.0
     assert lut.temperature == 0.0
@@ -32,8 +36,11 @@ def test_lut3d_reset_to_identity() -> None:
     lut.brightness = 0.25
     lut.contrast = 1.4
     lut.shadows = 0.3
+    lut.deep_shadows = 0.4
+    lut.black_level = 0.1
     lut.highlights = -0.2
     lut.gamma = 1.5
+    lut.dark_expansion = 1.5
     lut.highlight_rolloff = 0.4
     lut.saturation = 0.8
     lut.temperature = -0.3
@@ -44,8 +51,11 @@ def test_lut3d_reset_to_identity() -> None:
     assert lut.brightness == 0.0
     assert lut.contrast == 1.0
     assert lut.shadows == 0.0
+    assert lut.deep_shadows == 0.0
+    assert lut.black_level == 0.0
     assert lut.highlights == 0.0
     assert lut.gamma == 1.0
+    assert lut.dark_expansion == 1.0
     assert lut.highlight_rolloff == 0.0
     assert lut.saturation == 1.0
     assert lut.temperature == 0.0
@@ -56,12 +66,18 @@ def test_lut3d_reset_to_identity() -> None:
 def test_lut3d_reset_adjustments() -> None:
     lut = Lut3D(size=3)
     lut.shadows = 0.4
+    lut.deep_shadows = 0.3
+    lut.black_level = 0.1
+    lut.dark_expansion = 1.8
     lut.gamma = 1.8
     lut.recompute()
     assert lut.table != lut.base_table
 
     lut.reset_adjustments()
     assert lut.shadows == 0.0
+    assert lut.deep_shadows == 0.0
+    assert lut.black_level == 0.0
+    assert lut.dark_expansion == 1.0
     assert lut.gamma == 1.0
     assert lut.table == lut.base_table
 
@@ -180,7 +196,8 @@ def test_lut3d_gamma_aggressive_dark_boost() -> None:
     lut.gamma = 1.6
     lut.recompute()
 
-    # Step size is 1.0 / 16 = 0.0625. First non-zero point is at index 1 -> input value 0.0625
+    # Step size is 1.0 / 16 = 0.0625.
+    # First non-zero point is at index 1 -> input value 0.0625
     # In table, R channel for (r=1, g=0, b=0) is at index 3
     r_dark_out = lut.table[3]
     # Pure clean power curve would give: 0.0625 ** (1 / 1.6) ~= 0.1768
@@ -190,3 +207,45 @@ def test_lut3d_gamma_aggressive_dark_boost() -> None:
     assert lut.table[0] == 0.0
     # Peak white (last entry) stays 1.0
     assert lut.table[-1] == 1.0
+
+
+def test_lut3d_deep_shadows_and_black_level() -> None:
+    lut = Lut3D(size=17)
+    # 1. Black level lifts the zero point
+    lut.black_level = 0.2
+    lut.recompute()
+    assert pytest.approx(0.2 * 0.25, rel=1e-5) == float(lut.table[0])
+
+    # 2. Deep shadows peaks in the near-black region
+    lut_ds = Lut3D(size=17)
+    lut_ds.deep_shadows = 0.5
+    lut_ds.recompute()
+    # At pure black (index 0), deep shadows boost is 0
+    assert lut_ds.table[0] == 0.0
+    # At r=0.0625, 0.125, etc., deep shadows boost is significant
+    assert lut_ds.table[3] > 0.0625
+    # Near highlight (index 15 -> r=0.9375), deep shadows boost is negligible
+    idx_high = 15 * 3
+    assert lut_ds.table[idx_high] - 0.9375 < 0.01
+
+
+def test_lut3d_dark_expansion_effect() -> None:
+    lut_std = Lut3D(size=17)
+    lut_std.gamma = 1.5
+    lut_std.dark_expansion = 1.0
+    lut_std.recompute()
+
+    lut_exp = Lut3D(size=17)
+    lut_exp.gamma = 1.5
+    lut_exp.dark_expansion = 2.0
+    lut_exp.recompute()
+
+    # With higher dark expansion, dark tones should be brighter
+    assert lut_exp.table[3] > lut_std.table[3]
+    # Pure black stays 0 for both
+    assert lut_std.table[0] == 0.0
+    assert lut_exp.table[0] == 0.0
+    # Peak white stays 1.0
+    assert lut_std.table[-1] == 1.0
+    assert lut_exp.table[-1] == 1.0
+

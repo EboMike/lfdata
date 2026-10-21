@@ -55,7 +55,12 @@ def create_suggested_lut(
     lut = Lut3D(size=lut_size)
     lut.title = title
     lut.shadows = recommendations.recommended_shadow_lift
+    lut.deep_shadows = getattr(recommendations, 'recommended_deep_shadows', 0.0)
+    lut.black_level = getattr(recommendations, 'recommended_black_level', 0.0)
     lut.gamma = recommendations.recommended_gamma
+    lut.dark_expansion = getattr(
+        recommendations, 'recommended_dark_expansion', 1.0
+    )
     lut.highlight_rolloff = recommendations.recommended_highlight_rolloff
     lut.brightness = recommendations.recommended_brightness
     lut.contrast = recommendations.recommended_contrast

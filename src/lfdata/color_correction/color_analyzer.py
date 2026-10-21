@@ -585,6 +585,29 @@ class ColorAnalyzer:
             else (1.08 if shadow_lift >= 0.20 else 1.0)
         )
 
+        if need_level == CorrectionNeedLevel.SEVERE:
+            deep_shadows = (
+                0.35 if metrics.deep_shadow_fraction >= 0.40 else 0.20
+            )
+            black_level = 0.05 if metrics.p10 < 0.03 else 0.0
+            dark_expansion = 1.4
+        elif need_level == CorrectionNeedLevel.HIGH:
+            deep_shadows = (
+                0.20 if metrics.deep_shadow_fraction >= 0.30 else 0.10
+            )
+            black_level = 0.02 if metrics.p10 < 0.02 else 0.0
+            dark_expansion = 1.2
+        elif need_level == CorrectionNeedLevel.MODERATE:
+            deep_shadows = (
+                0.10 if metrics.deep_shadow_fraction >= 0.30 else 0.0
+            )
+            black_level = 0.0
+            dark_expansion = 1.0
+        else:
+            deep_shadows = 0.0
+            black_level = 0.0
+            dark_expansion = 1.0
+
         notes = self._build_recommendation_notes(
             need_level=need_level,
             metrics=metrics,
@@ -600,6 +623,9 @@ class ColorAnalyzer:
             recommended_brightness=brightness,
             recommended_contrast=contrast,
             summary_notes=notes,
+            recommended_deep_shadows=deep_shadows,
+            recommended_black_level=black_level,
+            recommended_dark_expansion=dark_expansion,
         )
 
     def _build_recommendation_notes(

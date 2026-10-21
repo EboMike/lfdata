@@ -66,16 +66,25 @@ video strung together.
 On the top, this tab has a visualization of the current LUT. The LUT is derived from the contents of a
 `.cube` file. If none was loaded, it is a default LUT that does not modify the image in any way.
 
-Below are controls to modify the LUT, together by clicking on the LUT panel itself.
+Below are controls to modify the LUT, together by clicking on the LUT panel
+itself. A button ("Auto Detect") triggers the automatic color correction
+detection from `ColorAnalyzer` in a background worker thread and applies the
+suggested parameters directly to the active LUT and controls.
+
 To address laser tag GoPro footage that is dark with bright lights, the controls
 include:
 * **Brightness & Contrast**: Global offset and mid-point contrast.
-* **Shadows**: Lifts dark tones while tapering off towards highlights to reveal
-  arena details without blowing out lights.
-* **Highlights**: Adjusts bright highlights to recover detail or tone down intense
-  reflections.
+* **Black Level**: Lifts or cuts the black pedestal floor ($1 - x$), bringing
+  hidden details out of pure pitch black without washing out highlights.
+* **Deep Shadows**: Concentrated lift on near-black shadow tones (peaking in the
+  ~17% luminance range) to boost arena walls, floor obstacles, and dark suits.
+* **Shadows**: Lifts mid-shadow tones while tapering off towards highlights.
+* **Highlights**: Adjusts bright highlights to recover detail or tone down
+  intense reflections.
 * **Gamma**: Midtone gamma power curve ($v^{1/\gamma}$) boosting dark and
   middle tones while pinning peak white at 1.0.
+* **Dark Expansion**: Controls the curvature and intensity of the dark-region
+  gamma boost to brighten dark areas more aggressively.
 * **Light Rolloff**: Soft shoulder compression ($C^1$ continuous $\tanh$ knee)
   preventing bright vest LEDs, laser phasers, and base targets from harshly
   clipping.

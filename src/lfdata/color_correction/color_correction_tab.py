@@ -27,6 +27,8 @@ from typing import Callable
 
 from PIL import Image, ImageTk
 
+from lfdata.color_correction.color_analysis_types import ColorAnalysisResult
+from lfdata.color_correction.color_analyzer import ColorAnalyzer
 from lfdata.color_correction.lut import Lut3D
 from lfdata.color_correction.lut_panel import LutPanel
 from lfdata.color_correction.reference_video import ReferenceVideo
@@ -48,12 +50,16 @@ class ColorCorrectionTab(ttk.Frame):
         scale_brightness: Slider for overall brightness offset.
         scale_contrast: Slider for contrast adjustment.
         scale_shadows: Slider for boosting or reducing dark shadow tones.
+        scale_deep_shadows: Slider for deep near-black shadow tone boost.
+        scale_black_level: Slider for black pedestal floor lift/cut.
         scale_highlights: Slider for controlling highlight overexposure.
         scale_gamma: Slider for midtone gamma curve adjustment.
+        scale_dark_expansion: Slider for dark-region gamma expansion curvature.
         scale_highlight_rolloff: Slider for soft rolloff on bright lights.
         scale_saturation: Slider for color saturation.
         scale_temperature: Slider for warm/cool color temperature.
         scale_tint: Slider for green/magenta color tint.
+        btn_auto_detect: Button triggering automatic color analysis.
         btn_play_pause: Button toggling looping reference video playback.
         scale_scrub: Slider for scrubbing along composite reference duration.
         lbl_playback_time: Label showing current and total reference timestamp.
@@ -83,6 +89,12 @@ class ColorCorrectionTab(ttk.Frame):
         self.is_playing: bool = False
         self.current_time_ms: int = 0
         self._lut_file_path: Path | None = None
+        self.video_path: Path | None = None
+
+        self.btn_auto_detect: ttk.Button | None = None
+        self.scale_deep_shadows: ttk.Scale | None = None
+        self.scale_black_level: ttk.Scale | None = None
+        self.scale_dark_expansion: ttk.Scale | None = None
 
         self._cached_source_frame: Image.Image | None = None
         self._cached_source_time_ms: int | None = None
@@ -153,6 +165,13 @@ class ColorCorrectionTab(ttk.Frame):
         )
         self.btn_load_cube.pack(side='right', padx=3)
 
+        self.btn_auto_detect = ttk.Button(
+            header_row,
+            text='Auto Detect',
+            command=self._on_auto_detect_click,
+        )
+        self.btn_auto_detect.pack(side='right', padx=3)
+
         panel_container = ttk.Frame(top_frame)
         panel_container.pack(fill='x', padx=6, pady=(2, 6))
 
@@ -221,9 +240,29 @@ class ColorCorrectionTab(ttk.Frame):
             init_val=0.0,
             callback=self._on_shadows_changed,
         )
-        self.scale_highlights = self._add_slider_row(
+        self.scale_deep_shadows = self._add_slider_row(
             parent=slider_grid,
             row=1,
+            col=1,
+            label='Deep Shadows:',
+            min_val=-100.0,
+            max_val=100.0,
+            init_val=0.0,
+            callback=self._on_deep_shadows_changed,
+        )
+        self.scale_black_level = self._add_slider_row(
+            parent=slider_grid,
+            row=2,
+            col=0,
+            label='Black Level:',
+            min_val=-100.0,
+            max_val=100.0,
+            init_val=0.0,
+            callback=self._on_black_level_changed,
+        )
+        self.scale_highlights = self._add_slider_row(
+            parent=slider_grid,
+            row=2,
             col=1,
             label='Highlights:',
             min_val=-100.0,
@@ -233,7 +272,7 @@ class ColorCorrectionTab(ttk.Frame):
         )
         self.scale_gamma = self._add_slider_row(
             parent=slider_grid,
-            row=2,
+            row=3,
             col=0,
             label='Gamma:',
             min_val=-100.0,
@@ -241,10 +280,20 @@ class ColorCorrectionTab(ttk.Frame):
             init_val=0.0,
             callback=self._on_gamma_changed,
         )
+        self.scale_dark_expansion = self._add_slider_row(
+            parent=slider_grid,
+            row=3,
+            col=1,
+            label='Dark Expansion:',
+            min_val=0.0,
+            max_val=300.0,
+            init_val=100.0,
+            callback=self._on_dark_expansion_changed,
+        )
         self.scale_highlight_rolloff = self._add_slider_row(
             parent=slider_grid,
-            row=2,
-            col=1,
+            row=4,
+            col=0,
             label='Light Rolloff:',
             min_val=0.0,
             max_val=100.0,
@@ -253,8 +302,8 @@ class ColorCorrectionTab(ttk.Frame):
         )
         self.scale_saturation = self._add_slider_row(
             parent=slider_grid,
-            row=3,
-            col=0,
+            row=4,
+            col=1,
             label='Saturation:',
             min_val=-100.0,
             max_val=100.0,
@@ -263,8 +312,8 @@ class ColorCorrectionTab(ttk.Frame):
         )
         self.scale_temperature = self._add_slider_row(
             parent=slider_grid,
-            row=3,
-            col=1,
+            row=5,
+            col=0,
             label='Temperature:',
             min_val=-100.0,
             max_val=100.0,
@@ -273,8 +322,8 @@ class ColorCorrectionTab(ttk.Frame):
         )
         self.scale_tint = self._add_slider_row(
             parent=slider_grid,
-            row=4,
-            col=0,
+            row=5,
+            col=1,
             label='Tint:',
             min_val=-100.0,
             max_val=100.0,
@@ -442,6 +491,12 @@ class ColorCorrectionTab(ttk.Frame):
         else:
             active_reader = video_reader
 
+        self.video_path = (
+            Path(video_reader.video_path)
+            if (video_reader and getattr(video_reader, 'video_path', None))
+            else None
+        )
+
         self.reference_video = ReferenceVideo(
             video_reader=active_reader,
             ranges=ranges,
@@ -601,6 +656,36 @@ class ColorCorrectionTab(ttk.Frame):
         self.lut.shadows = val
         self._apply_lut_modifications()
 
+    def _on_deep_shadows_changed(self, value_str: str) -> None:
+        """Updates LUT deep near-black shadow boost parameter.
+
+        Args:
+            value_str: Scale value string between -100.0 and 100.0.
+        """
+        val = float(value_str) / 100.0
+        self.lut.deep_shadows = val
+        self._apply_lut_modifications()
+
+    def _on_black_level_changed(self, value_str: str) -> None:
+        """Updates LUT black pedestal floor lift/cut parameter.
+
+        Args:
+            value_str: Scale value string between -100.0 and 100.0.
+        """
+        val = float(value_str) / 100.0
+        self.lut.black_level = val
+        self._apply_lut_modifications()
+
+    def _on_dark_expansion_changed(self, value_str: str) -> None:
+        """Updates LUT dark-region gamma expansion curvature parameter.
+
+        Args:
+            value_str: Scale value string between 0.0 and 300.0.
+        """
+        val = float(value_str) / 100.0
+        self.lut.dark_expansion = val
+        self._apply_lut_modifications()
+
     def _on_highlights_changed(self, value_str: str) -> None:
         """Updates LUT highlight adjustment parameter.
 
@@ -745,7 +830,7 @@ class ColorCorrectionTab(ttk.Frame):
             )
 
     def _on_reset_lut_click(self) -> None:
-        """Resets the active LUT to identity and resets all slider adjustments."""
+        """Resets active LUT to identity and resets slider adjustments."""
         self.lut.reset_to_identity()
         self._lut_file_path = None
         try:
@@ -760,22 +845,106 @@ class ColorCorrectionTab(ttk.Frame):
         self._request_lut_reapply()
 
     def _sync_sliders_from_lut(self) -> None:
-        """Updates slider positions to reflect current Lut3D parameter values."""
+        """Updates slider positions to reflect current Lut3D parameters."""
         try:
             self.scale_brightness.set(self.lut.brightness * 100.0)
             self.scale_contrast.set((self.lut.contrast - 1.0) * 100.0)
             self.scale_shadows.set(self.lut.shadows * 100.0)
+            self.scale_deep_shadows.set(self.lut.deep_shadows * 100.0)
+            self.scale_black_level.set(self.lut.black_level * 100.0)
             self.scale_highlights.set(self.lut.highlights * 100.0)
             gamma_val = (
                 50.0 * math.log2(self.lut.gamma) if self.lut.gamma > 0 else 0.0
             )
             self.scale_gamma.set(gamma_val)
+            self.scale_dark_expansion.set(self.lut.dark_expansion * 100.0)
             self.scale_highlight_rolloff.set(self.lut.highlight_rolloff * 100.0)
             self.scale_saturation.set((self.lut.saturation - 1.0) * 100.0)
             self.scale_temperature.set(self.lut.temperature * 100.0)
             self.scale_tint.set(self.lut.tint * 100.0)
         except Exception:
             pass
+
+    def _on_auto_detect_click(self) -> None:
+        """Runs color analysis on video and applies recommendations."""
+        video_path = self.video_path
+        if video_path is None or not video_path.exists():
+            messagebox.showwarning(
+                'Auto Detect',
+                'No reference video loaded to analyze. Please load a reference '
+                'video in the first tab.',
+            )
+            return
+
+        try:
+            self.btn_auto_detect.config(state='disabled')
+            self.lbl_lut_status.config(
+                text='Analyzing video with ColorAnalyzer...'
+            )
+        except Exception:
+            pass
+
+        def run_analysis() -> None:
+            try:
+                analyzer = ColorAnalyzer()
+                result = analyzer.analyze(video_path=video_path)
+                self.after(0, lambda: self._apply_analysis_result(result))
+            except Exception as exc:
+                self.after(0, lambda: self._on_auto_detect_failed(str(exc)))
+
+        threading.Thread(target=run_analysis, daemon=True).start()
+
+    def _apply_analysis_result(self, result: ColorAnalysisResult) -> None:
+        """Applies automatic color analysis recommendations to active LUT.
+
+        Args:
+            result: ColorAnalysisResult containing correction recommendations.
+        """
+        try:
+            self.btn_auto_detect.config(state='normal')
+        except Exception:
+            pass
+        recs = result.recommendations
+
+        self.lut.reset_adjustments()
+
+        self.lut.shadows = recs.recommended_shadow_lift
+        self.lut.deep_shadows = getattr(recs, 'recommended_deep_shadows', 0.0)
+        self.lut.black_level = getattr(recs, 'recommended_black_level', 0.0)
+        self.lut.gamma = recs.recommended_gamma
+        self.lut.dark_expansion = getattr(
+            recs, 'recommended_dark_expansion', 1.0
+        )
+        self.lut.highlight_rolloff = recs.recommended_highlight_rolloff
+        self.lut.brightness = recs.recommended_brightness
+        self.lut.contrast = recs.recommended_contrast
+
+        self.lut.recompute()
+        self._sync_sliders_from_lut()
+
+        need_str = recs.need_level.value.capitalize()
+        try:
+            self.lbl_lut_status.config(text=f'LUT: Auto-detected ({need_str})')
+            self.lut_panel.update_display()
+        except Exception:
+            pass
+        self._request_lut_reapply()
+
+    def _on_auto_detect_failed(self, error_msg: str) -> None:
+        """Handles background analysis failure by notifying user.
+
+        Args:
+            error_msg: Error message string.
+        """
+        try:
+            self.btn_auto_detect.config(state='normal')
+            self.lbl_lut_status.config(text='Analysis failed')
+        except Exception:
+            pass
+        messagebox.showerror(
+            'Auto Detect Failed',
+            f'Automatic color correction detection failed:\n{error_msg}',
+        )
 
     def _request_frame_at(self, composite_time_ms: int) -> None:
         """Queues a frame extraction request for the background worker.
@@ -826,7 +995,7 @@ class ColorCorrectionTab(ttk.Frame):
 
         Args:
             target_time_ms: Target composite timestamp, or None if re-applying.
-            reapply_lut: True if only LUT changed and cached frame should be used.
+            reapply_lut: True if only LUT changed and cache should be used.
         """
         raw_frame: Image.Image | None = None
 
@@ -864,7 +1033,7 @@ class ColorCorrectionTab(ttk.Frame):
         orig_img: Image.Image,
         proc_img: Image.Image,
     ) -> None:
-        """Updates preview labels with rendered original and LUT-processed images.
+        """Updates preview labels with original and LUT-processed images.
 
         Args:
             orig_img: Unprocessed original preview image.

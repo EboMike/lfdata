@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+import pytest
 from PIL import Image
 
 from lfdata.color_correction.color_correction_tab import ColorCorrectionTab
@@ -89,6 +90,7 @@ def test_color_correction_tab_init() -> None:
     tab = create_mocked_tab()
     try:
         assert tab.lbl_lut_status is not None
+        assert tab.btn_auto_detect is not None
         assert tab.btn_load_cube is not None
         assert tab.btn_export_cube is not None
         assert tab.btn_reset_lut is not None
@@ -96,8 +98,11 @@ def test_color_correction_tab_init() -> None:
         assert tab.scale_brightness is not None
         assert tab.scale_contrast is not None
         assert tab.scale_shadows is not None
+        assert tab.scale_deep_shadows is not None
+        assert tab.scale_black_level is not None
         assert tab.scale_highlights is not None
         assert tab.scale_gamma is not None
+        assert tab.scale_dark_expansion is not None
         assert tab.scale_highlight_rolloff is not None
         assert tab.scale_saturation is not None
         assert tab.scale_temperature is not None
@@ -123,11 +128,20 @@ def test_color_correction_tab_slider_adjustments() -> None:
         tab._on_shadows_changed('35.0')
         assert round(tab.lut.shadows, 2) == 0.35
 
+        tab._on_deep_shadows_changed('45.0')
+        assert round(tab.lut.deep_shadows, 2) == 0.45
+
+        tab._on_black_level_changed('15.0')
+        assert round(tab.lut.black_level, 2) == 0.15
+
         tab._on_highlights_changed('-25.0')
         assert round(tab.lut.highlights, 2) == -0.25
 
         tab._on_gamma_changed('50.0')
         assert round(tab.lut.gamma, 2) == 2.0
+
+        tab._on_dark_expansion_changed('150.0')
+        assert round(tab.lut.dark_expansion, 2) == 1.5
 
         tab._on_highlight_rolloff_changed('70.0')
         assert round(tab.lut.highlight_rolloff, 2) == 0.7
@@ -160,8 +174,11 @@ def test_color_correction_tab_reset() -> None:
         tab.lut.brightness = 0.5
         tab.lut.contrast = 1.8
         tab.lut.shadows = 0.4
+        tab.lut.deep_shadows = 0.3
+        tab.lut.black_level = 0.1
         tab.lut.highlights = -0.3
         tab.lut.gamma = 2.0
+        tab.lut.dark_expansion = 1.6
         tab.lut.highlight_rolloff = 0.8
         tab.lut.recompute()
 
@@ -169,8 +186,11 @@ def test_color_correction_tab_reset() -> None:
         assert tab.lut.brightness == 0.0
         assert tab.lut.contrast == 1.0
         assert tab.lut.shadows == 0.0
+        assert tab.lut.deep_shadows == 0.0
+        assert tab.lut.black_level == 0.0
         assert tab.lut.highlights == 0.0
         assert tab.lut.gamma == 1.0
+        assert tab.lut.dark_expansion == 1.0
         assert tab.lut.highlight_rolloff == 0.0
         assert 'Identity' in tab.lbl_lut_status.text
     finally:
@@ -294,3 +314,104 @@ def test_color_correction_tab_worker_task_processing() -> None:
         assert tab._cached_source_frame is fake_frame
     finally:
         tab.close()
+
+
+def test_color_correction_tab_auto_detect() -> None:
+    from lfdata.color_correction.color_analysis_types import (
+        ColorAnalysisResult,
+        CorrectionNeedLevel,
+        CorrectionRecommendations,
+        LuminanceMetrics,
+        TemporalLuminanceMetrics,
+    )
+
+    tab = create_mocked_tab()
+    try:
+        # 1. Test clicking auto detect without a video loaded shows warning
+        with patch('tkinter.messagebox.showwarning') as mock_warn:
+            tab.video_path = None
+            tab._on_auto_detect_click()
+            mock_warn.assert_called_once()
+
+        # 2. Test applying analysis results
+        metrics = LuminanceMetrics(
+            mean_luminance=0.08,
+            median_luminance=0.06,
+            p10=0.01,
+            p25=0.03,
+            p75=0.12,
+            p90=0.25,
+            p95=0.70,
+            p99=0.98,
+            min_luminance=0.0,
+            max_luminance=1.0,
+            std_luminance=0.12,
+            deep_shadow_fraction=0.45,
+            shadow_fraction=0.78,
+            midtone_fraction=0.20,
+            highlight_fraction=0.02,
+            blown_fraction=0.01,
+            dynamic_range=0.69,
+        )
+        temp_metrics = TemporalLuminanceMetrics(
+            frames_analyzed=10,
+            mean_frame_mean=0.08,
+            std_frame_mean=0.01,
+            min_frame_mean=0.06,
+            max_frame_mean=0.10,
+            temporal_variation=0.04,
+            is_temporally_stable=True,
+        )
+        recs = CorrectionRecommendations(
+            need_level=CorrectionNeedLevel.SEVERE,
+            recommended_shadow_lift=0.55,
+            recommended_gamma=1.8,
+            recommended_highlight_rolloff=0.6,
+            recommended_brightness=0.04,
+            recommended_contrast=1.15,
+            summary_notes=['Severe arena shadows'],
+            recommended_deep_shadows=0.35,
+            recommended_black_level=0.05,
+            recommended_dark_expansion=1.4,
+        )
+        result = ColorAnalysisResult(
+            video_path='test_arena.mp4',
+            duration_ms=60000,
+            fps=30.0,
+            frame_count=1800,
+            width=1920,
+            height=1080,
+            sample_interval_ms=2000,
+            global_metrics=metrics,
+            temporal_metrics=temp_metrics,
+            recommendations=recs,
+        )
+
+        tab._apply_analysis_result(result)
+        assert tab.lut.shadows == 0.55
+        assert tab.lut.deep_shadows == 0.35
+        assert tab.lut.black_level == 0.05
+        assert tab.lut.gamma == 1.8
+        assert tab.lut.dark_expansion == 1.4
+        assert tab.lut.highlight_rolloff == 0.6
+        assert tab.lut.brightness == 0.04
+        assert tab.lut.contrast == 1.15
+        assert 'Auto-detected (Severe)' in tab.lbl_lut_status.text
+
+        # Verify slider positions
+        assert tab.scale_shadows.get() == pytest.approx(55.0)
+        assert tab.scale_deep_shadows.get() == pytest.approx(35.0)
+        assert tab.scale_black_level.get() == pytest.approx(5.0)
+        assert tab.scale_dark_expansion.get() == pytest.approx(140.0)
+        assert tab.scale_highlight_rolloff.get() == pytest.approx(60.0)
+        assert tab.scale_brightness.get() == pytest.approx(4.0)
+        assert tab.scale_contrast.get() == pytest.approx(15.0)
+
+        # 3. Test failure handling
+        with patch('tkinter.messagebox.showerror') as mock_err:
+            tab._on_auto_detect_failed('Test error')
+            assert 'failed' in tab.lbl_lut_status.text
+            mock_err.assert_called_once()
+    finally:
+        tab.close()
+

@@ -34,8 +34,11 @@ class Lut3D:
         brightness: Brightness offset parameter in range [-1.0, 1.0].
         contrast: Contrast multiplier parameter in range [0.0, 2.0].
         shadows: Shadow tone boost/cut parameter in range [-1.0, 1.0].
+        deep_shadows: Deep near-black shadow boost in range [-1.0, 1.0].
+        black_level: Black pedestal floor lift/cut in range [-1.0, 1.0].
         highlights: Highlight adjustment parameter in range [-1.0, 1.0].
         gamma: Midtone gamma power curve parameter (default 1.0).
+        dark_expansion: Dark-region gamma expansion curvature (default 1.0).
         highlight_rolloff: Highlight rolloff for bright lights [0.0, 1.0].
         saturation: Saturation multiplier parameter in range [0.0, 2.0].
         temperature: Warm/cool color temperature bias in range [-1.0, 1.0].
@@ -55,8 +58,11 @@ class Lut3D:
         self.brightness: float = 0.0
         self.contrast: float = 1.0
         self.shadows: float = 0.0
+        self.deep_shadows: float = 0.0
+        self.black_level: float = 0.0
         self.highlights: float = 0.0
         self.gamma: float = 1.0
+        self.dark_expansion: float = 1.0
         self.highlight_rolloff: float = 0.0
         self.saturation: float = 1.0
         self.temperature: float = 0.0
@@ -78,8 +84,11 @@ class Lut3D:
         self.brightness = 0.0
         self.contrast = 1.0
         self.shadows = 0.0
+        self.deep_shadows = 0.0
+        self.black_level = 0.0
         self.highlights = 0.0
         self.gamma = 1.0
+        self.dark_expansion = 1.0
         self.highlight_rolloff = 0.0
         self.saturation = 1.0
         self.temperature = 0.0
@@ -114,8 +123,11 @@ class Lut3D:
         self.brightness = 0.0
         self.contrast = 1.0
         self.shadows = 0.0
+        self.deep_shadows = 0.0
+        self.black_level = 0.0
         self.highlights = 0.0
         self.gamma = 1.0
+        self.dark_expansion = 1.0
         self.highlight_rolloff = 0.0
         self.saturation = 1.0
         self.temperature = 0.0
@@ -123,11 +135,11 @@ class Lut3D:
         self.recompute()
 
     def recompute(self) -> None:
-        """Recomputes active table values from base table and grading parameters.
+        """Recomputes active table values from grading parameters.
 
-        Applies brightness, contrast, shadows, highlights, gamma, highlight
-        rolloff, saturation, temperature, and tint adjustments across all
-        LUT entries.
+        Applies brightness, contrast, black level, deep shadows, shadows,
+        highlights, gamma, dark expansion, highlight rolloff, saturation,
+        temperature, and tint adjustments across all LUT entries.
 
         Usage example:
             lut.recompute()
@@ -145,7 +157,28 @@ class Lut3D:
             g = (g - 0.5) * self.contrast + 0.5
             b = (b - 0.5) * self.contrast + 0.5
 
-        # 3. Shadows (lifts dark tones without blowing out highlights)
+        # 3. Black level (lift / pedestal floor)
+        if self.black_level != 0.0:
+            r_c = np.clip(r, 0.0, 1.0)
+            g_c = np.clip(g, 0.0, 1.0)
+            b_c = np.clip(b, 0.0, 1.0)
+            r = r + self.black_level * 0.25 * (1.0 - r_c)
+            g = g + self.black_level * 0.25 * (1.0 - g_c)
+            b = b + self.black_level * 0.25 * (1.0 - b_c)
+
+        # 4. Deep Shadows (near-black shadow tone boost, peak ~17% luminance)
+        if self.deep_shadows != 0.0:
+            r_c = np.clip(r, 0.0, 1.0)
+            g_c = np.clip(g, 0.0, 1.0)
+            b_c = np.clip(b, 0.0, 1.0)
+            ds_r = 15.0 * r_c * ((1.0 - r_c) ** 5)
+            ds_g = 15.0 * g_c * ((1.0 - g_c) ** 5)
+            ds_b = 15.0 * b_c * ((1.0 - b_c) ** 5)
+            r = r + self.deep_shadows * 0.5 * ds_r
+            g = g + self.deep_shadows * 0.5 * ds_g
+            b = b + self.deep_shadows * 0.5 * ds_b
+
+        # 5. Shadows (lifts mid-shadow tones without blowing out highlights)
         if self.shadows != 0.0:
             r_c = np.clip(r, 0.0, 1.0)
             g_c = np.clip(g, 0.0, 1.0)
@@ -154,7 +187,7 @@ class Lut3D:
             g = g + self.shadows * 0.5 * (4.0 * g_c * ((1.0 - g_c) ** 2))
             b = b + self.shadows * 0.5 * (4.0 * b_c * ((1.0 - b_c) ** 2))
 
-        # 4. Highlights (adjusts bright tones / prevents highlight clipping)
+        # 6. Highlights (adjusts bright tones / prevents highlight clipping)
         if self.highlights != 0.0:
             r_c = np.clip(r, 0.0, 1.0)
             g_c = np.clip(g, 0.0, 1.0)
@@ -163,7 +196,7 @@ class Lut3D:
             g = g + self.highlights * 0.3 * (g_c**2)
             b = b + self.highlights * 0.3 * (b_c**2)
 
-        # 5. Gamma curve with dark-region expansion
+        # 7. Gamma curve with dark-region expansion
         # Brightens somewhat dark areas significantly (which are otherwise
         # imperceptible in dark laser tag arena footage) while smoothly
         # transitioning to pin peak white at 1.0.
@@ -173,14 +206,15 @@ class Lut3D:
                 g_c = np.clip(g, 0.0, 1.0)
                 b_c = np.clip(b, 0.0, 1.0)
                 # Boost effective gamma in dark regions where (1 - x)^2 is large
+                dark_mult = 1.6 * max(0.0, self.dark_expansion)
                 r_eff = 1.0 + (self.gamma - 1.0) * (
-                    1.0 + 1.6 * ((1.0 - r_c) ** 2)
+                    1.0 + dark_mult * ((1.0 - r_c) ** 2)
                 )
                 g_eff = 1.0 + (self.gamma - 1.0) * (
-                    1.0 + 1.6 * ((1.0 - g_c) ** 2)
+                    1.0 + dark_mult * ((1.0 - g_c) ** 2)
                 )
                 b_eff = 1.0 + (self.gamma - 1.0) * (
-                    1.0 + 1.6 * ((1.0 - b_c) ** 2)
+                    1.0 + dark_mult * ((1.0 - b_c) ** 2)
                 )
                 r = np.power(r_c, 1.0 / r_eff)
                 g = np.power(g_c, 1.0 / g_eff)
