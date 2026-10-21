@@ -97,3 +97,12 @@ will be used as the base.
 
 There is a play button that will make it play in a loop. The play button will
 toggle with a pause button.
+
+### Fourth tab: Export
+
+The fourth tab has a button to save a test video. This will open a Save File dialog
+to pick the destination file. After confirming, the tool will use ffmpeg to create
+one video that combines all the selected ranges from the source video.
+
+The fourth tab also contains a read-only text field with the noise reduction arguments
+to plug into ffmpeg.

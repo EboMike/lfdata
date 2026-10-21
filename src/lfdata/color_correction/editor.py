@@ -15,6 +15,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from lfdata.color_correction.color_correction_tab import ColorCorrectionTab
+from lfdata.color_correction.export_tab import ExportTab
 from lfdata.color_correction.noise_reduction_tab import NoiseReductionTab
 from lfdata.color_correction.reference_video_tab import ReferenceVideoTab
 from lfdata.color_correction.time_range import TimeRange
@@ -29,6 +30,7 @@ class ColorCorrectionEditorApp(tk.Tk):
         tab_reference: Reference video loader and range selector tab.
         tab_color_correction: Color correction adjustment tab.
         tab_noise_reduction: Noise reduction adjustment tab.
+        tab_export: Test video export and FFmpeg arguments tab.
     """
 
     def __init__(self) -> None:
@@ -39,7 +41,7 @@ class ColorCorrectionEditorApp(tk.Tk):
             self.title(self.app_title)
             self.geometry('900x700')
             self.minsize(800, 600)
-        except Exception:
+        except (tk.TclError, RuntimeError, AttributeError):
             from unittest.mock import MagicMock
 
             self._w = '.'
@@ -51,10 +53,7 @@ class ColorCorrectionEditorApp(tk.Tk):
     def _create_tabs(self) -> None:
         """Initializes the ttk.Notebook and registers workflow tabs."""
         self.notebook = ttk.Notebook(self)
-        try:
-            self.notebook.pack(fill='both', expand=True, padx=5, pady=5)
-        except Exception:
-            pass
+        self.notebook.pack(fill='both', expand=True, padx=5, pady=5)
 
         self.tab_reference = ReferenceVideoTab(
             parent=self.notebook,
@@ -62,28 +61,37 @@ class ColorCorrectionEditorApp(tk.Tk):
         )
         self.tab_color_correction = ColorCorrectionTab(parent=self.notebook)
         self.tab_noise_reduction = NoiseReductionTab(parent=self.notebook)
+        self.tab_export = ExportTab(parent=self.notebook)
 
         self.notebook.add(self.tab_reference, text='Reference Video')
         self.notebook.add(self.tab_color_correction, text='Color Correction')
         self.notebook.add(self.tab_noise_reduction, text='Noise Reduction')
+        self.notebook.add(self.tab_export, text='Export')
 
-        # Tabs 2 and 3 cannot be selected if no range has been added
+        # Tabs 2, 3, and 4 cannot be selected if no range has been added
         self.notebook.tab(1, state='disabled')
         self.notebook.tab(2, state='disabled')
+        self.notebook.tab(3, state='disabled')
         self.notebook.bind('<<NotebookTabChanged>>', self._on_tab_changed)
 
     def _on_ranges_changed(self, ranges: list[TimeRange]) -> None:
         """Updates tab availability when reference ranges are added or removed.
 
-        Enables the Color Correction and Noise Reduction tabs when one or
-        more ranges exist, and disables them when no ranges are present.
+        Enables the Color Correction, Noise Reduction, and Export tabs when
+        one or more ranges exist, and disables them when no ranges are present.
 
         Args:
             ranges: The current list of configured TimeRange instances.
         """
+        video_path = (
+            self.tab_reference.video_reader.video_path
+            if self.tab_reference.video_reader
+            else None
+        )
         if len(ranges) > 0:
             self.notebook.tab(1, state='normal')
             self.notebook.tab(2, state='normal')
+            self.notebook.tab(3, state='normal')
             self.tab_color_correction.set_reference_data(
                 video_reader=self.tab_reference.video_reader,
                 ranges=ranges,
@@ -91,11 +99,18 @@ class ColorCorrectionEditorApp(tk.Tk):
             self.tab_noise_reduction.set_reference_data(
                 video_reader=self.tab_reference.video_reader,
                 ranges=ranges,
+                lut=self.tab_color_correction.lut,
+            )
+            self.tab_export.set_export_data(
+                video_path=video_path,
+                ranges=ranges,
+                noise_reduction_settings=self.tab_noise_reduction.settings,
                 lut=self.tab_color_correction.lut,
             )
         else:
             self.notebook.tab(1, state='disabled')
             self.notebook.tab(2, state='disabled')
+            self.notebook.tab(3, state='disabled')
             self.tab_color_correction.set_reference_data(
                 video_reader=self.tab_reference.video_reader,
                 ranges=[],
@@ -105,7 +120,13 @@ class ColorCorrectionEditorApp(tk.Tk):
                 ranges=[],
                 lut=self.tab_color_correction.lut,
             )
-            if self.notebook.index('current') in (1, 2):
+            self.tab_export.set_export_data(
+                video_path=video_path,
+                ranges=[],
+                noise_reduction_settings=self.tab_noise_reduction.settings,
+                lut=self.tab_color_correction.lut,
+            )
+            if self.notebook.index('current') in (1, 2, 3):
                 self.notebook.select(0)
 
     def _on_tab_changed(self, event: tk.Event) -> None:
@@ -135,6 +156,21 @@ class ColorCorrectionEditorApp(tk.Tk):
                 self.tab_noise_reduction.set_reference_data(
                     video_reader=self.tab_reference.video_reader,
                     ranges=self.tab_reference.ranges,
+                    lut=self.tab_color_correction.lut,
+                )
+        elif current_index == 3:
+            if len(self.tab_reference.ranges) == 0:
+                self.notebook.select(0)
+            else:
+                video_path = (
+                    self.tab_reference.video_reader.video_path
+                    if self.tab_reference.video_reader
+                    else None
+                )
+                self.tab_export.set_export_data(
+                    video_path=video_path,
+                    ranges=self.tab_reference.ranges,
+                    noise_reduction_settings=self.tab_noise_reduction.settings,
                     lut=self.tab_color_correction.lut,
                 )
 

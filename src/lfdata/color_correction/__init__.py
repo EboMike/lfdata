@@ -26,6 +26,8 @@ from lfdata.color_correction.color_averages_bar import (
 )
 from lfdata.color_correction.color_correction_tab import ColorCorrectionTab
 from lfdata.color_correction.editor import ColorCorrectionEditorApp
+from lfdata.color_correction.error_dialog import ErrorDialog
+from lfdata.color_correction.export_tab import ExportTab
 from lfdata.color_correction.noise_reduction import NoiseReductionSettings
 from lfdata.color_correction.noise_reduction_tab import NoiseReductionTab
 from lfdata.color_correction.reference_video_tab import ReferenceVideoTab
@@ -35,6 +37,7 @@ from lfdata.color_correction.suggested_lut import (
 )
 from lfdata.color_correction.time_range import TimeRange
 from lfdata.color_correction.timeline_widget import TimelineWidget
+from lfdata.color_correction.video_exporter import VideoExporter
 from lfdata.color_correction.video_reader import VideoReader
 
 __all__ = [
@@ -46,6 +49,8 @@ __all__ = [
     'ColorCorrectionTab',
     'CorrectionNeedLevel',
     'CorrectionRecommendations',
+    'ErrorDialog',
+    'ExportTab',
     'FrameLuminanceSample',
     'LuminanceMetrics',
     'NoiseReductionSettings',
@@ -54,6 +59,7 @@ __all__ = [
     'TemporalLuminanceMetrics',
     'TimeRange',
     'TimelineWidget',
+    'VideoExporter',
     'VideoReader',
     'compute_frame_color_column',
     'create_suggested_lut',

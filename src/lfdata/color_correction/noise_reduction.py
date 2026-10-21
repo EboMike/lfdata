@@ -134,6 +134,22 @@ class NoiseReductionSettings:
         ct = round(self.chroma_temporal, 1)
         return f'hqdn3d={ls}:{cs}:{lt}:{ct}'
 
+    def to_ffmpeg_args(self) -> str:
+        """Generates the full FFmpeg CLI arguments for the noise filter.
+
+        Returns:
+            str: Command argument formatted as `-vf "<filter>"` or notice.
+
+        Usage example:
+            args = settings.to_ffmpeg_args()
+        """
+        if not self.enabled:
+            return '(Noise reduction is disabled)'
+        filt = self.to_ffmpeg_filter()
+        if filt == 'null':
+            return '(Noise reduction is disabled)'
+        return f'-vf "{filt}"'
+
     def apply(self, image: Image.Image) -> Image.Image:
         """Applies noise reduction filtering to a PIL Image.
 
@@ -180,7 +196,7 @@ class NoiseReductionSettings:
 
             denoised_rgb = cv2.cvtColor(denoised_bgr, cv2.COLOR_BGR2RGB)
             result_img = Image.fromarray(denoised_rgb)
-        except Exception:
+        except Exception:  # noqa: BLE001
             # Fallback for environments with mocked cv2
             result_img = rgb_img.copy()
 
