@@ -1,7 +1,6 @@
 from pathlib import Path
 from unittest.mock import patch
 
-
 from lfdata.video.hud_merger import HudMergeOptions, VideoMetadata
 from lfdata.video.hudmerge import (
     build_argument_parser,
@@ -175,3 +174,53 @@ def test_parse_options_with_start_ms():
     )
     options = parse_options(args=args)
     assert options.start_ms == 13000
+
+
+def test_build_argument_parser_ffmpeg_parameters():
+    parser = build_argument_parser()
+    args = parser.parse_args(
+        [
+            'gopro.mp4',
+            'hud.mp4',
+            'alpha.mp4',
+            '--ffmpeg_parameters',
+            '-c:v libx265 -crf 20',
+        ]
+    )
+    assert args.ffmpeg_parameters == '-c:v libx265 -crf 20'
+
+
+def test_build_argument_parser_ffmpeg_parameters_kebab_case():
+    parser = build_argument_parser()
+    args = parser.parse_args(
+        [
+            'gopro.mp4',
+            'hud.mp4',
+            'alpha.mp4',
+            '--ffmpeg-parameters',
+            '-threads 4',
+        ]
+    )
+    assert args.ffmpeg_parameters == '-threads 4'
+
+
+def test_parse_options_with_ffmpeg_parameters():
+    parser = build_argument_parser()
+    args = parser.parse_args(
+        [
+            'gopro.mp4',
+            'hud.mp4',
+            'alpha.mp4',
+            '--ffmpeg_parameters',
+            '-c:v libx265 -crf 20',
+        ]
+    )
+    options = parse_options(args=args)
+    assert options.ffmpeg_parameters == '-c:v libx265 -crf 20'
+
+
+def test_parse_options_ffmpeg_parameters_default_none():
+    parser = build_argument_parser()
+    args = parser.parse_args(['gopro.mp4', 'hud.mp4', 'alpha.mp4'])
+    options = parse_options(args=args)
+    assert options.ffmpeg_parameters is None

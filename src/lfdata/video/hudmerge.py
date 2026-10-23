@@ -101,6 +101,14 @@ def build_argument_parser() -> argparse.ArgumentParser:
         help='Start offset in milliseconds for the base GoPro video.',
     )
     parser.add_argument(
+        '--ffmpeg_parameters',
+        '--ffmpeg-parameters',
+        dest='ffmpeg_parameters',
+        type=str,
+        default=None,
+        help='Additional parameters to pass to FFmpeg.',
+    )
+    parser.add_argument(
         '--dry-run',
         action='store_true',
         help='Print the FFmpeg command without executing it.',
@@ -139,6 +147,7 @@ def parse_options(args: argparse.Namespace) -> HudMergeOptions:
         preset=args.preset,
         lut_path=lut_path,
         start_ms=args.start_ms,
+        ffmpeg_parameters=args.ffmpeg_parameters,
     )
 
 

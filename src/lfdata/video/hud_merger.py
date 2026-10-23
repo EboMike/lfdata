@@ -18,10 +18,11 @@ Usage example:
     merger.merge(options)
 """
 
-from dataclasses import dataclass
 import json
-from pathlib import Path
+import shlex
 import subprocess
+from dataclasses import dataclass
+from pathlib import Path
 
 from lfdata.model.constants.time import MS_PER_SECOND
 from lfdata.video.constants import (
@@ -62,6 +63,8 @@ class HudMergeOptions:
         preset: Encoding preset for libx264.
         overwrite: Whether to overwrite existing output files.
         lut_path: Path to a 3D LUT (.cube) file to apply to the GoPro video.
+        start_ms: Start offset in milliseconds for the base GoPro video.
+        ffmpeg_parameters: Additional parameters to pass to FFmpeg.
     """
 
     gopro_path: Path
@@ -74,6 +77,7 @@ class HudMergeOptions:
     overwrite: bool = True
     lut_path: Path | None = None
     start_ms: int = 0
+    ffmpeg_parameters: str | list[str] | None = None
 
 
 class HudMerger:
@@ -422,9 +426,16 @@ class HudMerger:
                 options.preset,
                 '-pix_fmt',
                 'yuv420p',
-                str(options.output_path),
             ]
         )
+
+        if options.ffmpeg_parameters:
+            if isinstance(options.ffmpeg_parameters, str):
+                cmd.extend(shlex.split(options.ffmpeg_parameters))
+            else:
+                cmd.extend(options.ffmpeg_parameters)
+
+        cmd.append(str(options.output_path))
         return cmd
 
     def merge(self, options: HudMergeOptions) -> None:

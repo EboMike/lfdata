@@ -140,3 +140,13 @@ If none apply, the fallback is: `{blocks}/{blocked_by_others} blocks`.
   - `Light Rolloff`: Soft shoulder compression using $\tanh$ above a knee
     threshold ($1 - 0.35 \times \text{rolloff}$) to prevent harsh digital
     clipping of laser tag LEDs and lasers.
+
+## HUD Video Merger FFmpeg Parameters
+
+* `hudmerge` and `HudMergeOptions` support an optional `ffmpeg_parameters`
+  parameter (string or list of strings).
+* When specified, the additional parameters are parsed and appended to the
+  FFmpeg command after default video encoding options and before the
+  output file path.
+* This allows overriding default encoder settings (e.g. `-c:v libx265`, `-crf`,
+  etc.) or specifying additional options (such as `-threads` or bitrate).

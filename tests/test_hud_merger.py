@@ -1,12 +1,12 @@
-from pathlib import Path
 import subprocess
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
 from lfdata.video.hud_merger import (
-    HudMerger,
     HudMergeOptions,
+    HudMerger,
     VideoMetadata,
 )
 
@@ -603,3 +603,129 @@ def test_build_filter_complex_with_start_ms():
         'atrim=start=13.000:duration=47.000,asetpts=PTS-STARTPTS,'
         'afade=t=out:st=42.000:d=5.000[outa]' in filter_str
     )
+
+
+def test_build_ffmpeg_command_with_ffmpeg_parameters_str():
+    merger = HudMerger()
+    options = HudMergeOptions(
+        gopro_path=Path('gopro.mp4'),
+        hud_path=Path('hud.mp4'),
+        hud_alpha_path=Path('alpha.mp4'),
+        output_path=Path('out.mp4'),
+        ffmpeg_parameters='-c:v libx265 -crf 20',
+    )
+    gopro = VideoMetadata(
+        width=1920,
+        height=1080,
+        duration_ms=40000,
+        has_audio=False,
+    )
+    hud = VideoMetadata(
+        width=1920,
+        height=1080,
+        duration_ms=50000,
+        has_audio=False,
+    )
+
+    cmd = merger.build_ffmpeg_command(
+        options=options,
+        gopro_meta=gopro,
+        hud_meta=hud,
+    )
+
+    assert '-c:v' in cmd
+    assert 'libx265' in cmd
+    assert '-crf' in cmd
+    assert '20' in cmd
+    assert cmd[-5:] == ['-c:v', 'libx265', '-crf', '20', 'out.mp4']
+
+
+def test_build_ffmpeg_command_with_ffmpeg_parameters_list():
+    merger = HudMerger()
+    options = HudMergeOptions(
+        gopro_path=Path('gopro.mp4'),
+        hud_path=Path('hud.mp4'),
+        hud_alpha_path=Path('alpha.mp4'),
+        output_path=Path('out.mp4'),
+        ffmpeg_parameters=['-threads', '4', '-b:v', '5M'],
+    )
+    gopro = VideoMetadata(
+        width=1920,
+        height=1080,
+        duration_ms=40000,
+        has_audio=False,
+    )
+    hud = VideoMetadata(
+        width=1920,
+        height=1080,
+        duration_ms=50000,
+        has_audio=False,
+    )
+
+    cmd = merger.build_ffmpeg_command(
+        options=options,
+        gopro_meta=gopro,
+        hud_meta=hud,
+    )
+
+    assert cmd[-5:] == ['-threads', '4', '-b:v', '5M', 'out.mp4']
+
+
+def test_build_ffmpeg_command_with_empty_ffmpeg_parameters():
+    merger = HudMerger()
+    options = HudMergeOptions(
+        gopro_path=Path('gopro.mp4'),
+        hud_path=Path('hud.mp4'),
+        hud_alpha_path=Path('alpha.mp4'),
+        output_path=Path('out.mp4'),
+        ffmpeg_parameters='   ',
+    )
+    gopro = VideoMetadata(
+        width=1920,
+        height=1080,
+        duration_ms=40000,
+        has_audio=False,
+    )
+    hud = VideoMetadata(
+        width=1920,
+        height=1080,
+        duration_ms=50000,
+        has_audio=False,
+    )
+
+    cmd = merger.build_ffmpeg_command(
+        options=options,
+        gopro_meta=gopro,
+        hud_meta=hud,
+    )
+
+    assert cmd[-2:] == ['yuv420p', 'out.mp4']
+
+
+def test_merge_with_ffmpeg_parameters():
+    merger = HudMerger()
+    options = HudMergeOptions(
+        gopro_path=Path('gopro.mp4'),
+        hud_path=Path('hud.mp4'),
+        hud_alpha_path=Path('alpha.mp4'),
+        output_path=Path('merged.mp4'),
+        ffmpeg_parameters='-preset fast',
+    )
+    dummy_meta = VideoMetadata(
+        width=1920,
+        height=1080,
+        duration_ms=30000,
+        has_audio=False,
+    )
+
+    with (
+        patch.object(merger, 'probe_video', return_value=dummy_meta),
+        patch('pathlib.Path.mkdir'),
+        patch('subprocess.run') as mock_run,
+    ):
+        merger.merge(options=options)
+        mock_run.assert_called_once()
+        called_cmd = mock_run.call_args[0][0]
+        assert '-preset' in called_cmd
+        assert 'fast' in called_cmd
+        assert called_cmd[-1] == 'merged.mp4'

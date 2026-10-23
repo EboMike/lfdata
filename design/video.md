@@ -57,6 +57,8 @@ videos:
 * Scales HUD overlays to match GoPro video resolution if different.
 * Automatically synchronizes durations to `min(gopro_len, hud_len)`.
 * Fades out video and audio in the final 5 seconds.
+* Accepts custom `--ffmpeg_parameters` to forward additional arguments or
+  override encoder settings for FFmpeg.
 
 
 ## Configuration
