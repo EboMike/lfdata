@@ -248,3 +248,34 @@ def test_tdf_importer_parse_laserball(tmp_path: Path) -> None:
     assert stats.steals == 1
     assert stats.blocks == 1
     assert stats.score == 10101
+
+
+def test_parse_tdf_player_lives(tmp_path) -> None:
+    tdf_file = tmp_path / 'lives_test.tdf'
+    content = (
+        ';0/info\n'
+        '0\t1\t1\t4-43\n'
+        ';1/mission\n'
+        '1\t5\tSpace Marines 5\t20260621194549\t900\t1000\n'
+        ';2/team\n'
+        '2\t0\tFire\t11\tFire\t#FF5000\n'
+        ';3/entity-start\n'
+        '3\t0\t#P1\tplayer\tRedScout\t0\t1\t0\tSuit1\n'
+        ';11/player-lives\ttime\tentity\tunused\tlives\n'
+        '11\t15000\t#P1\t0\t14\n'
+        '11\t25000\t#P1\t0\t13\n'
+        '11\tinvalid\t#P1\t0\tbad\n'
+        '11\t35000\t#P1\n'
+    )
+    tdf_file.write_text(content, encoding='utf-8')
+    importer = TdfImporter(tdf_file)
+    game = importer.parse()
+
+    assert game.has_authoritative_lives is True
+    assert len(game.lives_history) == 2
+    assert game.lives_history[0].time == 15000
+    assert game.lives_history[0].entity_id == '#P1'
+    assert game.lives_history[0].lives == 14
+    assert game.lives_history[1].time == 25000
+    assert game.lives_history[1].entity_id == '#P1'
+    assert game.lives_history[1].lives == 13

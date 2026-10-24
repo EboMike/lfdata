@@ -26,7 +26,6 @@ from lfdata.model.gametypes.laserball_events import (
     LASERBALL_EVENT_STEAL,
 )
 from lfdata.model.gametypes.sm5_constants import (
-    DEFAULT_BOOST_GRACE_PERIOD_MS,
     DEFAULT_MISSION_PENALTY,
     SM5_BASE_CAPTURE_SCORE,
     SM5_BASE_CAPTURE_SPECIAL_POINTS,
@@ -139,7 +138,10 @@ class LFReplayHandlersMixin:
                 SM5_EVENT_DOWNED_TEAM,
             ):
                 was_already_down = target.is_down(event.time)
-                target.lives = max(0, target.lives - SM5_LIVES_LOST_ZAPPED)
+                if not target.has_authoritative_lives:
+                    target.lives = max(0, target.lives - SM5_LIVES_LOST_ZAPPED)
+                else:
+                    target.update_lives(event.time)
                 if target.has_authoritative_state:
                     target.update_downtime(event.time)
                 else:
@@ -200,7 +202,10 @@ class LFReplayHandlersMixin:
 
             # Missile immediately downs target or resets downtime
             was_already_down = target.is_down(event.time)
-            target.lives = max(0, target.lives - SM5_LIVES_LOST_MISSILED)
+            if not target.has_authoritative_lives:
+                target.lives = max(0, target.lives - SM5_LIVES_LOST_MISSILED)
+            else:
+                target.update_lives(event.time)
             if target.has_authoritative_state:
                 target.update_downtime(event.time)
             else:
@@ -286,7 +291,12 @@ class LFReplayHandlersMixin:
                     and not player.is_eliminated()
                 ):
                     was_already_down = player.is_down(event.time)
-                    player.lives = max(0, player.lives - SM5_NUKE_LIVES_LOST)
+                    if not player.has_authoritative_lives:
+                        player.lives = max(
+                            0, player.lives - SM5_NUKE_LIVES_LOST
+                        )
+                    else:
+                        player.update_lives(event.time)
                     if player.has_authoritative_state:
                         player.update_downtime(event.time)
                     else:
@@ -324,7 +334,10 @@ class LFReplayHandlersMixin:
         if target and not target.is_eliminated():
             is_medic = event.event_type == SM5_EVENT_RESUPPLY_LIVES
             if is_medic:
-                target.resupply_lives_from_medic()
+                if not target.has_authoritative_lives:
+                    target.resupply_lives_from_medic()
+                else:
+                    target.update_lives(event.time)
             else:
                 target.resupply_shots_from_ammo()
             was_already_down = target.is_down(event.time)
@@ -406,7 +419,10 @@ class LFReplayHandlersMixin:
 
                     if should_boost:
                         if is_medic:
-                            player.resupply_lives_from_medic()
+                            if not player.has_authoritative_lives:
+                                player.resupply_lives_from_medic()
+                            else:
+                                player.update_lives(event.time)
                         else:
                             player.resupply_shots_from_ammo()
         return f'{actor_name} resupplies team'

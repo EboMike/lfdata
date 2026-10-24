@@ -219,3 +219,53 @@ def test_replay_player_state_hit_diff() -> None:
     p.times_zapped_opponents = 15
     p.times_zapped = 5
     assert p.hit_diff == 3.0
+
+
+def test_player_authoritative_lives() -> None:
+    from lfdata.model import PlayerLivesHistory
+
+    history = [
+        PlayerLivesHistory(game_id='g1', time=5000, entity_id='#1', lives=14),
+        PlayerLivesHistory(game_id='g1', time=15000, entity_id='#1', lives=10),
+    ]
+
+    p = LFReplayPlayerState(
+        entity_id='#1',
+        role=LFRole.SCOUT,
+        team_index=0,
+        lives_history=history,
+    )
+    assert p.has_authoritative_lives is True
+    assert p.lives == 15  # Starting lives before first record
+
+    assert p.get_lives_at(0) == 15
+    assert p.get_lives_at(4999) == 15
+    assert p.get_lives_at(5000) == 14
+    assert p.get_lives_at(10000) == 14
+    assert p.get_lives_at(15000) == 10
+    assert p.get_lives_at(20000) == 10
+
+    p.update_lives(5000)
+    assert p.lives == 14
+
+    p.update_lives(15000)
+    assert p.lives == 10
+
+    # Resupply from medic should not compute or alter authoritative lives
+    p.resupply_lives_from_medic()
+    assert p.lives == 10
+
+    # Player with has_authoritative_lives flag but no records for this player
+    p2 = LFReplayPlayerState(
+        entity_id='#2',
+        role=LFRole.MEDIC,
+        team_index=0,
+        has_authoritative_lives=True,
+    )
+    assert p2.has_authoritative_lives is True
+    assert p2.lives == 20
+    assert p2.get_lives_at(10000) == 20
+    p2.update_lives(10000)
+    assert p2.lives == 20
+    p2.resupply_lives_from_medic()
+    assert p2.lives == 20

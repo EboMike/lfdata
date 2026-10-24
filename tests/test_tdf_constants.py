@@ -4,6 +4,7 @@ from lfdata.model.constants.tdf import (
     TDF_RECORD_EVENT,
     TDF_RECORD_INFO,
     TDF_RECORD_MISSION,
+    TDF_RECORD_PLAYER_LIVES,
     TDF_RECORD_PLAYER_STATE,
     TDF_RECORD_SCORE,
     TDF_RECORD_STATS,
@@ -22,6 +23,7 @@ def test_tdf_record_constants():
     assert TDF_RECORD_ENTITY_END == '6'
     assert TDF_RECORD_STATS == '7'
     assert TDF_RECORD_PLAYER_STATE == '9'
+    assert TDF_RECORD_PLAYER_LIVES == '11'
 
 
 def test_lf_player_state_enum():

@@ -88,6 +88,7 @@ class DatabaseStorage:
                     selectinload(LFGame.laserball_stats),
                     selectinload(LFGame.score_history),
                     selectinload(LFGame.state_history),
+                    selectinload(LFGame.lives_history),
                 )
                 .filter_by(game_id=game_id)
                 .first()

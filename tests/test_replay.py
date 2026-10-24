@@ -2330,3 +2330,216 @@ def test_laserball_replay() -> None:
     assert team_0.ranking == 1
     assert team_1.score == 0
     assert team_1.ranking == 2
+
+
+def test_replay_authoritative_lives_no_computation() -> None:
+    from datetime import datetime
+    from lfdata.model import (
+        GameEntity,
+        GameEvent,
+        GameTeam,
+        LFGame,
+        PlayerLivesHistory,
+    )
+
+    game = LFGame(
+        game_id='auth_lives_game',
+        timestamp=datetime.now(),
+        game_type='SM5',
+    )
+    t1 = GameTeam(
+        game_id='auth_lives_game',
+        team_index=0,
+        desc='Fire Team',
+        color_enum=11,
+        color_desc='Fire',
+        color_rgb='#FF5000',
+    )
+    t2 = GameTeam(
+        game_id='auth_lives_game',
+        team_index=1,
+        desc='Earth Team',
+        color_enum=13,
+        color_desc='Earth',
+        color_rgb='#00FF00',
+    )
+    game.teams = [t1, t2]
+
+    # C1 (Commander, team 0), C2 (Commander, team 1), M2 (Medic, team 1)
+    c1 = GameEntity(
+        game_id='auth_lives_game',
+        entity_id='C1',
+        type='player',
+        desc='Cmd1',
+        team_index=0,
+        category=1,  # Commander: starts with 15 lives
+    )
+    c2 = GameEntity(
+        game_id='auth_lives_game',
+        entity_id='C2',
+        type='player',
+        desc='Cmd2',
+        team_index=1,
+        category=1,  # Commander: starts with 15 lives
+    )
+    m2 = GameEntity(
+        game_id='auth_lives_game',
+        entity_id='M2',
+        type='player',
+        desc='Med2',
+        team_index=1,
+        category=5,  # Medic
+    )
+    game.entities = [c1, c2, m2]
+
+    # Type 11 records authoritative for C2:
+    # At 10000: lives = 12 (instead of computed 14 from zap)
+    # At 20000: lives = 11 (instead of computed 10 from missile)
+    # At 35000: lives = 9 (instead of computed 8 from nuke)
+    # At 40000: lives = 10 (instead of computed 13 from medic resup)
+    game.lives_history = [
+        PlayerLivesHistory(
+            game_id='auth_lives_game', time=10000, entity_id='C2', lives=12
+        ),
+        PlayerLivesHistory(
+            game_id='auth_lives_game', time=20000, entity_id='C2', lives=11
+        ),
+        PlayerLivesHistory(
+            game_id='auth_lives_game', time=35000, entity_id='C2', lives=9
+        ),
+        PlayerLivesHistory(
+            game_id='auth_lives_game', time=40000, entity_id='C2', lives=10
+        ),
+    ]
+
+    game.events = [
+        GameEvent(
+            game_id='auth_lives_game',
+            time=0,
+            event_type=SM5_EVENT_MISSION_START,
+            raw_message='',
+        ),
+        # C1 zaps C2 at 10000
+        GameEvent(
+            game_id='auth_lives_game',
+            time=10000,
+            event_type=SM5_EVENT_DOWNED_OPPONENT,
+            actor_entity_id='C1',
+            target_entity_id='C2',
+            raw_message='',
+        ),
+        # C1 missiles C2 at 20000
+        GameEvent(
+            game_id='auth_lives_game',
+            time=20000,
+            event_type=SM5_EVENT_MISSILE_DOWN_OPPONENT,
+            actor_entity_id='C1',
+            target_entity_id='C2',
+            raw_message='',
+        ),
+        # C1 activates nuke at 30000, detonates at 35000
+        GameEvent(
+            game_id='auth_lives_game',
+            time=30000,
+            event_type=SM5_EVENT_ACTIVATE_NUKE,
+            actor_entity_id='C1',
+            raw_message='',
+        ),
+        GameEvent(
+            game_id='auth_lives_game',
+            time=35000,
+            event_type=SM5_EVENT_DETONATE_NUKE,
+            actor_entity_id='C1',
+            raw_message='',
+        ),
+        # M2 resupplies C2 at 40000
+        GameEvent(
+            game_id='auth_lives_game',
+            time=40000,
+            event_type=SM5_EVENT_RESUPPLY_LIVES,
+            actor_entity_id='M2',
+            target_entity_id='C2',
+            raw_message='',
+        ),
+        GameEvent(
+            game_id='auth_lives_game',
+            time=50000,
+            event_type=SM5_EVENT_MISSION_END,
+            raw_message='',
+        ),
+    ]
+
+    replay = LFReplaySystem(game, align_stats=False)
+    records = replay.run()
+
+    # Verify event records capture the authoritative life changes
+    zap_rec = next(r for r in records if r.time_ms == 10000)
+    assert 'C2' in zap_rec.player_changes
+    assert zap_rec.player_changes['C2']['lives'] == 12
+
+    missile_rec = next(r for r in records if r.time_ms == 20000)
+    assert 'C2' in missile_rec.player_changes
+    assert missile_rec.player_changes['C2']['lives'] == 11
+
+    nuke_rec = next(r for r in records if r.time_ms == 35000)
+    assert 'C2' in nuke_rec.player_changes
+    assert nuke_rec.player_changes['C2']['lives'] == 9
+
+    resup_rec = next(r for r in records if r.time_ms == 40000)
+    assert 'C2' in resup_rec.player_changes
+    assert resup_rec.player_changes['C2']['lives'] == 10
+
+    # Test run_up_to queries
+    replay_query = LFReplaySystem(game, align_stats=False)
+    replay_query.run_up_to(5000)
+    assert replay_query.game_state.players['C2'].lives == 15
+
+    replay_query.run_up_to(10000)
+    assert replay_query.game_state.players['C2'].lives == 12
+
+    replay_query.run_up_to(15000)
+    assert replay_query.game_state.players['C2'].lives == 12
+
+    replay_query.run_up_to(20000)
+    assert replay_query.game_state.players['C2'].lives == 11
+
+    replay_query.run_up_to(35000)
+    assert replay_query.game_state.players['C2'].lives == 9
+
+    replay_query.run_up_to(40000)
+    assert replay_query.game_state.players['C2'].lives == 10
+
+
+def test_replay_authoritative_lives_from_tdf_file(tmp_path) -> None:
+    tdf_file = tmp_path / 'auth_game.tdf'
+    content = (
+        ';0/info\n'
+        '0\t1\t1\t4-43\n'
+        ';1/mission\n'
+        '1\t5\tSpace Marines 5\t20260621194549\t900\t1000\n'
+        ';2/team\n'
+        '2\t0\tFire\t11\tFire\t#FF5000\n'
+        '2\t1\tEarth\t13\tEarth\t#00FF00\n'
+        ';3/entity-start\n'
+        '3\t0\t#P1\tplayer\tRedCmd\t0\t1\t5\tSuit1\n'
+        '3\t0\t#P2\tplayer\tGreenCmd\t1\t1\t5\tSuit2\n'
+        ';4/event\n'
+        '4\t0\t0100\t* Mission Start *\n'
+        '4\t10000\t0206\t#P1\tzaps\t#P2\n'
+        '4\t20000\t0101\t* Mission End *\n'
+        ';11/player-lives\ttime\tentity\tunused\tlives\n'
+        '11\t10000\t#P2\t0\t7\n'
+    )
+    tdf_file.write_text(content, encoding='utf-8')
+    importer = TdfImporter(tdf_file)
+    game = importer.parse()
+
+    assert game.has_authoritative_lives is True
+    replay = LFReplaySystem(game, align_stats=False)
+    records = replay.run()
+
+    # Without row 11, GreenCmd would have 14 lives after 1 zap.
+    # With row 11 specifying 7, GreenCmd must have exactly 7 lives.
+    assert replay.game_state.players['#P2'].lives == 7
+    zap_record = next(r for r in records if r.time_ms == 10000)
+    assert zap_record.player_changes['#P2']['lives'] == 7

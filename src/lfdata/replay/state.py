@@ -12,7 +12,7 @@ Usage example:
     print(f'Player {pstate.entity_id} starting lives: {pstate.lives}')
 """
 
-from lfdata.model import LFRole, PlayerStateHistory
+from lfdata.model import LFRole, PlayerLivesHistory, PlayerStateHistory
 from lfdata.model.constants.tdf import LFPlayerState
 from lfdata.model.gametypes.laserball_constants import (
     LASERBALL_CLEAR_STEAL_SCORE_MULTIPLIER,
@@ -49,6 +49,8 @@ class LFReplayPlayerState:
         nuke_activated_at_ms: Optional timestamp in milliseconds when nuke was activated.
         nuke_cancel_details: Optional LFNukeCancelDetails instance.
         state_history: List of PlayerStateHistory entries.
+        lives_history: Optional list of PlayerLivesHistory entries.
+        has_authoritative_lives: Flag indicating authoritative type 11 history.
         times_zapped: Times player was zapped.
         times_zapped_opponents: Times player zapped players on other teams.
         times_zapped_someone: Deprecated alias for times_zapped_opponents.
@@ -61,6 +63,8 @@ class LFReplayPlayerState:
         role: LFRole | None,
         team_index: int,
         state_history: list[PlayerStateHistory] | None = None,
+        lives_history: list[PlayerLivesHistory] | None = None,
+        has_authoritative_lives: bool = False,
     ) -> None:
         """Initializes the player state with role-based start values.
 
@@ -70,11 +74,21 @@ class LFReplayPlayerState:
             team_index: The team index the player belongs to.
             state_history: Optional list of authoritative state history entries
                 parsed from type 9 records.
+            lives_history: Optional list of authoritative lives history entries
+                parsed from type 11 records.
+            has_authoritative_lives: Whether authoritative type 11 records exist.
         """
         self.entity_id = entity_id
         self.role = role
         self.team_index = team_index
-        self.lives = role.start_lives if role else 0
+        self.lives_history: list[PlayerLivesHistory] | None = lives_history
+        self.has_authoritative_lives: bool = has_authoritative_lives or bool(
+            lives_history
+        )
+        if self.has_authoritative_lives:
+            self.lives = self.get_lives_at(0)
+        else:
+            self.lives = role.start_lives if role else 0
         self.shots = role.start_shots if role else 0
         self.missiles = role.start_missiles if role else 0
         self.score = 0
@@ -109,6 +123,34 @@ class LFReplayPlayerState:
     def has_authoritative_state(self) -> bool:
         """Returns True if authoritative type 9 state history is present."""
         return bool(self.state_history)
+
+    def get_lives_at(self, current_time_ms: int) -> int:
+        """Returns the player's authoritative lives at current_time_ms.
+
+        Args:
+            current_time_ms: Timestamp in milliseconds.
+
+        Returns:
+            int: Remaining lives at the specified timestamp.
+        """
+        if not self.lives_history:
+            return self.role.start_lives if self.role else 0
+        latest_lives: int = self.role.start_lives if self.role else 0
+        for entry in self.lives_history:
+            if entry.time <= current_time_ms:
+                latest_lives = entry.lives
+            else:
+                break
+        return latest_lives
+
+    def update_lives(self, current_time_ms: int) -> None:
+        """Updates remaining lives based on authoritative history if available.
+
+        Args:
+            current_time_ms: The current millisecond timestamp.
+        """
+        if self.has_authoritative_lives:
+            self.lives = self.get_lives_at(current_time_ms)
 
     def get_state_at(self, current_time_ms: int) -> int:
         """Returns the player's authoritative state at current_time_ms.
@@ -329,7 +371,11 @@ class LFReplayPlayerState:
 
     def resupply_lives_from_medic(self) -> None:
         """Adds lives to player based on role-specific medic resupply values."""
-        if self.is_eliminated() or self.role is None:
+        if (
+            self.has_authoritative_lives
+            or self.is_eliminated()
+            or self.role is None
+        ):
             return
         self.lives = min(
             self.role.max_lives, self.lives + self.role.medic_lives_gain

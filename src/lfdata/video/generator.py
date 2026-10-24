@@ -261,6 +261,8 @@ class VisualElementGenerator:
             p.role,
             p.team_index,
             state_history=p.state_history,
+            lives_history=p.lives_history,
+            has_authoritative_lives=p.has_authoritative_lives,
         )
         new_p.lives = p.lives
         new_p.shots = p.shots
@@ -1098,6 +1100,8 @@ class VisualElementGenerator:
 
         for player in cloned_players.values():
             player.update_downtime(time_ms)
+            if player.has_authoritative_lives:
+                player.update_lives(time_ms)
 
         return cloned_players, cloned_teams
 
@@ -2979,10 +2983,7 @@ class VisualElementGenerator:
 
             is_hit = False
             if (
-                is_zap
-                or is_missile
-                or is_resupply
-                or is_laserball_block
+                is_zap or is_missile or is_resupply or is_laserball_block
             ) and event.target_entity_id == self.entity_id:
                 is_hit = True
             elif is_penalty and event.actor_entity_id == self.entity_id:

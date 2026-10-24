@@ -134,6 +134,8 @@ class TdfStateDumper:
                     last_interval_time_ms += self.interval_ms
                     for p in self.replay.game_state.players.values():
                         p.update_downtime(last_interval_time_ms)
+                        if self.replay.game.has_authoritative_lives:
+                            p.update_lives(last_interval_time_ms)
                     entries.append(
                         self._build_game_state_entry(
                             time_ms=last_interval_time_ms,
@@ -187,6 +189,9 @@ class TdfStateDumper:
             sorted_events[-1].time if sorted_events else self.game.duration or 0
         )
         if self.trigger == TdfDumpTrigger.FINAL:
+            if self.replay.game.has_authoritative_lives:
+                for p in self.replay.game_state.players.values():
+                    p.update_lives(final_time_ms)
             entries.append(
                 self._build_game_state_entry(
                     time_ms=final_time_ms,

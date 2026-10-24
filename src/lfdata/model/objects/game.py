@@ -28,6 +28,7 @@ if TYPE_CHECKING:
     from lfdata.model.gametypes.sm5_notability import Sm5NotabilityCondition
     from lfdata.model.objects.entity import GameEntity
     from lfdata.model.objects.player import Player
+    from lfdata.model.objects.player_lives_history import PlayerLivesHistory
 
 
 class LFGame(Base):
@@ -54,6 +55,7 @@ class LFGame(Base):
         laserball_stats: List of LaserballStats ORM relationships.
         score_history: List of ScoreHistory ORM relationships.
         state_history: List of PlayerStateHistory ORM relationships.
+        lives_history: List of PlayerLivesHistory ORM relationships.
     """
 
     __tablename__ = 'lf_games'
@@ -101,6 +103,20 @@ class LFGame(Base):
         back_populates='game',
         cascade='all, delete-orphan',
     )
+    lives_history: Mapped[list[PlayerLivesHistory]] = relationship(
+        'PlayerLivesHistory',
+        back_populates='game',
+        cascade='all, delete-orphan',
+    )
+
+    @property
+    def has_authoritative_lives(self) -> bool:
+        """Returns True if the game has authoritative type 11 lives history.
+
+        Returns:
+            bool: True if lives history is present, False otherwise.
+        """
+        return bool(self.lives_history)
 
     def __init__(self, **kwargs: object) -> None:
         """Initializes a new game session.

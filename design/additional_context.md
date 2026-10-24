@@ -150,3 +150,18 @@ If none apply, the fallback is: `{blocks}/{blocked_by_others} blocks`.
   output file path.
 * This allows overriding default encoder settings (e.g. `-c:v libx265`, `-crf`,
   etc.) or specifying additional options (such as `-threads` or bitrate).
+
+## Authoritative Player Lives from TDF (Type 11 Records)
+
+* If a TDF file contains rows where the first column is 11, it provides
+  information about the number of lives for a player.
+* Row format:
+  - Column 1: Record type (11)
+  - Column 2: Timestamp in milliseconds from game start
+  - Column 3: Player entity ID
+  - Column 5: New number of lives
+* If there is at least one row with column 11, player lives are not computed
+  from game events (zaps, missiles, nukes, medic resupplies, team boosts).
+  Instead, the TDF file is used as the authoritative source for the number of
+  lives of each player at any time.
+

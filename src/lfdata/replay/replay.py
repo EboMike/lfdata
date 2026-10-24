@@ -180,7 +180,7 @@ class LFReplaySystem(LFReplayHandlersMixin):
         Returns:
             bool: True if the player is ambiguous, False otherwise.
         """
-        if player.has_authoritative_state:
+        if player.has_authoritative_state or player.has_authoritative_lives:
             return False
 
         if player.just_went_down_at_ms is not None:
@@ -270,6 +270,13 @@ class LFReplaySystem(LFReplayHandlersMixin):
 
         if self.game_ended_at_ms is None and sorted_events:
             self.game_ended_at_ms = sorted_events[-1].time
+
+        if self.game.has_authoritative_lives:
+            final_time = self.game_ended_at_ms or (
+                sorted_events[-1].time if sorted_events else 0
+            )
+            for player in self.game_state.players.values():
+                player.update_lives(final_time)
 
         success = self._verify_final_stats()
         return success, list(self._encountered_points)
@@ -370,6 +377,11 @@ class LFReplaySystem(LFReplayHandlersMixin):
             for sh in sorted(self.game.state_history, key=lambda s: s.time):
                 state_history_by_entity.setdefault(sh.entity_id, []).append(sh)
 
+        lives_history_by_entity: dict[str, list] = {}
+        if self.game.lives_history:
+            for lh in sorted(self.game.lives_history, key=lambda s: s.time):
+                lives_history_by_entity.setdefault(lh.entity_id, []).append(lh)
+
         for entity in self.game.entities:
             if entity.type == 'player':
                 if self.game.is_laserball:
@@ -380,12 +392,15 @@ class LFReplaySystem(LFReplayHandlersMixin):
                     except ValueError:
                         role = LFRole.SCOUT
                 history = state_history_by_entity.get(entity.entity_id)
+                lives_history = lives_history_by_entity.get(entity.entity_id)
                 self.player_states.append(
                     LFReplayPlayerState(
                         entity.entity_id,
                         role,
                         entity.team_index,
                         state_history=history,
+                        lives_history=lives_history,
+                        has_authoritative_lives=bool(self.game.lives_history),
                     )
                 )
 
@@ -397,10 +412,16 @@ class LFReplaySystem(LFReplayHandlersMixin):
         """
         sorted_events = sorted(self.game.events, key=lambda e: e.time)
 
+        last_event_time = -1
         for event in sorted_events:
             # First, update all player states for the current event time
             for player in self.game_state.players.values():
                 player.update_downtime(event.time)
+                if (
+                    self.game.has_authoritative_lives
+                    and event.time > last_event_time
+                ):
+                    player.update_lives(max(0, event.time - 1))
 
             player_snap, team_snap = self._take_snapshot()
 
@@ -419,6 +440,7 @@ class LFReplaySystem(LFReplayHandlersMixin):
                 team_changes=team_changes,
             )
             self.records.append(record)
+            last_event_time = event.time
 
             if event.event_type == SM5_EVENT_MISSION_END:
                 self.game_ended_at_ms = event.time
@@ -700,12 +722,17 @@ class LFReplaySystem(LFReplayHandlersMixin):
 
             if event.event_type == SM5_EVENT_MISSION_END:
                 self.game_ended_at_ms = event.time
+                if self.game.has_authoritative_lives:
+                    for player in self.game_state.players.values():
+                        player.update_lives(event.time)
                 return
 
         self._last_simulated_time_ms = time_ms
         # Final update to the target timestamp
         for player in self.game_state.players.values():
             player.update_downtime(time_ms)
+            if self.game.has_authoritative_lives:
+                player.update_lives(time_ms)
 
     def _dispatch_event(self, event: GameEvent) -> str:
         """Dispatches a game event to its specific handler method.
@@ -750,6 +777,10 @@ class LFReplaySystem(LFReplayHandlersMixin):
             description = self._process_event_laserball(event)
         else:
             description = self._process_event_other(event)
+
+        if self.game.has_authoritative_lives:
+            for player in self.game_state.players.values():
+                player.update_lives(event.time)
 
         # Check team elimination after processing the event
         self._check_team_elimination(event.time)
