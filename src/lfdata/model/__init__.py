@@ -33,6 +33,7 @@ from lfdata.model.objects.entity import GameEntity
 from lfdata.model.objects.event import GameEvent
 from lfdata.model.objects.game import LFGame
 from lfdata.model.objects.player import Player
+from lfdata.model.objects.player_ammo_history import PlayerAmmoHistory
 from lfdata.model.objects.player_lives_history import PlayerLivesHistory
 from lfdata.model.objects.score_history import ScoreHistory
 from lfdata.model.objects.state_history import PlayerStateHistory
@@ -54,6 +55,7 @@ __all__ = [
     'LaserballNotabilityResult',
     'LaserballStats',
     'Player',
+    'PlayerAmmoHistory',
     'PlayerLivesHistory',
     'PlayerStateHistory',
     'SM5Event',

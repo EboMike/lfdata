@@ -12,7 +12,12 @@ Usage example:
     print(f'Player {pstate.entity_id} starting lives: {pstate.lives}')
 """
 
-from lfdata.model import LFRole, PlayerLivesHistory, PlayerStateHistory
+from lfdata.model import (
+    LFRole,
+    PlayerAmmoHistory,
+    PlayerLivesHistory,
+    PlayerStateHistory,
+)
 from lfdata.model.constants.tdf import LFPlayerState
 from lfdata.model.gametypes.laserball_constants import (
     LASERBALL_CLEAR_STEAL_SCORE_MULTIPLIER,
@@ -51,6 +56,8 @@ class LFReplayPlayerState:
         state_history: List of PlayerStateHistory entries.
         lives_history: Optional list of PlayerLivesHistory entries.
         has_authoritative_lives: Flag indicating authoritative type 11 history.
+        ammo_history: Optional list of PlayerAmmoHistory entries.
+        has_authoritative_ammo: Flag indicating authoritative type 12 history.
         times_zapped: Times player was zapped.
         times_zapped_opponents: Times player zapped players on other teams.
         times_zapped_someone: Deprecated alias for times_zapped_opponents.
@@ -65,6 +72,8 @@ class LFReplayPlayerState:
         state_history: list[PlayerStateHistory] | None = None,
         lives_history: list[PlayerLivesHistory] | None = None,
         has_authoritative_lives: bool = False,
+        ammo_history: list[PlayerAmmoHistory] | None = None,
+        has_authoritative_ammo: bool = False,
     ) -> None:
         """Initializes the player state with role-based start values.
 
@@ -77,6 +86,9 @@ class LFReplayPlayerState:
             lives_history: Optional list of authoritative lives history entries
                 parsed from type 11 records.
             has_authoritative_lives: Whether authoritative type 11 records exist.
+            ammo_history: Optional list of authoritative ammo history entries
+                parsed from type 12 records.
+            has_authoritative_ammo: Whether authoritative type 12 records exist.
         """
         self.entity_id = entity_id
         self.role = role
@@ -89,7 +101,14 @@ class LFReplayPlayerState:
             self.lives = self.get_lives_at(0)
         else:
             self.lives = role.start_lives if role else 0
-        self.shots = role.start_shots if role else 0
+        self.ammo_history: list[PlayerAmmoHistory] | None = ammo_history
+        self.has_authoritative_ammo: bool = has_authoritative_ammo or bool(
+            ammo_history
+        )
+        if self.has_authoritative_ammo:
+            self.shots = self.get_shots_at(0)
+        else:
+            self.shots = role.start_shots if role else 0
         self.missiles = role.start_missiles if role else 0
         self.score = 0
         self._special_points = 0
@@ -151,6 +170,58 @@ class LFReplayPlayerState:
         """
         if self.has_authoritative_lives:
             self.lives = self.get_lives_at(current_time_ms)
+
+    @property
+    def has_authoritative_shots(self) -> bool:
+        """Returns True if authoritative type 12 ammo history is present."""
+        return self.has_authoritative_ammo
+
+    def get_shots_at(self, current_time_ms: int) -> int:
+        """Returns the player's authoritative shots at current_time_ms.
+
+        Args:
+            current_time_ms: Timestamp in milliseconds.
+
+        Returns:
+            int: Remaining shots at the specified timestamp.
+        """
+        if not self.ammo_history:
+            return self.role.start_shots if self.role else 0
+        latest_shots: int = self.role.start_shots if self.role else 0
+        for entry in self.ammo_history:
+            if entry.time <= current_time_ms:
+                latest_shots = entry.shots
+            else:
+                break
+        return latest_shots
+
+    def get_ammo_at(self, current_time_ms: int) -> int:
+        """Returns the player's authoritative ammo at current_time_ms.
+
+        Args:
+            current_time_ms: Timestamp in milliseconds.
+
+        Returns:
+            int: Remaining ammo at the specified timestamp.
+        """
+        return self.get_shots_at(current_time_ms)
+
+    def update_shots(self, current_time_ms: int) -> None:
+        """Updates remaining shots based on authoritative history if available.
+
+        Args:
+            current_time_ms: The current millisecond timestamp.
+        """
+        if self.has_authoritative_ammo:
+            self.shots = self.get_shots_at(current_time_ms)
+
+    def update_ammo(self, current_time_ms: int) -> None:
+        """Updates remaining ammo based on authoritative history if available.
+
+        Args:
+            current_time_ms: The current millisecond timestamp.
+        """
+        self.update_shots(current_time_ms)
 
     def get_state_at(self, current_time_ms: int) -> int:
         """Returns the player's authoritative state at current_time_ms.
@@ -383,7 +454,11 @@ class LFReplayPlayerState:
 
     def resupply_shots_from_ammo(self) -> None:
         """Adds shots to player based on role-specific ammo resupply values."""
-        if self.is_eliminated() or self.role is None:
+        if (
+            self.has_authoritative_ammo
+            or self.is_eliminated()
+            or self.role is None
+        ):
             return
         self.shots = min(
             self.role.max_shots, self.shots + self.role.ammo_shots_gain

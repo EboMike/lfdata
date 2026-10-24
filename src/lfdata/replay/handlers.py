@@ -339,7 +339,10 @@ class LFReplayHandlersMixin:
                 else:
                     target.update_lives(event.time)
             else:
-                target.resupply_shots_from_ammo()
+                if not target.has_authoritative_ammo:
+                    target.resupply_shots_from_ammo()
+                else:
+                    target.update_shots(event.time)
             was_already_down = target.is_down(event.time)
             if target.has_authoritative_state:
                 target.update_downtime(event.time)
@@ -424,7 +427,10 @@ class LFReplayHandlersMixin:
                             else:
                                 player.update_lives(event.time)
                         else:
-                            player.resupply_shots_from_ammo()
+                            if not player.has_authoritative_ammo:
+                                player.resupply_shots_from_ammo()
+                            else:
+                                player.update_shots(event.time)
         return f'{actor_name} resupplies team'
 
     def _process_event_resupply(

@@ -1,4 +1,4 @@
-from lfdata.model import LFRole
+from lfdata.model import LFRole, PlayerAmmoHistory, PlayerLivesHistory
 from lfdata.replay.state import (
     LFReplayGameState,
     LFReplayPlayerState,
@@ -222,7 +222,6 @@ def test_replay_player_state_hit_diff() -> None:
 
 
 def test_player_authoritative_lives() -> None:
-    from lfdata.model import PlayerLivesHistory
 
     history = [
         PlayerLivesHistory(game_id='g1', time=5000, entity_id='#1', lives=14),
@@ -269,3 +268,56 @@ def test_player_authoritative_lives() -> None:
     assert p2.lives == 20
     p2.resupply_lives_from_medic()
     assert p2.lives == 20
+
+
+def test_player_authoritative_ammo() -> None:
+    history = [
+        PlayerAmmoHistory(game_id='g1', time=5000, entity_id='#1', shots=25),
+        PlayerAmmoHistory(game_id='g1', time=15000, entity_id='#1', shots=15),
+    ]
+
+    p = LFReplayPlayerState(
+        entity_id='#1',
+        role=LFRole.SCOUT,
+        team_index=0,
+        ammo_history=history,
+    )
+    assert p.has_authoritative_ammo is True
+    assert p.has_authoritative_shots is True
+    assert p.shots == 30  # Starting shots before first record
+
+    assert p.get_shots_at(0) == 30
+    assert p.get_shots_at(4999) == 30
+    assert p.get_shots_at(5000) == 25
+    assert p.get_shots_at(10000) == 25
+    assert p.get_shots_at(15000) == 15
+    assert p.get_shots_at(20000) == 15
+
+    assert p.get_ammo_at(5000) == 25
+    assert p.get_ammo_at(15000) == 15
+
+    p.update_shots(5000)
+    assert p.shots == 25
+
+    p.update_ammo(15000)
+    assert p.shots == 15
+
+    # Resupply from ammo carrier should not compute or alter authoritative shots
+    p.resupply_shots_from_ammo()
+    assert p.shots == 15
+
+    # Player with has_authoritative_ammo flag but no records for this player
+    p2 = LFReplayPlayerState(
+        entity_id='#2',
+        role=LFRole.COMMANDER,
+        team_index=0,
+        has_authoritative_ammo=True,
+    )
+    assert p2.has_authoritative_ammo is True
+    assert p2.has_authoritative_shots is True
+    assert p2.shots == 30
+    assert p2.get_shots_at(10000) == 30
+    p2.update_shots(10000)
+    assert p2.shots == 30
+    p2.resupply_shots_from_ammo()
+    assert p2.shots == 30

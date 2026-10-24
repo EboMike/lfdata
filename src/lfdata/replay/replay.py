@@ -180,7 +180,11 @@ class LFReplaySystem(LFReplayHandlersMixin):
         Returns:
             bool: True if the player is ambiguous, False otherwise.
         """
-        if player.has_authoritative_state or player.has_authoritative_lives:
+        if (
+            player.has_authoritative_state
+            or player.has_authoritative_lives
+            or player.has_authoritative_ammo
+        ):
             return False
 
         if player.just_went_down_at_ms is not None:
@@ -277,6 +281,13 @@ class LFReplaySystem(LFReplayHandlersMixin):
             )
             for player in self.game_state.players.values():
                 player.update_lives(final_time)
+
+        if self.game.has_authoritative_ammo:
+            final_time = self.game_ended_at_ms or (
+                sorted_events[-1].time if sorted_events else 0
+            )
+            for player in self.game_state.players.values():
+                player.update_shots(final_time)
 
         success = self._verify_final_stats()
         return success, list(self._encountered_points)
@@ -382,6 +393,11 @@ class LFReplaySystem(LFReplayHandlersMixin):
             for lh in sorted(self.game.lives_history, key=lambda s: s.time):
                 lives_history_by_entity.setdefault(lh.entity_id, []).append(lh)
 
+        ammo_history_by_entity: dict[str, list] = {}
+        if self.game.ammo_history:
+            for ah in sorted(self.game.ammo_history, key=lambda s: s.time):
+                ammo_history_by_entity.setdefault(ah.entity_id, []).append(ah)
+
         for entity in self.game.entities:
             if entity.type == 'player':
                 if self.game.is_laserball:
@@ -393,6 +409,7 @@ class LFReplaySystem(LFReplayHandlersMixin):
                         role = LFRole.SCOUT
                 history = state_history_by_entity.get(entity.entity_id)
                 lives_history = lives_history_by_entity.get(entity.entity_id)
+                ammo_history = ammo_history_by_entity.get(entity.entity_id)
                 self.player_states.append(
                     LFReplayPlayerState(
                         entity.entity_id,
@@ -401,6 +418,8 @@ class LFReplaySystem(LFReplayHandlersMixin):
                         state_history=history,
                         lives_history=lives_history,
                         has_authoritative_lives=bool(self.game.lives_history),
+                        ammo_history=ammo_history,
+                        has_authoritative_ammo=bool(self.game.ammo_history),
                     )
                 )
 
@@ -422,6 +441,11 @@ class LFReplaySystem(LFReplayHandlersMixin):
                     and event.time > last_event_time
                 ):
                     player.update_lives(max(0, event.time - 1))
+                if (
+                    self.game.has_authoritative_ammo
+                    and event.time > last_event_time
+                ):
+                    player.update_shots(max(0, event.time - 1))
 
             player_snap, team_snap = self._take_snapshot()
 
@@ -725,6 +749,9 @@ class LFReplaySystem(LFReplayHandlersMixin):
                 if self.game.has_authoritative_lives:
                     for player in self.game_state.players.values():
                         player.update_lives(event.time)
+                if self.game.has_authoritative_ammo:
+                    for player in self.game_state.players.values():
+                        player.update_shots(event.time)
                 return
 
         self._last_simulated_time_ms = time_ms
@@ -733,6 +760,8 @@ class LFReplaySystem(LFReplayHandlersMixin):
             player.update_downtime(time_ms)
             if self.game.has_authoritative_lives:
                 player.update_lives(time_ms)
+            if self.game.has_authoritative_ammo:
+                player.update_shots(time_ms)
 
     def _dispatch_event(self, event: GameEvent) -> str:
         """Dispatches a game event to its specific handler method.
@@ -782,6 +811,10 @@ class LFReplaySystem(LFReplayHandlersMixin):
             for player in self.game_state.players.values():
                 player.update_lives(event.time)
 
+        if self.game.has_authoritative_ammo:
+            for player in self.game_state.players.values():
+                player.update_shots(event.time)
+
         # Check team elimination after processing the event
         self._check_team_elimination(event.time)
 
@@ -796,7 +829,11 @@ class LFReplaySystem(LFReplayHandlersMixin):
         """
         if actor_id and actor_id in self.game_state.players:
             player = self.game_state.players[actor_id]
-            if player.role and player.role != LFRole.AMMO:
+            if (
+                not player.has_authoritative_ammo
+                and player.role
+                and player.role != LFRole.AMMO
+            ):
                 player.shots = max(0, player.shots - count)
 
     def _decrement_missiles(self, actor_id: str | None) -> None:

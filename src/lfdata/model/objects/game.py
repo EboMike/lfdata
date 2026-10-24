@@ -28,6 +28,7 @@ if TYPE_CHECKING:
     from lfdata.model.gametypes.sm5_notability import Sm5NotabilityCondition
     from lfdata.model.objects.entity import GameEntity
     from lfdata.model.objects.player import Player
+    from lfdata.model.objects.player_ammo_history import PlayerAmmoHistory
     from lfdata.model.objects.player_lives_history import PlayerLivesHistory
 
 
@@ -56,6 +57,7 @@ class LFGame(Base):
         score_history: List of ScoreHistory ORM relationships.
         state_history: List of PlayerStateHistory ORM relationships.
         lives_history: List of PlayerLivesHistory ORM relationships.
+        ammo_history: List of PlayerAmmoHistory ORM relationships.
     """
 
     __tablename__ = 'lf_games'
@@ -108,6 +110,11 @@ class LFGame(Base):
         back_populates='game',
         cascade='all, delete-orphan',
     )
+    ammo_history: Mapped[list[PlayerAmmoHistory]] = relationship(
+        'PlayerAmmoHistory',
+        back_populates='game',
+        cascade='all, delete-orphan',
+    )
 
     @property
     def has_authoritative_lives(self) -> bool:
@@ -117,6 +124,24 @@ class LFGame(Base):
             bool: True if lives history is present, False otherwise.
         """
         return bool(self.lives_history)
+
+    @property
+    def has_authoritative_ammo(self) -> bool:
+        """Returns True if the game has authoritative type 12 ammo history.
+
+        Returns:
+            bool: True if ammo history is present, False otherwise.
+        """
+        return bool(self.ammo_history)
+
+    @property
+    def has_authoritative_shots(self) -> bool:
+        """Alias for has_authoritative_ammo.
+
+        Returns:
+            bool: True if ammo history is present, False otherwise.
+        """
+        return self.has_authoritative_ammo
 
     def __init__(self, **kwargs: object) -> None:
         """Initializes a new game session.

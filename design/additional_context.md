@@ -165,3 +165,18 @@ If none apply, the fallback is: `{blocks}/{blocked_by_others} blocks`.
   Instead, the TDF file is used as the authoritative source for the number of
   lives of each player at any time.
 
+## Authoritative Player Ammo from TDF (Type 12 Records)
+
+* If a TDF file contains rows where the first column is 12, it provides
+  information about the number of shots (ammo) for a player.
+* Row format:
+  - Column 1: Record type (12)
+  - Column 2: Timestamp in milliseconds from game start
+  - Column 3: Player entity ID
+  - Column 5: New number of shots (ammo)
+* If there is at least one row with column 12, player ammo/shots are not
+  computed from game events (zaps, base hits, beacons, ammo resupplies, team
+  boosts). Instead, the TDF file is used as the authoritative source for the
+  number of shots of each player at any time.
+
+

@@ -26,6 +26,7 @@ from lfdata.model import (
     LFCentre,
     LFGame,
     Player,
+    PlayerAmmoHistory,
     PlayerLivesHistory,
     PlayerStateHistory,
     ScoreHistory,
@@ -37,6 +38,7 @@ from lfdata.model.constants.tdf import (
     TDF_RECORD_EVENT,
     TDF_RECORD_INFO,
     TDF_RECORD_MISSION,
+    TDF_RECORD_PLAYER_AMMO,
     TDF_RECORD_PLAYER_LIVES,
     TDF_RECORD_PLAYER_STATE,
     TDF_RECORD_SCORE,
@@ -114,6 +116,8 @@ class TdfImporter:
             self._parse_player_state(parts, game)
         elif rec_type == TDF_RECORD_PLAYER_LIVES:
             self._parse_player_lives(parts, game)
+        elif rec_type == TDF_RECORD_PLAYER_AMMO:
+            self._parse_player_ammo(parts, game)
 
     def parse(self) -> LFGame:
         """Parses the TDF file and returns a LFGame data object.
@@ -540,6 +544,27 @@ class TdfImporter:
                 lives=lives_val,
             )
             game.lives_history.append(lives_entry)
+
+    def _parse_player_ammo(self, parts: list[str], game: LFGame) -> None:
+        """Parses record type 12 (Player ammo/shots).
+
+        Args:
+            parts: The fields of the row.
+            game: The game object to update.
+        """
+        if len(parts) >= 5:
+            try:
+                time_offset = int(parts[1])
+                shots_val = int(parts[4])
+            except ValueError:
+                return
+            ammo_entry = PlayerAmmoHistory(
+                game_id=game.game_id,
+                time=time_offset,
+                entity_id=parts[2],
+                shots=shots_val,
+            )
+            game.ammo_history.append(ammo_entry)
 
 
 def parse_tdf(file_path: str | Path) -> LFGame:

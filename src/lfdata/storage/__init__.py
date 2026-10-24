@@ -89,6 +89,7 @@ class DatabaseStorage:
                     selectinload(LFGame.score_history),
                     selectinload(LFGame.state_history),
                     selectinload(LFGame.lives_history),
+                    selectinload(LFGame.ammo_history),
                 )
                 .filter_by(game_id=game_id)
                 .first()

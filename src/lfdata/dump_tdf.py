@@ -136,6 +136,8 @@ class TdfStateDumper:
                         p.update_downtime(last_interval_time_ms)
                         if self.replay.game.has_authoritative_lives:
                             p.update_lives(last_interval_time_ms)
+                        if self.replay.game.has_authoritative_ammo:
+                            p.update_shots(last_interval_time_ms)
                     entries.append(
                         self._build_game_state_entry(
                             time_ms=last_interval_time_ms,
@@ -192,6 +194,9 @@ class TdfStateDumper:
             if self.replay.game.has_authoritative_lives:
                 for p in self.replay.game_state.players.values():
                     p.update_lives(final_time_ms)
+            if self.replay.game.has_authoritative_ammo:
+                for p in self.replay.game_state.players.values():
+                    p.update_shots(final_time_ms)
             entries.append(
                 self._build_game_state_entry(
                     time_ms=final_time_ms,

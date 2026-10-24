@@ -1,6 +1,15 @@
+from datetime import datetime
 from pathlib import Path
 
 from lfdata.importer import TdfImporter
+from lfdata.model import (
+    GameEntity,
+    GameEvent,
+    GameTeam,
+    LFGame,
+    PlayerAmmoHistory,
+    PlayerLivesHistory,
+)
 from lfdata.model.gametypes.laserball_events import (
     LASERBALL_EVENT_ASSIST,
     LASERBALL_EVENT_BLOCK,
@@ -17,6 +26,7 @@ from lfdata.model.gametypes.sm5_events import (
     SM5_EVENT_ACTIVATE_NUKE,
     SM5_EVENT_ACTIVATE_RAPID_FIRE,
     SM5_EVENT_AMMO_BOOST,
+    SM5_EVENT_CLAIM_BEACON,
     SM5_EVENT_DAMAGED_OPPONENT,
     SM5_EVENT_DESTROY_BASE,
     SM5_EVENT_DETONATE_NUKE,
@@ -2333,14 +2343,6 @@ def test_laserball_replay() -> None:
 
 
 def test_replay_authoritative_lives_no_computation() -> None:
-    from datetime import datetime
-    from lfdata.model import (
-        GameEntity,
-        GameEvent,
-        GameTeam,
-        LFGame,
-        PlayerLivesHistory,
-    )
 
     game = LFGame(
         game_id='auth_lives_game',
@@ -2543,3 +2545,183 @@ def test_replay_authoritative_lives_from_tdf_file(tmp_path) -> None:
     assert replay.game_state.players['#P2'].lives == 7
     zap_record = next(r for r in records if r.time_ms == 10000)
     assert zap_record.player_changes['#P2']['lives'] == 7
+
+
+def test_replay_authoritative_ammo_no_computation() -> None:
+    game = LFGame(
+        game_id='auth_ammo_game',
+        timestamp=datetime.now(),
+        game_type='SM5',
+    )
+    t1 = GameTeam(
+        game_id='auth_ammo_game',
+        team_index=0,
+        desc='Fire Team',
+        color_enum=11,
+        color_desc='Fire',
+        color_rgb='#FF5000',
+    )
+    t2 = GameTeam(
+        game_id='auth_ammo_game',
+        team_index=1,
+        desc='Earth Team',
+        color_enum=13,
+        color_desc='Earth',
+        color_rgb='#00FF00',
+    )
+    game.teams = [t1, t2]
+
+    # C1 (Commander, team 0), C2 (Commander, team 1), A1 (Ammo carrier, team 0)
+    c1 = GameEntity(
+        game_id='auth_ammo_game',
+        entity_id='C1',
+        type='player',
+        desc='Cmd1',
+        team_index=0,
+        category=1,  # Commander: starts with 30 shots
+    )
+    c2 = GameEntity(
+        game_id='auth_ammo_game',
+        entity_id='C2',
+        type='player',
+        desc='Cmd2',
+        team_index=1,
+        category=1,
+    )
+    a1 = GameEntity(
+        game_id='auth_ammo_game',
+        entity_id='A1',
+        type='player',
+        desc='Ammo1',
+        team_index=0,
+        category=3,  # Ammo Carrier
+    )
+    game.entities = [c1, c2, a1]
+
+    # Type 12 records authoritative for C1:
+    # At 10000: shots = 25 (instead of computed 29 from zap)
+    # At 20000: shots = 20 (instead of computed 22 from beacon)
+    # At 30000: shots = 40 (instead of computed from ammo resup)
+    game.ammo_history = [
+        PlayerAmmoHistory(
+            game_id='auth_ammo_game', time=10000, entity_id='C1', shots=25
+        ),
+        PlayerAmmoHistory(
+            game_id='auth_ammo_game', time=20000, entity_id='C1', shots=20
+        ),
+        PlayerAmmoHistory(
+            game_id='auth_ammo_game', time=30000, entity_id='C1', shots=40
+        ),
+    ]
+
+    game.events = [
+        GameEvent(
+            game_id='auth_ammo_game',
+            time=0,
+            event_type=SM5_EVENT_MISSION_START,
+            raw_message='',
+        ),
+        # C1 zaps C2 at 10000
+        GameEvent(
+            game_id='auth_ammo_game',
+            time=10000,
+            event_type=SM5_EVENT_DOWNED_OPPONENT,
+            actor_entity_id='C1',
+            target_entity_id='C2',
+            raw_message='',
+        ),
+        # C1 claims beacon at 20000
+        GameEvent(
+            game_id='auth_ammo_game',
+            time=20000,
+            event_type=SM5_EVENT_CLAIM_BEACON,
+            actor_entity_id='C1',
+            raw_message='',
+        ),
+        # A1 resupplies C1 at 30000
+        GameEvent(
+            game_id='auth_ammo_game',
+            time=30000,
+            event_type=SM5_EVENT_RESUPPLY_AMMO,
+            actor_entity_id='A1',
+            target_entity_id='C1',
+            raw_message='',
+        ),
+        GameEvent(
+            game_id='auth_ammo_game',
+            time=40000,
+            event_type=SM5_EVENT_MISSION_END,
+            raw_message='',
+        ),
+    ]
+
+    replay = LFReplaySystem(game, align_stats=False)
+    records = replay.run()
+
+    # Verify event records capture the authoritative ammo changes
+    zap_rec = next(r for r in records if r.time_ms == 10000)
+    assert 'C1' in zap_rec.player_changes
+    assert zap_rec.player_changes['C1']['shots'] == 25
+
+    beacon_rec = next(r for r in records if r.time_ms == 20000)
+    assert 'C1' in beacon_rec.player_changes
+    assert beacon_rec.player_changes['C1']['shots'] == 20
+
+    resup_rec = next(r for r in records if r.time_ms == 30000)
+    assert 'C1' in resup_rec.player_changes
+    assert resup_rec.player_changes['C1']['shots'] == 40
+
+    # Test run_up_to queries
+    replay_query = LFReplaySystem(game, align_stats=False)
+    replay_query.run_up_to(5000)
+    assert replay_query.game_state.players['C1'].shots == 30
+
+    replay_query.run_up_to(10000)
+    assert replay_query.game_state.players['C1'].shots == 25
+
+    replay_query.run_up_to(15000)
+    assert replay_query.game_state.players['C1'].shots == 25
+
+    replay_query.run_up_to(20000)
+    assert replay_query.game_state.players['C1'].shots == 20
+
+    replay_query.run_up_to(30000)
+    assert replay_query.game_state.players['C1'].shots == 40
+
+    replay_query.run_up_to(40000)
+    assert replay_query.game_state.players['C1'].shots == 40
+
+
+def test_replay_authoritative_ammo_from_tdf_file(tmp_path) -> None:
+    tdf_file = tmp_path / 'auth_ammo_game.tdf'
+    content = (
+        ';0/info\n'
+        '0\t1\t1\t4-43\n'
+        ';1/mission\n'
+        '1\t5\tSpace Marines 5\t20260621194549\t900\t1000\n'
+        ';2/team\n'
+        '2\t0\tFire\t11\tFire\t#FF5000\n'
+        '2\t1\tEarth\t13\tEarth\t#00FF00\n'
+        ';3/entity-start\n'
+        '3\t0\t#P1\tplayer\tRedCmd\t0\t1\t1\tSuit1\n'
+        '3\t0\t#P2\tplayer\tGreenCmd\t1\t1\t1\tSuit2\n'
+        ';4/event\n'
+        '4\t0\t0100\t* Mission Start *\n'
+        '4\t10000\t0206\t#P1\tzaps\t#P2\n'
+        '4\t20000\t0101\t* Mission End *\n'
+        ';12/player-ammo\ttime\tentity\tunused\tammo\n'
+        '12\t10000\t#P1\t0\t18\n'
+    )
+    tdf_file.write_text(content, encoding='utf-8')
+    importer = TdfImporter(tdf_file)
+    game = importer.parse()
+
+    assert game.has_authoritative_ammo is True
+    replay = LFReplaySystem(game, align_stats=False)
+    records = replay.run()
+
+    # Without row 12, RedCmd would have 29 shots after 1 zap.
+    # With row 12 specifying 18, RedCmd must have exactly 18 shots.
+    assert replay.game_state.players['#P1'].shots == 18
+    zap_record = next(r for r in records if r.time_ms == 10000)
+    assert zap_record.player_changes['#P1']['shots'] == 18

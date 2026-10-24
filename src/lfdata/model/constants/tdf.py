@@ -1,6 +1,6 @@
 """Constants and enums for TDF record types and player state codes.
 
-This module defines string constants for TDF record types (0 through 11)
+This module defines string constants for TDF record types (0 through 12)
 and integer enums for player operational states (up, down, resettable)
 as reported in type 9 records.
 
@@ -26,6 +26,7 @@ TDF_RECORD_ENTITY_END: str = '6'
 TDF_RECORD_STATS: str = '7'
 TDF_RECORD_PLAYER_STATE: str = '9'
 TDF_RECORD_PLAYER_LIVES: str = '11'
+TDF_RECORD_PLAYER_AMMO: str = '12'
 
 
 class LFPlayerState(enum.IntEnum):

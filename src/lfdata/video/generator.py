@@ -263,6 +263,8 @@ class VisualElementGenerator:
             state_history=p.state_history,
             lives_history=p.lives_history,
             has_authoritative_lives=p.has_authoritative_lives,
+            ammo_history=p.ammo_history,
+            has_authoritative_ammo=p.has_authoritative_ammo,
         )
         new_p.lives = p.lives
         new_p.shots = p.shots
@@ -1102,6 +1104,8 @@ class VisualElementGenerator:
             player.update_downtime(time_ms)
             if player.has_authoritative_lives:
                 player.update_lives(time_ms)
+            if player.has_authoritative_ammo:
+                player.update_shots(time_ms)
 
         return cloned_players, cloned_teams
 
