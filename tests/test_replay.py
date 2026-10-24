@@ -9,6 +9,7 @@ from lfdata.model import (
     LFGame,
     PlayerAmmoHistory,
     PlayerLivesHistory,
+    PlayerMissilesHistory,
 )
 from lfdata.model.gametypes.laserball_events import (
     LASERBALL_EVENT_ASSIST,
@@ -2725,3 +2726,164 @@ def test_replay_authoritative_ammo_from_tdf_file(tmp_path) -> None:
     assert replay.game_state.players['#P1'].shots == 18
     zap_record = next(r for r in records if r.time_ms == 10000)
     assert zap_record.player_changes['#P1']['shots'] == 18
+
+
+def test_replay_authoritative_missiles_no_computation() -> None:
+    game = LFGame(
+        game_id='auth_missiles_game',
+        timestamp=datetime.now(),
+        game_type='SM5',
+    )
+    t1 = GameTeam(
+        game_id='auth_missiles_game',
+        team_index=0,
+        desc='Fire Team',
+        color_enum=11,
+        color_desc='Fire',
+        color_rgb='#FF5000',
+    )
+    t2 = GameTeam(
+        game_id='auth_missiles_game',
+        team_index=1,
+        desc='Earth Team',
+        color_enum=13,
+        color_desc='Earth',
+        color_rgb='#00FF00',
+    )
+    game.teams = [t1, t2]
+
+    # C1 (Commander, team 0, category 1 starts with 5 missiles), C2 (team 1)
+    c1 = GameEntity(
+        game_id='auth_missiles_game',
+        entity_id='C1',
+        type='player',
+        desc='Cmd1',
+        team_index=0,
+        category=1,  # Commander
+    )
+    c2 = GameEntity(
+        game_id='auth_missiles_game',
+        entity_id='C2',
+        type='player',
+        desc='Cmd2',
+        team_index=1,
+        category=1,
+    )
+    b1 = GameEntity(
+        game_id='auth_missiles_game',
+        entity_id='B1',
+        type='base',
+        desc='Earth Base',
+        team_index=1,
+        category=0,
+    )
+    game.entities = [c1, c2, b1]
+
+    # Type 13 records authoritative for C1:
+    # At 10000: missiles = 3 (instead of computed 4 from missile down)
+    # At 20000: missiles = 1 (instead of computed 3 from missile base)
+    game.missiles_history = [
+        PlayerMissilesHistory(
+            game_id='auth_missiles_game', time=10000, entity_id='C1', missiles=3
+        ),
+        PlayerMissilesHistory(
+            game_id='auth_missiles_game', time=20000, entity_id='C1', missiles=1
+        ),
+    ]
+
+    game.events = [
+        GameEvent(
+            game_id='auth_missiles_game',
+            time=0,
+            event_type=SM5_EVENT_MISSION_START,
+            raw_message='',
+        ),
+        # C1 missiles C2 at 10000
+        GameEvent(
+            game_id='auth_missiles_game',
+            time=10000,
+            event_type=SM5_EVENT_MISSILE_DOWN_OPPONENT,
+            actor_entity_id='C1',
+            target_entity_id='C2',
+            raw_message='',
+        ),
+        # C1 missiles base B1 at 20000
+        GameEvent(
+            game_id='auth_missiles_game',
+            time=20000,
+            event_type=SM5_EVENT_MISSILE_BASE_DESTROY,
+            actor_entity_id='C1',
+            target_entity_id='B1',
+            raw_message='',
+        ),
+        GameEvent(
+            game_id='auth_missiles_game',
+            time=30000,
+            event_type=SM5_EVENT_MISSION_END,
+            raw_message='',
+        ),
+    ]
+
+    replay = LFReplaySystem(game, align_stats=False)
+    records = replay.run()
+
+    # Verify event records capture the authoritative missile changes
+    missile_rec = next(r for r in records if r.time_ms == 10000)
+    assert 'C1' in missile_rec.player_changes
+    assert missile_rec.player_changes['C1']['missiles'] == 3
+
+    base_rec = next(r for r in records if r.time_ms == 20000)
+    assert 'C1' in base_rec.player_changes
+    assert base_rec.player_changes['C1']['missiles'] == 1
+
+    # Test run_up_to queries
+    replay_query = LFReplaySystem(game, align_stats=False)
+    replay_query.run_up_to(5000)
+    assert replay_query.game_state.players['C1'].missiles == 5
+
+    replay_query.run_up_to(10000)
+    assert replay_query.game_state.players['C1'].missiles == 3
+
+    replay_query.run_up_to(15000)
+    assert replay_query.game_state.players['C1'].missiles == 3
+
+    replay_query.run_up_to(20000)
+    assert replay_query.game_state.players['C1'].missiles == 1
+
+    replay_query.run_up_to(30000)
+    assert replay_query.game_state.players['C1'].missiles == 1
+
+
+def test_replay_authoritative_missiles_from_tdf_file(tmp_path) -> None:
+    tdf_file = tmp_path / 'auth_missiles_game.tdf'
+    content = (
+        ';0/info\n'
+        '0\t1\t1\t4-43\n'
+        ';1/mission\n'
+        '1\t5\tSpace Marines 5\t20260621194549\t900\t1000\n'
+        ';2/team\n'
+        '2\t0\tFire\t11\tFire\t#FF5000\n'
+        '2\t1\tEarth\t13\tEarth\t#00FF00\n'
+        ';3/entity-start\n'
+        '3\t0\t#P1\tplayer\tRedCmd\t0\t1\t1\tSuit1\n'
+        '3\t0\t#P2\tplayer\tGreenCmd\t1\t1\t1\tSuit2\n'
+        ';4/event\n'
+        '4\t0\t0100\t* Mission Start *\n'
+        '4\t10000\t0306\t#P1\tmissiles\t#P2\n'
+        '4\t20000\t0101\t* Mission End *\n'
+        ';13/player-missiles\ttime\tentity\tunused\tmissiles\n'
+        '13\t10000\t#P1\t0\t2\n'
+    )
+    tdf_file.write_text(content, encoding='utf-8')
+    importer = TdfImporter(tdf_file)
+    game = importer.parse()
+
+    assert game.has_authoritative_missiles is True
+    replay = LFReplaySystem(game, align_stats=False)
+    records = replay.run()
+
+    # Without row 13, RedCmd would have 4 missiles after 1 missile hit.
+    # With row 13 specifying 2, RedCmd must have exactly 2 missiles.
+    assert replay.game_state.players['#P1'].missiles == 2
+    missile_record = next(r for r in records if r.time_ms == 10000)
+    assert missile_record.player_changes['#P1']['missiles'] == 2

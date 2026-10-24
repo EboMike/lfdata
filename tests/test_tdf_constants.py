@@ -6,6 +6,7 @@ from lfdata.model.constants.tdf import (
     TDF_RECORD_MISSION,
     TDF_RECORD_PLAYER_AMMO,
     TDF_RECORD_PLAYER_LIVES,
+    TDF_RECORD_PLAYER_MISSILES,
     TDF_RECORD_PLAYER_STATE,
     TDF_RECORD_SCORE,
     TDF_RECORD_STATS,
@@ -26,6 +27,7 @@ def test_tdf_record_constants():
     assert TDF_RECORD_PLAYER_STATE == '9'
     assert TDF_RECORD_PLAYER_LIVES == '11'
     assert TDF_RECORD_PLAYER_AMMO == '12'
+    assert TDF_RECORD_PLAYER_MISSILES == '13'
 
 
 def test_lf_player_state_enum():

@@ -179,4 +179,19 @@ If none apply, the fallback is: `{blocks}/{blocked_by_others} blocks`.
   boosts). Instead, the TDF file is used as the authoritative source for the
   number of shots of each player at any time.
 
+## Authoritative Player Missiles from TDF (Type 13 Records)
+
+* If a TDF file contains rows where the first column is 13, it provides
+  information about the number of missiles for a player.
+* Row format:
+  - Column 1: Record type (13)
+  - Column 2: Timestamp in milliseconds from game start
+  - Column 3: Player entity ID
+  - Column 5: New number of missiles
+* If there is at least one row with column 13, player missiles are not
+  computed from game events (firing missiles on players, missing missiles,
+  firing missiles on bases). Instead, the TDF file is used as the authoritative
+  source for the number of missiles of each player at any time.
+
+
 

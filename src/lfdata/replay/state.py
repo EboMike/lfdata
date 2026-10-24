@@ -16,6 +16,7 @@ from lfdata.model import (
     LFRole,
     PlayerAmmoHistory,
     PlayerLivesHistory,
+    PlayerMissilesHistory,
     PlayerStateHistory,
 )
 from lfdata.model.constants.tdf import LFPlayerState
@@ -58,6 +59,8 @@ class LFReplayPlayerState:
         has_authoritative_lives: Flag indicating authoritative type 11 history.
         ammo_history: Optional list of PlayerAmmoHistory entries.
         has_authoritative_ammo: Flag indicating authoritative type 12 history.
+        missiles_history: Optional list of PlayerMissilesHistory entries.
+        has_authoritative_missiles: Flag indicating type 13 history.
         times_zapped: Times player was zapped.
         times_zapped_opponents: Times player zapped players on other teams.
         times_zapped_someone: Deprecated alias for times_zapped_opponents.
@@ -74,6 +77,8 @@ class LFReplayPlayerState:
         has_authoritative_lives: bool = False,
         ammo_history: list[PlayerAmmoHistory] | None = None,
         has_authoritative_ammo: bool = False,
+        missiles_history: list[PlayerMissilesHistory] | None = None,
+        has_authoritative_missiles: bool = False,
     ) -> None:
         """Initializes the player state with role-based start values.
 
@@ -89,6 +94,10 @@ class LFReplayPlayerState:
             ammo_history: Optional list of authoritative ammo history entries
                 parsed from type 12 records.
             has_authoritative_ammo: Whether authoritative type 12 records exist.
+            missiles_history: Optional list of authoritative missiles history
+                entries parsed from type 13 records.
+            has_authoritative_missiles: Whether authoritative type 13 records
+                exist.
         """
         self.entity_id = entity_id
         self.role = role
@@ -109,7 +118,16 @@ class LFReplayPlayerState:
             self.shots = self.get_shots_at(0)
         else:
             self.shots = role.start_shots if role else 0
-        self.missiles = role.start_missiles if role else 0
+        self.missiles_history: list[PlayerMissilesHistory] | None = (
+            missiles_history
+        )
+        self.has_authoritative_missiles: bool = (
+            has_authoritative_missiles or bool(missiles_history)
+        )
+        if self.has_authoritative_missiles:
+            self.missiles = self.get_missiles_at(0)
+        else:
+            self.missiles = role.start_missiles if role else 0
         self.score = 0
         self._special_points = 0
         self.max_hp = role.max_hp if role else 0
@@ -222,6 +240,34 @@ class LFReplayPlayerState:
             current_time_ms: The current millisecond timestamp.
         """
         self.update_shots(current_time_ms)
+
+    def get_missiles_at(self, current_time_ms: int) -> int:
+        """Returns the player's authoritative missiles at current_time_ms.
+
+        Args:
+            current_time_ms: Timestamp in milliseconds.
+
+        Returns:
+            int: Remaining missiles at the specified timestamp.
+        """
+        if not self.missiles_history:
+            return self.role.start_missiles if self.role else 0
+        latest_missiles: int = self.role.start_missiles if self.role else 0
+        for entry in self.missiles_history:
+            if entry.time <= current_time_ms:
+                latest_missiles = entry.missiles
+            else:
+                break
+        return latest_missiles
+
+    def update_missiles(self, current_time_ms: int) -> None:
+        """Updates remaining missiles based on authoritative history.
+
+        Args:
+            current_time_ms: The current millisecond timestamp.
+        """
+        if self.has_authoritative_missiles:
+            self.missiles = self.get_missiles_at(current_time_ms)
 
     def get_state_at(self, current_time_ms: int) -> int:
         """Returns the player's authoritative state at current_time_ms.

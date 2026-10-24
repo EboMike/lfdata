@@ -313,3 +313,34 @@ def test_parse_tdf_player_ammo_records(tmp_path) -> None:
     assert game.ammo_history[1].entity_id == '#P1'
     assert game.ammo_history[1].shots == 115
     assert game.ammo_history[1].ammo == 115
+
+
+def test_parse_tdf_player_missiles_records(tmp_path) -> None:
+    tdf_file = tmp_path / 'player_missiles.tdf'
+    content = (
+        ';0/info\n'
+        '0\t1\t1\t4-43\n'
+        ';1/mission\n'
+        '1\t5\tSpace Marines 5\t20260621194549\t900\t1000\n'
+        ';2/team\n'
+        '2\t0\tFire\t11\tFire\t#FF5000\n'
+        ';3/entity-start\n'
+        '3\t0\t#P1\tplayer\tRedCmd\t0\t1\t1\tSuit1\n'
+        ';13/player-missiles\ttime\tentity\tunused\tmissiles\n'
+        '13\t15000\t#P1\t0\t4\n'
+        '13\t25000\t#P1\t0\t3\n'
+        '13\tinvalid\t#P1\t0\tbad\n'
+        '13\t35000\t#P1\n'
+    )
+    tdf_file.write_text(content, encoding='utf-8')
+    importer = TdfImporter(tdf_file)
+    game = importer.parse()
+
+    assert game.has_authoritative_missiles is True
+    assert len(game.missiles_history) == 2
+    assert game.missiles_history[0].time == 15000
+    assert game.missiles_history[0].entity_id == '#P1'
+    assert game.missiles_history[0].missiles == 4
+    assert game.missiles_history[1].time == 25000
+    assert game.missiles_history[1].entity_id == '#P1'
+    assert game.missiles_history[1].missiles == 3

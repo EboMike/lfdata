@@ -1,4 +1,9 @@
-from lfdata.model import LFRole, PlayerAmmoHistory, PlayerLivesHistory
+from lfdata.model import (
+    LFRole,
+    PlayerAmmoHistory,
+    PlayerLivesHistory,
+    PlayerMissilesHistory,
+)
 from lfdata.replay.state import (
     LFReplayGameState,
     LFReplayPlayerState,
@@ -321,3 +326,49 @@ def test_player_authoritative_ammo() -> None:
     assert p2.shots == 30
     p2.resupply_shots_from_ammo()
     assert p2.shots == 30
+
+
+def test_player_authoritative_missiles() -> None:
+    history = [
+        PlayerMissilesHistory(
+            game_id='g1', time=5000, entity_id='#1', missiles=4
+        ),
+        PlayerMissilesHistory(
+            game_id='g1', time=15000, entity_id='#1', missiles=2
+        ),
+    ]
+
+    p = LFReplayPlayerState(
+        entity_id='#1',
+        role=LFRole.COMMANDER,
+        team_index=0,
+        missiles_history=history,
+    )
+    assert p.has_authoritative_missiles is True
+    assert p.missiles == 5  # Starting missiles before first record
+
+    assert p.get_missiles_at(0) == 5
+    assert p.get_missiles_at(4999) == 5
+    assert p.get_missiles_at(5000) == 4
+    assert p.get_missiles_at(10000) == 4
+    assert p.get_missiles_at(15000) == 2
+    assert p.get_missiles_at(20000) == 2
+
+    p.update_missiles(5000)
+    assert p.missiles == 4
+
+    p.update_missiles(15000)
+    assert p.missiles == 2
+
+    # Player with has_authoritative_missiles flag but no records for this player
+    p2 = LFReplayPlayerState(
+        entity_id='#2',
+        role=LFRole.COMMANDER,
+        team_index=0,
+        has_authoritative_missiles=True,
+    )
+    assert p2.has_authoritative_missiles is True
+    assert p2.missiles == 5
+    assert p2.get_missiles_at(10000) == 5
+    p2.update_missiles(10000)
+    assert p2.missiles == 5

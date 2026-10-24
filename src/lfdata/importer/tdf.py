@@ -28,6 +28,7 @@ from lfdata.model import (
     Player,
     PlayerAmmoHistory,
     PlayerLivesHistory,
+    PlayerMissilesHistory,
     PlayerStateHistory,
     ScoreHistory,
     Sm5Stats,
@@ -40,6 +41,7 @@ from lfdata.model.constants.tdf import (
     TDF_RECORD_MISSION,
     TDF_RECORD_PLAYER_AMMO,
     TDF_RECORD_PLAYER_LIVES,
+    TDF_RECORD_PLAYER_MISSILES,
     TDF_RECORD_PLAYER_STATE,
     TDF_RECORD_SCORE,
     TDF_RECORD_STATS,
@@ -118,6 +120,8 @@ class TdfImporter:
             self._parse_player_lives(parts, game)
         elif rec_type == TDF_RECORD_PLAYER_AMMO:
             self._parse_player_ammo(parts, game)
+        elif rec_type == TDF_RECORD_PLAYER_MISSILES:
+            self._parse_player_missiles(parts, game)
 
     def parse(self) -> LFGame:
         """Parses the TDF file and returns a LFGame data object.
@@ -565,6 +569,27 @@ class TdfImporter:
                 shots=shots_val,
             )
             game.ammo_history.append(ammo_entry)
+
+    def _parse_player_missiles(self, parts: list[str], game: LFGame) -> None:
+        """Parses record type 13 (Player missiles).
+
+        Args:
+            parts: The fields of the row.
+            game: The game object to update.
+        """
+        if len(parts) >= 5:
+            try:
+                time_offset = int(parts[1])
+                missiles_val = int(parts[4])
+            except ValueError:
+                return
+            missiles_entry = PlayerMissilesHistory(
+                game_id=game.game_id,
+                time=time_offset,
+                entity_id=parts[2],
+                missiles=missiles_val,
+            )
+            game.missiles_history.append(missiles_entry)
 
 
 def parse_tdf(file_path: str | Path) -> LFGame:

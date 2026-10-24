@@ -265,6 +265,8 @@ class VisualElementGenerator:
             has_authoritative_lives=p.has_authoritative_lives,
             ammo_history=p.ammo_history,
             has_authoritative_ammo=p.has_authoritative_ammo,
+            missiles_history=p.missiles_history,
+            has_authoritative_missiles=p.has_authoritative_missiles,
         )
         new_p.lives = p.lives
         new_p.shots = p.shots
@@ -1106,6 +1108,8 @@ class VisualElementGenerator:
                 player.update_lives(time_ms)
             if player.has_authoritative_ammo:
                 player.update_shots(time_ms)
+            if player.has_authoritative_missiles:
+                player.update_missiles(time_ms)
 
         return cloned_players, cloned_teams
 

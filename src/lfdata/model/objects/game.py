@@ -30,6 +30,9 @@ if TYPE_CHECKING:
     from lfdata.model.objects.player import Player
     from lfdata.model.objects.player_ammo_history import PlayerAmmoHistory
     from lfdata.model.objects.player_lives_history import PlayerLivesHistory
+    from lfdata.model.objects.player_missiles_history import (
+        PlayerMissilesHistory,
+    )
 
 
 class LFGame(Base):
@@ -115,6 +118,11 @@ class LFGame(Base):
         back_populates='game',
         cascade='all, delete-orphan',
     )
+    missiles_history: Mapped[list[PlayerMissilesHistory]] = relationship(
+        'PlayerMissilesHistory',
+        back_populates='game',
+        cascade='all, delete-orphan',
+    )
 
     @property
     def has_authoritative_lives(self) -> bool:
@@ -142,6 +150,15 @@ class LFGame(Base):
             bool: True if ammo history is present, False otherwise.
         """
         return self.has_authoritative_ammo
+
+    @property
+    def has_authoritative_missiles(self) -> bool:
+        """Returns True if the game has authoritative type 13 missiles history.
+
+        Returns:
+            bool: True if missiles history is present, False otherwise.
+        """
+        return bool(self.missiles_history)
 
     def __init__(self, **kwargs: object) -> None:
         """Initializes a new game session.
