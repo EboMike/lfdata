@@ -117,6 +117,8 @@ assets/discord.png
 *.webm
 data/*.db
 data/*.sqlite
+*.db
+*.sqlite
 
 # Internal assets
 assets_src/
