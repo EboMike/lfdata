@@ -142,4 +142,3 @@ class TdfFileReader:
                 return None
 
         return None
-

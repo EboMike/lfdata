@@ -2,7 +2,8 @@
 
 This module provides `TdfListener`, which accepts incoming TCP connections
 streaming live TDF game data, initializes a new game session, handles character
-encoding detection (UTF-16LE, UTF-8 BOM), and streams received lines.
+encoding detection (UTF-16LE, UTF-8 BOM), and streams received lines into the
+active game state.
 
 Usage example:
     from lflive.state.game_state import LiveGameState
@@ -18,6 +19,7 @@ import codecs
 from collections.abc import Callable
 
 from lflive.db import LiveDatabase
+from lflive.ingestor import TdfIngestor
 from lflive.state.game_state import LiveGameState
 
 
@@ -54,6 +56,7 @@ class TdfListener:
         log_tdf: Flag indicating whether received lines are printed to stdout.
         game_state: Optional LiveGameState instance managed by this listener.
         db: Optional LiveDatabase instance to reset on new sessions.
+        ingestor: Optional TdfIngestor instance parsing lines into game state.
         line_callback: Optional callable invoked for every received line.
         is_running: Boolean flag indicating if the server is active.
         active_connection: Boolean flag indicating if a client is connected.
@@ -66,6 +69,7 @@ class TdfListener:
         log_tdf: bool = False,
         game_state: LiveGameState | None = None,
         db: LiveDatabase | None = None,
+        ingestor: TdfIngestor | None = None,
         line_callback: Callable[[str], None] | None = None,
     ) -> None:
         """Initializes the TDF listener configuration.
@@ -76,6 +80,7 @@ class TdfListener:
             log_tdf: Whether to print received lines to standard output.
             game_state: Optional game state container to associate and reset.
             db: Optional database manager to reset on session start.
+            ingestor: Optional ingestor to parse lines into the game state.
             line_callback: Optional callback invoked for every received line.
         """
         self.port = port
@@ -83,6 +88,13 @@ class TdfListener:
         self.log_tdf = log_tdf
         self.game_state = game_state
         self.db = db
+        if ingestor is not None:
+            self.ingestor: TdfIngestor | None = ingestor
+        elif game_state is not None:
+            self.ingestor = TdfIngestor(game_state=game_state)
+        else:
+            self.ingestor = None
+
         self.line_callback = line_callback
         self.is_running = False
         self.active_connection = False
@@ -154,6 +166,8 @@ class TdfListener:
         """Initializes in-memory and database states for a new game session."""
         if self.game_state:
             self.game_state.reset()
+        if self.ingestor:
+            self.ingestor.reset()
         if self.db:
             self.db.reset_session()
 
@@ -204,12 +218,15 @@ class TdfListener:
     def _handle_line(self, line: str) -> None:
         """Processes a single extracted TDF line.
 
-        Logs the line if log_tdf is enabled, and invokes line callbacks.
+        Logs the line if log_tdf is enabled, ingests it into game state,
+        and invokes line callbacks.
 
         Args:
             line: The parsed TDF line string.
         """
         if self.log_tdf:
             print(line)
+        if self.ingestor:
+            self.ingestor.ingest_line(line=line)
         if self.line_callback:
             self.line_callback(line)

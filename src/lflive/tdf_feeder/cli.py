@@ -123,4 +123,3 @@ def parse_args(args: Sequence[str] | None = None) -> TdfFeederArgs:
         port=port,
         speed=parsed.speed,
     )
-

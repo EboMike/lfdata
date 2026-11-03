@@ -93,4 +93,3 @@ def test_feeder_connection_refused() -> None:
             await feeder.feed()
 
     asyncio.run(_run())
-

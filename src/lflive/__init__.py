@@ -5,16 +5,17 @@ over TCP, internal game state recreation, SQLite snapshotting, and broadcast
 to consumer visualizers.
 
 Usage example:
-    from lflive import LiveDatabase, LiveGameState, TdfListener, parse_args
+    from lflive import LiveDatabase, LiveGameState, TdfIngestor, TdfListener
 
-    args = parse_args()
     state = LiveGameState()
-    listener = TdfListener(port=args.tdf_port or 8000, game_state=state)
+    ingestor = TdfIngestor(game_state=state)
+    listener = TdfListener(port=8000, game_state=state, ingestor=ingestor)
 """
 
 from lflive.cli import LFLiveArgs, parse_args, resolve_config
 from lflive.config import LFLiveConfig, load_config
 from lflive.db import LiveDatabase
+from lflive.ingestor import TdfIngestor
 from lflive.state import (
     LiveGameState,
     LivePlayerState,
@@ -33,6 +34,7 @@ __all__ = [
     'LiveTargetState',
     'LiveTeamState',
     'SnapshotEntry',
+    'TdfIngestor',
     'TdfListener',
     'detect_encoding',
     'load_config',
