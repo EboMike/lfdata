@@ -64,3 +64,11 @@ target_link_libraries(live_renderer_tests PRIVATE
 include(GoogleTest)
 gtest_discover_tests(live_renderer_tests)
 
+# Main executable
+add_executable(live_renderer
+    main.cpp
+)
+target_link_libraries(live_renderer PRIVATE
+    live_renderer_core
+)
+
