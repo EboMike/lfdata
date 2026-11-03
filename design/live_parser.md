@@ -134,6 +134,8 @@ The player will not be listed as a player on the team, but this player ID
 is part of the team's data. Any time a player's stats changes, the relevant
 dummy player stats should be recalculated and sent.
 
+Values that cannot be aggregated (name, role, etc) are left empty.
+
 #### Targets (bases, etc)
 
 A target (like a base) is defined like this:
@@ -146,7 +148,7 @@ A target (like a base) is defined like this:
 ## The format of the data sent to consumers 
 
 Data sent to consumers is UTF-8 encoded text. Every separate data point sent
-is terminated by a newline.
+is terminated by `\r\n`.
 
 Every line is tab-delimited. The first value is always the type of
 data being sent. The second value is always the time of the event
@@ -196,6 +198,7 @@ the player names so they are in the color of their team, for example
 | 25 | Important game event (e.g. `Commander {name} has a nuke`) | Formatted event message |   |   |   |   |
 | 26 | New player ranking (typically all players in order of score within their team, highest first)  | Team primary key | Commma-separated list of player primary keys |   |   |   |
 | 27 | New team ranking (typically all teams in order of score, highest first)  | Commma-separated list of team primary keys |   |   |   |   |
+| 28 | Center where the game is played | Center ID (for example 4-43) | Center name (for example "Loveland" )  |   |   |
 | 98 | New game start - indicates previous session data should be erased |   |   |   |   |   |
 | 99 | The game is over - concludes stream for this game |   |   |   |   |   |
 
@@ -225,6 +228,7 @@ Likewise, if the nuke doesn't detonate, the events would be explained similar li
 *   An event of type 25, "PlayerA's nuke canceled by PlayerB"
 *   Events to update lives, scores, shots, state of all players involved
 
+As a general rule, "zaps" and "blocks" are the same thing.
 
 ## Configuration file
 

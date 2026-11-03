@@ -2,6 +2,7 @@ import pytest
 from lflive.constants import (
     DATA_TYPE_BALL_CARRIER,
     DATA_TYPE_BASE_DESCRIPTION,
+    DATA_TYPE_CENTER_INFO,
     DATA_TYPE_GAME_START_TIME,
     DATA_TYPE_GAME_TYPE,
     DATA_TYPE_NEW_GAME,
@@ -111,6 +112,8 @@ def test_emitter_generate_presync_events() -> None:
     p.rapid_fire = True
     state.teams[1].score = 600
     state.ball_carrier_id = 1
+    state.center_id = '4-19'
+    state.center_name = 'Loveland'
 
     emitter = OutputEmitter()
     events = emitter.generate_presync_events(game_state=state)
@@ -122,6 +125,10 @@ def test_emitter_generate_presync_events() -> None:
     )
     assert any(
         ev.startswith(f'{DATA_TYPE_GAME_START_TIME}\t45000\t20261103120000000')
+        for ev in events
+    )
+    assert any(
+        ev.startswith(f'{DATA_TYPE_CENTER_INFO}\t45000\t4-19\tLoveland')
         for ev in events
     )
     assert any(

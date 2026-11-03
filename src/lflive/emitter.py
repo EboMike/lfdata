@@ -15,6 +15,7 @@ from collections.abc import Callable
 from lflive.constants import (
     DATA_TYPE_BALL_CARRIER,
     DATA_TYPE_BASE_DESCRIPTION,
+    DATA_TYPE_CENTER_INFO,
     DATA_TYPE_GAME_START_TIME,
     DATA_TYPE_GAME_TYPE,
     DATA_TYPE_NEW_GAME,
@@ -169,6 +170,11 @@ class OutputEmitter:
         if game_state.start_time:
             events.append(
                 f'{DATA_TYPE_GAME_START_TIME}\t{cur_ms}\t{game_state.start_time}'
+            )
+        if game_state.center_id:
+            events.append(
+                f'{DATA_TYPE_CENTER_INFO}\t{cur_ms}\t{game_state.center_id}\t'
+                f'{game_state.center_name}'
             )
 
         for team in game_state.teams.values():

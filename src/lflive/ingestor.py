@@ -27,7 +27,9 @@ from lfdata.model.constants.tdf import (
     TDF_RECORD_SCORE,
     TDF_RECORD_TEAM,
 )
+from lfdata.model.constants.centre import LFCentre
 from lflive.constants import (
+    DATA_TYPE_CENTER_INFO,
     DATA_TYPE_GAME_START_TIME,
     DATA_TYPE_GAME_TYPE,
     DATA_TYPE_NEW_GAME,
@@ -152,8 +154,23 @@ class TdfIngestor:
             self._handle_player_missiles(parts=parts)
 
     def _handle_info(self, parts: list[str]) -> None:
-        """Parses record type 0 (Info)."""
-        pass
+        """Parses record type 0 (Info metadata and arena centre)."""
+        if len(parts) >= 4:
+            center_id = parts[3].strip()
+            self.game_state.center_id = center_id
+            try:
+                centre_enum = LFCentre.from_code(center_id)
+                center_name = centre_enum.arena_name
+            except ValueError:
+                center_name = center_id
+            self.game_state.center_name = center_name
+            if self.emitter:
+                self.emitter.emit(
+                    DATA_TYPE_CENTER_INFO,
+                    0,
+                    center_id,
+                    center_name,
+                )
 
     def _handle_mission(self, parts: list[str]) -> None:
         """Parses record type 1 (Mission metadata)."""

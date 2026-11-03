@@ -81,6 +81,8 @@ class LiveGameState:
         self.ball_carrier_id: int | None = None
         self.round_number = 1
         self.is_in_round = False
+        self.center_id: str = ''
+        self.center_name: str = ''
 
         self.teams: dict[int, LiveTeamState] = {}
         self.dummy_players: dict[int, LivePlayerState] = {}
@@ -130,7 +132,7 @@ class LiveGameState:
             self.dummy_players[team_id] = LivePlayerState(
                 player_id=dummy_player_id,
                 entity_id='',
-                name=f'{name} (Totals)',
+                name='',
                 team_id=team_id,
             )
         elif dummy_player_id != 0 and self.teams[team_id].dummy_player_id == 0:
@@ -393,6 +395,8 @@ class LiveGameState:
         )
         reconstructed.current_time_ms = time_ms
         reconstructed.round_number = self.round_number
+        reconstructed.center_id = self.center_id
+        reconstructed.center_name = self.center_name
 
         for team in self.teams.values():
             reconstructed.add_team(
@@ -480,6 +484,8 @@ class LiveGameState:
         self.ball_carrier_id = None
         self.round_number = 1
         self.is_in_round = False
+        self.center_id = ''
+        self.center_name = ''
         self.teams.clear()
         self.dummy_players.clear()
         self.players.clear()

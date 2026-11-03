@@ -25,7 +25,8 @@ def test_dummy_player_initialization() -> None:
     dummy = state.dummy_players[1]
     assert dummy.player_id == 101
     assert dummy.team_id == 1
-    assert dummy.name == 'Fire Team (Totals)'
+    assert dummy.name == ''
+    assert dummy.role == ''
     assert dummy.lives == 0
     assert dummy.score == 0
 

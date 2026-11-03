@@ -24,6 +24,8 @@ class LiveGameSession(Base):
         start_time: Start timestamp of the game in center local time.
         duration_seconds: Maximum length of the game in seconds.
         is_active: Flag indicating whether the session is currently ongoing.
+        center_id: Arena center code identifier (e.g. 4-43).
+        center_name: Printable name of the center arena.
     """
 
     __tablename__ = 'live_game_sessions'
@@ -35,3 +37,5 @@ class LiveGameSession(Base):
     start_time: Mapped[str | None] = mapped_column(String(32), nullable=True)
     duration_seconds: Mapped[int] = mapped_column(Integer, default=900)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    center_id: Mapped[str] = mapped_column(String(32), default='')
+    center_name: Mapped[str] = mapped_column(String(64), default='')

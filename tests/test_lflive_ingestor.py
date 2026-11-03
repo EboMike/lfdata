@@ -1,4 +1,5 @@
 from lflive.constants import (
+    DATA_TYPE_CENTER_INFO,
     DATA_TYPE_GAME_START_TIME,
     DATA_TYPE_GAME_TYPE,
     DATA_TYPE_NEW_GAME,
@@ -25,6 +26,8 @@ def test_ingest_info_and_comments() -> None:
     ingestor.ingest_line('')
     ingestor.ingest_line('0\t2.005\t8.503\t4-43')
     assert state.game_type == 'SM5'
+    assert state.center_id == '4-43'
+    assert state.center_name == 'Invasion'
 
 
 def test_ingest_mission_sm5_and_laserball() -> None:
@@ -221,6 +224,10 @@ def test_ingestor_with_emitter() -> None:
     emitter = OutputEmitter()
     ingestor = TdfIngestor(game_state=state, emitter=emitter)
 
+    ingestor.ingest_line('0\t2.005\t8.503\t4-19')
+    assert (
+        f'{DATA_TYPE_CENTER_INFO}\t0\t4-19\tLoveland' in emitter.emitted_lines
+    )
     ingestor.ingest_line('1\t5\tSpace Marines 5\t20261103100000\t900000\t-1000')
     assert f'{DATA_TYPE_GAME_TYPE}\t0\tSM5\t900' in emitter.emitted_lines
     assert (

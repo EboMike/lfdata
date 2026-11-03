@@ -77,6 +77,27 @@ class LiveDatabase:
                         )
                     )
                     conn.commit()
+
+                res_sess = conn.execute(
+                    text("PRAGMA table_info('live_game_sessions')")
+                ).fetchall()
+                sess_cols = {row[1] for row in res_sess}
+                if res_sess and 'center_id' not in sess_cols:
+                    conn.execute(
+                        text(
+                            'ALTER TABLE live_game_sessions ADD COLUMN '
+                            "center_id VARCHAR(32) DEFAULT ''"
+                        )
+                    )
+                    conn.commit()
+                if res_sess and 'center_name' not in sess_cols:
+                    conn.execute(
+                        text(
+                            'ALTER TABLE live_game_sessions ADD COLUMN '
+                            "center_name VARCHAR(64) DEFAULT ''"
+                        )
+                    )
+                    conn.commit()
             except Exception:
                 pass
 

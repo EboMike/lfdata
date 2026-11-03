@@ -73,6 +73,8 @@ class GameStateFlusher:
         db_sess.game_type = game_state.game_type
         db_sess.start_time = game_state.start_time
         db_sess.duration_seconds = game_state.duration_seconds
+        db_sess.center_id = game_state.center_id
+        db_sess.center_name = game_state.center_name
         db_sess.is_active = not game_state.is_game_over
 
     @classmethod

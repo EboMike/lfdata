@@ -8,9 +8,13 @@ def test_game_session_instantiation() -> None:
         start_time='20261102235500123',
         duration_seconds=1200,
         is_active=False,
+        center_id='4-19',
+        center_name='Loveland',
     )
     assert session.id == 42
     assert session.game_type == 'Laserball'
     assert session.start_time == '20261102235500123'
     assert session.duration_seconds == 1200
     assert session.is_active is False
+    assert session.center_id == '4-19'
+    assert session.center_name == 'Loveland'

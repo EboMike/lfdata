@@ -203,7 +203,7 @@ class ConsumerListener:
         """
         if not self._clients:
             return
-        payload = (line + '\n').encode('utf-8')
+        payload = (line + '\r\n').encode('utf-8')
         dead_clients: list[asyncio.StreamWriter] = []
         for writer in list(self._clients):
             try:
@@ -275,7 +275,7 @@ class ConsumerListener:
         events = self.emitter.generate_presync_events(
             game_state=effective_state
         )
-        payload = ''.join(ev + '\n' for ev in events).encode('utf-8')
+        payload = ''.join(ev + '\r\n' for ev in events).encode('utf-8')
         try:
             writer.write(payload)
             await writer.drain()

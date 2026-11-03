@@ -210,4 +210,3 @@ class DummyPlayerManager:
             manager.reset()
         """
         pass
-

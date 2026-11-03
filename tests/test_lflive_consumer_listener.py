@@ -44,6 +44,7 @@ def test_consumer_listener_presync_on_connect() -> None:
             line_bytes = await reader.readline()
             if not line_bytes:
                 break
+            assert line_bytes.endswith(b'\r\n')
             line = line_bytes.decode('utf-8').rstrip('\r\n')
             received_lines.append(line)
             if line.startswith(str(DATA_TYPE_PRESYNC_END)):
@@ -161,6 +162,7 @@ def test_consumer_listener_presync_with_preroll_boundary() -> None:
             line_bytes = await reader.readline()
             if not line_bytes:
                 break
+            assert line_bytes.endswith(b'\r\n')
             line = line_bytes.decode('utf-8').rstrip('\r\n')
             received_lines.append(line)
             if line.startswith(str(DATA_TYPE_PRESYNC_END)):

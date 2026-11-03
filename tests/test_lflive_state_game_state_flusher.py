@@ -1,4 +1,6 @@
+from sqlalchemy import select
 from lflive.db import LiveDatabase
+from lflive.models.game_session import LiveGameSession
 from lflive.state.game_state import LiveGameState
 from lflive.state.game_state_flusher import GameStateFlusher
 
@@ -7,6 +9,8 @@ def test_game_state_flusher(tmp_path: object) -> None:
     db_file = tmp_path / 'test_flusher.db'
     db = LiveDatabase(db_path=str(db_file))
     state = LiveGameState(game_type='SM5', duration_seconds=900)
+    state.center_id = '4-19'
+    state.center_name = 'Loveland'
 
     state.add_team(team_id=1, name='Red', color='Red', rgb='#ff0000')
     p = state.add_player(
@@ -37,3 +41,9 @@ def test_game_state_flusher(tmp_path: object) -> None:
     # Second flush with no new snapshots
     GameStateFlusher.flush(game_state=state, db=db)
     assert state._persisted_snapshot_count == 1
+
+    with db.get_session() as session:
+        db_sess = session.scalars(select(LiveGameSession)).first()
+        assert db_sess is not None
+        assert db_sess.center_id == '4-19'
+        assert db_sess.center_name == 'Loveland'
