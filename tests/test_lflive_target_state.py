@@ -12,4 +12,3 @@ def test_target_state_fields() -> None:
     assert target.entity_id == '#010001'
     assert target.name == 'Earth Base'
     assert target.rgb == '#00ff00'
-

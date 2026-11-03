@@ -32,4 +32,3 @@ class LiveTargetState:
     entity_id: str
     name: str
     rgb: str
-

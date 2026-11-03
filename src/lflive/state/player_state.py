@@ -61,4 +61,3 @@ class LivePlayerState:
     steals: int = 0
     state: int = 0
     rapid_fire: bool = False
-

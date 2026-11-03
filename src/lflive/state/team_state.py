@@ -37,4 +37,3 @@ class LiveTeamState:
     rgb: str
     score: int = 0
     ranking: int = 1
-

@@ -63,4 +63,3 @@ def test_player_state_custom_values() -> None:
     assert player.steals == 4
     assert player.state == 2
     assert player.rapid_fire is True
-

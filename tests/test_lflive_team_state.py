@@ -27,4 +27,3 @@ def test_team_state_custom_values() -> None:
     )
     assert team.score == 15000
     assert team.ranking == 2
-
