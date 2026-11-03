@@ -72,6 +72,27 @@ class LaserballEventHandler:
         rgb = team.rgb if team else None
         return format_colored_name(name=player.name, rgb=rgb)
 
+    def _extract_target_entity_id(self, varies: list[str]) -> str | None:
+        """Extracts the target entity ID from variable event arguments.
+
+        Args:
+            varies: Variable arguments list from TDF record type 4.
+
+        Returns:
+            str | None: The target entity ID string if present, else None.
+        """
+        if len(varies) >= 3:
+            return varies[2].strip()
+        if len(varies) == 2:
+            candidate = varies[1].strip()
+            if (
+                candidate.startswith(('#', '@'))
+                or candidate in self.game_state.players_by_entity
+                or candidate in self.game_state.targets_by_entity
+            ):
+                return candidate
+        return None
+
     def handle_event(
         self,
         time_ms: int,
@@ -152,12 +173,12 @@ class LaserballEventHandler:
                         f'{self._colored_player(carrier)} gets the ball',
                     )
         elif code == LASERBALL_EVENT_PASS:
-            target_id = (
-                varies[2]
-                if len(varies) >= 3
-                else (varies[1] if len(varies) >= 2 else varies[0])
+            target_id = self._extract_target_entity_id(varies=varies)
+            carrier = (
+                self.game_state.get_player_by_entity(entity_id=target_id)
+                if target_id
+                else None
             )
-            carrier = self.game_state.get_player_by_entity(entity_id=target_id)
             actor = self.game_state.get_player_by_entity(entity_id=varies[0])
             if carrier:
                 self.game_state.ball_carrier_id = carrier.player_id
@@ -252,11 +273,7 @@ class LaserballEventHandler:
         if not varies:
             return
         actor = self.game_state.get_player_by_entity(entity_id=varies[0])
-        target_id = (
-            varies[2]
-            if len(varies) >= 3
-            else (varies[1] if len(varies) >= 2 else None)
-        )
+        target_id = self._extract_target_entity_id(varies=varies)
         target = (
             self.game_state.get_player_by_entity(entity_id=target_id)
             if target_id

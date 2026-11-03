@@ -57,6 +57,10 @@ def test_ingest_teams_and_entities() -> None:
     ingestor.ingest_line('3\t0000001\t#P1\tplayer\tAce\t0\t0\t1\tMaverick')
     # Base entity
     ingestor.ingest_line('3\t0000002\t#B1\tbase\tFire Base\t0\t0\t0\tBaseSuit')
+    # Generator target entity
+    ingestor.ingest_line(
+        '3\t0000003\t@66\tgenerator-target\tReactor\t0\t0\t0\tReactor'
+    )
 
     player = state.get_player_by_entity('#P1')
     assert player is not None
@@ -69,6 +73,11 @@ def test_ingest_teams_and_entities() -> None:
     assert base is not None
     assert base.name == 'Fire Base'
     assert base.rgb == '#FF5000'
+
+    reactor = state.get_target_by_entity('@66')
+    assert reactor is not None
+    assert reactor.name == 'Reactor'
+    assert reactor.rgb == '#FF5000'
 
 
 def test_ingest_events_sm5() -> None:

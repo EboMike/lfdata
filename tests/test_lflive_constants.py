@@ -29,4 +29,3 @@ def test_constants_values() -> None:
     assert constants.DATA_TYPE_IMPORTANT_EVENT == 25
     assert constants.DATA_TYPE_NEW_GAME == 98
     assert constants.DATA_TYPE_GAME_OVER == 99
-

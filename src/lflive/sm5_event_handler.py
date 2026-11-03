@@ -219,6 +219,31 @@ class SM5EventHandler:
             self.emitter.emit(DATA_TYPE_EVENT_SCROLLER, time_ms, msg)
             self.emitter.emit(DATA_TYPE_IMPORTANT_EVENT, time_ms, msg)
 
+    def _extract_target_entity_id(self, varies: list[str]) -> str | None:
+        """Extracts the target entity ID from variable event arguments.
+
+        In standard TDF streams, variable arguments for two-entity interactions
+        follow the pattern [actor_id, action_text, target_id]. For compatibility
+        with abbreviated test payloads, [actor_id, target_id] is also supported.
+
+        Args:
+            varies: Variable arguments list from TDF record type 4.
+
+        Returns:
+            str | None: The target entity ID string if present, else None.
+        """
+        if len(varies) >= 3:
+            return varies[2].strip()
+        if len(varies) == 2:
+            candidate = varies[1].strip()
+            if (
+                candidate.startswith(('#', '@'))
+                or candidate in self.game_state.players_by_entity
+                or candidate in self.game_state.targets_by_entity
+            ):
+                return candidate
+        return None
+
     def _handle_bases(
         self,
         time_ms: int,
@@ -227,9 +252,10 @@ class SM5EventHandler:
         varies: list[str],
     ) -> None:
         """Handles SM5 base hits and base destructions."""
+        target_id = self._extract_target_entity_id(varies=varies)
         target = (
-            self.game_state.get_target_by_entity(varies[1])
-            if len(varies) > 1
+            self.game_state.get_target_by_entity(target_id)
+            if target_id
             else None
         )
         target_pk = target.target_id if target else 1
@@ -300,16 +326,28 @@ class SM5EventHandler:
         varies: list[str],
     ) -> None:
         """Handles SM5 zaps, missiles, resupplies, and penalties."""
+        target_id = self._extract_target_entity_id(varies=varies)
         target = (
-            self.game_state.get_player_by_entity(varies[1])
-            if len(varies) > 1
+            self.game_state.get_player_by_entity(target_id)
+            if target_id
             else None
         )
         if not self.emitter:
             return
 
         act_name = self._colored_player(actor)
-        tar_name = self._colored_player(target)
+        if target:
+            tar_name = self._colored_player(target)
+        else:
+            target_obj = (
+                self.game_state.get_target_by_entity(target_id)
+                if target_id
+                else None
+            )
+            if target_obj:
+                tar_name = self._colored_target(target_obj)
+            else:
+                tar_name = 'Unknown'
 
         if code == SM5_EVENT_DAMAGED_OPPONENT:
             self.emitter.emit(

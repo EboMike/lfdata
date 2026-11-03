@@ -214,7 +214,11 @@ class TdfIngestor:
                 team_index=team_index,
                 category=category,
             )
-        elif entity_type in ('base', 'target'):
+        elif (
+            'target' in entity_type
+            or 'base' in entity_type
+            or 'beacon' in entity_type
+        ):
             self.registrar.register_target(
                 entity_id=entity_id,
                 name=codename,

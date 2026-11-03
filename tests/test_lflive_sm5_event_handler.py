@@ -143,3 +143,41 @@ def test_sm5_event_handler_combat() -> None:
         )
         assert any(kw in ev for ev in emitter.emitted_lines)
 
+
+def test_sm5_event_handler_three_part_varies() -> None:
+    state = LiveGameState(game_type='SM5')
+    state.add_team(team_id=1, name='Red', color='Red', rgb='#ff0000')
+    state.add_team(team_id=2, name='Blue', color='Blue', rgb='#0000ff')
+    state.add_target(
+        target_id=1, entity_id='@66', name='Red Base', rgb='#ff0000'
+    )
+    state.add_player(
+        player_id=1, entity_id='#P1', name='Ace', team_id=1, role='commander'
+    )
+    state.add_player(
+        player_id=2, entity_id='#P2', name='Boba', team_id=2, role='scout'
+    )
+
+    emitter = OutputEmitter()
+    handler = SM5EventHandler(game_state=state, emitter=emitter)
+
+    # Standard TDF 3-part combat event: [actor, action_text, target]
+    handler.handle_event(
+        1000, SM5_EVENT_DAMAGED_OPPONENT, ['#P1', ' zaps ', '#P2']
+    )
+    assert any(
+        '<font color="#ff0000">Ace</font> zaps <font color="#0000ff">Boba</font>'
+        in ev
+        for ev in emitter.emitted_lines
+    )
+    assert not any('Unknown' in ev for ev in emitter.emitted_lines)
+
+    # Standard TDF 3-part base event: [actor, action_text, target]
+    handler.handle_event(
+        2000, SM5_EVENT_DESTROY_BASE, ['#P1', ' destroys ', '@66']
+    )
+    assert any(
+        '<font color="#ff0000">Ace</font> destroys <font color="#ff0000">Red Base</font>'
+        in ev
+        for ev in emitter.emitted_lines
+    )
