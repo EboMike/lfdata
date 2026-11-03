@@ -88,8 +88,10 @@ set(CORE_SOURCES
     network/protocol_parser.cpp
     network/tcp_consumer_client.cpp
     render/rich_text_layout.cpp
+    render/font_renderer.cpp
     components/game_timer_element.cpp
     components/scorecard_helper.cpp
+    components/text_component.cpp
     windows/element_property_inspector.cpp
     windows/main_control_window.cpp
     windows/ui_editor_window.cpp
@@ -118,6 +120,7 @@ add_executable(live_renderer_tests
     tests/test_protocol_parser.cpp
     tests/test_config_serializer.cpp
     tests/test_rich_text_layout.cpp
+    tests/test_text_component.cpp
     tests/test_scorecard_sorting.cpp
     tests/test_main_control_window.cpp
     tests/test_ui_editor_window.cpp

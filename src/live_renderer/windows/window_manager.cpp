@@ -7,7 +7,8 @@ namespace live_renderer {
 
 WindowManager::WindowManager(const UIConfig& ui_config, SDL_GLContext shared_gl_context)
     : ui_config_(ui_config),
-      shared_gl_context_(shared_gl_context) {
+      shared_gl_context_(shared_gl_context),
+      font_renderer_(std::make_unique<FontRenderer>()) {
     SyncWithConfig(ui_config_);
 }
 
@@ -135,7 +136,10 @@ bool WindowManager::HandleEvent(const SDL_Event& event) {
     return false;
 }
 
-void WindowManager::RenderWindowBatch(const WindowInstance& instance, const RenderBatch& batch) {
+void WindowManager::RenderWindowBatch(
+    const WindowInstance& instance,
+    const RenderBatch& batch,
+    int64_t current_time_ms) {
     int w = 0, h = 0;
     SDL_GL_GetDrawableSize(instance.sdl_window, &w, &h);
     glViewport(0, 0, w, h);
@@ -166,6 +170,10 @@ void WindowManager::RenderWindowBatch(const WindowInstance& instance, const Rend
             glVertex2f(cmd.pixel_rect[0] + cmd.pixel_rect[2], cmd.pixel_rect[1] + cmd.pixel_rect[3]);
             glVertex2f(cmd.pixel_rect[0], cmd.pixel_rect[1] + cmd.pixel_rect[3]);
             glEnd();
+        } else if (cmd.type == RenderCommand::Type::Text) {
+            if (font_renderer_) {
+                font_renderer_->RenderText(cmd, current_time_ms);
+            }
         }
     }
 
@@ -178,6 +186,8 @@ void WindowManager::RenderAllWindows(
     int active_editor_window_index,
     int active_editor_template_id,
     int selected_element_index) {
+    const int64_t now_ms = static_cast<int64_t>(SDL_GetTicks());
+
     for (size_t i = 0; i < instances_.size(); ++i) {
         auto& inst = instances_[i];
         if (!inst.sdl_window) continue;
@@ -209,8 +219,8 @@ void WindowManager::RenderAllWindows(
             const int highlight_elem = (is_editor_mode && static_cast<int>(i) == active_editor_window_index)
                 ? selected_element_index
                 : -1;
-            RenderBatch batch = inst.vis_window->GenerateBatch(state, 0, highlight_elem);
-            RenderWindowBatch(inst, batch);
+            RenderBatch batch = inst.vis_window->GenerateBatch(state, now_ms, highlight_elem);
+            RenderWindowBatch(inst, batch, now_ms);
         }
     }
 }

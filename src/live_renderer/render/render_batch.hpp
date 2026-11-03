@@ -28,6 +28,7 @@ struct RenderCommand {
     float font_size_px = 20.0f;
     std::string alignment = "left"; // "left", "center", "right"
     bool black_outline = true;
+    bool rapid_fire_effect = false;
 
     // Image / Texture properties
     std::string texture_asset;

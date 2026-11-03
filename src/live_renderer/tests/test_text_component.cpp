@@ -1,0 +1,170 @@
+#include <gtest/gtest.h>
+#include "live_renderer/components/text_component.hpp"
+#include "live_renderer/state/mock_game_state.hpp"
+
+using namespace live_renderer;
+
+TEST(TextComponentTest, PlaceholderSubstitution) {
+    GameStateSnapshot state;
+    state.game_type = "Laserball";
+    state.center_name = "Syracuse";
+
+    ElementConfig el;
+    el.type = "user_text";
+    el.text = "Center: {center} | Type: {game_type}";
+    el.font_size = 24.0f;
+    el.rect = {0.1f, 0.1f, 0.8f, 0.1f};
+
+    RenderBatch batch;
+    TextComponent::GenerateUserTextCommands(el, state, {100.0f, 100.0f, 800.0f, 60.0f}, 800.0f, batch);
+
+    ASSERT_EQ(batch.commands.size(), 1u);
+    EXPECT_EQ(batch.commands[0].type, RenderCommand::Type::Text);
+    EXPECT_EQ(batch.commands[0].text, "Center: Syracuse | Type: Laserball");
+    EXPECT_FLOAT_EQ(batch.commands[0].font_size_px, 24.0f);
+    EXPECT_TRUE(batch.commands[0].black_outline);
+}
+
+TEST(TextComponentTest, ResolvePlayerTextValues) {
+    PlayerSnapshot p;
+    p.name = "BravoScout";
+    p.role = "Scout";
+    p.score = 5400;
+    p.lives = 8;
+    p.shots = 95;
+    p.missiles = 2;
+    p.special_points = 3;
+    p.goals = 1;
+    p.assists = 4;
+    p.clears = 2;
+    p.steals = 6;
+    p.blocks = 9;
+
+    EXPECT_EQ(TextComponent::ResolvePlayerText("player_name", p), "BravoScout");
+    EXPECT_EQ(TextComponent::ResolvePlayerText("player_score", p), "5400");
+    EXPECT_EQ(TextComponent::ResolvePlayerText("player_lives", p), "8");
+    EXPECT_EQ(TextComponent::ResolvePlayerText("player_ammo", p), "95");
+    EXPECT_EQ(TextComponent::ResolvePlayerText("player_missiles", p), "2");
+    EXPECT_EQ(TextComponent::ResolvePlayerText("player_special_points", p), "3");
+    EXPECT_EQ(TextComponent::ResolvePlayerText("player_goals", p), "1");
+    EXPECT_EQ(TextComponent::ResolvePlayerText("player_assists", p), "4");
+    EXPECT_EQ(TextComponent::ResolvePlayerText("player_clears", p), "2");
+    EXPECT_EQ(TextComponent::ResolvePlayerText("player_steals", p), "6");
+    EXPECT_EQ(TextComponent::ResolvePlayerText("player_zaps", p), "9");
+    EXPECT_EQ(TextComponent::ResolvePlayerText("player_role", p), "Scout");
+
+    // Dummy totals player returns "TOTALS"
+    PlayerSnapshot dummy;
+    dummy.is_dummy = true;
+    dummy.score = 25000;
+    EXPECT_EQ(TextComponent::ResolvePlayerText("player_name", dummy), "TOTALS");
+    EXPECT_EQ(TextComponent::ResolvePlayerText("player_score", dummy), "25000");
+
+    // Custom text substitution
+    std::string custom = "{name} [{role}]: {score} pts, {lives} lives";
+    EXPECT_EQ(TextComponent::ResolvePlayerText("custom", p, custom), "BravoScout [Scout]: 5400 pts, 8 lives");
+}
+
+TEST(TextComponentTest, PlayerStateColorsAndRapidFire) {
+    ElementConfig el;
+    el.type = "player_name";
+    el.font_size = 20.0f;
+
+    // 1. Alive player
+    PlayerSnapshot p_alive;
+    p_alive.name = "Warrior";
+    p_alive.state = 0; // Up
+    p_alive.lives = 5;
+    p_alive.has_rapid_fire = true;
+
+    RenderBatch b1;
+    TextComponent::GeneratePlayerElementCommands(
+        el, p_alive, "#ff0000", {0.0f, 0.0f, 200.0f, 30.0f}, 800.0f, b1);
+    ASSERT_EQ(b1.commands.size(), 1u);
+    EXPECT_EQ(b1.commands[0].hex_color, "#ff0000");
+    EXPECT_TRUE(b1.commands[0].rapid_fire_effect);
+
+    // 2. Dead player (state 4 or out of lives) -> gray
+    PlayerSnapshot p_dead;
+    p_dead.name = "Ghost";
+    p_dead.state = 4;
+    p_dead.lives = 0;
+    p_dead.has_rapid_fire = false;
+
+    RenderBatch b2;
+    TextComponent::GeneratePlayerElementCommands(
+        el, p_dead, "#ff0000", {0.0f, 0.0f, 200.0f, 30.0f}, 800.0f, b2);
+    ASSERT_EQ(b2.commands.size(), 1u);
+    EXPECT_EQ(b2.commands[0].hex_color, "#808080");
+    EXPECT_FALSE(b2.commands[0].rapid_fire_effect);
+
+    // 3. Down player (state 3) -> darkened color
+    PlayerSnapshot p_down;
+    p_down.name = "Downed";
+    p_down.state = 3;
+    p_down.lives = 3;
+
+    RenderBatch b3;
+    TextComponent::GeneratePlayerElementCommands(
+        el, p_down, "#ff0000", {0.0f, 0.0f, 200.0f, 30.0f}, 800.0f, b3);
+    ASSERT_EQ(b3.commands.size(), 1u);
+    EXPECT_EQ(b3.commands[0].hex_color, "#7f0000"); // Darkened #ff0000
+}
+
+TEST(TextComponentTest, RichTextMarkupMultiRunLayout) {
+    ElementConfig el;
+    el.type = "user_text";
+    el.font_size = 20.0f;
+    el.alignment = "center";
+
+    // Text with markup
+    std::string markup = "<font color=\"#ff0000\">RED</font> vs <font color=\"#00ff00\">GREEN</font>";
+
+    RenderBatch batch;
+    TextComponent::GenerateCommands(
+        el, markup, {100.0f, 50.0f, 500.0f, 40.0f}, "#ffffff", false, 800.0f, batch);
+
+    ASSERT_EQ(batch.commands.size(), 3u);
+
+    EXPECT_EQ(batch.commands[0].type, RenderCommand::Type::Text);
+    EXPECT_EQ(batch.commands[0].text, "RED");
+    EXPECT_EQ(batch.commands[0].hex_color, "#ff0000");
+
+    EXPECT_EQ(batch.commands[1].type, RenderCommand::Type::Text);
+    EXPECT_EQ(batch.commands[1].text, " vs ");
+    EXPECT_EQ(batch.commands[1].hex_color, "#ffffff");
+
+    EXPECT_EQ(batch.commands[2].type, RenderCommand::Type::Text);
+    EXPECT_EQ(batch.commands[2].text, "GREEN");
+    EXPECT_EQ(batch.commands[2].hex_color, "#00ff00");
+
+    // Centered layout should place runs sequentially with start x > 100.0f
+    EXPECT_GT(batch.commands[0].pixel_rect[0], 100.0f);
+    EXPECT_GT(batch.commands[1].pixel_rect[0], batch.commands[0].pixel_rect[0]);
+    EXPECT_GT(batch.commands[2].pixel_rect[0], batch.commands[1].pixel_rect[0]);
+}
+
+TEST(TextComponentTest, InlineImageRunInText) {
+    ElementConfig el;
+    el.type = "user_text";
+    el.font_size = 20.0f;
+    el.alignment = "left";
+
+    std::string text_with_img = "Star [img:assets/star.png] Rank";
+
+    RenderBatch batch;
+    TextComponent::GenerateCommands(
+        el, text_with_img, {0.0f, 0.0f, 400.0f, 40.0f}, "#ffffff", false, 800.0f, batch);
+
+    ASSERT_EQ(batch.commands.size(), 3u);
+
+    EXPECT_EQ(batch.commands[0].type, RenderCommand::Type::Text);
+    EXPECT_EQ(batch.commands[0].text, "Star ");
+
+    EXPECT_EQ(batch.commands[1].type, RenderCommand::Type::TexturedQuad);
+    EXPECT_EQ(batch.commands[1].texture_asset, "assets/star.png");
+
+    EXPECT_EQ(batch.commands[2].type, RenderCommand::Type::Text);
+    EXPECT_EQ(batch.commands[2].text, " Rank");
+}
+

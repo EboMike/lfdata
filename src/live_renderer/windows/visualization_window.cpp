@@ -2,6 +2,7 @@
 #include <algorithm>
 #include "live_renderer/components/game_timer_element.hpp"
 #include "live_renderer/components/scorecard_helper.hpp"
+#include "live_renderer/components/text_component.hpp"
 #include "live_renderer/render/rich_text_layout.hpp"
 
 namespace live_renderer {
@@ -115,16 +116,8 @@ void VisualizationWindow::GenerateElementCommands(
         element.font_size, static_cast<float>(GetHeight()));
 
     if (element.type == "user_text") {
-        std::string text = RichTextLayout::SubstitutePlaceholders(element.text, state);
-        RenderCommand cmd;
-        cmd.type = RenderCommand::Type::Text;
-        cmd.pixel_rect = px_rect;
-        cmd.text = text;
-        cmd.hex_color = element.color.empty() ? "#ffffff" : element.color;
-        cmd.font_size_px = font_size_px;
-        cmd.alignment = element.alignment;
-        cmd.black_outline = true;
-        batch.commands.push_back(cmd);
+        TextComponent::GenerateUserTextCommands(
+            element, state, px_rect, static_cast<float>(GetHeight()), batch);
     } else if (element.type == "game_timer") {
         GenerateGameTimerCommands(element, state, current_time_ms, batch);
     } else if (element.type == "user_image") {
@@ -192,16 +185,14 @@ void VisualizationWindow::GenerateTeamScorecardCommands(
                 hel.rect[2] * base_px_rect[2],
                 hel.rect[3] * row_height_px
             };
-            RenderCommand hcmd;
-            hcmd.type = RenderCommand::Type::Text;
-            hcmd.pixel_rect = hp_rect;
-            hcmd.text = hel.text.empty() ? "PLAYER" : hel.text;
-            hcmd.hex_color = team.rgb;
-            hcmd.font_size_px = RichTextLayout::ComputePixelFontSize(
-                hel.font_size > 0.0f ? hel.font_size : 18.0f, static_cast<float>(GetHeight()));
-            hcmd.alignment = hel.alignment;
-            hcmd.black_outline = true;
-            batch.commands.push_back(hcmd);
+            TextComponent::GenerateCommands(
+                hel,
+                hel.text.empty() ? "PLAYER" : hel.text,
+                hp_rect,
+                team.rgb,
+                false,
+                static_cast<float>(GetHeight()),
+                batch);
         }
         current_y += row_height_px + 4.0f;
     }
@@ -219,7 +210,6 @@ void VisualizationWindow::GenerateTeamScorecardCommands(
         auto pit = state.players.find(pid);
         if (pit == state.players.end()) continue;
         const auto& player = pit->second;
-        const std::string row_color = ScorecardHelper::GetRowTextColor(player, team.rgb);
 
         if (row_tmpl != nullptr && !row_tmpl->elements.empty()) {
             for (const auto& rel : row_tmpl->elements) {
@@ -229,58 +219,33 @@ void VisualizationWindow::GenerateTeamScorecardCommands(
                     rel.rect[2] * base_px_rect[2],
                     rel.rect[3] * row_height_px
                 };
-
-                RenderCommand rcmd;
-                rcmd.type = RenderCommand::Type::Text;
-                rcmd.pixel_rect = rpx_rect;
-                rcmd.hex_color = row_color;
-                rcmd.font_size_px = RichTextLayout::ComputePixelFontSize(
-                    rel.font_size > 0.0f ? rel.font_size : 18.0f, static_cast<float>(GetHeight()));
-                rcmd.alignment = rel.alignment;
-                rcmd.black_outline = true;
-
-                if (rel.type == "player_name") {
-                    rcmd.text = player.is_dummy ? "TOTALS" : player.name;
-                } else if (rel.type == "player_score") {
-                    rcmd.text = std::to_string(player.score);
-                } else if (rel.type == "player_lives") {
-                    rcmd.text = std::to_string(player.lives);
-                } else if (rel.type == "player_ammo") {
-                    rcmd.text = std::to_string(player.shots);
-                } else if (rel.type == "player_missiles") {
-                    rcmd.text = std::to_string(player.missiles);
-                } else if (rel.type == "player_special_points") {
-                    rcmd.text = std::to_string(player.special_points);
-                } else if (rel.type == "player_role") {
-                    if (!player.role.empty()) {
-                        rcmd.type = RenderCommand::Type::TexturedQuad;
-                        rcmd.texture_asset = "assets/sm5/" + player.role + ".png";
-                    } else {
-                        continue;
-                    }
-                } else {
-                    rcmd.text = rel.text;
-                }
-                batch.commands.push_back(rcmd);
+                TextComponent::GeneratePlayerElementCommands(
+                    rel,
+                    player,
+                    team.rgb,
+                    rpx_rect,
+                    static_cast<float>(GetHeight()),
+                    batch);
             }
         } else {
             // Default row formatting if no template specified
-            RenderCommand dcmd;
-            dcmd.type = RenderCommand::Type::Text;
-            dcmd.pixel_rect = {base_px_rect[0], current_y, base_px_rect[2] * 0.60f, row_height_px};
-            dcmd.text = player.is_dummy ? "TOTALS" : player.name;
-            dcmd.hex_color = row_color;
-            dcmd.font_size_px = 18.0f;
-            batch.commands.push_back(dcmd);
+            ElementConfig d_name_el;
+            d_name_el.type = "player_name";
+            d_name_el.font_size = 18.0f;
+            d_name_el.alignment = "left";
+            TextComponent::GeneratePlayerElementCommands(
+                d_name_el, player, team.rgb,
+                {base_px_rect[0], current_y, base_px_rect[2] * 0.60f, row_height_px},
+                static_cast<float>(GetHeight()), batch);
 
-            RenderCommand scmd;
-            scmd.type = RenderCommand::Type::Text;
-            scmd.pixel_rect = {base_px_rect[0] + base_px_rect[2] * 0.65f, current_y, base_px_rect[2] * 0.35f, row_height_px};
-            scmd.text = std::to_string(player.score);
-            scmd.hex_color = row_color;
-            scmd.font_size_px = 18.0f;
-            scmd.alignment = "right";
-            batch.commands.push_back(scmd);
+            ElementConfig d_score_el;
+            d_score_el.type = "player_score";
+            d_score_el.font_size = 18.0f;
+            d_score_el.alignment = "right";
+            TextComponent::GeneratePlayerElementCommands(
+                d_score_el, player, team.rgb,
+                {base_px_rect[0] + base_px_rect[2] * 0.65f, current_y, base_px_rect[2] * 0.35f, row_height_px},
+                static_cast<float>(GetHeight()), batch);
         }
         current_y += row_height_px + 2.0f;
     }
@@ -322,15 +287,18 @@ void VisualizationWindow::GenerateEventScrollerCommands(
     for (auto it = state.event_scroller.rbegin(); it != state.event_scroller.rend(); ++it) {
         if (y < base_px_rect[1]) break;
 
-        RenderCommand cmd;
-        cmd.type = RenderCommand::Type::Text;
-        cmd.pixel_rect = {base_px_rect[0], y, base_px_rect[2], line_h};
-        cmd.text = it->formatted_message;
-        cmd.hex_color = element.color.empty() ? "#ffffff" : element.color;
-        cmd.font_size_px = 16.0f;
-        cmd.alignment = "left";
-        cmd.black_outline = true;
-        batch.commands.push_back(cmd);
+        ElementConfig line_el = element;
+        line_el.font_size = element.font_size > 0.0f ? element.font_size : 16.0f;
+        line_el.alignment = "left";
+
+        TextComponent::GenerateCommands(
+            line_el,
+            it->formatted_message,
+            {base_px_rect[0], y, base_px_rect[2], line_h},
+            element.color.empty() ? "#ffffff" : element.color,
+            false,
+            static_cast<float>(GetHeight()),
+            batch);
 
         y -= (line_h + 2.0f);
     }

@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <SDL.h>
 #include "live_renderer/config/ui_config.hpp"
+#include "live_renderer/render/font_renderer.hpp"
 #include "live_renderer/state/game_state_snapshot.hpp"
 #include "live_renderer/windows/visualization_window.hpp"
 
@@ -44,12 +45,16 @@ private:
 
     void CreateWindowInstance(const WindowConfig& config, const UIConfig& ui_config);
     void DestroyWindowInstance(WindowInstance& instance);
-    void RenderWindowBatch(const WindowInstance& instance, const RenderBatch& batch);
+    void RenderWindowBatch(
+        const WindowInstance& instance,
+        const RenderBatch& batch,
+        int64_t current_time_ms = 0);
 
     const UIConfig& ui_config_;
     SDL_GLContext shared_gl_context_ = nullptr;
     std::vector<WindowInstance> instances_;
     std::vector<std::unique_ptr<VisualizationWindow>> windows_;
+    std::unique_ptr<FontRenderer> font_renderer_;
 };
 
 }  // namespace live_renderer
