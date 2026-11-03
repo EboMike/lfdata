@@ -70,5 +70,5 @@ def test_game_event_handler_with_ranking_manager() -> None:
     )
 
     handler.handle_event(1000, SM5_EVENT_MISSION_START, [])
-    assert f'{DATA_TYPE_PLAYER_RANKING}\t1000\t1' in emitter.emitted_lines
+    assert f'{DATA_TYPE_PLAYER_RANKING}\t1000\t1\t1' in emitter.emitted_lines
     assert f'{DATA_TYPE_TEAM_RANKING}\t1000\t1' in emitter.emitted_lines

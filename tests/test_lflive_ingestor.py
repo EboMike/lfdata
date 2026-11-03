@@ -244,7 +244,7 @@ def test_ingestor_with_emitter() -> None:
     ingestor.ingest_line('5\t0001000\t#P1\t0\t100\t100')
     assert f'{DATA_TYPE_PLAYER_SCORE}\t1000\t1\t100' in emitter.emitted_lines
     assert f'{DATA_TYPE_TEAM_SCORE}\t1000\t1\t100' in emitter.emitted_lines
-    assert f'{DATA_TYPE_PLAYER_RANKING}\t1000\t1' in emitter.emitted_lines
+    assert f'{DATA_TYPE_PLAYER_RANKING}\t1000\t1\t1' in emitter.emitted_lines
     assert f'{DATA_TYPE_TEAM_RANKING}\t1000\t1' in emitter.emitted_lines
 
     ingestor.ingest_line('9\t0002000\t#P1\t2')
@@ -274,14 +274,19 @@ def test_ingestor_ranking_events() -> None:
     ingestor.ingest_line('2\t1\tIce\t12\tIce\t#0000FF')
     ingestor.ingest_line('3\t0000001\t#P1\tplayer\tP1\t0\t0\t1\tScout')
     ingestor.ingest_line('3\t0000002\t#P2\tplayer\tP2\t1\t0\t1\tScout')
+    ingestor.ingest_line('3\t0000003\t#P3\tplayer\tP3\t0\t0\t1\tScout')
 
     # Mission start emits initial ranking
     ingestor.ingest_line('4\t0000000\t0100\t* Mission Start *')
-    assert f'{DATA_TYPE_PLAYER_RANKING}\t0\t1,2' in emitter.emitted_lines
+    assert f'{DATA_TYPE_PLAYER_RANKING}\t0\t1\t1,3' in emitter.emitted_lines
+    assert f'{DATA_TYPE_PLAYER_RANKING}\t0\t2\t2' in emitter.emitted_lines
     assert f'{DATA_TYPE_TEAM_RANKING}\t0\t1,2' in emitter.emitted_lines
 
     emitter.clear()
-    # P2 scores and overtakes P1 -> emits new rankings
-    ingestor.ingest_line('5\t0005000\t#P2\t0\t500\t500')
-    assert f'{DATA_TYPE_PLAYER_RANKING}\t5000\t2,1' in emitter.emitted_lines
-    assert f'{DATA_TYPE_TEAM_RANKING}\t5000\t2,1' in emitter.emitted_lines
+    # P3 scores and overtakes P1 within team 1
+    ingestor.ingest_line('5\t0005000\t#P3\t0\t500\t500')
+    assert f'{DATA_TYPE_PLAYER_RANKING}\t5000\t1\t3,1' in emitter.emitted_lines
+    assert not any(
+        ev.startswith(f'{DATA_TYPE_PLAYER_RANKING}\t5000\t2')
+        for ev in emitter.emitted_lines
+    )

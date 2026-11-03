@@ -276,30 +276,40 @@ class LiveGameState:
         for rank, team in enumerate(sorted_teams, start=1):
             team.ranking = rank
 
-    def update_player_rankings(self) -> list[int]:
-        """Recalculates player rankings based on current scores.
+    def update_player_rankings(self) -> dict[int, list[int]]:
+        """Recalculates player rankings within each team based on scores.
 
-        In SM5, players are ordered by score descending.
+        In SM5, players are ordered by score descending within their team.
         In Laserball, players are ordered by composite ranking score.
 
         Returns:
-            list[int]: Ordered list of player primary keys (highest first).
+            dict[int, list[int]]: Mapping from team primary key to ordered list
+                of player primary keys within that team (highest first).
 
         Usage example:
             rankings = state.update_player_rankings()
         """
         is_laserball = self.game_type.lower() == 'laserball'
-        sorted_players = sorted(
-            self.players.values(),
-            key=lambda p: (
-                p.calculate_ranking_score(is_laserball=is_laserball),
-                -p.player_id,
-            ),
-            reverse=True,
-        )
-        for rank, player in enumerate(sorted_players, start=1):
-            player.ranking = rank
-        return [p.player_id for p in sorted_players]
+        team_rankings: dict[int, list[int]] = {}
+        all_team_ids = set(self.teams.keys()) | {
+            p.team_id for p in self.players.values()
+        }
+        for team_id in sorted(all_team_ids):
+            team_players = [
+                p for p in self.players.values() if p.team_id == team_id
+            ]
+            sorted_players = sorted(
+                team_players,
+                key=lambda p: (
+                    p.calculate_ranking_score(is_laserball=is_laserball),
+                    -p.player_id,
+                ),
+                reverse=True,
+            )
+            for rank, player in enumerate(sorted_players, start=1):
+                player.ranking = rank
+            team_rankings[team_id] = [p.player_id for p in sorted_players]
+        return team_rankings
 
     def get_team_ranking(self) -> list[int]:
         """Returns the current ordered list of team primary keys.

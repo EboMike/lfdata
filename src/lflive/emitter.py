@@ -228,12 +228,13 @@ class OutputEmitter:
                 f'{DATA_TYPE_TEAM_SCORE}\t{cur_ms}\t{team.team_id}\t{team.score}'
             )
 
-        player_ranking = game_state.update_player_rankings()
-        if player_ranking:
-            events.append(
-                f'{DATA_TYPE_PLAYER_RANKING}\t{cur_ms}\t'
-                f'{",".join(str(p) for p in player_ranking)}'
-            )
+        player_rankings = game_state.update_player_rankings()
+        for team_id, p_ranks in player_rankings.items():
+            if p_ranks:
+                events.append(
+                    f'{DATA_TYPE_PLAYER_RANKING}\t{cur_ms}\t{team_id}\t'
+                    f'{",".join(str(p) for p in p_ranks)}'
+                )
 
         team_ranking = game_state.get_team_ranking()
         if team_ranking:

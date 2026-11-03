@@ -25,7 +25,7 @@ class RankingManager:
     Attributes:
         game_state: The active LiveGameState container.
         emitter: Optional OutputEmitter broadcasting outbound events.
-        last_player_ranking: Previously broadcast player ID ranking list.
+        last_player_rankings: Previously broadcast player rankings by team ID.
         last_team_ranking: Previously broadcast team ID ranking list.
     """
 
@@ -42,7 +42,7 @@ class RankingManager:
         """
         self.game_state = game_state
         self.emitter = emitter
-        self.last_player_ranking: list[int] | None = None
+        self.last_player_rankings: dict[int, list[int]] = {}
         self.last_team_ranking: list[int] | None = None
 
     def reset(self) -> None:
@@ -51,17 +51,17 @@ class RankingManager:
         Usage example:
             ranking_mgr.reset()
         """
-        self.last_player_ranking = None
+        self.last_player_rankings.clear()
         self.last_team_ranking = None
 
-    def calculate_player_ranking(self) -> list[int]:
-        """Calculates current ordered list of player primary keys.
+    def calculate_player_rankings(self) -> dict[int, list[int]]:
+        """Calculates current ordered list of player primary keys by team.
 
         Returns:
-            list[int]: Player IDs ordered by rank (highest score first).
+            dict[int, list[int]]: Player IDs ordered by rank within their team.
 
         Usage example:
-            p_ranks = ranking_mgr.calculate_player_ranking()
+            p_ranks = ranking_mgr.calculate_player_rankings()
         """
         return self.game_state.update_player_rankings()
 
@@ -80,9 +80,9 @@ class RankingManager:
     def update_rankings(self, time_ms: int) -> tuple[bool, bool]:
         """Recalculates rankings and emits protocol events if ordering changed.
 
-        Emits Type 26 (player ranking) and Type 27 (team ranking) events with
-        comma-separated primary keys if the new ranking order differs from
-        the previously emitted ranking.
+        Emits Type 26 (player ranking within team) and Type 27 (team ranking)
+        events with comma-separated primary keys if the new ranking order
+        differs from the previously emitted ranking.
 
         Args:
             time_ms: Elapsed game time in milliseconds.
@@ -94,20 +94,24 @@ class RankingManager:
         Usage example:
             changed_p, changed_t = ranking_mgr.update_rankings(time_ms=5000)
         """
-        player_ranking = self.calculate_player_ranking()
+        player_rankings = self.calculate_player_rankings()
         team_ranking = self.calculate_team_ranking()
         player_changed = False
         team_changed = False
 
-        if player_ranking and player_ranking != self.last_player_ranking:
-            self.last_player_ranking = list(player_ranking)
-            player_changed = True
-            if self.emitter:
-                self.emitter.emit(
-                    DATA_TYPE_PLAYER_RANKING,
-                    time_ms,
-                    ','.join(str(p) for p in player_ranking),
-                )
+        for team_id, p_ranking in player_rankings.items():
+            if p_ranking and p_ranking != self.last_player_rankings.get(
+                team_id
+            ):
+                self.last_player_rankings[team_id] = list(p_ranking)
+                player_changed = True
+                if self.emitter:
+                    self.emitter.emit(
+                        DATA_TYPE_PLAYER_RANKING,
+                        time_ms,
+                        team_id,
+                        ','.join(str(p) for p in p_ranking),
+                    )
 
         if team_ranking and team_ranking != self.last_team_ranking:
             self.last_team_ranking = list(team_ranking)

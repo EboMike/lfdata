@@ -177,7 +177,8 @@ def test_emitter_generate_presync_events() -> None:
         ev.startswith(f'{DATA_TYPE_TEAM_SCORE}\t45000\t1\t600') for ev in events
     )
     assert any(
-        ev.startswith(f'{DATA_TYPE_PLAYER_RANKING}\t45000\t1') for ev in events
+        ev.startswith(f'{DATA_TYPE_PLAYER_RANKING}\t45000\t1\t1')
+        for ev in events
     )
     assert any(
         ev.startswith(f'{DATA_TYPE_TEAM_RANKING}\t45000\t1') for ev in events

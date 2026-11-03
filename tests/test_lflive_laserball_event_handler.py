@@ -126,6 +126,7 @@ def test_laserball_event_handler_with_ranking_manager() -> None:
     state.add_team(team_id=2, name='Earth', color='Green', rgb='#00ff00')
     state.add_player(1, '#P1', 'Ace', 1)
     state.add_player(2, '#P2', 'Boba', 2)
+    state.add_player(3, '#P3', 'Charlie', 1)
 
     emitter = OutputEmitter()
     ranking_mgr = RankingManager(game_state=state, emitter=emitter)
@@ -134,11 +135,14 @@ def test_laserball_event_handler_with_ranking_manager() -> None:
     )
 
     handler.handle_event(5000, LASERBALL_EVENT_ROUND_START, [])
-    assert f'{DATA_TYPE_PLAYER_RANKING}\t5000\t1,2' in emitter.emitted_lines
+    assert f'{DATA_TYPE_PLAYER_RANKING}\t5000\t1\t1,3' in emitter.emitted_lines
+    assert f'{DATA_TYPE_PLAYER_RANKING}\t5000\t2\t2' in emitter.emitted_lines
     assert f'{DATA_TYPE_TEAM_RANKING}\t5000\t1,2' in emitter.emitted_lines
 
     emitter.clear()
-    handler.handle_event(7000, LASERBALL_EVENT_GOAL, ['#P2'])
-    # Player 2 scores goal -> leads player ranking and team ranking
-    assert f'{DATA_TYPE_PLAYER_RANKING}\t7000\t2,1' in emitter.emitted_lines
-    assert f'{DATA_TYPE_TEAM_RANKING}\t7000\t2,1' in emitter.emitted_lines
+    handler.handle_event(7000, LASERBALL_EVENT_GOAL, ['#P3'])
+    # Player 3 scores goal -> leads player ranking within team 1
+    assert f'{DATA_TYPE_PLAYER_RANKING}\t7000\t1\t3,1' in emitter.emitted_lines
+    assert (
+        f'{DATA_TYPE_TEAM_RANKING}\t7000\t1,2' not in emitter.emitted_lines
+    )  # Team order still 1,2

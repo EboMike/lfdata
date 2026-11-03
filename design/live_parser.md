@@ -180,7 +180,7 @@ the player names so they are in the color of their team, for example
 | 23 | New rapid fire state for a player | Player primary key | 1 = has rapid fire, 0 = doesn't have rapid fire |   |   |   |
 | 24 | `PRESYNC_END` - indicates concluding data for newly joined consumer |   |   |   |   |   |
 | 25 | Important game event (e.g. `Commander {name} has a nuke`) | Formatted event message |   |   |   |   |
-| 26 | New player ranking (typically all players in order of score, highest first)  | Commma-separated list of player primary keys |   |   |   |   |
+| 26 | New player ranking (typically all players in order of score within their team, highest first)  | Team primary key | Commma-separated list of player primary keys |   |   |   |
 | 27 | New team ranking (typically all teams in order of score, highest first)  | Commma-separated list of team primary keys |   |   |   |   |
 | 98 | New game start - indicates previous session data should be erased |   |   |   |   |   |
 | 99 | The game is over - concludes stream for this game |   |   |   |   |   |

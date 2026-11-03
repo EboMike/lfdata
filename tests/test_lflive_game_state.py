@@ -211,10 +211,10 @@ def test_player_and_team_rankings_sm5() -> None:
     p3.score = 1000
 
     ranks = state.update_player_rankings()
-    assert ranks == [2, 3, 1]
+    assert ranks == {1: [3, 1], 2: [2]}
+    assert p3.ranking == 1
+    assert p1.ranking == 2
     assert p2.ranking == 1
-    assert p3.ranking == 2
-    assert p1.ranking == 3
 
     state.update_team_scores()
     assert state.get_team_ranking() == [
@@ -236,7 +236,9 @@ def test_player_and_team_rankings_laserball() -> None:
     p2.assists = 1
 
     player_ranks = state.update_player_rankings()
-    assert player_ranks == [2, 1]
+    assert player_ranks == {1: [1], 2: [2]}
+    assert p1.ranking == 1
+    assert p2.ranking == 1
 
     state.update_team_scores()
     # Both teams 1 goal; team 2 has higher player ranking scores
