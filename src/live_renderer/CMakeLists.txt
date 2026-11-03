@@ -83,6 +83,8 @@ target_link_libraries(imgui_sdl_gl3 PUBLIC
 # Core library
 set(CORE_SOURCES
     config/config_serializer.cpp
+    config/local_preferences.cpp
+    config/preferences_manager.cpp
     state/live_state_store.cpp
     state/mock_game_state.cpp
     network/protocol_parser.cpp
@@ -126,6 +128,7 @@ add_executable(live_renderer_tests
     tests/test_ui_editor_window.cpp
     tests/test_visualization_window.cpp
     tests/test_window_manager.cpp
+    tests/test_preferences_manager.cpp
 )
 target_link_libraries(live_renderer_tests PRIVATE
     live_renderer_core

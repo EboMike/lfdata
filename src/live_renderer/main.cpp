@@ -14,6 +14,7 @@
 
 #include "live_renderer/config/config_serializer.hpp"
 #include "live_renderer/config/global_config.hpp"
+#include "live_renderer/config/preferences_manager.hpp"
 #include "live_renderer/config/ui_config.hpp"
 #include "live_renderer/network/protocol_parser.hpp"
 #include "live_renderer/network/tcp_consumer_client.hpp"
@@ -52,6 +53,20 @@ int main(int argc, char* argv[]) {
         std::cout << "[live_renderer] Warning: Could not load " << config_path
                   << ", generating default config.\n";
         live_renderer::ConfigSerializer::SaveGlobalConfig(config_path, global_cfg);
+    }
+
+    // Allow CLI override of preferences file
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "--preferences" && i + 1 < argc) {
+            global_cfg.preferences_file = argv[++i];
+        }
+    }
+
+    live_renderer::PreferencesManager pref_manager(global_cfg.preferences_file);
+    if (!pref_manager.Load()) {
+        std::cout << "[live_renderer] Starting fresh preferences at "
+                  << global_cfg.preferences_file << "\n";
     }
 
     live_renderer::UIConfig ui_cfg;
@@ -99,6 +114,8 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    pref_manager.ApplyToMainWindow(main_window);
+
     SDL_GLContext gl_context = SDL_GL_CreateContext(main_window);
     if (!gl_context) {
         std::cerr << "[live_renderer] SDL_GL_CreateContext Error: " << SDL_GetError() << "\n";
@@ -122,7 +139,7 @@ int main(int argc, char* argv[]) {
     ImGui_ImplOpenGL3_Init(glsl_version);
 
     // Initialize all visualization windows from UI config on startup
-    live_renderer::WindowManager window_manager(ui_cfg, gl_context);
+    live_renderer::WindowManager window_manager(ui_cfg, gl_context, &pref_manager);
 
     control_window.SetCallbacks({
         .on_reconnect = []() {},
@@ -133,6 +150,7 @@ int main(int argc, char* argv[]) {
         },
         .on_save_settings = [&](const live_renderer::GlobalConfig&) {
             editor_window.SetUIConfigFile(global_cfg.ui_config_file);
+            pref_manager.SetPath(global_cfg.preferences_file);
             window_manager.SyncWithConfig(ui_cfg);
         }
     });
@@ -163,10 +181,18 @@ int main(int argc, char* argv[]) {
                 event.window.event == SDL_WINDOWEVENT_CLOSE &&
                 event.window.windowID == SDL_GetWindowID(main_window)) {
                 control_window.ClickQuit();
+            } else if (
+                event.type == SDL_WINDOWEVENT &&
+                event.window.windowID == SDL_GetWindowID(main_window)) {
+                if (event.window.event == SDL_WINDOWEVENT_MOVED ||
+                    event.window.event == SDL_WINDOWEVENT_RESIZED ||
+                    event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
+                    pref_manager.CaptureMainWindow(main_window);
+                }
             }
         }
 
-        // Render all visualization windows with current game state (or mock state when in editor without session)
+        // Render all visualization windows with current game state (or mock state in editor)
         live_renderer::GameStateSnapshot current_state = state_store.GetSnapshot();
         if (control_window.IsInUIEditorMode() && !current_state.in_session) {
             current_state = live_renderer::MockGameState::CreateMockSM5State();
@@ -212,6 +238,7 @@ int main(int argc, char* argv[]) {
     }
 
     std::cout << "[live_renderer] Shutting down...\n";
+    pref_manager.Save();
     client.Stop();
 
     ImGui_ImplOpenGL3_Shutdown();

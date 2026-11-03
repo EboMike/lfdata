@@ -195,3 +195,16 @@ If none apply, the fallback is: `{blocks}/{blocked_by_others} blocks`.
 
 
 
+
+## Live Renderer Local Preferences and Window Lifecycle
+
+* Window position and size (geometry) as well as the target display device
+  (monitor device index and device name) are persisted in local preferences
+  (defaulting to `preferences.yaml` or configured via `preferences_file`).
+* When creating visualization windows, saved window bounds and target display
+  devices from local preferences take precedence over layout templates,
+  ensuring multi-monitor setups persist across sessions.
+* When a user attempts to close a visualization window (via
+  `SDL_WINDOWEVENT_CLOSE`), the close action is intercepted and the window is
+  minimized rather than destroyed or triggering an application exit. Only
+  closing the main control window prompts to quit the application.

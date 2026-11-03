@@ -1,3 +1,8 @@
+/**
+ * @file config_serializer.cpp
+ * @brief Implementation of ConfigSerializer for YAML loading and saving.
+ */
+
 #include "live_renderer/config/config_serializer.hpp"
 #include <fstream>
 #include <yaml-cpp/yaml.h>
@@ -15,6 +20,9 @@ bool ConfigSerializer::LoadGlobalConfig(const std::string& path, GlobalConfig& o
         if (doc["ui_config_file"]) {
             out_config.ui_config_file = doc["ui_config_file"].as<std::string>();
         }
+        if (doc["preferences_file"]) {
+            out_config.preferences_file = doc["preferences_file"].as<std::string>();
+        }
         return true;
     } catch (...) {
         return false;
@@ -30,6 +38,7 @@ bool ConfigSerializer::SaveGlobalConfig(const std::string& path, const GlobalCon
         out << YAML::Key << "port" << YAML::Value << config.port;
         out << YAML::EndMap;
         out << YAML::Key << "ui_config_file" << YAML::Value << config.ui_config_file;
+        out << YAML::Key << "preferences_file" << YAML::Value << config.preferences_file;
         out << YAML::EndMap;
 
         std::ofstream fout(path);
@@ -66,7 +75,9 @@ static ElementConfig ParseElementNode(const YAML::Node& node) {
     if (node["team_index"]) el.team_index = node["team_index"].as<int>();
     if (node["row_template_id"]) el.row_template_id = node["row_template_id"].as<int>();
     if (node["header_template_id"]) el.header_template_id = node["header_template_id"].as<int>();
-    if (node["player_profile_template_id"]) el.player_profile_template_id = node["player_profile_template_id"].as<int>();
+    if (node["player_profile_template_id"]) {
+        el.player_profile_template_id = node["player_profile_template_id"].as<int>();
+    }
     return el;
 }
 
@@ -90,7 +101,9 @@ static void EmitElementNode(YAML::Emitter& out, const ElementConfig& el) {
         if (el.team_index >= 0) out << YAML::Key << "team_index" << YAML::Value << el.team_index;
         if (el.row_template_id >= 0) out << YAML::Key << "row_template_id" << YAML::Value << el.row_template_id;
         if (el.header_template_id >= 0) out << YAML::Key << "header_template_id" << YAML::Value << el.header_template_id;
-        if (el.player_profile_template_id >= 0) out << YAML::Key << "player_profile_template_id" << YAML::Value << el.player_profile_template_id;
+        if (el.player_profile_template_id >= 0) {
+            out << YAML::Key << "player_profile_template_id" << YAML::Value << el.player_profile_template_id;
+        }
     }
     out << YAML::EndMap;
 }
@@ -199,5 +212,97 @@ bool ConfigSerializer::SaveUIConfig(const std::string& path, const UIConfig& con
     }
 }
 
-}  // namespace live_renderer
+static WindowPreference ParseWindowPreference(const YAML::Node& node) {
+    WindowPreference pref;
+    if (node["id"]) pref.window_id = node["id"].as<int>();
+    if (node["window_id"]) pref.window_id = node["window_id"].as<int>();
+    if (node["rect"] && node["rect"].IsSequence() && node["rect"].size() == 4) {
+        pref.x = node["rect"][0].as<int>();
+        pref.y = node["rect"][1].as<int>();
+        pref.width = node["rect"][2].as<int>();
+        pref.height = node["rect"][3].as<int>();
+    }
+    if (node["x"]) pref.x = node["x"].as<int>();
+    if (node["y"]) pref.y = node["y"].as<int>();
+    if (node["width"]) pref.width = node["width"].as<int>();
+    if (node["height"]) pref.height = node["height"].as<int>();
+    if (node["display_index"]) pref.display_index = node["display_index"].as<int>();
+    if (node["monitor_id"]) pref.display_index = node["monitor_id"].as<int>();
+    if (node["display_name"]) pref.display_name = node["display_name"].as<std::string>();
+    return pref;
+}
 
+static void EmitWindowPreference(
+    YAML::Emitter& out,
+    const WindowPreference& pref,
+    bool include_id = true) {
+    out << YAML::BeginMap;
+    if (include_id) {
+        out << YAML::Key << "id" << YAML::Value << pref.window_id;
+    }
+    out << YAML::Key << "x" << YAML::Value << pref.x;
+    out << YAML::Key << "y" << YAML::Value << pref.y;
+    out << YAML::Key << "width" << YAML::Value << pref.width;
+    out << YAML::Key << "height" << YAML::Value << pref.height;
+    out << YAML::Key << "display_index" << YAML::Value << pref.display_index;
+    if (!pref.display_name.empty()) {
+        out << YAML::Key << "display_name" << YAML::Value << pref.display_name;
+    }
+    out << YAML::EndMap;
+}
+
+bool ConfigSerializer::LoadPreferences(
+    const std::string& path,
+    LocalPreferences& out_preferences) {
+    try {
+        YAML::Node doc = YAML::LoadFile(path);
+        out_preferences.windows.clear();
+        out_preferences.main_control_window.reset();
+
+        if (doc["main_control_window"]) {
+            out_preferences.main_control_window = ParseWindowPreference(
+                doc["main_control_window"]);
+        }
+
+        if (doc["windows"] && doc["windows"].IsSequence()) {
+            for (const auto& win_node : doc["windows"]) {
+                out_preferences.windows.push_back(
+                    ParseWindowPreference(win_node));
+            }
+        }
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool ConfigSerializer::SavePreferences(
+    const std::string& path,
+    const LocalPreferences& preferences) {
+    try {
+        YAML::Emitter out;
+        out << YAML::BeginMap;
+
+        if (preferences.main_control_window.has_value()) {
+            out << YAML::Key << "main_control_window" << YAML::Value;
+            EmitWindowPreference(out, *preferences.main_control_window, false);
+        }
+
+        out << YAML::Key << "windows" << YAML::Value << YAML::BeginSeq;
+        for (const auto& win : preferences.windows) {
+            EmitWindowPreference(out, win, true);
+        }
+        out << YAML::EndSeq;
+
+        out << YAML::EndMap;
+
+        std::ofstream fout(path);
+        if (!fout.is_open()) return false;
+        fout << out.c_str() << "\n";
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+}  // namespace live_renderer
