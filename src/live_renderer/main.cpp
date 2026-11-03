@@ -19,6 +19,7 @@
 #include "live_renderer/network/tcp_consumer_client.hpp"
 #include "live_renderer/state/live_state_store.hpp"
 #include "live_renderer/windows/main_control_window.hpp"
+#include "live_renderer/windows/ui_editor_window.hpp"
 
 namespace {
 std::atomic<bool> g_shutdown_requested{false};
@@ -63,6 +64,26 @@ int main(int argc, char* argv[]) {
     live_renderer::TcpConsumerClient client(parser, global_cfg.host, global_cfg.port);
     live_renderer::MainControlWindow control_window(
         config_path, global_cfg, ui_cfg, state_store, client);
+    live_renderer::UIEditorWindow editor_window(ui_cfg, global_cfg.ui_config_file);
+
+    control_window.SetCallbacks({
+        .on_reconnect = []() {},
+        .on_enter_ui_editor = []() {},
+        .on_open_configuration = [&](const std::string&) {
+            editor_window.SetUIConfigFile(global_cfg.ui_config_file);
+        },
+        .on_save_settings = [&](const live_renderer::GlobalConfig&) {
+            editor_window.SetUIConfigFile(global_cfg.ui_config_file);
+        }
+    });
+
+    editor_window.SetCallbacks({
+        .on_save_and_back = [&]() {
+            control_window.SetUIEditorMode(false);
+        },
+        .on_active_window_changed = [](int) {},
+        .on_active_template_changed = [](int) {}
+    });
 
     SDL_SetMainReady();
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) {
@@ -140,7 +161,11 @@ int main(int argc, char* argv[]) {
         ImGui_ImplSDL2_NewFrame();
         ImGui::NewFrame();
 
-        control_window.RenderImGui();
+        if (control_window.IsInUIEditorMode()) {
+            editor_window.RenderImGui();
+        } else {
+            control_window.RenderImGui();
+        }
 
         ImGui::Render();
         int display_w = 0;
