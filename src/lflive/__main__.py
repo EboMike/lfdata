@@ -14,6 +14,7 @@ from collections.abc import Sequence
 from lflive.cli import parse_args, resolve_config
 from lflive.config import LFLiveConfig
 from lflive.db import LiveDatabase
+from lflive.emitter import OutputEmitter
 from lflive.state.game_state import LiveGameState
 from lflive.tdf_listener import TdfListener
 
@@ -30,12 +31,14 @@ async def run_server(config: LFLiveConfig) -> int:
     db = LiveDatabase(db_path=config.database_path)
     db.init_db()
     state = LiveGameState()
+    emitter = OutputEmitter(log_output=config.log_output)
 
     listener = TdfListener(
         port=config.tdf_port,
         log_tdf=config.log_tdf,
         game_state=state,
         db=db,
+        emitter=emitter,
     )
     await listener.start()
     print(f'Listening for TDF stream on port {config.tdf_port}...')

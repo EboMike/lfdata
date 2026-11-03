@@ -1,18 +1,20 @@
 """TDF stream parser and real-time game state ingestor for lflive.
 
 This module provides `TdfIngestor`, which translates incoming tab-delimited TDF
-lines into structured entity, stat, score, and state updates on `LiveGameState`.
+lines into structured entity, stat, score, and state updates on `LiveGameState`,
+and dispatches outbound protocol lines via `OutputEmitter`.
 
 Usage example:
+    from lflive.emitter import OutputEmitter
     from lflive.ingestor import TdfIngestor
     from lflive.state.game_state import LiveGameState
 
     state = LiveGameState()
-    ingestor = TdfIngestor(game_state=state)
+    emitter = OutputEmitter()
+    ingestor = TdfIngestor(game_state=state, emitter=emitter)
     ingestor.ingest_line('4\\t0000000\\t0100\\t* Mission Start *')
 """
 
-from lfdata.model.constants.role import LFRole
 from lfdata.model.constants.tdf import (
     TDF_RECORD_ENTITY_START,
     TDF_RECORD_EVENT,
@@ -25,34 +27,20 @@ from lfdata.model.constants.tdf import (
     TDF_RECORD_SCORE,
     TDF_RECORD_TEAM,
 )
-from lfdata.model.gametypes.laserball_events import (
-    LASERBALL_EVENT_ASSIST,
-    LASERBALL_EVENT_BLOCK,
-    LASERBALL_EVENT_CLEAR,
-    LASERBALL_EVENT_GETS_BALL,
-    LASERBALL_EVENT_GOAL,
-    LASERBALL_EVENT_PASS,
-    LASERBALL_EVENT_ROUND_END,
-    LASERBALL_EVENT_ROUND_START,
-    LASERBALL_EVENT_STEAL,
+from lflive.constants import (
+    DATA_TYPE_GAME_START_TIME,
+    DATA_TYPE_GAME_TYPE,
+    DATA_TYPE_NEW_GAME,
+    DATA_TYPE_PLAYER_LIVES,
+    DATA_TYPE_PLAYER_MISSILES,
+    DATA_TYPE_PLAYER_SCORE,
+    DATA_TYPE_PLAYER_SHOTS,
+    DATA_TYPE_PLAYER_STATE,
+    DATA_TYPE_TEAM_SCORE,
 )
-from lfdata.model.gametypes.sm5_constants import (
-    SM5_BASE_CAPTURE_SCORE,
-    SM5_BASE_CAPTURE_SPECIAL_POINTS,
-    SM5_MAX_SPECIAL_POINTS,
-    SM5_SCORE_NUKE_DETONATE,
-    SM5_SPECIAL_POINTS_NUKE,
-)
-from lfdata.model.gametypes.sm5_events import (
-    SM5_EVENT_ACTIVATE_NUKE,
-    SM5_EVENT_ACTIVATE_RAPID_FIRE,
-    SM5_EVENT_DEACTIVATE_RAPID_FIRE,
-    SM5_EVENT_DESTROY_BASE,
-    SM5_EVENT_DETONATE_NUKE,
-    SM5_EVENT_MISSILE_BASE_DESTROY,
-    SM5_EVENT_MISSION_END,
-    SM5_EVENT_MISSION_START,
-)
+from lflive.emitter import OutputEmitter
+from lflive.entity_registrar import EntityRegistrar
+from lflive.game_event_handler import GameEventHandler
 from lflive.state.game_state import LiveGameState
 
 
@@ -61,18 +49,42 @@ class TdfIngestor:
 
     Attributes:
         game_state: The LiveGameState instance being updated.
+        emitter: Optional OutputEmitter broadcasting outbound protocol lines.
+        registrar: EntityRegistrar for creating teams, players, and targets.
+        event_handler: GameEventHandler for processing record type 4 events.
     """
 
-    def __init__(self, game_state: LiveGameState) -> None:
-        """Initializes the ingestor with a target game state.
+    def __init__(
+        self,
+        game_state: LiveGameState,
+        emitter: OutputEmitter | None = None,
+    ) -> None:
+        """Initializes the ingestor with a target game state and emitter.
 
         Args:
             game_state: LiveGameState instance to update.
+            emitter: Optional OutputEmitter instance for protocol messages.
         """
         self.game_state = game_state
-        self._next_player_id = 1
-        self._next_target_id = 1
-        self._entity_to_team_index: dict[str, int] = {}
+        self.emitter = emitter
+        self.registrar = EntityRegistrar(
+            game_state=self.game_state,
+            emitter=self.emitter,
+        )
+        self.event_handler = GameEventHandler(
+            game_state=self.game_state,
+            emitter=self.emitter,
+        )
+
+    @property
+    def _next_player_id(self) -> int:
+        """Exposes next player ID for backwards compatibility with tests."""
+        return self.registrar.next_player_id
+
+    @property
+    def _entity_to_team_index(self) -> dict[str, int]:
+        """Exposes entity-to-team map for backwards compatibility with tests."""
+        return self.registrar.entity_to_team_index
 
     def reset(self) -> None:
         """Resets ID allocators and caches for a new game session.
@@ -80,9 +92,9 @@ class TdfIngestor:
         Usage example:
             ingestor.reset()
         """
-        self._next_player_id = 1
-        self._next_target_id = 1
-        self._entity_to_team_index.clear()
+        self.registrar.reset()
+        if self.emitter:
+            self.emitter.emit(DATA_TYPE_NEW_GAME, 0)
 
     def ingest_line(self, line: str) -> None:
         """Parses a single TDF line and applies updates to the game state.
@@ -150,6 +162,20 @@ class TdfIngestor:
             except ValueError:
                 pass
 
+        if self.emitter:
+            self.emitter.emit(
+                DATA_TYPE_GAME_TYPE,
+                0,
+                self.game_state.game_type,
+                self.game_state.duration_seconds,
+            )
+            if self.game_state.start_time:
+                self.emitter.emit(
+                    DATA_TYPE_GAME_START_TIME,
+                    0,
+                    self.game_state.start_time,
+                )
+
     def _handle_team(self, parts: list[str]) -> None:
         """Parses record type 2 (Team registration)."""
         if len(parts) < 6:
@@ -159,16 +185,11 @@ class TdfIngestor:
         except ValueError:
             return
 
-        team_pk = team_index + 1
-        name = parts[2]
-        color = parts[4]
-        rgb = parts[5]
-
-        self.game_state.add_team(
-            team_id=team_pk,
-            name=name,
-            color=color,
-            rgb=rgb,
+        self.registrar.register_team(
+            team_index=team_index,
+            name=parts[2],
+            color=parts[4],
+            rgb=parts[5],
         )
 
     def _handle_entity_start(self, parts: list[str]) -> None:
@@ -186,82 +207,19 @@ class TdfIngestor:
         except ValueError:
             return
 
-        team_pk = team_index + 1
-        self._entity_to_team_index[entity_id] = team_index
-
         if entity_type == 'player':
-            self._register_player(
+            self.registrar.register_player(
                 entity_id=entity_id,
                 codename=codename,
-                team_pk=team_pk,
+                team_index=team_index,
                 category=category,
             )
         elif entity_type in ('base', 'target'):
-            self._register_target(
+            self.registrar.register_target(
                 entity_id=entity_id,
                 name=codename,
-                team_pk=team_pk,
+                team_index=team_index,
             )
-
-    def _register_player(
-        self,
-        entity_id: str,
-        codename: str,
-        team_pk: int,
-        category: int,
-    ) -> None:
-        """Registers a player and sets starting role attributes."""
-        player_pk = self._next_player_id
-        self._next_player_id += 1
-
-        is_laserball = self.game_state.game_type.lower() == 'laserball'
-        if not is_laserball:
-            role_str, lives, shots, missiles, max_hp = self._lookup_sm5_role(
-                category=category
-            )
-        else:
-            role_str, lives, shots, missiles, max_hp = ('', 0, 0, 0, 1)
-
-        player = self.game_state.add_player(
-            player_id=player_pk,
-            entity_id=entity_id,
-            name=codename,
-            team_id=team_pk,
-            role=role_str,
-        )
-        player.lives = lives
-        player.shots = shots
-        player.missiles = missiles
-        player.hitpoints = max_hp
-
-    def _lookup_sm5_role(self, category: int) -> tuple[str, int, int, int, int]:
-        """Resolves role attributes for Space Marines 5 from role category ID."""
-        try:
-            role_enum = LFRole.from_id(category)
-            return (
-                role_enum.display_name.lower(),
-                role_enum.start_lives,
-                role_enum.start_shots,
-                role_enum.start_missiles,
-                role_enum.max_hp,
-            )
-        except (ValueError, KeyError):
-            return ('', 15, 30, 0, 1)
-
-    def _register_target(self, entity_id: str, name: str, team_pk: int) -> None:
-        """Registers a target or base entity."""
-        target_pk = self._next_target_id
-        self._next_target_id += 1
-
-        team = self.game_state.teams.get(team_pk)
-        rgb = team.rgb if team else '#ffffff'
-
-        self.game_state.add_target(
-            target_id=target_pk,
-            entity_id=entity_id,
-            name=name,
-            rgb=rgb,
-        )
 
     def _handle_event(self, parts: list[str]) -> None:
         """Parses record type 4 (Game event)."""
@@ -276,223 +234,11 @@ class TdfIngestor:
         self.game_state.current_time_ms = time_offset_ms
         event_code = parts[2]
         varies = parts[3:] if len(parts) > 3 else []
-
-        if event_code == SM5_EVENT_MISSION_START:
-            pass
-        elif event_code == SM5_EVENT_MISSION_END:
-            self.game_state.is_game_over = True
-            self.game_state.record_change(
-                time_offset_ms, 'game', 0, 'is_game_over', '1'
-            )
-        elif event_code in (
-            LASERBALL_EVENT_ROUND_START,
-            LASERBALL_EVENT_ROUND_END,
-            LASERBALL_EVENT_GETS_BALL,
-            LASERBALL_EVENT_PASS,
-            LASERBALL_EVENT_GOAL,
-            LASERBALL_EVENT_ASSIST,
-            LASERBALL_EVENT_BLOCK,
-            LASERBALL_EVENT_STEAL,
-            LASERBALL_EVENT_CLEAR,
-        ):
-            self._handle_laserball_event(
-                time_ms=time_offset_ms,
-                code=event_code,
-                varies=varies,
-            )
-        elif event_code in (
-            SM5_EVENT_ACTIVATE_RAPID_FIRE,
-            SM5_EVENT_DEACTIVATE_RAPID_FIRE,
-            SM5_EVENT_ACTIVATE_NUKE,
-            SM5_EVENT_DETONATE_NUKE,
-            SM5_EVENT_DESTROY_BASE,
-            SM5_EVENT_MISSILE_BASE_DESTROY,
-        ):
-            self._handle_sm5_event(
-                time_ms=time_offset_ms,
-                code=event_code,
-                varies=varies,
-            )
-
-    def _handle_laserball_event(
-        self, time_ms: int, code: str, varies: list[str]
-    ) -> None:
-        """Handles Laserball game events."""
-        if code == LASERBALL_EVENT_ROUND_START:
-            self.game_state.is_in_round = True
-        elif code == LASERBALL_EVENT_ROUND_END:
-            self.game_state.is_in_round = False
-            self.game_state.round_number += 1
-        elif code == LASERBALL_EVENT_GETS_BALL and varies:
-            carrier = self.game_state.get_player_by_entity(entity_id=varies[0])
-            if carrier:
-                self.game_state.ball_carrier_id = carrier.player_id
-                self.game_state.record_change(
-                    time_ms,
-                    'game',
-                    0,
-                    'ball_carrier_id',
-                    str(carrier.player_id),
-                )
-        elif code == LASERBALL_EVENT_PASS and varies:
-            target_id = (
-                varies[2]
-                if len(varies) >= 3
-                else (varies[1] if len(varies) >= 2 else varies[0])
-            )
-            carrier = self.game_state.get_player_by_entity(entity_id=target_id)
-            if carrier:
-                self.game_state.ball_carrier_id = carrier.player_id
-                self.game_state.record_change(
-                    time_ms,
-                    'game',
-                    0,
-                    'ball_carrier_id',
-                    str(carrier.player_id),
-                )
-        elif code == LASERBALL_EVENT_GOAL and varies:
-            player = self.game_state.get_player_by_entity(entity_id=varies[0])
-            if player:
-                player.goals += 1
-                self.game_state.record_change(
-                    time_ms,
-                    'player',
-                    player.player_id,
-                    'goals',
-                    str(player.goals),
-                )
-                self.game_state.update_team_scores()
-        elif code == LASERBALL_EVENT_ASSIST and varies:
-            player = self.game_state.get_player_by_entity(entity_id=varies[0])
-            if player:
-                player.assists += 1
-                self.game_state.record_change(
-                    time_ms,
-                    'player',
-                    player.player_id,
-                    'assists',
-                    str(player.assists),
-                )
-        elif code == LASERBALL_EVENT_BLOCK and len(varies) >= 2:
-            target_id = varies[2] if len(varies) >= 3 else varies[1]
-            actor = self.game_state.get_player_by_entity(entity_id=varies[0])
-            target = self.game_state.get_player_by_entity(entity_id=target_id)
-            if actor:
-                actor.blocks += 1
-                self.game_state.record_change(
-                    time_ms,
-                    'player',
-                    actor.player_id,
-                    'blocks',
-                    str(actor.blocks),
-                )
-            if target:
-                target.state = 3
-                self.game_state.record_change(
-                    time_ms, 'player', target.player_id, 'state', '3'
-                )
-        elif code == LASERBALL_EVENT_STEAL and len(varies) >= 2:
-            target_id = varies[2] if len(varies) >= 3 else varies[1]
-            actor = self.game_state.get_player_by_entity(entity_id=varies[0])
-            target = self.game_state.get_player_by_entity(entity_id=target_id)
-            if actor:
-                actor.steals += 1
-                self.game_state.ball_carrier_id = actor.player_id
-                self.game_state.record_change(
-                    time_ms,
-                    'player',
-                    actor.player_id,
-                    'steals',
-                    str(actor.steals),
-                )
-                self.game_state.record_change(
-                    time_ms, 'game', 0, 'ball_carrier_id', str(actor.player_id)
-                )
-            if target:
-                target.state = 3
-                self.game_state.record_change(
-                    time_ms, 'player', target.player_id, 'state', '3'
-                )
-        elif code == LASERBALL_EVENT_CLEAR and varies:
-            actor = self.game_state.get_player_by_entity(entity_id=varies[0])
-            if actor:
-                actor.clears += 1
-                self.game_state.record_change(
-                    time_ms,
-                    'player',
-                    actor.player_id,
-                    'clears',
-                    str(actor.clears),
-                )
-            if len(varies) >= 2:
-                target_id = varies[2] if len(varies) >= 3 else varies[1]
-                new_c = self.game_state.get_player_by_entity(
-                    entity_id=target_id
-                )
-                if new_c:
-                    self.game_state.ball_carrier_id = new_c.player_id
-                    self.game_state.record_change(
-                        time_ms,
-                        'game',
-                        0,
-                        'ball_carrier_id',
-                        str(new_c.player_id),
-                    )
-
-    def _handle_sm5_event(
-        self, time_ms: int, code: str, varies: list[str]
-    ) -> None:
-        """Handles Space Marines 5 game events."""
-        if not varies:
-            return
-        actor = self.game_state.get_player_by_entity(entity_id=varies[0])
-        if not actor:
-            return
-
-        if code == SM5_EVENT_ACTIVATE_RAPID_FIRE:
-            actor.rapid_fire = True
-            self.game_state.record_change(
-                time_ms, 'player', actor.player_id, 'rapid_fire', '1'
-            )
-        elif code == SM5_EVENT_DEACTIVATE_RAPID_FIRE:
-            actor.rapid_fire = False
-            self.game_state.record_change(
-                time_ms, 'player', actor.player_id, 'rapid_fire', '0'
-            )
-        elif code == SM5_EVENT_ACTIVATE_NUKE:
-            actor.special_points = max(
-                0, actor.special_points - SM5_SPECIAL_POINTS_NUKE
-            )
-            self.game_state.record_change(
-                time_ms,
-                'player',
-                actor.player_id,
-                'special_points',
-                str(actor.special_points),
-            )
-        elif code == SM5_EVENT_DETONATE_NUKE:
-            actor.score += SM5_SCORE_NUKE_DETONATE
-            self.game_state.record_change(
-                time_ms, 'player', actor.player_id, 'score', str(actor.score)
-            )
-            self.game_state.update_team_scores()
-        elif code in (SM5_EVENT_DESTROY_BASE, SM5_EVENT_MISSILE_BASE_DESTROY):
-            actor.score += SM5_BASE_CAPTURE_SCORE
-            actor.special_points = min(
-                SM5_MAX_SPECIAL_POINTS,
-                actor.special_points + SM5_BASE_CAPTURE_SPECIAL_POINTS,
-            )
-            self.game_state.record_change(
-                time_ms, 'player', actor.player_id, 'score', str(actor.score)
-            )
-            self.game_state.record_change(
-                time_ms,
-                'player',
-                actor.player_id,
-                'special_points',
-                str(actor.special_points),
-            )
-            self.game_state.update_team_scores()
+        self.event_handler.handle_event(
+            time_ms=time_offset_ms,
+            code=event_code,
+            varies=varies,
+        )
 
     def _handle_score(self, parts: list[str]) -> None:
         """Parses record type 5 (Authoritative score update)."""
@@ -515,6 +261,21 @@ class TdfIngestor:
                 str(new_score),
             )
             self.game_state.update_team_scores()
+            if self.emitter:
+                self.emitter.emit(
+                    DATA_TYPE_PLAYER_SCORE,
+                    time_offset_ms,
+                    player.player_id,
+                    new_score,
+                )
+                team = self.game_state.teams.get(player.team_id)
+                if team:
+                    self.emitter.emit(
+                        DATA_TYPE_TEAM_SCORE,
+                        time_offset_ms,
+                        team.team_id,
+                        team.score,
+                    )
 
     def _handle_player_state(self, parts: list[str]) -> None:
         """Parses record type 9 (Authoritative player operational state)."""
@@ -536,6 +297,13 @@ class TdfIngestor:
                 'state',
                 str(new_state),
             )
+            if self.emitter:
+                self.emitter.emit(
+                    DATA_TYPE_PLAYER_STATE,
+                    time_offset_ms,
+                    player.player_id,
+                    new_state,
+                )
 
     def _handle_player_lives(self, parts: list[str]) -> None:
         """Parses record type 11 (Authoritative player lives update)."""
@@ -557,11 +325,25 @@ class TdfIngestor:
                 'lives',
                 str(lives_val),
             )
+            if self.emitter:
+                self.emitter.emit(
+                    DATA_TYPE_PLAYER_LIVES,
+                    time_offset_ms,
+                    player.player_id,
+                    lives_val,
+                )
             if lives_val <= 0 and player.state != 4:
                 player.state = 4
                 self.game_state.record_change(
                     time_offset_ms, 'player', player.player_id, 'state', '4'
                 )
+                if self.emitter:
+                    self.emitter.emit(
+                        DATA_TYPE_PLAYER_STATE,
+                        time_offset_ms,
+                        player.player_id,
+                        4,
+                    )
 
     def _handle_player_ammo(self, parts: list[str]) -> None:
         """Parses record type 12 (Authoritative player ammo/shots update)."""
@@ -583,6 +365,13 @@ class TdfIngestor:
                 'shots',
                 str(shots_val),
             )
+            if self.emitter:
+                self.emitter.emit(
+                    DATA_TYPE_PLAYER_SHOTS,
+                    time_offset_ms,
+                    player.player_id,
+                    shots_val,
+                )
 
     def _handle_player_missiles(self, parts: list[str]) -> None:
         """Parses record type 13 (Authoritative player missiles update)."""
@@ -604,3 +393,10 @@ class TdfIngestor:
                 'missiles',
                 str(missiles_val),
             )
+            if self.emitter:
+                self.emitter.emit(
+                    DATA_TYPE_PLAYER_MISSILES,
+                    time_offset_ms,
+                    player.player_id,
+                    missiles_val,
+                )

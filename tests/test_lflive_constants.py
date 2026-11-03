@@ -1,0 +1,31 @@
+from lflive import constants
+
+
+def test_constants_values() -> None:
+    assert constants.DATA_TYPE_TEAM_SCORE == 1
+    assert constants.DATA_TYPE_GAME_START_TIME == 2
+    assert constants.DATA_TYPE_PLAYER_SCORE == 3
+    assert constants.DATA_TYPE_PLAYER_LIVES == 4
+    assert constants.DATA_TYPE_PLAYER_SHOTS == 5
+    assert constants.DATA_TYPE_PLAYER_SPECIAL_POINTS == 6
+    assert constants.DATA_TYPE_PLAYER_HITPOINTS == 7
+    assert constants.DATA_TYPE_EVENT_SCROLLER == 8
+    assert constants.DATA_TYPE_PLAYER_STATE == 9
+    assert constants.DATA_TYPE_PLAYER_MISSILES == 10
+    assert constants.DATA_TYPE_PLAYER_GOALS == 11
+    assert constants.DATA_TYPE_PLAYER_ASSISTS == 12
+    assert constants.DATA_TYPE_PLAYER_BLOCKS == 13
+    assert constants.DATA_TYPE_PLAYER_STEALS == 14
+    assert constants.DATA_TYPE_TEAM_DESCRIPTION == 15
+    assert constants.DATA_TYPE_PLAYER_DESCRIPTION == 16
+    assert constants.DATA_TYPE_GAME_TYPE == 17
+    assert constants.DATA_TYPE_BALL_CARRIER == 18
+    assert constants.DATA_TYPE_ROUND_END == 19
+    assert constants.DATA_TYPE_ROUND_BEGINS == 20
+    assert constants.DATA_TYPE_BASE_CAPTURED == 21
+    assert constants.DATA_TYPE_BASE_DESCRIPTION == 22
+    assert constants.DATA_TYPE_RAPID_FIRE_STATE == 23
+    assert constants.DATA_TYPE_PRESYNC_END == 24
+    assert constants.DATA_TYPE_IMPORTANT_EVENT == 25
+    assert constants.DATA_TYPE_NEW_GAME == 98
+    assert constants.DATA_TYPE_GAME_OVER == 99

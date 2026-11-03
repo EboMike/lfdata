@@ -1,3 +1,17 @@
+from lflive.constants import (
+    DATA_TYPE_GAME_START_TIME,
+    DATA_TYPE_GAME_TYPE,
+    DATA_TYPE_NEW_GAME,
+    DATA_TYPE_PLAYER_DESCRIPTION,
+    DATA_TYPE_PLAYER_LIVES,
+    DATA_TYPE_PLAYER_MISSILES,
+    DATA_TYPE_PLAYER_SCORE,
+    DATA_TYPE_PLAYER_SHOTS,
+    DATA_TYPE_PLAYER_STATE,
+    DATA_TYPE_TEAM_DESCRIPTION,
+    DATA_TYPE_TEAM_SCORE,
+)
+from lflive.emitter import OutputEmitter
 from lflive.ingestor import TdfIngestor
 from lflive.state.game_state import LiveGameState
 
@@ -189,3 +203,49 @@ def test_ingestor_reset() -> None:
     ingestor.reset()
     assert ingestor._next_player_id == 1
     assert len(ingestor._entity_to_team_index) == 0
+
+
+def test_ingestor_with_emitter() -> None:
+    state = LiveGameState()
+    emitter = OutputEmitter()
+    ingestor = TdfIngestor(game_state=state, emitter=emitter)
+
+    ingestor.ingest_line('1\t5\tSpace Marines 5\t20261103100000\t900000\t-1000')
+    assert f'{DATA_TYPE_GAME_TYPE}\t0\tSM5\t900' in emitter.emitted_lines
+    assert (
+        f'{DATA_TYPE_GAME_START_TIME}\t0\t20261103100000'
+        in emitter.emitted_lines
+    )
+
+    ingestor.ingest_line('2\t0\tFire Team\t11\tFire\t#FF5000')
+    assert (
+        f'{DATA_TYPE_TEAM_DESCRIPTION}\t0\t1\tFire Team\t#FF5000'
+        in emitter.emitted_lines
+    )
+
+    ingestor.ingest_line('3\t0000001\t#P1\tplayer\tAce\t0\t0\t1\tMaverick')
+    assert any(
+        ev.startswith(f'{DATA_TYPE_PLAYER_DESCRIPTION}\t0\t1\tAce\t#P1\t1\t')
+        for ev in emitter.emitted_lines
+    )
+    assert f'{DATA_TYPE_PLAYER_LIVES}\t0\t1\t15' in emitter.emitted_lines
+
+    ingestor.ingest_line('5\t0001000\t#P1\t0\t100\t100')
+    assert f'{DATA_TYPE_PLAYER_SCORE}\t1000\t1\t100' in emitter.emitted_lines
+    assert f'{DATA_TYPE_TEAM_SCORE}\t1000\t1\t100' in emitter.emitted_lines
+
+    ingestor.ingest_line('9\t0002000\t#P1\t2')
+    assert f'{DATA_TYPE_PLAYER_STATE}\t2000\t1\t2' in emitter.emitted_lines
+
+    ingestor.ingest_line('12\t0003000\t#P1\t30\t28')
+    assert f'{DATA_TYPE_PLAYER_SHOTS}\t3000\t1\t28' in emitter.emitted_lines
+
+    ingestor.ingest_line('13\t0004000\t#P1\t5\t3')
+    assert f'{DATA_TYPE_PLAYER_MISSILES}\t4000\t1\t3' in emitter.emitted_lines
+
+    ingestor.ingest_line('11\t0005000\t#P1\t1\t0')
+    assert f'{DATA_TYPE_PLAYER_LIVES}\t5000\t1\t0' in emitter.emitted_lines
+    assert f'{DATA_TYPE_PLAYER_STATE}\t5000\t1\t4' in emitter.emitted_lines
+
+    ingestor.reset()
+    assert f'{DATA_TYPE_NEW_GAME}\t0' in emitter.emitted_lines

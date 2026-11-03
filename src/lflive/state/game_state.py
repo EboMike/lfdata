@@ -24,7 +24,6 @@ Usage example:
     )
 """
 
-import dataclasses
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -37,27 +36,9 @@ from lflive.models import (
     LiveTeam,
 )
 from lflive.state.player_state import LivePlayerState
+from lflive.state.snapshot_entry import SnapshotEntry
 from lflive.state.target_state import LiveTargetState
 from lflive.state.team_state import LiveTeamState
-
-
-@dataclasses.dataclass
-class SnapshotEntry:
-    """Represents a single timestamped property mutation for an entity.
-
-    Attributes:
-        time_ms: Elapsed game time in milliseconds when the change occurred.
-        entity_type: Category of entity (player, team, target).
-        entity_id: Numerical primary key of the modified entity.
-        field_name: Property name modified.
-        value: String serialized representation of the value.
-    """
-
-    time_ms: int
-    entity_type: str
-    entity_id: int
-    field_name: str
-    value: str
 
 
 class LiveGameState:

@@ -18,7 +18,9 @@ import asyncio
 import codecs
 from collections.abc import Callable
 
+from lflive.constants import DATA_TYPE_GAME_OVER
 from lflive.db import LiveDatabase
+from lflive.emitter import OutputEmitter
 from lflive.ingestor import TdfIngestor
 from lflive.state.game_state import LiveGameState
 
@@ -70,6 +72,7 @@ class TdfListener:
         game_state: LiveGameState | None = None,
         db: LiveDatabase | None = None,
         ingestor: TdfIngestor | None = None,
+        emitter: OutputEmitter | None = None,
         line_callback: Callable[[str], None] | None = None,
     ) -> None:
         """Initializes the TDF listener configuration.
@@ -81,6 +84,7 @@ class TdfListener:
             game_state: Optional game state container to associate and reset.
             db: Optional database manager to reset on session start.
             ingestor: Optional ingestor to parse lines into the game state.
+            emitter: Optional output emitter to broadcast protocol lines.
             line_callback: Optional callback invoked for every received line.
         """
         self.port = port
@@ -88,10 +92,14 @@ class TdfListener:
         self.log_tdf = log_tdf
         self.game_state = game_state
         self.db = db
+        self.emitter = emitter
         if ingestor is not None:
             self.ingestor: TdfIngestor | None = ingestor
+            if emitter is not None and self.ingestor.emitter is None:
+                self.ingestor.emitter = emitter
+                self.ingestor.event_handler.emitter = emitter
         elif game_state is not None:
-            self.ingestor = TdfIngestor(game_state=game_state)
+            self.ingestor = TdfIngestor(game_state=game_state, emitter=emitter)
         else:
             self.ingestor = None
 
@@ -158,7 +166,13 @@ class TdfListener:
         finally:
             self.active_connection = False
             if self.game_state:
-                self.game_state.is_game_over = True
+                if not self.game_state.is_game_over:
+                    self.game_state.is_game_over = True
+                    if self.emitter:
+                        self.emitter.emit(
+                            DATA_TYPE_GAME_OVER,
+                            self.game_state.current_time_ms,
+                        )
             writer.close()
             await writer.wait_closed()
 

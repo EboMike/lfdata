@@ -1,6 +1,7 @@
 import asyncio
 import pytest
 from lflive.db import LiveDatabase
+from lflive.emitter import OutputEmitter
 from lflive.state.game_state import LiveGameState
 from lflive.tdf_listener import TdfListener, detect_encoding
 
@@ -129,6 +130,38 @@ def test_tdf_listener_log_tdf(capsys: pytest.CaptureFixture[str]) -> None:
         captured = capsys.readouterr()
         assert ';comment line' in captured.out
         assert '3\t0\tData' in captured.out
+
+        await listener.stop()
+
+    asyncio.run(_run())
+
+
+def test_tdf_listener_with_emitter(capsys: pytest.CaptureFixture[str]) -> None:
+    async def _run() -> None:
+        state = LiveGameState()
+        emitter = OutputEmitter(log_output=True)
+        listener = TdfListener(
+            port=0,
+            host='127.0.0.1',
+            game_state=state,
+            emitter=emitter,
+        )
+        await listener.start()
+
+        _, writer = await asyncio.open_connection(
+            '127.0.0.1', listener.bound_port
+        )
+        writer.write(b'2\t0\tFire\t11\tFire\t#FF5000\r\n')
+        await writer.drain()
+        writer.close()
+        await writer.wait_closed()
+
+        await asyncio.sleep(0.1)
+
+        captured = capsys.readouterr()
+        assert '98\t0\n' in captured.out
+        assert '15\t0\t1\tFire\t#FF5000\n' in captured.out
+        assert '99\t0\n' in captured.out
 
         await listener.stop()
 
