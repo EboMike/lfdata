@@ -92,6 +92,7 @@ set(CORE_SOURCES
     components/scorecard_helper.cpp
     windows/main_control_window.cpp
     windows/ui_editor_window.cpp
+    windows/visualization_window.cpp
 )
 
 add_library(live_renderer_core STATIC ${CORE_SOURCES})
@@ -117,6 +118,7 @@ add_executable(live_renderer_tests
     tests/test_scorecard_sorting.cpp
     tests/test_main_control_window.cpp
     tests/test_ui_editor_window.cpp
+    tests/test_visualization_window.cpp
 )
 target_link_libraries(live_renderer_tests PRIVATE
     live_renderer_core
