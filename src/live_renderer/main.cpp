@@ -173,7 +173,10 @@ int main(int argc, char* argv[]) {
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
             ImGui_ImplSDL2_ProcessEvent(&event);
-            window_manager.HandleEvent(event);
+            window_manager.HandleEvent(
+                event,
+                control_window.IsInUIEditorMode(),
+                control_window.IsInUIEditorMode() ? &editor_window : nullptr);
             if (event.type == SDL_QUIT) {
                 control_window.ClickQuit();
             } else if (

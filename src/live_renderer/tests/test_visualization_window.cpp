@@ -133,21 +133,27 @@ TEST(VisualizationWindowTest, HighlightElementAppendsHighlightCommands) {
     auto normal_batch = win.GenerateBatch(state, 0, -1);
     ASSERT_EQ(normal_batch.commands.size(), 1u);
 
-    // Highlight element index 0 (fill overlay + 4 borders = 5 extra SolidQuad commands)
+    // Highlight element index 0 (fill overlay + 4 borders + 1 corner handle = 6 extra SolidQuad commands)
     auto highlight_batch = win.GenerateBatch(state, 0, 0);
-    ASSERT_EQ(highlight_batch.commands.size(), 6u);
+    ASSERT_EQ(highlight_batch.commands.size(), 7u);
     EXPECT_EQ(highlight_batch.commands[0].type, RenderCommand::Type::Text);
 
-    // Check highlight fill command
+    // Check highlight fill command is orange
     EXPECT_EQ(highlight_batch.commands[1].type, RenderCommand::Type::SolidQuad);
     EXPECT_FLOAT_EQ(highlight_batch.commands[1].pixel_rect[0], 100.0f);
     EXPECT_FLOAT_EQ(highlight_batch.commands[1].pixel_rect[1], 200.0f);
     EXPECT_FLOAT_EQ(highlight_batch.commands[1].pixel_rect[2], 300.0f);
     EXPECT_FLOAT_EQ(highlight_batch.commands[1].pixel_rect[3], 400.0f);
+    EXPECT_FLOAT_EQ(highlight_batch.commands[1].color_rgba[0], 1.0f);
+    EXPECT_FLOAT_EQ(highlight_batch.commands[1].color_rgba[1], 0.55f);
+    EXPECT_FLOAT_EQ(highlight_batch.commands[1].color_rgba[2], 0.0f);
 
-    // Check borders are solid quads
-    for (size_t i = 2; i <= 5; ++i) {
+    // Check borders and corner handle are solid quads with orange color
+    for (size_t i = 2; i <= 6; ++i) {
         EXPECT_EQ(highlight_batch.commands[i].type, RenderCommand::Type::SolidQuad);
+        EXPECT_FLOAT_EQ(highlight_batch.commands[i].color_rgba[0], 1.0f);
+        EXPECT_FLOAT_EQ(highlight_batch.commands[i].color_rgba[1], 0.55f);
+        EXPECT_FLOAT_EQ(highlight_batch.commands[i].color_rgba[2], 0.0f);
     }
 }
 

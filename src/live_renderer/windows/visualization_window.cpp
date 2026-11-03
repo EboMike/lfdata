@@ -62,45 +62,58 @@ RenderBatch VisualizationWindow::GenerateBatch(
         GenerateElementCommands(*el, state, current_time_ms, batch);
     }
 
-    // If an element is highlighted (e.g. selected in UI Editor), append border & translucent overlay
+    // If an element is highlighted (e.g. selected in UI Editor), append orange rectangle & overlay
     if (highlight_element_index >= 0 &&
         highlight_element_index < static_cast<int>(config_.elements.size())) {
         const auto& el = config_.elements[highlight_element_index];
         const auto px = RelativeToPixelRect(el.rect);
 
-        // Subtle translucent fill
+        // Subtle translucent orange fill
         RenderCommand fill_cmd;
         fill_cmd.type = RenderCommand::Type::SolidQuad;
         fill_cmd.pixel_rect = px;
-        fill_cmd.color_rgba = {1.0f, 0.85f, 0.2f, 0.25f};
+        fill_cmd.color_rgba = {1.0f, 0.55f, 0.0f, 0.25f};
         batch.commands.push_back(fill_cmd);
 
-        // 2px wide golden border outline around bounds
+        // 2px wide orange border outline around bounds
         constexpr float kBorder = 2.0f;
 
         RenderCommand top;
         top.type = RenderCommand::Type::SolidQuad;
         top.pixel_rect = {px[0] - kBorder, px[1] - kBorder, px[2] + 2.0f * kBorder, kBorder};
-        top.color_rgba = {1.0f, 0.9f, 0.15f, 0.95f};
+        top.color_rgba = {1.0f, 0.55f, 0.0f, 1.0f};
         batch.commands.push_back(top);
 
         RenderCommand bot;
         bot.type = RenderCommand::Type::SolidQuad;
         bot.pixel_rect = {px[0] - kBorder, px[1] + px[3], px[2] + 2.0f * kBorder, kBorder};
-        bot.color_rgba = {1.0f, 0.9f, 0.15f, 0.95f};
+        bot.color_rgba = {1.0f, 0.55f, 0.0f, 1.0f};
         batch.commands.push_back(bot);
 
         RenderCommand left;
         left.type = RenderCommand::Type::SolidQuad;
         left.pixel_rect = {px[0] - kBorder, px[1], kBorder, px[3]};
-        left.color_rgba = {1.0f, 0.9f, 0.15f, 0.95f};
+        left.color_rgba = {1.0f, 0.55f, 0.0f, 1.0f};
         batch.commands.push_back(left);
 
         RenderCommand right;
         right.type = RenderCommand::Type::SolidQuad;
         right.pixel_rect = {px[0] + px[2], px[1], kBorder, px[3]};
-        right.color_rgba = {1.0f, 0.9f, 0.15f, 0.95f};
+        right.color_rgba = {1.0f, 0.55f, 0.0f, 1.0f};
         batch.commands.push_back(right);
+
+        // Resize handle at bottom-right corner
+        constexpr float kHandle = 8.0f;
+        RenderCommand handle;
+        handle.type = RenderCommand::Type::SolidQuad;
+        handle.pixel_rect = {
+            px[0] + px[2] - kHandle,
+            px[1] + px[3] - kHandle,
+            kHandle + kBorder,
+            kHandle + kBorder
+        };
+        handle.color_rgba = {1.0f, 0.55f, 0.0f, 1.0f};
+        batch.commands.push_back(handle);
     }
 
     return batch;

@@ -14,9 +14,12 @@
 #include "live_renderer/config/ui_config.hpp"
 #include "live_renderer/render/font_renderer.hpp"
 #include "live_renderer/state/game_state_snapshot.hpp"
+#include "live_renderer/windows/ui_editor_interaction.hpp"
 #include "live_renderer/windows/visualization_window.hpp"
 
 namespace live_renderer {
+
+class UIEditorWindow;
 
 /**
  * @brief Manages the creation, monitor positioning, persistence, and OpenGL rendering
@@ -141,15 +144,36 @@ public:
     }
 
     /**
-     * @brief Processes SDL window events for visualization windows.
+     * @brief Processes SDL events for visualization windows.
      *
-     * Intercepts close events to minimize visualization windows instead of
-     * destroying them, and updates geometry preferences on move/resize.
+     * Handles window events (minimization on close, move/resize geometry persistence)
+     * as well as interactive mouse dragging (move and resize) during UI Editor Mode.
      *
      * @param event SDL_Event to inspect and handle.
+     * @param is_editor_mode Whether UI Editor mode is currently active.
+     * @param editor_window Optional pointer to UIEditorWindow for element manipulation.
      * @return True if handled by a visualization window, false otherwise.
      */
-    bool HandleEvent(const SDL_Event& event);
+    bool HandleEvent(
+        const SDL_Event& event,
+        bool is_editor_mode = false,
+        UIEditorWindow* editor_window = nullptr);
+
+    /**
+     * @brief Gets the UI editor interaction handler.
+     *
+     * @return Reference to UIEditorInteraction.
+     */
+    UIEditorInteraction& GetEditorInteraction() { return editor_interaction_; }
+
+    /**
+     * @brief Gets the UI editor interaction handler (const).
+     *
+     * @return Const reference to UIEditorInteraction.
+     */
+    const UIEditorInteraction& GetEditorInteraction() const {
+        return editor_interaction_;
+    }
 
 private:
     struct WindowInstance {
@@ -173,6 +197,7 @@ private:
     std::vector<WindowInstance> instances_;
     std::vector<std::unique_ptr<VisualizationWindow>> windows_;
     std::unique_ptr<FontRenderer> font_renderer_;
+    UIEditorInteraction editor_interaction_;
 };
 
 }  // namespace live_renderer

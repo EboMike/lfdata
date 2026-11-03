@@ -7,6 +7,7 @@
 #include <SDL_opengl.h>
 #include <algorithm>
 #include <iostream>
+#include "live_renderer/windows/ui_editor_window.hpp"
 
 namespace live_renderer {
 
@@ -194,7 +195,42 @@ void WindowManager::SyncWithConfig(const UIConfig& ui_config) {
     }
 }
 
-bool WindowManager::HandleEvent(const SDL_Event& event) {
+bool WindowManager::HandleEvent(
+    const SDL_Event& event,
+    bool is_editor_mode,
+    UIEditorWindow* editor_window) {
+    // 1. In UI Editor Mode, handle mouse interactions for the active visualization window
+    if (is_editor_mode && editor_window && !editor_window->IsEditingTemplate()) {
+        int active_idx = editor_window->GetActiveWindowIndex();
+        if (active_idx >= 0 && active_idx < static_cast<int>(instances_.size())) {
+            auto& active_inst = instances_[active_idx];
+            if (active_inst.sdl_window) {
+                Uint32 active_win_id = SDL_GetWindowID(active_inst.sdl_window);
+                Uint32 event_win_id = 0;
+                if (event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEBUTTONUP) {
+                    event_win_id = event.button.windowID;
+                } else if (event.type == SDL_MOUSEMOTION) {
+                    event_win_id = event.motion.windowID;
+                }
+
+                if (event_win_id == active_win_id) {
+                    int sel_idx = editor_window->GetSelectedElementIndex();
+                    int win_w = active_inst.vis_window->GetWidth();
+                    int win_h = active_inst.vis_window->GetHeight();
+                    auto& elements = editor_window->GetActiveElements();
+
+                    bool handled = editor_interaction_.HandleSdlEvent(
+                        event, win_w, win_h, elements, sel_idx);
+                    if (handled) {
+                        editor_window->SetSelectedElementIndex(sel_idx);
+                        active_inst.vis_window->SetConfig(ui_config_.windows[active_idx]);
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+
     if (event.type != SDL_WINDOWEVENT) {
         return false;
     }

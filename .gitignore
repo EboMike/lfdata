@@ -136,3 +136,4 @@ configs/audio/sm5_game_start_last_good.yaml
 # Local layout and renderer files
 live_renderer_config.yaml
 ui_layout.yaml
+preferences.yaml

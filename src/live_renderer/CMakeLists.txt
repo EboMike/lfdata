@@ -98,6 +98,7 @@ set(CORE_SOURCES
     windows/main_control_window.cpp
     windows/ui_editor_window.cpp
     windows/ui_editor_window_elements.cpp
+    windows/ui_editor_interaction.cpp
     windows/visualization_window.cpp
     windows/window_manager.cpp
 )
@@ -129,6 +130,7 @@ add_executable(live_renderer_tests
     tests/test_visualization_window.cpp
     tests/test_window_manager.cpp
     tests/test_preferences_manager.cpp
+    tests/test_ui_editor_interaction.cpp
 )
 target_link_libraries(live_renderer_tests PRIVATE
     live_renderer_core
