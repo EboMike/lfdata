@@ -14,3 +14,4 @@ def test_snapshot_entry() -> None:
     assert entry.entity_id == 1
     assert entry.field_name == 'score'
     assert entry.value == '500'
+

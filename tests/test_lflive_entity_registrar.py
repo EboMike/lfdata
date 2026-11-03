@@ -49,3 +49,4 @@ def test_entity_registrar() -> None:
     assert reg.next_player_id == 1
     assert reg.next_target_id == 1
     assert len(reg.entity_to_team_index) == 0
+

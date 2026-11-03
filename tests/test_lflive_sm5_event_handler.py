@@ -142,3 +142,4 @@ def test_sm5_event_handler_combat() -> None:
             t_ms, code, ['#P1', '#P2'] if code != SM5_EVENT_PENALTY else ['#P1']
         )
         assert any(kw in ev for ev in emitter.emitted_lines)
+

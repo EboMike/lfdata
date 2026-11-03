@@ -35,3 +35,4 @@ class SnapshotEntry:
     entity_id: int
     field_name: str
     value: str
+
