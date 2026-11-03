@@ -42,4 +42,3 @@ def test_player_instantiation() -> None:
     assert player.steals == 5
     assert player.state == 0
     assert player.rapid_fire is True
-

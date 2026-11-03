@@ -21,4 +21,3 @@ class Base(DeclarativeBase):
     """
 
     pass
-

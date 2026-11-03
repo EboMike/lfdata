@@ -8,4 +8,3 @@ def test_lflive_init_exports() -> None:
     assert hasattr(lflive, 'parse_args')
     assert hasattr(lflive, 'resolve_config')
     assert hasattr(lflive, 'LiveDatabase')
-

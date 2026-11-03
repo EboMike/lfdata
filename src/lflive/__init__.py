@@ -5,9 +5,10 @@ over TCP, internal game state recreation, SQLite snapshotting, and broadcast
 to consumer visualizers.
 
 Usage example:
-    from lflive import LiveDatabase, parse_args
+    from lflive import LiveDatabase, LiveGameState, parse_args
 
     args = parse_args()
+    state = LiveGameState()
     db = LiveDatabase(args.database_path or 'lflive.db')
     db.init_db()
 """
@@ -15,13 +16,24 @@ Usage example:
 from lflive.cli import LFLiveArgs, parse_args, resolve_config
 from lflive.config import LFLiveConfig, load_config
 from lflive.db import LiveDatabase
+from lflive.state import (
+    LiveGameState,
+    LivePlayerState,
+    LiveTargetState,
+    LiveTeamState,
+    SnapshotEntry,
+)
 
 __all__ = [
     'LFLiveArgs',
     'LFLiveConfig',
     'LiveDatabase',
+    'LiveGameState',
+    'LivePlayerState',
+    'LiveTargetState',
+    'LiveTeamState',
+    'SnapshotEntry',
     'load_config',
     'parse_args',
     'resolve_config',
 ]
-

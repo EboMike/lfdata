@@ -68,4 +68,3 @@ class LivePlayer(Base):
     steals: Mapped[int] = mapped_column(Integer, default=0)
     state: Mapped[int] = mapped_column(Integer, default=0)
     rapid_fire: Mapped[bool] = mapped_column(Boolean, default=False)
-

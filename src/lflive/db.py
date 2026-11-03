@@ -90,4 +90,3 @@ class LiveDatabase:
                 ...
         """
         return Session(self.engine)
-

@@ -16,4 +16,3 @@ def test_snapshot_instantiation() -> None:
     assert snapshot.entity_id == 2
     assert snapshot.field_name == 'score'
     assert snapshot.value == '1001'
-

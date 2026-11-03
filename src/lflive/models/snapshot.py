@@ -43,4 +43,3 @@ class LiveSnapshot(Base):
     entity_id: Mapped[int] = mapped_column(Integer, index=True)
     field_name: Mapped[str] = mapped_column(String(64))
     value: Mapped[str] = mapped_column(String(256))
-

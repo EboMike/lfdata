@@ -35,4 +35,3 @@ class LiveGameSession(Base):
     start_time: Mapped[str | None] = mapped_column(String(32), nullable=True)
     duration_seconds: Mapped[int] = mapped_column(Integer, default=900)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-

@@ -14,4 +14,3 @@ def test_game_session_instantiation() -> None:
     assert session.start_time == '20261102235500123'
     assert session.duration_seconds == 1200
     assert session.is_active is False
-

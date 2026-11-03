@@ -37,4 +37,3 @@ class LiveTeam(Base):
     color: Mapped[str] = mapped_column(String(32), default='')
     rgb: Mapped[str] = mapped_column(String(16), default='#ffffff')
     score: Mapped[int] = mapped_column(Integer, default=0)
-

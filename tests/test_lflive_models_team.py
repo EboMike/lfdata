@@ -16,4 +16,3 @@ def test_team_instantiation() -> None:
     assert team.color == 'Green'
     assert team.rgb == '#00ff00'
     assert team.score == 24500
-

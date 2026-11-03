@@ -40,4 +40,3 @@ class LiveTarget(Base):
     entity_id: Mapped[str] = mapped_column(String(32), default='')
     name: Mapped[str] = mapped_column(String(64), default='')
     rgb: Mapped[str] = mapped_column(String(16), default='#ffffff')
-

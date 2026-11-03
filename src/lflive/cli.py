@@ -179,4 +179,3 @@ def resolve_config(cli_args: LFLiveArgs) -> LFLiveConfig:
         log_tdf=log_tdf,
         log_output=log_output,
     )
-

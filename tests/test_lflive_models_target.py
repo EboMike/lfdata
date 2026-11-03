@@ -14,4 +14,3 @@ def test_target_instantiation() -> None:
     assert target.entity_id == '#010001'
     assert target.name == 'Fire Base'
     assert target.rgb == '#ff0000'
-
