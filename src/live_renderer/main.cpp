@@ -18,8 +18,10 @@
 #include "live_renderer/network/protocol_parser.hpp"
 #include "live_renderer/network/tcp_consumer_client.hpp"
 #include "live_renderer/state/live_state_store.hpp"
+#include "live_renderer/state/mock_game_state.hpp"
 #include "live_renderer/windows/main_control_window.hpp"
 #include "live_renderer/windows/ui_editor_window.hpp"
+#include "live_renderer/windows/window_manager.hpp"
 
 namespace {
 std::atomic<bool> g_shutdown_requested{false};
@@ -65,25 +67,6 @@ int main(int argc, char* argv[]) {
     live_renderer::MainControlWindow control_window(
         config_path, global_cfg, ui_cfg, state_store, client);
     live_renderer::UIEditorWindow editor_window(ui_cfg, global_cfg.ui_config_file);
-
-    control_window.SetCallbacks({
-        .on_reconnect = []() {},
-        .on_enter_ui_editor = []() {},
-        .on_open_configuration = [&](const std::string&) {
-            editor_window.SetUIConfigFile(global_cfg.ui_config_file);
-        },
-        .on_save_settings = [&](const live_renderer::GlobalConfig&) {
-            editor_window.SetUIConfigFile(global_cfg.ui_config_file);
-        }
-    });
-
-    editor_window.SetCallbacks({
-        .on_save_and_back = [&]() {
-            control_window.SetUIEditorMode(false);
-        },
-        .on_active_window_changed = [](int) {},
-        .on_active_template_changed = [](int) {}
-    });
 
     SDL_SetMainReady();
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) {
@@ -138,6 +121,31 @@ int main(int argc, char* argv[]) {
     ImGui_ImplSDL2_InitForOpenGL(main_window, gl_context);
     ImGui_ImplOpenGL3_Init(glsl_version);
 
+    // Initialize all visualization windows from UI config on startup
+    live_renderer::WindowManager window_manager(ui_cfg, gl_context);
+
+    control_window.SetCallbacks({
+        .on_reconnect = []() {},
+        .on_enter_ui_editor = []() {},
+        .on_open_configuration = [&](const std::string&) {
+            editor_window.SetUIConfigFile(global_cfg.ui_config_file);
+            window_manager.SyncWithConfig(ui_cfg);
+        },
+        .on_save_settings = [&](const live_renderer::GlobalConfig&) {
+            editor_window.SetUIConfigFile(global_cfg.ui_config_file);
+            window_manager.SyncWithConfig(ui_cfg);
+        }
+    });
+
+    editor_window.SetCallbacks({
+        .on_save_and_back = [&]() {
+            control_window.SetUIEditorMode(false);
+            window_manager.SyncWithConfig(ui_cfg);
+        },
+        .on_active_window_changed = [](int) {},
+        .on_active_template_changed = [](int) {}
+    });
+
     std::cout << "[live_renderer] Connecting to lflive at " << global_cfg.host << ":"
               << global_cfg.port << "...\n";
     client.Start();
@@ -147,6 +155,7 @@ int main(int argc, char* argv[]) {
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
             ImGui_ImplSDL2_ProcessEvent(&event);
+            window_manager.HandleEvent(event);
             if (event.type == SDL_QUIT) {
                 control_window.ClickQuit();
             } else if (
@@ -156,6 +165,21 @@ int main(int argc, char* argv[]) {
                 control_window.ClickQuit();
             }
         }
+
+        // Render all visualization windows with current game state (or mock state when in editor without session)
+        live_renderer::GameStateSnapshot current_state = state_store.GetSnapshot();
+        if (control_window.IsInUIEditorMode() && !current_state.in_session) {
+            current_state = live_renderer::MockGameState::CreateMockSM5State();
+        }
+
+        window_manager.RenderAllWindows(
+            current_state,
+            control_window.IsInUIEditorMode(),
+            editor_window.GetActiveWindowIndex(),
+            editor_window.GetSelectedTemplateId());
+
+        // Make control window context current before ImGui rendering
+        SDL_GL_MakeCurrent(main_window, gl_context);
 
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplSDL2_NewFrame();

@@ -93,6 +93,7 @@ set(CORE_SOURCES
     windows/main_control_window.cpp
     windows/ui_editor_window.cpp
     windows/visualization_window.cpp
+    windows/window_manager.cpp
 )
 
 add_library(live_renderer_core STATIC ${CORE_SOURCES})
@@ -119,6 +120,7 @@ add_executable(live_renderer_tests
     tests/test_main_control_window.cpp
     tests/test_ui_editor_window.cpp
     tests/test_visualization_window.cpp
+    tests/test_window_manager.cpp
 )
 target_link_libraries(live_renderer_tests PRIVATE
     live_renderer_core
