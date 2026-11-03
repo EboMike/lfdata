@@ -90,8 +90,10 @@ set(CORE_SOURCES
     render/rich_text_layout.cpp
     components/game_timer_element.cpp
     components/scorecard_helper.cpp
+    windows/element_property_inspector.cpp
     windows/main_control_window.cpp
     windows/ui_editor_window.cpp
+    windows/ui_editor_window_elements.cpp
     windows/visualization_window.cpp
     windows/window_manager.cpp
 )

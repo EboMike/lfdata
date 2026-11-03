@@ -172,11 +172,16 @@ int main(int argc, char* argv[]) {
             current_state = live_renderer::MockGameState::CreateMockSM5State();
         }
 
+        if (window_manager.GetWindowCount() != ui_cfg.windows.size()) {
+            window_manager.SyncWithConfig(ui_cfg);
+        }
+
         window_manager.RenderAllWindows(
             current_state,
             control_window.IsInUIEditorMode(),
             editor_window.GetActiveWindowIndex(),
-            editor_window.GetSelectedTemplateId());
+            editor_window.GetSelectedTemplateId(),
+            editor_window.GetSelectedElementIndex());
 
         // Make control window context current before ImGui rendering
         SDL_GL_MakeCurrent(main_window, gl_context);

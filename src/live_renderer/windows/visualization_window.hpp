@@ -36,7 +36,10 @@ public:
      * @param state Active GameStateSnapshot (or mock state if previewing in editor).
      * @return Prepared RenderBatch containing ordered draw commands.
      */
-    RenderBatch GenerateBatch(const GameStateSnapshot& state, int64_t current_time_ms = 0) const;
+    RenderBatch GenerateBatch(
+        const GameStateSnapshot& state,
+        int64_t current_time_ms = 0,
+        int highlight_element_index = -1) const;
 
     /**
      * @brief Converts a relative [0.0, 1.0] rect [x, y, w, h] to absolute window pixel coordinates.

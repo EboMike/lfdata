@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include "live_renderer/config/ui_config.hpp"
+#include "live_renderer/windows/element_property_inspector.hpp"
 
 namespace live_renderer {
 
@@ -56,6 +57,20 @@ public:
 
     bool ClickSaveAndBack();
 
+    // Element selection and manipulation
+    int GetSelectedElementIndex() const { return selected_element_index_; }
+    void SetSelectedElementIndex(int index);
+
+    ElementConfig* GetSelectedElement();
+    const ElementConfig* GetSelectedElement() const;
+
+    void DeleteSelectedElement();
+    void MoveSelectedElementUp();
+    void MoveSelectedElementDown();
+
+    std::vector<ElementConfig>& GetActiveElements();
+    const std::vector<ElementConfig>& GetActiveElements() const;
+
     // State queries
     int GetActiveWindowIndex() const { return active_window_index_; }
     void SetActiveWindowIndex(int index);
@@ -74,6 +89,8 @@ private:
     void RenderTopControls();
     void RenderTemplatesListBox();
     void RenderActiveDetails();
+    void RenderElementsListBox();
+    void RenderSelectedElementInspector();
     void RenderModals();
 
     int GenerateNextWindowId() const;
@@ -85,6 +102,9 @@ private:
 
     int active_window_index_ = 0;
     int selected_template_id_ = -1; // -1 means viewing/editing windows
+    int selected_element_index_ = -1; // -1 means no element selected
+
+    ElementPropertyInspector property_inspector_;
 
     // Modals state
     bool show_new_window_modal_ = false;

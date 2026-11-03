@@ -25,7 +25,8 @@ public:
         const GameStateSnapshot& state,
         bool is_editor_mode,
         int active_editor_window_index,
-        int active_editor_template_id);
+        int active_editor_template_id,
+        int selected_element_index = -1);
 
     size_t GetWindowCount() const { return windows_.size(); }
     const std::vector<std::unique_ptr<VisualizationWindow>>& GetWindows() const { return windows_; }

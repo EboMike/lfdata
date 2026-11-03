@@ -114,3 +114,71 @@ TEST(VisualizationWindowTest, GeneratesScorecardWithTemplateRows) {
     EXPECT_EQ(batch.commands[12].text, "24500");
 }
 
+TEST(VisualizationWindowTest, HighlightElementAppendsHighlightCommands) {
+    WindowConfig wcfg;
+    wcfg.id = 1;
+    wcfg.rect = {0, 0, 1000, 1000};
+
+    ElementConfig text_el;
+    text_el.type = "user_text";
+    text_el.text = "Hello World";
+    text_el.rect = {0.1f, 0.2f, 0.3f, 0.4f};
+    wcfg.elements.push_back(text_el);
+
+    UIConfig ui;
+    VisualizationWindow win(wcfg, ui);
+    auto state = MockGameState::CreateMockSM5State();
+
+    // No highlight
+    auto normal_batch = win.GenerateBatch(state, 0, -1);
+    ASSERT_EQ(normal_batch.commands.size(), 1u);
+
+    // Highlight element index 0 (fill overlay + 4 borders = 5 extra SolidQuad commands)
+    auto highlight_batch = win.GenerateBatch(state, 0, 0);
+    ASSERT_EQ(highlight_batch.commands.size(), 6u);
+    EXPECT_EQ(highlight_batch.commands[0].type, RenderCommand::Type::Text);
+
+    // Check highlight fill command
+    EXPECT_EQ(highlight_batch.commands[1].type, RenderCommand::Type::SolidQuad);
+    EXPECT_FLOAT_EQ(highlight_batch.commands[1].pixel_rect[0], 100.0f);
+    EXPECT_FLOAT_EQ(highlight_batch.commands[1].pixel_rect[1], 200.0f);
+    EXPECT_FLOAT_EQ(highlight_batch.commands[1].pixel_rect[2], 300.0f);
+    EXPECT_FLOAT_EQ(highlight_batch.commands[1].pixel_rect[3], 400.0f);
+
+    // Check borders are solid quads
+    for (size_t i = 2; i <= 5; ++i) {
+        EXPECT_EQ(highlight_batch.commands[i].type, RenderCommand::Type::SolidQuad);
+    }
+}
+
+TEST(VisualizationWindowTest, RespectsZPositionOrdering) {
+    WindowConfig wcfg;
+    wcfg.id = 1;
+    wcfg.rect = {0, 0, 1000, 1000};
+
+    // First defined element has higher Z (should render second / on top)
+    ElementConfig el_top;
+    el_top.type = "user_text";
+    el_top.text = "Top Text";
+    el_top.z_position = 10;
+    wcfg.elements.push_back(el_top);
+
+    // Second defined element has lower Z (should render first / underneath)
+    ElementConfig el_bottom;
+    el_bottom.type = "user_text";
+    el_bottom.text = "Bottom Text";
+    el_bottom.z_position = -1;
+    wcfg.elements.push_back(el_bottom);
+
+    UIConfig ui;
+    VisualizationWindow win(wcfg, ui);
+    auto state = MockGameState::CreateMockSM5State();
+
+    auto batch = win.GenerateBatch(state, 0, -1);
+    ASSERT_EQ(batch.commands.size(), 2u);
+    EXPECT_EQ(batch.commands[0].text, "Bottom Text");
+    EXPECT_EQ(batch.commands[1].text, "Top Text");
+}
+
+
+

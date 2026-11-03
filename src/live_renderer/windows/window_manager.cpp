@@ -176,7 +176,8 @@ void WindowManager::RenderAllWindows(
     const GameStateSnapshot& state,
     bool is_editor_mode,
     int active_editor_window_index,
-    int active_editor_template_id) {
+    int active_editor_template_id,
+    int selected_element_index) {
     for (size_t i = 0; i < instances_.size(); ++i) {
         auto& inst = instances_[i];
         if (!inst.sdl_window) continue;
@@ -192,6 +193,11 @@ void WindowManager::RenderAllWindows(
                 continue;
             }
             SDL_ShowWindow(inst.sdl_window);
+
+            // Sync config in editor mode to reflect live property edits
+            if (i < ui_config_.windows.size()) {
+                inst.vis_window->SetConfig(ui_config_.windows[i]);
+            }
         } else {
             // Normal mode: all windows remain open
             SDL_ShowWindow(inst.sdl_window);
@@ -200,7 +206,10 @@ void WindowManager::RenderAllWindows(
         SDL_GLContext ctx = inst.gl_context ? inst.gl_context : shared_gl_context_;
         if (ctx) {
             SDL_GL_MakeCurrent(inst.sdl_window, ctx);
-            RenderBatch batch = inst.vis_window->GenerateBatch(state);
+            const int highlight_elem = (is_editor_mode && static_cast<int>(i) == active_editor_window_index)
+                ? selected_element_index
+                : -1;
+            RenderBatch batch = inst.vis_window->GenerateBatch(state, 0, highlight_elem);
             RenderWindowBatch(inst, batch);
         }
     }

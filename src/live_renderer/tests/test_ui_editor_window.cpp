@@ -162,3 +162,114 @@ TEST(UIEditorWindowTest, SaveAndBackPersistsConfigFile) {
     std::filesystem::remove(test_ui_path);
 }
 
+TEST(UIEditorWindowTest, SelectElementAndInspectProperties) {
+    UIConfig ui;
+    UIEditorWindow editor(ui);
+
+    EXPECT_EQ(editor.GetSelectedElementIndex(), -1);
+    EXPECT_EQ(editor.GetSelectedElement(), nullptr);
+
+    editor.ClickAddElement();
+    EXPECT_TRUE(editor.ConfirmAddElement("user_text"));
+    EXPECT_EQ(editor.GetSelectedElementIndex(), 0);
+
+    auto* el = editor.GetSelectedElement();
+    ASSERT_NE(el, nullptr);
+    EXPECT_EQ(el->type, "user_text");
+
+    // Modify properties
+    el->text = "Live Match Countdown";
+    el->font_size = 36.0f;
+    el->color = "#ff8800";
+    el->rect = {0.1f, 0.2f, 0.5f, 0.15f};
+
+    // Verify properties updated on underlying window element
+    const auto& active_win_elems = ui.windows[editor.GetActiveWindowIndex()].elements;
+    ASSERT_EQ(active_win_elems.size(), 1u);
+    EXPECT_EQ(active_win_elems[0].text, "Live Match Countdown");
+    EXPECT_FLOAT_EQ(active_win_elems[0].font_size, 36.0f);
+    EXPECT_EQ(active_win_elems[0].color, "#ff8800");
+    EXPECT_FLOAT_EQ(active_win_elems[0].rect[0], 0.1f);
+}
+
+TEST(UIEditorWindowTest, DeleteAndReorderElements) {
+    UIConfig ui;
+    UIEditorWindow editor(ui);
+
+    editor.ClickAddElement();
+    editor.ConfirmAddElement("user_text");     // Index 0
+    editor.ClickAddElement();
+    editor.ConfirmAddElement("game_timer");    // Index 1
+    editor.ClickAddElement();
+    editor.ConfirmAddElement("team_scorecard");// Index 2
+
+    ASSERT_EQ(editor.GetActiveElements().size(), 3u);
+    EXPECT_EQ(editor.GetSelectedElementIndex(), 2);
+
+    // Select index 1 (game_timer)
+    editor.SetSelectedElementIndex(1);
+    EXPECT_EQ(editor.GetSelectedElementIndex(), 1);
+    EXPECT_EQ(editor.GetSelectedElement()->type, "game_timer");
+
+    // Move Up: swaps with index 0
+    editor.MoveSelectedElementUp();
+    EXPECT_EQ(editor.GetSelectedElementIndex(), 0);
+    EXPECT_EQ(editor.GetActiveElements()[0].type, "game_timer");
+    EXPECT_EQ(editor.GetActiveElements()[1].type, "user_text");
+
+    // Move Down: swaps back with index 1
+    editor.MoveSelectedElementDown();
+    EXPECT_EQ(editor.GetSelectedElementIndex(), 1);
+    EXPECT_EQ(editor.GetActiveElements()[1].type, "game_timer");
+
+    // Delete selected element (game_timer)
+    editor.DeleteSelectedElement();
+    ASSERT_EQ(editor.GetActiveElements().size(), 2u);
+    EXPECT_EQ(editor.GetActiveElements()[0].type, "user_text");
+    EXPECT_EQ(editor.GetActiveElements()[1].type, "team_scorecard");
+    // Selection stays within bounds
+    EXPECT_EQ(editor.GetSelectedElementIndex(), 1);
+
+    // Delete remaining elements
+    editor.DeleteSelectedElement();
+    editor.DeleteSelectedElement();
+    EXPECT_TRUE(editor.GetActiveElements().empty());
+    EXPECT_EQ(editor.GetSelectedElementIndex(), -1);
+    EXPECT_EQ(editor.GetSelectedElement(), nullptr);
+}
+
+TEST(UIEditorWindowTest, TemplateModeActiveElementsAndResetSelection) {
+    UIConfig ui;
+    TemplateConfig tmpl;
+    tmpl.id = 5;
+    tmpl.name = "Custom Row";
+    tmpl.type = "scorecard_row";
+    ui.templates.push_back(tmpl);
+
+    UIEditorWindow editor(ui);
+    editor.ClickAddElement();
+    editor.ConfirmAddElement("user_text");
+    EXPECT_EQ(editor.GetSelectedElementIndex(), 0);
+
+    // Enter template mode: selection should reset to -1
+    editor.SelectTemplateForEditing(5);
+    EXPECT_TRUE(editor.IsEditingTemplate());
+    EXPECT_EQ(editor.GetSelectedElementIndex(), -1);
+    EXPECT_TRUE(editor.GetActiveElements().empty());
+
+    // Add element into template
+    editor.ClickAddElement();
+    EXPECT_TRUE(editor.ConfirmAddElement("player_score"));
+    EXPECT_EQ(editor.GetSelectedElementIndex(), 0);
+    ASSERT_EQ(editor.GetActiveElements().size(), 1u);
+    EXPECT_EQ(editor.GetActiveElements()[0].type, "player_score");
+
+    // Done with template mode: selection should reset to -1, active elements reverts to window
+    editor.DoneWithTemplate();
+    EXPECT_FALSE(editor.IsEditingTemplate());
+    EXPECT_EQ(editor.GetSelectedElementIndex(), -1);
+    ASSERT_EQ(editor.GetActiveElements().size(), 1u);
+    EXPECT_EQ(editor.GetActiveElements()[0].type, "user_text");
+}
+
+

@@ -52,6 +52,7 @@ static ElementConfig ParseElementNode(const YAML::Node& node) {
             node["rect"][3].as<float>()
         };
     }
+    if (node["z_position"]) el.z_position = node["z_position"].as<int>();
     if (node["text"]) el.text = node["text"].as<std::string>();
     if (node["color"]) el.color = node["color"].as<std::string>();
     if (node["font_size"]) el.font_size = node["font_size"].as<float>();
@@ -74,6 +75,7 @@ static void EmitElementNode(YAML::Emitter& out, const ElementConfig& el) {
     out << YAML::Key << "type" << YAML::Value << el.type;
     out << YAML::Key << "rect" << YAML::Value << YAML::Flow << YAML::BeginSeq
         << el.rect[0] << el.rect[1] << el.rect[2] << el.rect[3] << YAML::EndSeq;
+    if (el.z_position != 0) out << YAML::Key << "z_position" << YAML::Value << el.z_position;
     if (!el.text.empty()) out << YAML::Key << "text" << YAML::Value << el.text;
     if (!el.color.empty()) out << YAML::Key << "color" << YAML::Value << el.color;
     out << YAML::Key << "font_size" << YAML::Value << el.font_size;

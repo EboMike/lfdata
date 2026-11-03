@@ -145,6 +145,9 @@ Every render elements has a position and a size. These are given
 in relation to the size of the parent (like the size of the window
 they're in).
 
+Every element also has a Z position, an integer. Elements with higher
+Z order render on top of elements with a lower one.
+
 These are the possible render elements on the top level:
 
 ### User-defined text
@@ -358,6 +361,10 @@ all windows and only show that template so it can be edited. While
 editing templates, the following buttons are disabled: "New window",
 "next", "previous", "new template". "Save & Back" will change to
 "Done with template".
+
+There is also a list box with all elements in the current window. Selecting
+them highlights them in the window, and shows all their properties
+and allows them to be edited.
 
 ## General code requirements
 

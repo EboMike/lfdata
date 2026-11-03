@@ -4,58 +4,9 @@
 #include <cstring>
 #include <imgui.h>
 #include "live_renderer/config/config_serializer.hpp"
+#include "live_renderer/windows/ui_editor_constants.hpp"
 
 namespace live_renderer {
-
-namespace {
-const char* const kTopLevelElementTypes[] = {
-    "user_text",
-    "game_timer",
-    "user_image",
-    "team_scorecard",
-    "game_scorecard",
-    "team_roster",
-    "event_scroller"
-};
-
-const char* const kScorecardRowElementTypes[] = {
-    "player_name",
-    "player_role",
-    "player_score",
-    "player_lives",
-    "player_ammo",
-    "player_missiles",
-    "player_special_points",
-    "player_goals",
-    "player_assists",
-    "player_clears",
-    "player_steals",
-    "player_zaps"
-};
-
-const char* const kScorecardHeaderElementTypes[] = {
-    "user_text",
-    "user_image"
-};
-
-const char* const kPlayerProfileElementTypes[] = {
-    "player_name",
-    "player_role",
-    "player_score",
-    "player_lives",
-    "player_ammo",
-    "player_missiles",
-    "player_special_points",
-    "player_profile_picture",
-    "team_logo"
-};
-
-const char* const kTemplateTypes[] = {
-    "scorecard_row",
-    "scorecard_header_row",
-    "player_profile"
-};
-}  // namespace
 
 UIEditorWindow::UIEditorWindow(UIConfig& ui_config, std::string ui_config_file)
     : ui_config_(ui_config),
@@ -76,6 +27,7 @@ void UIEditorWindow::SetCallbacks(Callbacks callbacks) {
 void UIEditorWindow::SetActiveWindowIndex(int index) {
     if (ui_config_.windows.empty()) {
         active_window_index_ = 0;
+        selected_element_index_ = -1;
         return;
     }
     if (index < 0) {
@@ -85,6 +37,7 @@ void UIEditorWindow::SetActiveWindowIndex(int index) {
     } else {
         active_window_index_ = index;
     }
+    selected_element_index_ = -1;
     if (callbacks_.on_active_window_changed) {
         callbacks_.on_active_window_changed(active_window_index_);
     }
@@ -115,7 +68,6 @@ std::vector<std::string> UIEditorWindow::GetAvailableElementTypes() const {
         return types;
     }
 
-    // Template specific types
     const auto it = std::find_if(
         ui_config_.templates.begin(),
         ui_config_.templates.end(),
@@ -190,6 +142,7 @@ bool UIEditorWindow::ConfirmAddElement(const std::string& type_name) {
     if (selected_template_id_ < 0) {
         if (active_window_index_ >= 0 && active_window_index_ < static_cast<int>(ui_config_.windows.size())) {
             ui_config_.windows[active_window_index_].elements.push_back(el);
+            selected_element_index_ = static_cast<int>(ui_config_.windows[active_window_index_].elements.size()) - 1;
         }
     } else {
         auto it = std::find_if(
@@ -198,6 +151,7 @@ bool UIEditorWindow::ConfirmAddElement(const std::string& type_name) {
             [this](const TemplateConfig& t) { return t.id == selected_template_id_; });
         if (it != ui_config_.templates.end()) {
             it->elements.push_back(el);
+            selected_element_index_ = static_cast<int>(it->elements.size()) - 1;
         }
     }
 
@@ -249,6 +203,7 @@ void UIEditorWindow::CancelNewTemplate() {
 
 void UIEditorWindow::SelectTemplateForEditing(int template_id) {
     selected_template_id_ = template_id;
+    selected_element_index_ = -1;
     if (callbacks_.on_active_template_changed) {
         callbacks_.on_active_template_changed(selected_template_id_);
     }
@@ -256,6 +211,7 @@ void UIEditorWindow::SelectTemplateForEditing(int template_id) {
 
 void UIEditorWindow::DoneWithTemplate() {
     selected_template_id_ = -1;
+    selected_element_index_ = -1;
     if (callbacks_.on_active_template_changed) {
         callbacks_.on_active_template_changed(-1);
     }
@@ -267,7 +223,6 @@ bool UIEditorWindow::ClickSaveAndBack() {
         return true;
     }
 
-    // Save UI config to disk if path is known
     if (!ui_config_file_.empty()) {
         ConfigSerializer::SaveUIConfig(ui_config_file_, ui_config_);
     }
@@ -309,7 +264,6 @@ void UIEditorWindow::RenderTopControls() {
     const float button_width = (ImGui::GetContentRegionAvail().x - 20.0f) / 3.0f;
     const ImVec2 btn_size(button_width, 32.0f);
 
-    // Row 1: New window, Next, Previous
     if (template_mode) {
         ImGui::BeginDisabled();
     }
@@ -330,7 +284,6 @@ void UIEditorWindow::RenderTopControls() {
 
     ImGui::Spacing();
 
-    // Row 2: Add element, New template, Save & Back / Done with template
     if (ImGui::Button("Add element", btn_size)) {
         ClickAddElement();
     }
@@ -362,7 +315,7 @@ void UIEditorWindow::RenderTemplatesListBox() {
         ImGui::TextDisabled("(Click template to edit its layout)");
     }
 
-    if (ImGui::BeginListBox("##templates_list", ImVec2(-FLT_MIN, 100.0f))) {
+    if (ImGui::BeginListBox("##templates_list", ImVec2(-FLT_MIN, 90.0f))) {
         for (const auto& tmpl : ui_config_.templates) {
             const bool is_selected = (selected_template_id_ == tmpl.id);
             char label[256];
@@ -398,10 +351,22 @@ void UIEditorWindow::RenderActiveDetails() {
             ImGui::TextUnformatted("No windows configured.");
         }
     }
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    RenderElementsListBox();
+
+    if (selected_element_index_ >= 0) {
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::Spacing();
+        RenderSelectedElementInspector();
+    }
 }
 
 void UIEditorWindow::RenderModals() {
-    // New Window Modal
     if (pending_open_new_window_) {
         ImGui::OpenPopup("New Window");
         pending_open_new_window_ = false;
@@ -433,7 +398,6 @@ void UIEditorWindow::RenderModals() {
         ImGui::EndPopup();
     }
 
-    // New Template Modal
     if (pending_open_new_template_) {
         ImGui::OpenPopup("New Template");
         pending_open_new_template_ = false;
@@ -469,7 +433,6 @@ void UIEditorWindow::RenderModals() {
         ImGui::EndPopup();
     }
 
-    // Add Element Modal
     if (pending_open_add_element_) {
         ImGui::OpenPopup("Add Element");
         pending_open_add_element_ = false;
@@ -512,4 +475,3 @@ void UIEditorWindow::RenderModals() {
 }
 
 }  // namespace live_renderer
-

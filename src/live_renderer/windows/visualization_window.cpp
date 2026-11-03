@@ -36,14 +36,72 @@ const TemplateConfig* VisualizationWindow::FindTemplate(int template_id) const {
     return nullptr;
 }
 
-RenderBatch VisualizationWindow::GenerateBatch(const GameStateSnapshot& state, int64_t current_time_ms) const {
+RenderBatch VisualizationWindow::GenerateBatch(
+    const GameStateSnapshot& state,
+    int64_t current_time_ms,
+    int highlight_element_index) const {
     RenderBatch batch;
     batch.window_width = GetWidth();
     batch.window_height = GetHeight();
 
+    // Render elements in order of z_position (lower Z drawn first, higher Z on top)
+    std::vector<const ElementConfig*> ordered_elements;
+    ordered_elements.reserve(config_.elements.size());
     for (const auto& el : config_.elements) {
-        GenerateElementCommands(el, state, current_time_ms, batch);
+        ordered_elements.push_back(&el);
     }
+    std::stable_sort(
+        ordered_elements.begin(),
+        ordered_elements.end(),
+        [](const ElementConfig* a, const ElementConfig* b) {
+            return a->z_position < b->z_position;
+        });
+
+    for (const auto* el : ordered_elements) {
+        GenerateElementCommands(*el, state, current_time_ms, batch);
+    }
+
+    // If an element is highlighted (e.g. selected in UI Editor), append border & translucent overlay
+    if (highlight_element_index >= 0 &&
+        highlight_element_index < static_cast<int>(config_.elements.size())) {
+        const auto& el = config_.elements[highlight_element_index];
+        const auto px = RelativeToPixelRect(el.rect);
+
+        // Subtle translucent fill
+        RenderCommand fill_cmd;
+        fill_cmd.type = RenderCommand::Type::SolidQuad;
+        fill_cmd.pixel_rect = px;
+        fill_cmd.color_rgba = {1.0f, 0.85f, 0.2f, 0.25f};
+        batch.commands.push_back(fill_cmd);
+
+        // 2px wide golden border outline around bounds
+        constexpr float kBorder = 2.0f;
+
+        RenderCommand top;
+        top.type = RenderCommand::Type::SolidQuad;
+        top.pixel_rect = {px[0] - kBorder, px[1] - kBorder, px[2] + 2.0f * kBorder, kBorder};
+        top.color_rgba = {1.0f, 0.9f, 0.15f, 0.95f};
+        batch.commands.push_back(top);
+
+        RenderCommand bot;
+        bot.type = RenderCommand::Type::SolidQuad;
+        bot.pixel_rect = {px[0] - kBorder, px[1] + px[3], px[2] + 2.0f * kBorder, kBorder};
+        bot.color_rgba = {1.0f, 0.9f, 0.15f, 0.95f};
+        batch.commands.push_back(bot);
+
+        RenderCommand left;
+        left.type = RenderCommand::Type::SolidQuad;
+        left.pixel_rect = {px[0] - kBorder, px[1], kBorder, px[3]};
+        left.color_rgba = {1.0f, 0.9f, 0.15f, 0.95f};
+        batch.commands.push_back(left);
+
+        RenderCommand right;
+        right.type = RenderCommand::Type::SolidQuad;
+        right.pixel_rect = {px[0] + px[2], px[1], kBorder, px[3]};
+        right.color_rgba = {1.0f, 0.9f, 0.15f, 0.95f};
+        batch.commands.push_back(right);
+    }
+
     return batch;
 }
 
