@@ -4,13 +4,31 @@
 #include <imgui.h>
 #include "live_renderer/config/config_serializer.hpp"
 
+#if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <commdlg.h>
+#endif
+
 namespace live_renderer {
 
 namespace {
 constexpr const char* kAppName = "LF Live Renderer";
 constexpr const char* kAppVersion = "0.1.0";
-constexpr const char* kAppAuthor = "Laserforce Data Tools";
+constexpr const char* kAppAuthor = "EboMike";
 }  // namespace
+
+const char* MainControlWindow::GetApplicationName() {
+    return kAppName;
+}
+
+const char* MainControlWindow::GetApplicationVersion() {
+    return kAppVersion;
+}
+
+const char* MainControlWindow::GetApplicationAuthor() {
+    return kAppAuthor;
+}
 
 MainControlWindow::MainControlWindow(
     const std::string& global_config_path,
@@ -64,7 +82,7 @@ std::array<float, 4> MainControlWindow::GetConnectionStatusColor() const {
 }
 
 void MainControlWindow::ClickReconnect() {
-    state_store_.ResetSession();
+    state_store_.ClearState();
     client_.Reconnect();
     if (callbacks_.on_reconnect) {
         callbacks_.on_reconnect();
@@ -80,25 +98,36 @@ void MainControlWindow::ClickUIEditor() {
 
 void MainControlWindow::ClickQuit() {
     show_quit_confirm_modal_ = true;
+    pending_open_quit_modal_ = true;
 }
 
 void MainControlWindow::ConfirmQuit() {
     show_quit_confirm_modal_ = false;
+    pending_open_quit_modal_ = false;
     quit_confirmed_ = true;
 }
 
 void MainControlWindow::CancelQuit() {
     show_quit_confirm_modal_ = false;
+    pending_open_quit_modal_ = false;
 }
 
 void MainControlWindow::OpenConfigurationDialog() {
+    modal_error_message_.clear();
     std::snprintf(open_config_path_buf_, sizeof(open_config_path_buf_), "%s", global_config_path_.c_str());
     show_open_config_modal_ = true;
+    pending_open_config_modal_ = true;
 }
 
 bool MainControlWindow::ConfirmOpenConfiguration(const std::string& new_config_path) {
+    if (new_config_path.empty()) {
+        modal_error_message_ = "Configuration file path cannot be empty.";
+        return false;
+    }
+
     GlobalConfig loaded_global;
     if (!ConfigSerializer::LoadGlobalConfig(new_config_path, loaded_global)) {
+        modal_error_message_ = "Failed to load configuration file: " + new_config_path;
         return false;
     }
 
@@ -113,27 +142,34 @@ bool MainControlWindow::ConfirmOpenConfiguration(const std::string& new_config_p
     }
 
     // Reset entire program state and reconnect to configured server
-    state_store_.ResetSession();
+    in_ui_editor_mode_ = false;
+    state_store_.ClearState();
     client_.UpdateTarget(global_config_.host, global_config_.port);
 
     if (callbacks_.on_open_configuration) {
         callbacks_.on_open_configuration(new_config_path);
     }
 
+    modal_error_message_.clear();
     show_open_config_modal_ = false;
+    pending_open_config_modal_ = false;
     return true;
 }
 
 void MainControlWindow::CancelOpenConfiguration() {
+    modal_error_message_.clear();
     show_open_config_modal_ = false;
+    pending_open_config_modal_ = false;
 }
 
 void MainControlWindow::OpenSettingsDialog() {
+    modal_error_message_.clear();
     draft_settings_ = global_config_;
     std::snprintf(settings_host_buf_, sizeof(settings_host_buf_), "%s", draft_settings_.host.c_str());
     settings_port_ = draft_settings_.port;
     std::snprintf(settings_ui_file_buf_, sizeof(settings_ui_file_buf_), "%s", draft_settings_.ui_config_file.c_str());
     show_settings_modal_ = true;
+    pending_open_settings_modal_ = true;
 }
 
 void MainControlWindow::SetDraftSettings(const std::string& host, int port, const std::string& ui_config_file) {
@@ -150,7 +186,21 @@ bool MainControlWindow::SaveSettingsDialog() {
     draft_settings_.port = settings_port_;
     draft_settings_.ui_config_file = settings_ui_file_buf_;
 
+    if (draft_settings_.host.empty()) {
+        modal_error_message_ = "Server IP / Host cannot be empty.";
+        return false;
+    }
+    if (draft_settings_.port <= 0 || draft_settings_.port > 65535) {
+        modal_error_message_ = "Consumer Port must be between 1 and 65535.";
+        return false;
+    }
+    if (draft_settings_.ui_config_file.empty()) {
+        modal_error_message_ = "UI Configuration File cannot be empty.";
+        return false;
+    }
+
     if (!ConfigSerializer::SaveGlobalConfig(global_config_path_, draft_settings_)) {
+        modal_error_message_ = "Failed to save configuration file: " + global_config_path_;
         return false;
     }
 
@@ -170,7 +220,7 @@ bool MainControlWindow::SaveSettingsDialog() {
     }
 
     if (target_changed) {
-        state_store_.ResetSession();
+        state_store_.ClearState();
         client_.UpdateTarget(global_config_.host, global_config_.port);
     }
 
@@ -178,23 +228,58 @@ bool MainControlWindow::SaveSettingsDialog() {
         callbacks_.on_save_settings(global_config_);
     }
 
+    modal_error_message_.clear();
     show_settings_modal_ = false;
+    pending_open_settings_modal_ = false;
     return true;
 }
 
 void MainControlWindow::CancelSettingsDialog() {
+    modal_error_message_.clear();
     show_settings_modal_ = false;
+    pending_open_settings_modal_ = false;
 }
 
 void MainControlWindow::OpenAboutDialog() {
     show_about_modal_ = true;
+    pending_open_about_modal_ = true;
 }
 
 void MainControlWindow::CloseAboutDialog() {
     show_about_modal_ = false;
+    pending_open_about_modal_ = false;
+}
+
+std::string MainControlWindow::BrowseYamlFileDialog(const char* dialog_title) {
+#if defined(_WIN32)
+    char file_buf[MAX_PATH] = {0};
+    char current_dir[MAX_PATH] = {0};
+    GetCurrentDirectoryA(MAX_PATH, current_dir);
+
+    OPENFILENAMEA ofn{};
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = nullptr;
+    ofn.lpstrFile = file_buf;
+    ofn.nMaxFile = sizeof(file_buf);
+    ofn.lpstrFilter = "YAML Configuration (*.yaml;*.yml)\0*.yaml;*.yml\0All Files (*.*)\0*.*\0";
+    ofn.nFilterIndex = 1;
+    ofn.lpstrTitle = dialog_title;
+    ofn.Flags = OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
+
+    const BOOL ok = GetOpenFileNameA(&ofn);
+    SetCurrentDirectoryA(current_dir);
+    if (ok) {
+        return std::string(file_buf);
+    }
+#else
+    (void)dialog_title;
+#endif
+    return "";
 }
 
 void MainControlWindow::RenderImGui() {
+    RenderMenuBar();
+
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(viewport->WorkPos);
     ImGui::SetNextWindowSize(viewport->WorkSize);
@@ -203,11 +288,9 @@ void MainControlWindow::RenderImGui() {
         ImGuiWindowFlags_NoDecoration |
         ImGuiWindowFlags_NoMove |
         ImGuiWindowFlags_NoResize |
-        ImGuiWindowFlags_NoSavedSettings |
-        ImGuiWindowFlags_MenuBar;
+        ImGuiWindowFlags_NoSavedSettings;
 
     if (ImGui::Begin("LF Live Renderer Control", nullptr, kWindowFlags)) {
-        RenderMenuBar();
         ImGui::Spacing();
         RenderStatusSection();
         ImGui::Spacing();
@@ -220,17 +303,13 @@ void MainControlWindow::RenderImGui() {
 }
 
 void MainControlWindow::RenderMenuBar() {
-    if (ImGui::BeginMenuBar()) {
+    if (ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("File")) {
-            if (ImGui::MenuItem("Open configuration...")) {
+            if (ImGui::MenuItem("Open configuration")) {
                 OpenConfigurationDialog();
             }
-            if (ImGui::MenuItem("Settings...")) {
+            if (ImGui::MenuItem("Settings")) {
                 OpenSettingsDialog();
-            }
-            ImGui::Separator();
-            if (ImGui::MenuItem("Quit")) {
-                ClickQuit();
             }
             ImGui::EndMenu();
         }
@@ -240,7 +319,7 @@ void MainControlWindow::RenderMenuBar() {
             }
             ImGui::EndMenu();
         }
-        ImGui::EndMenuBar();
+        ImGui::EndMainMenuBar();
     }
 }
 
@@ -287,8 +366,9 @@ void MainControlWindow::RenderMainButtons() {
 
 void MainControlWindow::RenderModals() {
     // Quit Confirmation Modal
-    if (show_quit_confirm_modal_) {
+    if (pending_open_quit_modal_) {
         ImGui::OpenPopup("Confirm Quit");
+        pending_open_quit_modal_ = false;
     }
     if (ImGui::BeginPopupModal("Confirm Quit", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
         ImGui::TextUnformatted("Are you sure you want to quit LF Live Renderer?");
@@ -309,12 +389,27 @@ void MainControlWindow::RenderModals() {
     }
 
     // Open Configuration Modal
-    if (show_open_config_modal_) {
+    if (pending_open_config_modal_) {
         ImGui::OpenPopup("Open Configuration");
+        pending_open_config_modal_ = false;
     }
     if (ImGui::BeginPopupModal("Open Configuration", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
         ImGui::TextUnformatted("Global Configuration YAML File:");
+        ImGui::SetNextItemWidth(280.0f);
         ImGui::InputText("##open_config_path", open_config_path_buf_, sizeof(open_config_path_buf_));
+        ImGui::SameLine();
+        if (ImGui::Button("Browse...")) {
+            std::string picked = BrowseYamlFileDialog("Open Global Configuration File");
+            if (!picked.empty()) {
+                std::snprintf(open_config_path_buf_, sizeof(open_config_path_buf_), "%s", picked.c_str());
+            }
+        }
+
+        if (!modal_error_message_.empty()) {
+            ImGui::Spacing();
+            ImGui::TextColored(ImVec4(0.95f, 0.30f, 0.25f, 1.0f), "%s", modal_error_message_.c_str());
+        }
+
         ImGui::Spacing();
         ImGui::Separator();
         ImGui::Spacing();
@@ -333,13 +428,32 @@ void MainControlWindow::RenderModals() {
     }
 
     // Settings Modal
-    if (show_settings_modal_) {
+    if (pending_open_settings_modal_) {
         ImGui::OpenPopup("Settings");
+        pending_open_settings_modal_ = false;
     }
     if (ImGui::BeginPopupModal("Settings", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::SetNextItemWidth(260.0f);
         ImGui::InputText("Server IP / Host", settings_host_buf_, sizeof(settings_host_buf_));
+
+        ImGui::SetNextItemWidth(260.0f);
         ImGui::InputInt("Consumer Port", &settings_port_);
+
+        ImGui::SetNextItemWidth(260.0f);
         ImGui::InputText("UI Configuration File", settings_ui_file_buf_, sizeof(settings_ui_file_buf_));
+        ImGui::SameLine();
+        if (ImGui::Button("Browse...##browse_ui")) {
+            std::string picked = BrowseYamlFileDialog("Select UI Configuration File");
+            if (!picked.empty()) {
+                std::snprintf(settings_ui_file_buf_, sizeof(settings_ui_file_buf_), "%s", picked.c_str());
+            }
+        }
+
+        if (!modal_error_message_.empty()) {
+            ImGui::Spacing();
+            ImGui::TextColored(ImVec4(0.95f, 0.30f, 0.25f, 1.0f), "%s", modal_error_message_.c_str());
+        }
+
         ImGui::Spacing();
         ImGui::Separator();
         ImGui::Spacing();
@@ -358,11 +472,12 @@ void MainControlWindow::RenderModals() {
     }
 
     // About Modal
-    if (show_about_modal_) {
+    if (pending_open_about_modal_) {
         ImGui::OpenPopup("About");
+        pending_open_about_modal_ = false;
     }
     if (ImGui::BeginPopupModal("About", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-        ImGui::Text("%s", kAppName);
+        ImGui::Text("Application: %s", kAppName);
         ImGui::Text("Version: %s", kAppVersion);
         ImGui::Text("Author: %s", kAppAuthor);
         ImGui::Spacing();
@@ -378,4 +493,3 @@ void MainControlWindow::RenderModals() {
 }
 
 }  // namespace live_renderer
-

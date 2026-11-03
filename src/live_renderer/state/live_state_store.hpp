@@ -22,6 +22,7 @@ public:
     GameStateSnapshot GetSnapshot() const;
 
     // Mutator actions triggered by protocol events
+    void ClearState();
     void ResetSession();
     void SetGameOver(int64_t timestamp_ms);
     void SetGameType(const std::string& type, int max_length_seconds);

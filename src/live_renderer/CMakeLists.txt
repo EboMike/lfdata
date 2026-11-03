@@ -103,7 +103,7 @@ target_link_libraries(live_renderer_core PUBLIC
 )
 
 if(WIN32)
-    target_link_libraries(live_renderer_core PUBLIC ws2_32)
+    target_link_libraries(live_renderer_core PUBLIC ws2_32 comdlg32)
 endif()
 
 # Tests

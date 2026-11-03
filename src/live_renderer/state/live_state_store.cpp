@@ -23,13 +23,23 @@ void LiveStateStore::BumpVersionLocked() {
     state_.version++;
 }
 
+void LiveStateStore::ClearState() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    const uint64_t next_version = state_.version + 1;
+    state_ = GameStateSnapshot();
+    state_.version = next_version;
+    state_.in_session = false;
+    state_.game_over = false;
+}
+
 void LiveStateStore::ResetSession() {
     std::lock_guard<std::mutex> lock(mutex_);
+    const uint64_t next_version = state_.version + 1;
     state_ = GameStateSnapshot();
+    state_.version = next_version;
     state_.in_session = true;
     state_.game_over = false;
     state_.game_start_time_local_ms = GetCurrentSteadyMillis();
-    BumpVersionLocked();
 }
 
 void LiveStateStore::SetGameOver(int64_t timestamp_ms) {

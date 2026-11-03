@@ -73,6 +73,12 @@ public:
     bool IsOpenConfigDialogOpen() const { return show_open_config_modal_; }
     bool IsSettingsDialogOpen() const { return show_settings_modal_; }
     bool IsAboutDialogOpen() const { return show_about_modal_; }
+    const std::string& GetModalErrorMessage() const { return modal_error_message_; }
+
+    // About metadata
+    static const char* GetApplicationName();
+    static const char* GetApplicationVersion();
+    static const char* GetApplicationAuthor();
 
     // Draft settings accessors for Settings dialog & tests
     void SetDraftSettings(const std::string& host, int port, const std::string& ui_config_file);
@@ -84,6 +90,7 @@ private:
     void RenderStatusSection();
     void RenderMainButtons();
     void RenderModals();
+    static std::string BrowseYamlFileDialog(const char* dialog_title);
 
     std::string global_config_path_;
     GlobalConfig& global_config_;
@@ -93,22 +100,28 @@ private:
     Callbacks callbacks_;
 
     bool in_ui_editor_mode_ = false;
+
     bool show_quit_confirm_modal_ = false;
+    bool pending_open_quit_modal_ = false;
     bool quit_confirmed_ = false;
 
     bool show_open_config_modal_ = false;
+    bool pending_open_config_modal_ = false;
     char open_config_path_buf_[512]{};
 
     bool show_settings_modal_ = false;
+    bool pending_open_settings_modal_ = false;
     GlobalConfig draft_settings_;
     char settings_host_buf_[256]{};
-    int settings_port_ = 9001;
+    int settings_port_ = 8001;
     char settings_ui_file_buf_[512]{};
 
     bool show_about_modal_ = false;
+    bool pending_open_about_modal_ = false;
+
+    std::string modal_error_message_;
 };
 
 }  // namespace live_renderer
 
 #endif  // LIVE_RENDERER_WINDOWS_MAIN_CONTROL_WINDOW_HPP_
-

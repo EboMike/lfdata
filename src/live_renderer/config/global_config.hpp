@@ -13,7 +13,7 @@ namespace live_renderer {
  */
 struct GlobalConfig {
     std::string host = "127.0.0.1";
-    int port = 9001;
+    int port = 8001;
     std::string ui_config_file = "ui_layout.yaml";
 
     bool operator==(const GlobalConfig& other) const = default;
