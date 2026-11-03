@@ -33,6 +33,7 @@ def test_run_server_lifecycle(tmp_path: Path) -> None:
         cfg = LFLiveConfig(
             database_path=str(tmp_path / 'server_test.db'),
             tdf_port=0,
+            consumer_port=0,
             log_output=True,
         )
         task = asyncio.create_task(run_server(cfg))

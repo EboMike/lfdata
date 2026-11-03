@@ -14,6 +14,7 @@ Usage example:
 
 from lflive.cli import LFLiveArgs, parse_args, resolve_config
 from lflive.config import LFLiveConfig, load_config
+from lflive.consumer_listener import ConsumerListener
 from lflive.db import LiveDatabase
 from lflive.ingestor import TdfIngestor
 from lflive.state import (
@@ -26,6 +27,7 @@ from lflive.state import (
 from lflive.tdf_listener import TdfListener, detect_encoding
 
 __all__ = [
+    'ConsumerListener',
     'LFLiveArgs',
     'LFLiveConfig',
     'LiveDatabase',

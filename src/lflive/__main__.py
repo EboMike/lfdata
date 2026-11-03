@@ -13,6 +13,7 @@ from collections.abc import Sequence
 
 from lflive.cli import parse_args, resolve_config
 from lflive.config import LFLiveConfig
+from lflive.consumer_listener import ConsumerListener
 from lflive.db import LiveDatabase
 from lflive.emitter import OutputEmitter
 from lflive.state.game_state import LiveGameState
@@ -40,8 +41,16 @@ async def run_server(config: LFLiveConfig) -> int:
         db=db,
         emitter=emitter,
     )
+    consumer_listener = ConsumerListener(
+        port=config.consumer_port,
+        game_state=state,
+        emitter=emitter,
+        preroll_ms=config.preroll_ms,
+    )
     await listener.start()
     print(f'Listening for TDF stream on port {config.tdf_port}...')
+    await consumer_listener.start()
+    print(f'Broadcasting to consumers on port {config.consumer_port}...')
 
     try:
         while True:
@@ -50,6 +59,7 @@ async def run_server(config: LFLiveConfig) -> int:
         pass
     finally:
         await listener.stop()
+        await consumer_listener.stop()
 
     return 0
 
