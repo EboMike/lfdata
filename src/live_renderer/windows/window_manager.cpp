@@ -137,6 +137,24 @@ bool WindowManager::IsWindowMinimized(size_t index) const {
     return inst.is_minimized || ((flags & SDL_WINDOW_MINIMIZED) != 0);
 }
 
+void WindowManager::MinimizeWindow(size_t index) {
+    if (index >= instances_.size()) return;
+    auto& inst = instances_[index];
+    if (inst.sdl_window) {
+        SDL_MinimizeWindow(inst.sdl_window);
+    }
+    inst.is_minimized = true;
+}
+
+void WindowManager::RestoreWindow(size_t index) {
+    if (index >= instances_.size()) return;
+    auto& inst = instances_[index];
+    if (inst.sdl_window) {
+        SDL_RestoreWindow(inst.sdl_window);
+    }
+    inst.is_minimized = false;
+}
+
 void WindowManager::SyncWithConfig(const UIConfig& ui_config) {
     std::unordered_map<int, WindowConfig> target_configs;
     for (const auto& w : ui_config.windows) {

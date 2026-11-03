@@ -109,6 +109,20 @@ public:
     bool IsWindowMinimized(size_t index) const;
 
     /**
+     * @brief Minimizes the visualization window at the given index.
+     *
+     * @param index Index of the window.
+     */
+    void MinimizeWindow(size_t index);
+
+    /**
+     * @brief Restores a minimized visualization window at the given index.
+     *
+     * @param index Index of the window.
+     */
+    void RestoreWindow(size_t index);
+
+    /**
      * @brief Sets or updates the preferences manager.
      *
      * @param preferences_manager Pointer to PreferencesManager.
