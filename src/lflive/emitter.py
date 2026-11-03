@@ -22,6 +22,7 @@ from lflive.constants import (
     DATA_TYPE_PLAYER_HITPOINTS,
     DATA_TYPE_PLAYER_LIVES,
     DATA_TYPE_PLAYER_MISSILES,
+    DATA_TYPE_PLAYER_RANKING,
     DATA_TYPE_PLAYER_SCORE,
     DATA_TYPE_PLAYER_SHOTS,
     DATA_TYPE_PLAYER_SPECIAL_POINTS,
@@ -29,6 +30,7 @@ from lflive.constants import (
     DATA_TYPE_PRESYNC_END,
     DATA_TYPE_RAPID_FIRE_STATE,
     DATA_TYPE_TEAM_DESCRIPTION,
+    DATA_TYPE_TEAM_RANKING,
     DATA_TYPE_TEAM_SCORE,
 )
 from lflive.state.game_state import LiveGameState
@@ -224,6 +226,20 @@ class OutputEmitter:
         for team in game_state.teams.values():
             events.append(
                 f'{DATA_TYPE_TEAM_SCORE}\t{cur_ms}\t{team.team_id}\t{team.score}'
+            )
+
+        player_ranking = game_state.update_player_rankings()
+        if player_ranking:
+            events.append(
+                f'{DATA_TYPE_PLAYER_RANKING}\t{cur_ms}\t'
+                f'{",".join(str(p) for p in player_ranking)}'
+            )
+
+        team_ranking = game_state.get_team_ranking()
+        if team_ranking:
+            events.append(
+                f'{DATA_TYPE_TEAM_RANKING}\t{cur_ms}\t'
+                f'{",".join(str(t) for t in team_ranking)}'
             )
 
         if game_state.ball_carrier_id is not None:

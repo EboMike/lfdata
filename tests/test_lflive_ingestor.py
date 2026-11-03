@@ -5,10 +5,12 @@ from lflive.constants import (
     DATA_TYPE_PLAYER_DESCRIPTION,
     DATA_TYPE_PLAYER_LIVES,
     DATA_TYPE_PLAYER_MISSILES,
+    DATA_TYPE_PLAYER_RANKING,
     DATA_TYPE_PLAYER_SCORE,
     DATA_TYPE_PLAYER_SHOTS,
     DATA_TYPE_PLAYER_STATE,
     DATA_TYPE_TEAM_DESCRIPTION,
+    DATA_TYPE_TEAM_RANKING,
     DATA_TYPE_TEAM_SCORE,
 )
 from lflive.emitter import OutputEmitter
@@ -242,6 +244,8 @@ def test_ingestor_with_emitter() -> None:
     ingestor.ingest_line('5\t0001000\t#P1\t0\t100\t100')
     assert f'{DATA_TYPE_PLAYER_SCORE}\t1000\t1\t100' in emitter.emitted_lines
     assert f'{DATA_TYPE_TEAM_SCORE}\t1000\t1\t100' in emitter.emitted_lines
+    assert f'{DATA_TYPE_PLAYER_RANKING}\t1000\t1' in emitter.emitted_lines
+    assert f'{DATA_TYPE_TEAM_RANKING}\t1000\t1' in emitter.emitted_lines
 
     ingestor.ingest_line('9\t0002000\t#P1\t2')
     assert f'{DATA_TYPE_PLAYER_STATE}\t2000\t1\t2' in emitter.emitted_lines
@@ -258,3 +262,26 @@ def test_ingestor_with_emitter() -> None:
 
     ingestor.reset()
     assert f'{DATA_TYPE_NEW_GAME}\t0' in emitter.emitted_lines
+
+
+def test_ingestor_ranking_events() -> None:
+    state = LiveGameState()
+    emitter = OutputEmitter()
+    ingestor = TdfIngestor(game_state=state, emitter=emitter)
+
+    ingestor.ingest_line('1\t5\tSM5\t20261103100000\t900000\t-1000')
+    ingestor.ingest_line('2\t0\tFire\t11\tFire\t#FF5000')
+    ingestor.ingest_line('2\t1\tIce\t12\tIce\t#0000FF')
+    ingestor.ingest_line('3\t0000001\t#P1\tplayer\tP1\t0\t0\t1\tScout')
+    ingestor.ingest_line('3\t0000002\t#P2\tplayer\tP2\t1\t0\t1\tScout')
+
+    # Mission start emits initial ranking
+    ingestor.ingest_line('4\t0000000\t0100\t* Mission Start *')
+    assert f'{DATA_TYPE_PLAYER_RANKING}\t0\t1,2' in emitter.emitted_lines
+    assert f'{DATA_TYPE_TEAM_RANKING}\t0\t1,2' in emitter.emitted_lines
+
+    emitter.clear()
+    # P2 scores and overtakes P1 -> emits new rankings
+    ingestor.ingest_line('5\t0005000\t#P2\t0\t500\t500')
+    assert f'{DATA_TYPE_PLAYER_RANKING}\t5000\t2,1' in emitter.emitted_lines
+    assert f'{DATA_TYPE_TEAM_RANKING}\t5000\t2,1' in emitter.emitted_lines

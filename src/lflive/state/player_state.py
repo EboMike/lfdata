@@ -41,6 +41,7 @@ class LivePlayerState:
         steals: Steals executed (Laserball).
         state: Numerical player state (0=Up, 2=Resettable, 3=Down, 4=Dead).
         rapid_fire: Whether rapid fire is currently active.
+        ranking: 1-based scoreboard position ranking.
     """
 
     player_id: int
@@ -61,3 +62,29 @@ class LivePlayerState:
     steals: int = 0
     state: int = 0
     rapid_fire: bool = False
+    ranking: int = 1
+
+    def calculate_ranking_score(self, is_laserball: bool = False) -> int:
+        """Calculates player ranking score based on game mode.
+
+        In SM5, ranking score equals the player's personal score.
+        In Laserball, ranking score is computed as:
+        (goals + assists) * 10000 + min(99, clears + steals) * 100
+        + min(99, blocks).
+
+        Args:
+            is_laserball: Whether this is a Laserball game session.
+
+        Returns:
+            int: The calculated ranking score.
+
+        Usage example:
+            score = player.calculate_ranking_score(is_laserball=False)
+        """
+        if is_laserball:
+            return (
+                (self.goals + self.assists) * 10000
+                + min(99, self.clears + self.steals) * 100
+                + min(99, self.blocks)
+            )
+        return self.score

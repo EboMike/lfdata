@@ -41,6 +41,7 @@ from lflive.constants import (
 from lflive.emitter import OutputEmitter
 from lflive.entity_registrar import EntityRegistrar
 from lflive.game_event_handler import GameEventHandler
+from lflive.ranking_manager import RankingManager
 from lflive.state.game_state import LiveGameState
 
 
@@ -50,6 +51,7 @@ class TdfIngestor:
     Attributes:
         game_state: The LiveGameState instance being updated.
         emitter: Optional OutputEmitter broadcasting outbound protocol lines.
+        ranking_manager: RankingManager tracking and emitting rank events.
         registrar: EntityRegistrar for creating teams, players, and targets.
         event_handler: GameEventHandler for processing record type 4 events.
     """
@@ -67,6 +69,10 @@ class TdfIngestor:
         """
         self.game_state = game_state
         self.emitter = emitter
+        self.ranking_manager = RankingManager(
+            game_state=self.game_state,
+            emitter=self.emitter,
+        )
         self.registrar = EntityRegistrar(
             game_state=self.game_state,
             emitter=self.emitter,
@@ -74,6 +80,7 @@ class TdfIngestor:
         self.event_handler = GameEventHandler(
             game_state=self.game_state,
             emitter=self.emitter,
+            ranking_manager=self.ranking_manager,
         )
 
     @property
@@ -93,6 +100,7 @@ class TdfIngestor:
             ingestor.reset()
         """
         self.registrar.reset()
+        self.ranking_manager.reset()
         if self.emitter:
             self.emitter.emit(DATA_TYPE_NEW_GAME, 0)
 
@@ -280,6 +288,7 @@ class TdfIngestor:
                         team.team_id,
                         team.score,
                     )
+            self.ranking_manager.update_rankings(time_ms=time_offset_ms)
 
     def _handle_player_state(self, parts: list[str]) -> None:
         """Parses record type 9 (Authoritative player operational state)."""

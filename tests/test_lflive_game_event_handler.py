@@ -50,3 +50,25 @@ def test_game_event_handler_coordination() -> None:
         in emitter.emitted_lines
     )
     assert f'{DATA_TYPE_GAME_OVER}\t900000' in emitter.emitted_lines
+
+
+def test_game_event_handler_with_ranking_manager() -> None:
+    from lflive.constants import (
+        DATA_TYPE_PLAYER_RANKING,
+        DATA_TYPE_TEAM_RANKING,
+    )
+    from lflive.ranking_manager import RankingManager
+
+    state = LiveGameState(game_type='SM5')
+    state.add_team(team_id=1, name='Fire', color='Red', rgb='#ff0000')
+    state.add_player(1, '#P1', 'Ace', 1)
+
+    emitter = OutputEmitter()
+    ranking_mgr = RankingManager(game_state=state, emitter=emitter)
+    handler = GameEventHandler(
+        game_state=state, emitter=emitter, ranking_manager=ranking_mgr
+    )
+
+    handler.handle_event(1000, SM5_EVENT_MISSION_START, [])
+    assert f'{DATA_TYPE_PLAYER_RANKING}\t1000\t1' in emitter.emitted_lines
+    assert f'{DATA_TYPE_TEAM_RANKING}\t1000\t1' in emitter.emitted_lines

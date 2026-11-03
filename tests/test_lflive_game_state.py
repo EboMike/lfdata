@@ -198,6 +198,51 @@ def test_flush_to_database() -> None:
         assert len(snapshots) == 2
 
 
+def test_player_and_team_rankings_sm5() -> None:
+    state = LiveGameState(game_type='SM5')
+    state.add_team(1, 'Fire', 'Red', '#ff0000')
+    state.add_team(2, 'Ice', 'Blue', '#0000ff')
+    p1 = state.add_player(1, '#P1', 'Ace', 1)
+    p2 = state.add_player(2, '#P2', 'Bravo', 2)
+    p3 = state.add_player(3, '#P3', 'Charlie', 1)
+
+    p1.score = 500
+    p2.score = 1500
+    p3.score = 1000
+
+    ranks = state.update_player_rankings()
+    assert ranks == [2, 3, 1]
+    assert p2.ranking == 1
+    assert p3.ranking == 2
+    assert p1.ranking == 3
+
+    state.update_team_scores()
+    assert state.get_team_ranking() == [
+        1,
+        2,
+    ]  # Team 1: 1500, Team 2: 1500; lower team_id wins tie
+
+
+def test_player_and_team_rankings_laserball() -> None:
+    state = LiveGameState(game_type='Laserball')
+    state.add_team(1, 'Alpha', 'Red', '#ff0000')
+    state.add_team(2, 'Beta', 'Blue', '#0000ff')
+    p1 = state.add_player(1, '#P1', 'P1', 1)
+    p2 = state.add_player(2, '#P2', 'P2', 2)
+
+    p1.goals = 1
+    p1.assists = 0
+    p2.goals = 1
+    p2.assists = 1
+
+    player_ranks = state.update_player_rankings()
+    assert player_ranks == [2, 1]
+
+    state.update_team_scores()
+    # Both teams 1 goal; team 2 has higher player ranking scores
+    assert state.get_team_ranking() == [2, 1]
+
+
 def test_reset() -> None:
     state = LiveGameState(game_type='SM5')
     state.add_team(1, 'Fire', 'Red', '#ff0000')

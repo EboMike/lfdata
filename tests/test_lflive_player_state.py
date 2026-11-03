@@ -26,6 +26,28 @@ def test_player_state_defaults() -> None:
     assert player.steals == 0
     assert player.state == 0
     assert player.rapid_fire is False
+    assert player.ranking == 1
+
+
+def test_player_state_ranking_score() -> None:
+    player = LivePlayerState(
+        player_id=1,
+        entity_id='#1A',
+        name='Striker',
+        team_id=1,
+        score=1500,
+        goals=2,
+        assists=1,
+        clears=5,
+        steals=10,
+        blocks=4,
+    )
+    # SM5 ranking score uses score directly
+    assert player.calculate_ranking_score(is_laserball=False) == 1500
+
+    # Laserball calculation: (2 + 1) * 10000 + min(99, 15) * 100 + min(99, 4)
+    # 30000 + 1500 + 4 = 31504
+    assert player.calculate_ranking_score(is_laserball=True) == 31504
 
 
 def test_player_state_custom_values() -> None:

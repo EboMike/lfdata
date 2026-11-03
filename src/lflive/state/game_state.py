@@ -24,17 +24,8 @@ Usage example:
     )
 """
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session
-
 from lflive.db import LiveDatabase
-from lflive.models import (
-    LiveGameSession,
-    LivePlayer,
-    LiveSnapshot,
-    LiveTarget,
-    LiveTeam,
-)
+from lflive.state.game_state_flusher import GameStateFlusher
 from lflive.state.player_state import LivePlayerState
 from lflive.state.snapshot_entry import SnapshotEntry
 from lflive.state.target_state import LiveTargetState
@@ -262,11 +253,68 @@ class LiveGameState:
                     if p.team_id == team.team_id
                 )
 
-        sorted_teams = sorted(
-            self.teams.values(), key=lambda t: t.score, reverse=True
-        )
+        if is_laserball:
+            sorted_teams = sorted(
+                self.teams.values(),
+                key=lambda t: (
+                    t.score,
+                    sum(
+                        p.calculate_ranking_score(is_laserball=True)
+                        for p in self.players.values()
+                        if p.team_id == t.team_id
+                    ),
+                    -t.team_id,
+                ),
+                reverse=True,
+            )
+        else:
+            sorted_teams = sorted(
+                self.teams.values(),
+                key=lambda t: (t.score, -t.team_id),
+                reverse=True,
+            )
         for rank, team in enumerate(sorted_teams, start=1):
             team.ranking = rank
+
+    def update_player_rankings(self) -> list[int]:
+        """Recalculates player rankings based on current scores.
+
+        In SM5, players are ordered by score descending.
+        In Laserball, players are ordered by composite ranking score.
+
+        Returns:
+            list[int]: Ordered list of player primary keys (highest first).
+
+        Usage example:
+            rankings = state.update_player_rankings()
+        """
+        is_laserball = self.game_type.lower() == 'laserball'
+        sorted_players = sorted(
+            self.players.values(),
+            key=lambda p: (
+                p.calculate_ranking_score(is_laserball=is_laserball),
+                -p.player_id,
+            ),
+            reverse=True,
+        )
+        for rank, player in enumerate(sorted_players, start=1):
+            player.ranking = rank
+        return [p.player_id for p in sorted_players]
+
+    def get_team_ranking(self) -> list[int]:
+        """Returns the current ordered list of team primary keys.
+
+        Returns:
+            list[int]: Ordered list of team primary keys from first to last rank.
+
+        Usage example:
+            ranking = state.get_team_ranking()
+        """
+        sorted_teams = sorted(
+            self.teams.values(),
+            key=lambda t: (t.ranking, t.team_id),
+        )
+        return [t.team_id for t in sorted_teams]
 
     def get_state_at(self, time_ms: int) -> 'LiveGameState':
         """Reconstructs the game state as it was at a specific millisecond offset.
@@ -385,93 +433,7 @@ class LiveGameState:
         Usage example:
             state.flush_to_database(db)
         """
-        db.init_db()
-        with db.get_session() as session:
-            self._flush_session(session=session)
-            self._flush_teams(session=session)
-            self._flush_players(session=session)
-            self._flush_targets(session=session)
-            self._flush_snapshots(session=session)
-            session.commit()
-
-    def _flush_session(self, session: Session) -> None:
-        """Upserts active game session record in the database."""
-        db_sess = session.scalars(select(LiveGameSession)).first()
-        if not db_sess:
-            db_sess = LiveGameSession()
-            session.add(db_sess)
-        db_sess.game_type = self.game_type
-        db_sess.start_time = self.start_time
-        db_sess.duration_seconds = self.duration_seconds
-        db_sess.is_active = not self.is_game_over
-
-    def _flush_teams(self, session: Session) -> None:
-        """Upserts teams in the database."""
-        for team in self.teams.values():
-            db_team = session.scalars(
-                select(LiveTeam).filter_by(team_id=team.team_id)
-            ).first()
-            if not db_team:
-                db_team = LiveTeam(team_id=team.team_id)
-                session.add(db_team)
-            db_team.name = team.name
-            db_team.color = team.color
-            db_team.rgb = team.rgb
-            db_team.score = team.score
-
-    def _flush_players(self, session: Session) -> None:
-        """Upserts players in the database."""
-        for player in self.players.values():
-            db_player = session.scalars(
-                select(LivePlayer).filter_by(player_id=player.player_id)
-            ).first()
-            if not db_player:
-                db_player = LivePlayer(player_id=player.player_id)
-                session.add(db_player)
-            db_player.entity_id = player.entity_id
-            db_player.name = player.name
-            db_player.team_id = player.team_id
-            db_player.role = player.role
-            db_player.lives = player.lives
-            db_player.shots = player.shots
-            db_player.missiles = player.missiles
-            db_player.special_points = player.special_points
-            db_player.hitpoints = player.hitpoints
-            db_player.score = player.score
-            db_player.goals = player.goals
-            db_player.assists = player.assists
-            db_player.blocks = player.blocks
-            db_player.clears = player.clears
-            db_player.steals = player.steals
-            db_player.state = player.state
-            db_player.rapid_fire = player.rapid_fire
-
-    def _flush_targets(self, session: Session) -> None:
-        """Upserts targets in the database."""
-        for target in self.targets.values():
-            db_target = session.scalars(
-                select(LiveTarget).filter_by(target_id=target.target_id)
-            ).first()
-            if not db_target:
-                db_target = LiveTarget(target_id=target.target_id)
-                session.add(db_target)
-            db_target.entity_id = target.entity_id
-            db_target.name = target.name
-            db_target.rgb = target.rgb
-
-    def _flush_snapshots(self, session: Session) -> None:
-        """Inserts new snapshots since the last persistence flush."""
-        new_snapshots = self.snapshots[self._persisted_snapshot_count :]
-        for snap in new_snapshots:
-            db_snap = LiveSnapshot(
-                time_ms=snap.time_ms,
-                entity_type=snap.entity_type,
-                entity_id=snap.entity_id,
-                field_name=snap.field_name,
-                value=snap.value,
-            )
-            session.add(db_snap)
-        self._persisted_snapshot_count = len(self.snapshots)
+        GameStateFlusher.flush(game_state=self, db=db)
 
     def reset(self) -> None:
         """Resets all active game objects and state for a brand-new session.

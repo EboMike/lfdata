@@ -9,6 +9,7 @@ from lflive.constants import (
     DATA_TYPE_PLAYER_HITPOINTS,
     DATA_TYPE_PLAYER_LIVES,
     DATA_TYPE_PLAYER_MISSILES,
+    DATA_TYPE_PLAYER_RANKING,
     DATA_TYPE_PLAYER_SCORE,
     DATA_TYPE_PLAYER_SHOTS,
     DATA_TYPE_PLAYER_SPECIAL_POINTS,
@@ -16,6 +17,7 @@ from lflive.constants import (
     DATA_TYPE_PRESYNC_END,
     DATA_TYPE_RAPID_FIRE_STATE,
     DATA_TYPE_TEAM_DESCRIPTION,
+    DATA_TYPE_TEAM_RANKING,
     DATA_TYPE_TEAM_SCORE,
 )
 from lflive.emitter import OutputEmitter, format_colored_name
@@ -173,6 +175,12 @@ def test_emitter_generate_presync_events() -> None:
     )
     assert any(
         ev.startswith(f'{DATA_TYPE_TEAM_SCORE}\t45000\t1\t600') for ev in events
+    )
+    assert any(
+        ev.startswith(f'{DATA_TYPE_PLAYER_RANKING}\t45000\t1') for ev in events
+    )
+    assert any(
+        ev.startswith(f'{DATA_TYPE_TEAM_RANKING}\t45000\t1') for ev in events
     )
     assert any(
         ev.startswith(f'{DATA_TYPE_BALL_CARRIER}\t45000\t1') for ev in events

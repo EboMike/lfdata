@@ -15,6 +15,8 @@ Usage example:
     handler.handle_event(1000, '0400', ['#P1'])
 """
 
+from typing import TYPE_CHECKING
+
 from lfdata.model.gametypes.sm5_constants import (
     SM5_BASE_CAPTURE_SCORE,
     SM5_BASE_CAPTURE_SPECIAL_POINTS,
@@ -57,6 +59,9 @@ from lflive.state.game_state import LiveGameState
 from lflive.state.player_state import LivePlayerState
 from lflive.state.target_state import LiveTargetState
 
+if TYPE_CHECKING:
+    from lflive.ranking_manager import RankingManager
+
 
 class SM5EventHandler:
     """Processes SM5-specific game events and emits protocol updates.
@@ -64,21 +69,25 @@ class SM5EventHandler:
     Attributes:
         game_state: The active LiveGameState container.
         emitter: Optional OutputEmitter for consumer protocol events.
+        ranking_manager: Optional RankingManager for ranking updates.
     """
 
     def __init__(
         self,
         game_state: LiveGameState,
         emitter: OutputEmitter | None = None,
+        ranking_manager: 'RankingManager | None' = None,
     ) -> None:
         """Initializes the SM5 event handler.
 
         Args:
             game_state: Active LiveGameState instance.
             emitter: Optional OutputEmitter instance.
+            ranking_manager: Optional RankingManager instance.
         """
         self.game_state = game_state
         self.emitter = emitter
+        self.ranking_manager = ranking_manager
 
     def _colored_player(self, player: LivePlayerState | None) -> str:
         """Returns player name wrapped in HTML team color font tag."""
@@ -218,6 +227,8 @@ class SM5EventHandler:
             msg = f'{self._colored_player(actor)} detonates nuke'
             self.emitter.emit(DATA_TYPE_EVENT_SCROLLER, time_ms, msg)
             self.emitter.emit(DATA_TYPE_IMPORTANT_EVENT, time_ms, msg)
+        if self.ranking_manager:
+            self.ranking_manager.update_rankings(time_ms=time_ms)
 
     def _extract_target_entity_id(self, varies: list[str]) -> str | None:
         """Extracts the target entity ID from variable event arguments.
@@ -305,6 +316,8 @@ class SM5EventHandler:
                     time_ms,
                     f'{act_name} destroys {t_name}',
                 )
+            if self.ranking_manager:
+                self.ranking_manager.update_rankings(time_ms=time_ms)
         elif code == SM5_EVENT_HIT_BASE and self.emitter:
             self.emitter.emit(
                 DATA_TYPE_EVENT_SCROLLER,

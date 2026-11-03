@@ -181,3 +181,27 @@ def test_sm5_event_handler_three_part_varies() -> None:
         in ev
         for ev in emitter.emitted_lines
     )
+
+
+def test_sm5_event_handler_with_ranking_manager() -> None:
+    from lflive.constants import (
+        DATA_TYPE_PLAYER_RANKING,
+        DATA_TYPE_TEAM_RANKING,
+    )
+    from lflive.ranking_manager import RankingManager
+
+    state = LiveGameState(game_type='SM5')
+    state.add_team(team_id=1, name='Red', color='Red', rgb='#ff0000')
+    state.add_team(team_id=2, name='Blue', color='Blue', rgb='#0000ff')
+    state.add_player(1, '#P1', 'Ace', 1, 'commander')
+    state.add_player(2, '#P2', 'Bravo', 2, 'scout')
+
+    emitter = OutputEmitter()
+    ranking_mgr = RankingManager(game_state=state, emitter=emitter)
+    handler = SM5EventHandler(
+        game_state=state, emitter=emitter, ranking_manager=ranking_mgr
+    )
+
+    handler.handle_event(1000, SM5_EVENT_DETONATE_NUKE, ['#P1'])
+    assert f'{DATA_TYPE_PLAYER_RANKING}\t1000\t1,2' in emitter.emitted_lines
+    assert f'{DATA_TYPE_TEAM_RANKING}\t1000\t1,2' in emitter.emitted_lines

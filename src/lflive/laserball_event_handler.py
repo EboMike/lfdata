@@ -14,6 +14,8 @@ Usage example:
     handler.handle_event(1000, '1105', [])
 """
 
+from typing import TYPE_CHECKING
+
 from lfdata.model.gametypes.laserball_events import (
     LASERBALL_EVENT_ASSIST,
     LASERBALL_EVENT_BLOCK,
@@ -41,6 +43,9 @@ from lflive.emitter import OutputEmitter, format_colored_name
 from lflive.state.game_state import LiveGameState
 from lflive.state.player_state import LivePlayerState
 
+if TYPE_CHECKING:
+    from lflive.ranking_manager import RankingManager
+
 
 class LaserballEventHandler:
     """Processes Laserball-specific game events and emits protocol updates.
@@ -48,21 +53,25 @@ class LaserballEventHandler:
     Attributes:
         game_state: The active LiveGameState container.
         emitter: Optional OutputEmitter for consumer protocol events.
+        ranking_manager: Optional RankingManager for ranking updates.
     """
 
     def __init__(
         self,
         game_state: LiveGameState,
         emitter: OutputEmitter | None = None,
+        ranking_manager: 'RankingManager | None' = None,
     ) -> None:
         """Initializes the Laserball event handler.
 
         Args:
             game_state: Active LiveGameState instance.
             emitter: Optional OutputEmitter instance.
+            ranking_manager: Optional RankingManager instance.
         """
         self.game_state = game_state
         self.emitter = emitter
+        self.ranking_manager = ranking_manager
 
     def _colored_player(self, player: LivePlayerState | None) -> str:
         """Returns player name wrapped in HTML team color font tag."""
@@ -132,6 +141,8 @@ class LaserballEventHandler:
             self.emitter.emit(
                 DATA_TYPE_EVENT_SCROLLER, time_ms, '* Round Begins *'
             )
+        if self.ranking_manager:
+            self.ranking_manager.update_rankings(time_ms=time_ms)
 
     def _handle_round_end(self, time_ms: int) -> None:
         """Handles round finish lifecycle."""
@@ -262,6 +273,8 @@ class LaserballEventHandler:
                     time_ms,
                     f'{self._colored_player(player)} gets an assist',
                 )
+        if self.ranking_manager:
+            self.ranking_manager.update_rankings(time_ms=time_ms)
 
     def _handle_contest(
         self,
@@ -286,6 +299,9 @@ class LaserballEventHandler:
             self._handle_steal(time_ms=time_ms, actor=actor, target=target)
         elif code == LASERBALL_EVENT_CLEAR and actor:
             self._handle_clear(time_ms=time_ms, actor=actor, target=target)
+
+        if self.ranking_manager:
+            self.ranking_manager.update_rankings(time_ms=time_ms)
 
     def _handle_block(
         self,

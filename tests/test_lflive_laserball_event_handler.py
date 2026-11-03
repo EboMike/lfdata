@@ -112,3 +112,33 @@ def test_laserball_event_handler() -> None:
     )
     assert p1.clears == 1
     assert state.ball_carrier_id == 3
+
+
+def test_laserball_event_handler_with_ranking_manager() -> None:
+    from lflive.constants import (
+        DATA_TYPE_PLAYER_RANKING,
+        DATA_TYPE_TEAM_RANKING,
+    )
+    from lflive.ranking_manager import RankingManager
+
+    state = LiveGameState(game_type='Laserball')
+    state.add_team(team_id=1, name='Fire', color='Red', rgb='#ff0000')
+    state.add_team(team_id=2, name='Earth', color='Green', rgb='#00ff00')
+    state.add_player(1, '#P1', 'Ace', 1)
+    state.add_player(2, '#P2', 'Boba', 2)
+
+    emitter = OutputEmitter()
+    ranking_mgr = RankingManager(game_state=state, emitter=emitter)
+    handler = LaserballEventHandler(
+        game_state=state, emitter=emitter, ranking_manager=ranking_mgr
+    )
+
+    handler.handle_event(5000, LASERBALL_EVENT_ROUND_START, [])
+    assert f'{DATA_TYPE_PLAYER_RANKING}\t5000\t1,2' in emitter.emitted_lines
+    assert f'{DATA_TYPE_TEAM_RANKING}\t5000\t1,2' in emitter.emitted_lines
+
+    emitter.clear()
+    handler.handle_event(7000, LASERBALL_EVENT_GOAL, ['#P2'])
+    # Player 2 scores goal -> leads player ranking and team ranking
+    assert f'{DATA_TYPE_PLAYER_RANKING}\t7000\t2,1' in emitter.emitted_lines
+    assert f'{DATA_TYPE_TEAM_RANKING}\t7000\t2,1' in emitter.emitted_lines

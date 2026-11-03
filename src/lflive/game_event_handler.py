@@ -14,6 +14,8 @@ Usage example:
     handler.handle_event(time_ms=1000, code='0100', varies=[])
 """
 
+from typing import TYPE_CHECKING
+
 from lfdata.model.gametypes.laserball_events import (
     LASERBALL_EVENT_ASSIST,
     LASERBALL_EVENT_BLOCK,
@@ -35,6 +37,9 @@ from lflive.laserball_event_handler import LaserballEventHandler
 from lflive.sm5_event_handler import SM5EventHandler
 from lflive.state.game_state import LiveGameState
 
+if TYPE_CHECKING:
+    from lflive.ranking_manager import RankingManager
+
 
 class GameEventHandler:
     """Dispatches TDF record type 4 events to game-type specific handlers.
@@ -44,28 +49,34 @@ class GameEventHandler:
         emitter: Optional OutputEmitter broadcasting outbound events.
         laserball_handler: Specialized handler for Laserball events.
         sm5_handler: Specialized handler for Space Marines 5 events.
+        ranking_manager: Optional RankingManager for ranking updates.
     """
 
     def __init__(
         self,
         game_state: LiveGameState,
         emitter: OutputEmitter | None = None,
+        ranking_manager: 'RankingManager | None' = None,
     ) -> None:
         """Initializes the game event coordinator.
 
         Args:
             game_state: Active LiveGameState instance.
             emitter: Optional OutputEmitter instance.
+            ranking_manager: Optional RankingManager instance.
         """
         self.game_state = game_state
         self.emitter = emitter
+        self.ranking_manager = ranking_manager
         self.laserball_handler = LaserballEventHandler(
             game_state=game_state,
             emitter=emitter,
+            ranking_manager=ranking_manager,
         )
         self.sm5_handler = SM5EventHandler(
             game_state=game_state,
             emitter=emitter,
+            ranking_manager=ranking_manager,
         )
 
     def handle_event(
@@ -119,6 +130,8 @@ class GameEventHandler:
                     time_ms,
                     '* Mission Start *',
                 )
+            if self.ranking_manager:
+                self.ranking_manager.update_rankings(time_ms=time_ms)
         elif code == SM5_EVENT_MISSION_END:
             self.game_state.is_game_over = True
             self.game_state.record_change(
@@ -131,3 +144,5 @@ class GameEventHandler:
                     '* Mission End *',
                 )
                 self.emitter.emit(DATA_TYPE_GAME_OVER, time_ms)
+            if self.ranking_manager:
+                self.ranking_manager.update_rankings(time_ms=time_ms)
