@@ -35,6 +35,8 @@ color-correction-editor = "lfdata.color_correction.editor:main"
 color-analysis = "lfdata.color_correction.color_analysis:main"
 color_analysis = "lfdata.color_correction.color_analysis:main"
 lflive = "lflive.__main__:main"
+tdf-feeder = "lflive.tdf_feeder.__main__:main"
+tdf_feeder = "lflive.tdf_feeder.__main__:main"
 
 
 [project.optional-dependencies]
