@@ -91,6 +91,7 @@ class GameStateFlusher:
             db_team.color = team.color
             db_team.rgb = team.rgb
             db_team.score = team.score
+            db_team.dummy_player_id = team.dummy_player_id
 
     @classmethod
     def _flush_players(

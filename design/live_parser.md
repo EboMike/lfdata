@@ -92,6 +92,7 @@ A team has the following information:
 *   Team color
 *   Team RGB
 *   Total team score (sum of all points in SM5, sum of all goals in Laserball)
+*   Dummy player primary key (numerical ID), see below
 
 #### Players
 
@@ -119,6 +120,19 @@ A player has the following information:
     *   **Resettable** (2): Player is resettable, i.e. down but can be zapped (reset).
     *   **Dead** (4): The player is no longer in the game.
 *   Whether the player currently has rapid fire
+
+### Dummy player
+
+Every team has an additional player, the dummy player. This player is not
+part of the roster, the stats of this player are the sum of all players on
+the team.
+
+For example, "lives" of the dummy player are the sum of the lives of all
+actual players on the team.
+
+The player will not be listed as a player on the team, but this player ID
+is part of the team's data. Any time a player's stats changes, the relevant
+dummy player stats should be recalculated and sent.
 
 #### Targets (bases, etc)
 
@@ -169,7 +183,7 @@ the player names so they are in the color of their team, for example
 | 12 | Current assists for a player | Player primary key | New number of assists |   |   |   |
 | 13 | Current blocks for a player | Player primary key | New number of blocks |   |   |   |
 | 14 | Current steals for a player | Player primary key | New number of steals |   |   |   |
-| 15 | Description of a team | Team primary key | Team name | Team RGB value (example: `#ff0000`) |   |   |
+| 15 | Description of a team | Team primary key | Team name | Team RGB value (example: `#ff0000`) | Dummy player primary key |   |
 | 16 | Description of a player | Player primary key | Player name | Player entity ID | Team primary key | Role (if supported, e.g. `commander`) |
 | 17 | Type of game | Game type ("SM5", "Laserball") | Maximum length of the game in seconds |   |   |   |
 | 18 | Current ball carrier | Player primary key |   |   |   |   |

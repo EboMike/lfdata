@@ -19,8 +19,9 @@ def test_entity_registrar() -> None:
     )
     assert team.team_id == 1
     assert team.name == 'Fire Team'
+    assert team.dummy_player_id == 101
     assert (
-        f'{DATA_TYPE_TEAM_DESCRIPTION}\t0\t1\tFire Team\t#FF5000'
+        f'{DATA_TYPE_TEAM_DESCRIPTION}\t0\t1\tFire Team\t#FF5000\t101'
         in emitter.emitted_lines
     )
 

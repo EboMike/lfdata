@@ -174,7 +174,7 @@ class OutputEmitter:
         for team in game_state.teams.values():
             events.append(
                 f'{DATA_TYPE_TEAM_DESCRIPTION}\t{cur_ms}\t{team.team_id}\t'
-                f'{team.name}\t{team.rgb}'
+                f'{team.name}\t{team.rgb}\t{team.dummy_player_id}'
             )
 
         for target in game_state.targets.values():
@@ -221,6 +221,34 @@ class OutputEmitter:
                 events.append(
                     f'{DATA_TYPE_RAPID_FIRE_STATE}\t{cur_ms}\t'
                     f'{player.player_id}\t1'
+                )
+
+        for team in game_state.teams.values():
+            dummy = game_state.dummy_players.get(team.team_id)
+            if dummy:
+                events.append(
+                    f'{DATA_TYPE_PLAYER_LIVES}\t{cur_ms}\t{dummy.player_id}\t'
+                    f'{dummy.lives}'
+                )
+                events.append(
+                    f'{DATA_TYPE_PLAYER_SHOTS}\t{cur_ms}\t{dummy.player_id}\t'
+                    f'{dummy.shots}'
+                )
+                events.append(
+                    f'{DATA_TYPE_PLAYER_MISSILES}\t{cur_ms}\t{dummy.player_id}\t'
+                    f'{dummy.missiles}'
+                )
+                events.append(
+                    f'{DATA_TYPE_PLAYER_SPECIAL_POINTS}\t{cur_ms}\t'
+                    f'{dummy.player_id}\t{dummy.special_points}'
+                )
+                events.append(
+                    f'{DATA_TYPE_PLAYER_HITPOINTS}\t{cur_ms}\t{dummy.player_id}\t'
+                    f'{dummy.hitpoints}'
+                )
+                events.append(
+                    f'{DATA_TYPE_PLAYER_SCORE}\t{cur_ms}\t{dummy.player_id}\t'
+                    f'{dummy.score}'
                 )
 
         for team in game_state.teams.values():

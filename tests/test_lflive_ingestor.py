@@ -230,7 +230,7 @@ def test_ingestor_with_emitter() -> None:
 
     ingestor.ingest_line('2\t0\tFire Team\t11\tFire\t#FF5000')
     assert (
-        f'{DATA_TYPE_TEAM_DESCRIPTION}\t0\t1\tFire Team\t#FF5000'
+        f'{DATA_TYPE_TEAM_DESCRIPTION}\t0\t1\tFire Team\t#FF5000\t101'
         in emitter.emitted_lines
     )
 

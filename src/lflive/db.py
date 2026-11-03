@@ -13,7 +13,7 @@ Usage example:
 """
 
 from pathlib import Path
-from sqlalchemy import create_engine, delete
+from sqlalchemy import create_engine, delete, text
 from sqlalchemy.orm import Session
 
 from lflive.models import (
@@ -59,6 +59,26 @@ class LiveDatabase:
             db.init_db()
         """
         Base.metadata.create_all(self.engine)
+        self._migrate_schema()
+
+    def _migrate_schema(self) -> None:
+        """Migrates database schema for backward compatibility."""
+        with self.engine.connect() as conn:
+            try:
+                result = conn.execute(
+                    text("PRAGMA table_info('live_teams')")
+                ).fetchall()
+                col_names = {row[1] for row in result}
+                if result and 'dummy_player_id' not in col_names:
+                    conn.execute(
+                        text(
+                            'ALTER TABLE live_teams ADD COLUMN dummy_player_id'
+                            ' INTEGER DEFAULT 0'
+                        )
+                    )
+                    conn.commit()
+            except Exception:
+                pass
 
     def reset_session(self) -> None:
         """Deletes all previously persisted game state for a new session.

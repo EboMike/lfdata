@@ -38,6 +38,7 @@ from lflive.constants import (
     DATA_TYPE_PLAYER_STATE,
     DATA_TYPE_TEAM_SCORE,
 )
+from lflive.dummy_player_manager import DummyPlayerManager
 from lflive.emitter import OutputEmitter
 from lflive.entity_registrar import EntityRegistrar
 from lflive.game_event_handler import GameEventHandler
@@ -82,6 +83,12 @@ class TdfIngestor:
             emitter=self.emitter,
             ranking_manager=self.ranking_manager,
         )
+        self.dummy_manager = DummyPlayerManager(
+            game_state=self.game_state,
+            emitter=self.emitter,
+        )
+        if self.emitter:
+            self.emitter.add_listener(self.dummy_manager.on_line_emitted)
 
     @property
     def _next_player_id(self) -> int:
@@ -101,6 +108,7 @@ class TdfIngestor:
         """
         self.registrar.reset()
         self.ranking_manager.reset()
+        self.dummy_manager.reset()
         if self.emitter:
             self.emitter.emit(DATA_TYPE_NEW_GAME, 0)
 

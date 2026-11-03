@@ -25,6 +25,7 @@ class LiveTeam(Base):
         color: Name of the team color.
         rgb: Hex RGB value of the team color (e.g. #ff0000).
         score: Total team score accumulated during the game.
+        dummy_player_id: Primary key of the aggregated team dummy player.
     """
 
     __tablename__ = 'live_teams'
@@ -37,3 +38,4 @@ class LiveTeam(Base):
     color: Mapped[str] = mapped_column(String(32), default='')
     rgb: Mapped[str] = mapped_column(String(16), default='#ffffff')
     score: Mapped[int] = mapped_column(Integer, default=0)
+    dummy_player_id: Mapped[int] = mapped_column(Integer, default=0)

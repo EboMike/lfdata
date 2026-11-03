@@ -15,13 +15,7 @@ Usage example:
         team_id=1,
         role='commander',
     )
-    state.record_change(
-        time_ms=1000,
-        entity_type='player',
-        entity_id=1,
-        field_name='score',
-        value='100',
-    )
+    state.record_change(1000, 'player', 1, 'score', '100')
 """
 
 from lflive.db import LiveDatabase
@@ -30,6 +24,20 @@ from lflive.state.player_state import LivePlayerState
 from lflive.state.snapshot_entry import SnapshotEntry
 from lflive.state.target_state import LiveTargetState
 from lflive.state.team_state import LiveTeamState
+
+_DUMMY_STAT_ATTRS: tuple[str, ...] = (
+    'score',
+    'lives',
+    'shots',
+    'missiles',
+    'special_points',
+    'hitpoints',
+    'goals',
+    'assists',
+    'blocks',
+    'clears',
+    'steals',
+)
 
 
 class LiveGameState:
@@ -75,6 +83,7 @@ class LiveGameState:
         self.is_in_round = False
 
         self.teams: dict[int, LiveTeamState] = {}
+        self.dummy_players: dict[int, LivePlayerState] = {}
         self.players: dict[int, LivePlayerState] = {}
         self.players_by_entity: dict[str, LivePlayerState] = {}
         self.targets: dict[int, LiveTargetState] = {}
@@ -83,29 +92,51 @@ class LiveGameState:
         self._persisted_snapshot_count = 0
 
     def add_team(
-        self, team_id: int, name: str, color: str, rgb: str
+        self,
+        team_id: int,
+        name: str,
+        color: str,
+        rgb: str,
+        dummy_player_id: int = 0,
     ) -> LiveTeamState:
         """Registers a new team or returns existing team if already present.
+
+        Creates an associated dummy player aggregating team statistics.
 
         Args:
             team_id: Numerical primary key of the team.
             name: Display name of the team.
             color: Internal color name.
             rgb: CSS RGB hex code.
+            dummy_player_id: Primary key for the team's aggregated dummy player.
 
         Returns:
             LiveTeamState: The registered team state instance.
 
         Usage example:
-            team = state.add_team(1, 'Fire', 'Red', '#ff0000')
+            team = state.add_team(1, 'Fire', 'Red', '#ff0000', 101)
         """
+        if dummy_player_id == 0:
+            dummy_player_id = 100 + team_id
+
         if team_id not in self.teams:
             self.teams[team_id] = LiveTeamState(
                 team_id=team_id,
                 name=name,
                 color=color,
                 rgb=rgb,
+                dummy_player_id=dummy_player_id,
             )
+            self.dummy_players[team_id] = LivePlayerState(
+                player_id=dummy_player_id,
+                entity_id='',
+                name=f'{name} (Totals)',
+                team_id=team_id,
+            )
+        elif dummy_player_id != 0 and self.teams[team_id].dummy_player_id == 0:
+            self.teams[team_id].dummy_player_id = dummy_player_id
+            if team_id in self.dummy_players:
+                self.dummy_players[team_id].player_id = dummy_player_id
         return self.teams[team_id]
 
     def add_player(
@@ -276,6 +307,19 @@ class LiveGameState:
         for rank, team in enumerate(sorted_teams, start=1):
             team.ranking = rank
 
+    def update_dummy_players(self) -> None:
+        """Recalculates aggregated stats for all team dummy players.
+
+        Aggregates points, lives, and consumables across players per team.
+
+        Usage example:
+            state.update_dummy_players()
+        """
+        for team_id, dummy in self.dummy_players.items():
+            pts = [p for p in self.players.values() if p.team_id == team_id]
+            for attr in _DUMMY_STAT_ATTRS:
+                setattr(dummy, attr, sum(getattr(p, attr, 0) for p in pts))
+
     def update_player_rankings(self) -> dict[int, list[int]]:
         """Recalculates player rankings within each team based on scores.
 
@@ -356,6 +400,7 @@ class LiveGameState:
                 name=team.name,
                 color=team.color,
                 rgb=team.rgb,
+                dummy_player_id=team.dummy_player_id,
             )
 
         for player in self.players.values():
@@ -381,6 +426,7 @@ class LiveGameState:
             self._apply_snapshot_entry(target_state=reconstructed, entry=entry)
 
         reconstructed.update_team_scores()
+        reconstructed.update_dummy_players()
         return reconstructed
 
     def _apply_snapshot_entry(
@@ -397,32 +443,10 @@ class LiveGameState:
             and entry.entity_id in target_state.players
         ):
             p = target_state.players[entry.entity_id]
-            if entry.field_name == 'score':
-                p.score = int(entry.value)
-            elif entry.field_name == 'lives':
-                p.lives = int(entry.value)
-            elif entry.field_name == 'shots':
-                p.shots = int(entry.value)
-            elif entry.field_name == 'missiles':
-                p.missiles = int(entry.value)
-            elif entry.field_name == 'special_points':
-                p.special_points = int(entry.value)
-            elif entry.field_name == 'hitpoints':
-                p.hitpoints = int(entry.value)
-            elif entry.field_name == 'goals':
-                p.goals = int(entry.value)
-            elif entry.field_name == 'assists':
-                p.assists = int(entry.value)
-            elif entry.field_name == 'blocks':
-                p.blocks = int(entry.value)
-            elif entry.field_name == 'clears':
-                p.clears = int(entry.value)
-            elif entry.field_name == 'steals':
-                p.steals = int(entry.value)
-            elif entry.field_name == 'state':
-                p.state = int(entry.value)
-            elif entry.field_name == 'rapid_fire':
+            if entry.field_name == 'rapid_fire':
                 p.rapid_fire = entry.value in ('1', 'True', 'true')
+            else:
+                setattr(p, entry.field_name, int(entry.value))
         elif entry.entity_type == 'game':
             if entry.field_name == 'ball_carrier_id':
                 target_state.ball_carrier_id = (
@@ -457,6 +481,7 @@ class LiveGameState:
         self.round_number = 1
         self.is_in_round = False
         self.teams.clear()
+        self.dummy_players.clear()
         self.players.clear()
         self.players_by_entity.clear()
         self.targets.clear()

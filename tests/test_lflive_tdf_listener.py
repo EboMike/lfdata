@@ -160,7 +160,7 @@ def test_tdf_listener_with_emitter(capsys: pytest.CaptureFixture[str]) -> None:
 
         captured = capsys.readouterr()
         assert '98\t0\n' in captured.out
-        assert '15\t0\t1\tFire\t#FF5000\n' in captured.out
+        assert '15\t0\t1\tFire\t#FF5000\t101\n' in captured.out
         assert '99\t0\n' in captured.out
 
         await listener.stop()

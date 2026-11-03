@@ -107,6 +107,7 @@ class EntityRegistrar:
                 team_pk,
                 name,
                 rgb,
+                team.dummy_player_id,
             )
         return team
 

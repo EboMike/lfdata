@@ -180,4 +180,3 @@ def test_consumer_listener_presync_with_preroll_boundary() -> None:
         await listener.stop()
 
     asyncio.run(_run())
-

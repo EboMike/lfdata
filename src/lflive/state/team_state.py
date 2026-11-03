@@ -29,6 +29,7 @@ class LiveTeamState:
         rgb: CSS RGB hex string (e.g. #ff0000).
         score: Cumulative team score.
         ranking: 1-based team position rank.
+        dummy_player_id: Primary key of the aggregated team dummy player.
     """
 
     team_id: int
@@ -37,3 +38,4 @@ class LiveTeamState:
     rgb: str
     score: int = 0
     ranking: int = 1
+    dummy_player_id: int = 0
