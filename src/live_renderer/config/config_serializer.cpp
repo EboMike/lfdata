@@ -81,9 +81,29 @@ static ElementConfig ParseElementNode(const YAML::Node& node) {
     }
     if (node["change_animation"]) {
         el.change_animation = node["change_animation"].as<std::string>();
+        el.player_change_animation = el.change_animation;
+        el.team_change_animation = el.change_animation;
     }
     if (node["animation_duration"]) {
         el.animation_duration = node["animation_duration"].as<float>();
+        el.player_animation_duration = el.animation_duration;
+        el.team_animation_duration = el.animation_duration;
+    }
+    if (node["player_change_animation"]) {
+        el.player_change_animation =
+            node["player_change_animation"].as<std::string>();
+    }
+    if (node["player_animation_duration"]) {
+        el.player_animation_duration =
+            node["player_animation_duration"].as<float>();
+    }
+    if (node["team_change_animation"]) {
+        el.team_change_animation =
+            node["team_change_animation"].as<std::string>();
+    }
+    if (node["team_animation_duration"]) {
+        el.team_animation_duration =
+            node["team_animation_duration"].as<float>();
     }
     if (node["vertical_spacing"]) {
         el.vertical_spacing = node["vertical_spacing"].as<float>();
@@ -126,13 +146,27 @@ static void EmitElementNode(YAML::Emitter& out, const ElementConfig& el) {
         if (el.player_profile_template_id >= 0) {
             out << YAML::Key << "player_profile_template_id" << YAML::Value << el.player_profile_template_id;
         }
-        if (!el.change_animation.empty() && el.change_animation != "none") {
+        if (!el.player_change_animation.empty() &&
+            el.player_change_animation != "none") {
+            out << YAML::Key << "player_change_animation" << YAML::Value
+                << el.player_change_animation;
+            out << YAML::Key << "player_animation_duration" << YAML::Value
+                << el.player_animation_duration;
+        } else if (!el.change_animation.empty() &&
+                   el.change_animation != "none") {
             out << YAML::Key << "change_animation" << YAML::Value
                 << el.change_animation;
+            if (el.animation_duration != 0.5f) {
+                out << YAML::Key << "animation_duration" << YAML::Value
+                    << el.animation_duration;
+            }
         }
-        if (el.animation_duration != 0.5f) {
-            out << YAML::Key << "animation_duration" << YAML::Value
-                << el.animation_duration;
+        if (!el.team_change_animation.empty() &&
+            el.team_change_animation != "none") {
+            out << YAML::Key << "team_change_animation" << YAML::Value
+                << el.team_change_animation;
+            out << YAML::Key << "team_animation_duration" << YAML::Value
+                << el.team_animation_duration;
         }
     }
     if (el.vertical_spacing != 0.0f) {

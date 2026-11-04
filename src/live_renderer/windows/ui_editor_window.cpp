@@ -240,9 +240,10 @@ void UIEditorWindow::RenderImGui() {
     ImGui::SetNextWindowSize(viewport->WorkSize);
 
     constexpr ImGuiWindowFlags kWindowFlags =
-        ImGuiWindowFlags_NoDecoration |
+        ImGuiWindowFlags_NoTitleBar |
         ImGuiWindowFlags_NoMove |
         ImGuiWindowFlags_NoResize |
+        ImGuiWindowFlags_NoCollapse |
         ImGuiWindowFlags_NoSavedSettings;
 
     if (ImGui::Begin("UI Editor Control", nullptr, kWindowFlags)) {

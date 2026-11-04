@@ -428,6 +428,48 @@ TEST(VisualizationWindowTest, ImportantGameMessagesRendering) {
     EXPECT_TRUE(found_fading);
 }
 
+TEST(VisualizationWindowTest, SeparateTeamAndPlayerRankingsAnimation) {
+    WindowConfig wcfg;
+    wcfg.id = 1;
+    wcfg.rect = {0, 0, 1000, 800};
+
+    ElementConfig sc;
+    sc.type = "game_scorecard";
+    sc.rect = {0.1f, 0.1f, 0.8f, 0.8f};
+    sc.orientation = "horizontal";
+    // Team animation is linear 1.0s, but player ranking animation is none!
+    sc.team_change_animation = "linear";
+    sc.team_animation_duration = 1.0f;
+    sc.player_change_animation = "none";
+    wcfg.elements.push_back(sc);
+
+    UIConfig ui;
+    VisualizationWindow win(wcfg, ui);
+
+    auto state1 = MockGameState::CreateMockSM5State();
+    auto batch1 = win.GenerateBatch(state1, 0, -1);
+
+    // Swap players in team 1 at t=1000
+    auto state2 = state1;
+    state2.player_rankings_by_team[1] = {12, 11, 13, 14, 15};
+    // Swap teams order: team 2 first, team 1 second
+    state2.team_rankings = {2, 1};
+
+    // At t=1500 (halfway for teams):
+    auto batch2 = win.GenerateBatch(state2, 1500, -1);
+
+    // With player_change_animation as "none", player 12 snaps immediately
+    float y11_p2 = -1.0f;
+    float y12_p2 = -1.0f;
+    for (const auto& cmd : batch2.commands) {
+        if (cmd.text == "AlphaCommander") y11_p2 = cmd.pixel_rect[1];
+        if (cmd.text == "FireHeavy") y12_p2 = cmd.pixel_rect[1];
+    }
+    // Player 12 is top player, so y12 < y11 immediately without waiting 1.0s
+    EXPECT_LT(y12_p2, y11_p2);
+}
+
+
 
 
 

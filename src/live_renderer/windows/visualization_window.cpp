@@ -324,13 +324,26 @@ void VisualizationWindow::GenerateTeamScorecardCommands(
         const float target_row_y = start_players_y +
             static_cast<float>(row_idx) * (row_height_px + row_spacing);
 
+        const std::string player_anim =
+            !element.player_change_animation.empty()
+                ? element.player_change_animation
+                : (!element.change_animation.empty()
+                       ? element.change_animation
+                       : "none");
+        const float player_dur =
+            element.player_animation_duration > 0.0f
+                ? element.player_animation_duration
+                : (element.animation_duration > 0.0f
+                       ? element.animation_duration
+                       : 0.5f);
+
         const float row_y = list_animation_tracker_.GetAnimatedPosition(
             list_key,
             pid,
             target_row_y,
             current_time_ms,
-            element.change_animation,
-            element.animation_duration);
+            player_anim,
+            player_dur);
 
         if (row_tmpl != nullptr && !row_tmpl->elements.empty()) {
             for (const auto& rel : row_tmpl->elements) {
@@ -397,6 +410,19 @@ void VisualizationWindow::GenerateGameScorecardCommands(
     const std::string team_list_key =
         std::to_string(config_.id) + "_game_teams";
 
+    const std::string team_anim =
+        !element.team_change_animation.empty()
+            ? element.team_change_animation
+            : (!element.change_animation.empty()
+                   ? element.change_animation
+                   : "none");
+    const float team_dur =
+        element.team_animation_duration > 0.0f
+            ? element.team_animation_duration
+            : (element.animation_duration > 0.0f
+                   ? element.animation_duration
+                   : 0.5f);
+
     if (element.orientation == "horizontal") {
         const float section_width_rel =
             1.0f / static_cast<float>(team_ids.size());
@@ -413,8 +439,8 @@ void VisualizationWindow::GenerateGameScorecardCommands(
                     team_ids[i],
                     target_rel_x,
                     current_time_ms,
-                    element.change_animation,
-                    element.animation_duration);
+                    team_anim,
+                    team_dur);
             sub_el.rect[0] = anim_rel_x;
             sub_el.rect[2] = section_width_rel * element.rect[2];
 
@@ -436,8 +462,8 @@ void VisualizationWindow::GenerateGameScorecardCommands(
                     team_ids[i],
                     target_rel_y,
                     current_time_ms,
-                    element.change_animation,
-                    element.animation_duration);
+                    team_anim,
+                    team_dur);
 
             float team_h_px = ComputeTeamScorecardHeightPx(
                 sub_el, team_ids[i], state);

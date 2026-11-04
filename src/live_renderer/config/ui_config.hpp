@@ -33,6 +33,12 @@ struct ElementConfig {
     // Animation: "none", "linear", "ease-in-and-ease-out"
     std::string change_animation = "none";
     float animation_duration = 0.5f;              // Duration in seconds
+    // Separate animations for player ranking and team ranking.
+    // Empty string falls back to change_animation.
+    std::string player_change_animation;
+    float player_animation_duration = 0.0f;
+    std::string team_change_animation;
+    float team_animation_duration = 0.0f;
     float vertical_spacing = 0.0f;                // Spacing between lines/items
     int lines = 3;                                // Number of message lines
     float display_time = 4.0f;                    // Seconds shown before fade

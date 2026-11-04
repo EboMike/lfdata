@@ -290,40 +290,102 @@ void ElementPropertyInspector::RenderScorecardControls(
             "Linear",
             "Ease-in-and-ease-out"
         };
-        int anim_idx = 0;
-        if (element.change_animation == "linear") {
-            anim_idx = 1;
-        } else if (element.change_animation == "ease-in-and-ease-out") {
-            anim_idx = 2;
+
+        // 1. Player ranking animation within teams
+        const std::string effective_player_anim =
+            !element.player_change_animation.empty()
+                ? element.player_change_animation
+                : (!element.change_animation.empty()
+                       ? element.change_animation
+                       : "none");
+        int player_anim_idx = 0;
+        if (effective_player_anim == "linear") {
+            player_anim_idx = 1;
+        } else if (effective_player_anim == "ease-in-and-ease-out") {
+            player_anim_idx = 2;
         }
 
         if (ImGui::Combo(
-                "List Change Animation",
-                &anim_idx,
+                "Player Ranking Animation",
+                &player_anim_idx,
                 kChangeAnimations,
                 IM_ARRAYSIZE(kChangeAnimations))) {
-            if (anim_idx == 1) {
-                element.change_animation = "linear";
-            } else if (anim_idx == 2) {
-                element.change_animation = "ease-in-and-ease-out";
+            if (player_anim_idx == 1) {
+                element.player_change_animation = "linear";
+            } else if (player_anim_idx == 2) {
+                element.player_change_animation = "ease-in-and-ease-out";
             } else {
-                element.change_animation = "none";
+                element.player_change_animation = "none";
+            }
+            element.change_animation = element.player_change_animation;
+        }
+
+        const bool is_player_none = (effective_player_anim == "none");
+        if (is_player_none) {
+            ImGui::BeginDisabled();
+        }
+        float player_dur = element.player_animation_duration > 0.0f
+            ? element.player_animation_duration
+            : element.animation_duration;
+        if (ImGui::DragFloat(
+                "Player Animation Duration",
+                &player_dur,
+                0.05f,
+                0.05f,
+                10.0f,
+                "%.2f s")) {
+            element.player_animation_duration = player_dur;
+            element.animation_duration = player_dur;
+        }
+        if (is_player_none) {
+            ImGui::EndDisabled();
+        }
+
+        // 2. Team ranking animation
+        const std::string effective_team_anim =
+            !element.team_change_animation.empty()
+                ? element.team_change_animation
+                : (!element.change_animation.empty()
+                       ? element.change_animation
+                       : "none");
+        int team_anim_idx = 0;
+        if (effective_team_anim == "linear") {
+            team_anim_idx = 1;
+        } else if (effective_team_anim == "ease-in-and-ease-out") {
+            team_anim_idx = 2;
+        }
+
+        if (ImGui::Combo(
+                "Team Ranking Animation",
+                &team_anim_idx,
+                kChangeAnimations,
+                IM_ARRAYSIZE(kChangeAnimations))) {
+            if (team_anim_idx == 1) {
+                element.team_change_animation = "linear";
+            } else if (team_anim_idx == 2) {
+                element.team_change_animation = "ease-in-and-ease-out";
+            } else {
+                element.team_change_animation = "none";
             }
         }
 
-        const bool is_none = (element.change_animation == "none" ||
-                              element.change_animation.empty());
-        if (is_none) {
+        const bool is_team_none = (effective_team_anim == "none");
+        if (is_team_none) {
             ImGui::BeginDisabled();
         }
-        ImGui::DragFloat(
-            "Animation Duration",
-            &element.animation_duration,
-            0.05f,
-            0.05f,
-            10.0f,
-            "%.2f s");
-        if (is_none) {
+        float team_dur = element.team_animation_duration > 0.0f
+            ? element.team_animation_duration
+            : element.animation_duration;
+        if (ImGui::DragFloat(
+                "Team Animation Duration",
+                &team_dur,
+                0.05f,
+                0.05f,
+                10.0f,
+                "%.2f s")) {
+            element.team_animation_duration = team_dur;
+        }
+        if (is_team_none) {
             ImGui::EndDisabled();
         }
 

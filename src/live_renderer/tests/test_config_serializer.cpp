@@ -54,8 +54,10 @@ TEST(ConfigSerializerTest, RoundTripUIConfig) {
 
     ElementConfig scorecard;
     scorecard.type = "team_scorecard";
-    scorecard.change_animation = "ease-in-and-ease-out";
-    scorecard.animation_duration = 0.75f;
+    scorecard.player_change_animation = "linear";
+    scorecard.player_animation_duration = 0.4f;
+    scorecard.team_change_animation = "ease-in-and-ease-out";
+    scorecard.team_animation_duration = 0.8f;
     scorecard.vertical_spacing = 6.0f;
     win.elements.push_back(scorecard);
 
@@ -87,10 +89,15 @@ TEST(ConfigSerializerTest, RoundTripUIConfig) {
     EXPECT_EQ(loaded.windows[0].elements[0].type, "game_timer");
     EXPECT_EQ(loaded.windows[0].elements[1].type, "team_scorecard");
     EXPECT_EQ(
-        loaded.windows[0].elements[1].change_animation,
+        loaded.windows[0].elements[1].player_change_animation,
+        "linear");
+    EXPECT_FLOAT_EQ(
+        loaded.windows[0].elements[1].player_animation_duration, 0.4f);
+    EXPECT_EQ(
+        loaded.windows[0].elements[1].team_change_animation,
         "ease-in-and-ease-out");
     EXPECT_FLOAT_EQ(
-        loaded.windows[0].elements[1].animation_duration, 0.75f);
+        loaded.windows[0].elements[1].team_animation_duration, 0.8f);
     EXPECT_FLOAT_EQ(
         loaded.windows[0].elements[1].vertical_spacing, 6.0f);
     EXPECT_EQ(loaded.windows[0].elements[2].type, "important_game_messages");
