@@ -181,6 +181,35 @@ with newer text, for example:
 
 Nuke detonation or nuke cancel will replace the original activation message.
 
+### Other data to compute
+
+Additional data should be calculated as necessary so it can be sent as part of the data messages.
+
+*   **Shots fired**: Increases with every zap (or block)
+*   **Shots hit**: Every zap that hit something (zap own team, zap enemy, down enemy, zap base, etc.)
+*   **Accuracy**: Shots hit, divided by shots fired, as accuracy ("NN.N%").
+    Empty value if no shots fired yet.
+*   **Nukes activated**
+*   **Nukes dropped**
+*   **Missiles fired**
+*   **Missiles landed**: Any successful missile hit (missile own team, missile enemy, missile base,
+    etc.)
+*   **Medic hits**: This is a string that might display these values:
+    *   **Enemy medic hits**: How many times the enemy medic was zapped. Increases by 2 if the enemy
+        medic was missiled (or 1 if the medic only had 1 life left).
+    *   **Own medic hits**: How many times the own medic was zapped. Increases by 2 if the own medic
+        was missiled (or 1 if own medic only had 1 life left). This is displayed as a negative number,
+        so three own medic hits are "-3".
+    *  **Enemy medic lives taken by nukes**: Only applies to commanders. This is the number of lives
+       that were taken from an enemy medic by nukes. Only counts for lives that the enemy medic still
+       had, so if the enemy medic had 5 lives, a nuke would add 3 to this count. If the enemy medic had
+       2 lives before the nuke, a nuke would add 2 to this count.
+    The final string is "{enemy medic hits}/{enemy medic hits through nuke}/{own medic hit}". The second
+    and third components are only shown if not 0. Examples:
+    *   "1/3/-1": 1 enemy medic hit, 3 medic hits through nukes, 1 own medic hit
+    *   "2/-3": 2 enemy medic hits, 3 own medic hits
+    *   "0/5": 0 enemy medic hits, 5 medic hits through nukes
+
 ### List of data types
 
 | Data Type identifier | Description | Value 1 | Value 2 | Value 3 | Value 4 | Value 5 |
@@ -194,7 +223,7 @@ Nuke detonation or nuke cancel will replace the original activation message.
 | 7 | Current hitpoints for a player | Player primary key | New number of hitpoints |   |   |   |
 | 8 | Event for the event scroller | Formatted event message |   |   |   |   |
 | 9 | Current player state | Player primary key ID | Numerical player state value |   |   |   |
-| 10 | Current missiles for a player | Player primary key | New number of missiles |   |   |   |
+| 10 | Current missiles for a player | Player primary key | New number of missiles | Number of missiles fired | Number of missiles landed  |   |
 | 11 | Current goals for a player | Player primary key | New number of goals |   |   |   |
 | 12 | Current assists for a player | Player primary key | New number of assists |   |   |   |
 | 13 | Current blocks for a player | Player primary key | New number of blocks |   |   |   |
@@ -213,6 +242,9 @@ Nuke detonation or nuke cancel will replace the original activation message.
 | 26 | New player ranking (typically all players in order of score within their team, highest first)  | Team primary key | Commma-separated list of player primary keys |   |   |   |
 | 27 | New team ranking (typically all teams in order of score, highest first)  | Commma-separated list of team primary keys |   |   |   |   |
 | 28 | Center where the game is played | Center ID (for example 4-43) | Center name (for example "Loveland" )  |   |   |
+| 29 | Current number of nukes activated | Player primary key | Number of nukes activated |  |  |
+| 30 | Current number of nukes detonated | Player primary key | Number of nukes detonated |  |  |
+| 31 | Current number of medic hits | Player primary key | Number of medic hits |  |  |
 | 98 | New game start - indicates previous session data should be erased |   |   |   |   |   |
 | 99 | The game is over - concludes stream for this game |   |   |   |   |   |
 

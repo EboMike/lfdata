@@ -296,6 +296,14 @@ the following elements:
 *   Player clears
 *   Player steals
 *   Player zaps
+*   Player medic hits
+*   Player shots fired
+*   Player shots landed
+*   Player accuracy
+*   Nukes activated
+*   Nukes detonated
+*   Player accuracy string (shown as "shots landed/shots fired (accuracy)", for
+    example "30/60 (50%)". Empty string if no shots fired.)
 
 Note that the content of a scorecard row is generally rendered in the
 color of the team.
@@ -331,6 +339,14 @@ following elements:
 *   Player special points
 *   Player profile picture
 *   Team logo
+*   Player medic hits
+*   Player shots fired
+*   Player shots landed
+*   Player accuracy
+*   Nukes activated
+*   Nukes detonated
+*   Player accuracy string (shown as "shots landed/shots fired (accuracy)", for
+    example "30/60 (50%)". Empty string if no shots fired.)
 
 ## UI configuration file
 

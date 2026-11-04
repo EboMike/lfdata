@@ -292,6 +292,8 @@ void VisualizationWindow::GenerateTeamScorecardCommands(
     const auto& team = it->second;
 
     const auto base_px_rect = RelativeToPixelRect(element.rect);
+    const float win_h = static_cast<float>(GetHeight());
+    const float unit_w = win_h * 16.0f / 9.0f;
     const float row_height_px = 32.0f;
     float current_y = base_px_rect[1];
 
@@ -301,9 +303,9 @@ void VisualizationWindow::GenerateTeamScorecardCommands(
     if (header_tmpl != nullptr && !header_tmpl->elements.empty()) {
         for (const auto& hel : header_tmpl->elements) {
             std::array<float, 4> hp_rect{
-                base_px_rect[0] + (hel.rect[0] * base_px_rect[2]),
+                base_px_rect[0] + (hel.rect[0] * unit_w),
                 current_y + (hel.rect[1] * row_height_px),
-                hel.rect[2] * base_px_rect[2],
+                hel.rect[2] * unit_w,
                 hel.rect[3] * row_height_px
             };
             TextComponent::GenerateCommands(
@@ -312,7 +314,7 @@ void VisualizationWindow::GenerateTeamScorecardCommands(
                 hp_rect,
                 team.rgb,
                 false,
-                static_cast<float>(GetHeight()),
+                win_h,
                 batch);
         }
         current_y += row_height_px + 4.0f + element.vertical_spacing;
@@ -366,9 +368,9 @@ void VisualizationWindow::GenerateTeamScorecardCommands(
         if (row_tmpl != nullptr && !row_tmpl->elements.empty()) {
             for (const auto& rel : row_tmpl->elements) {
                 std::array<float, 4> rpx_rect{
-                    base_px_rect[0] + (rel.rect[0] * base_px_rect[2]),
+                    base_px_rect[0] + (rel.rect[0] * unit_w),
                     row_y + (rel.rect[1] * row_height_px),
-                    rel.rect[2] * base_px_rect[2],
+                    rel.rect[2] * unit_w,
                     rel.rect[3] * row_height_px
                 };
                 TextComponent::GeneratePlayerElementCommands(
@@ -376,7 +378,7 @@ void VisualizationWindow::GenerateTeamScorecardCommands(
                     player,
                     team.rgb,
                     rpx_rect,
-                    static_cast<float>(GetHeight()),
+                    win_h,
                     batch);
             }
         } else {

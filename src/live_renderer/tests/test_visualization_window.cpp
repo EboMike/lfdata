@@ -540,6 +540,97 @@ TEST(VisualizationWindowTest, MovieComponentGeneratesMovieCommand) {
     EXPECT_FLOAT_EQ(batch.commands[0].playback_speed, 1.25f);
 }
 
+TEST(VisualizationWindowTest,
+     ScorecardTemplateElementsXOffsetUnaffectedByContainerWidthOrHeight) {
+    UIConfig ui;
+
+    TemplateConfig header_tmpl;
+    header_tmpl.id = 1;
+    header_tmpl.type = "scorecard_header_row";
+    ElementConfig h_text;
+    h_text.type = "user_text";
+    h_text.text = "ROSTER";
+    h_text.rect = {0.05f, 0.0f, 0.40f, 1.0f};
+    header_tmpl.elements.push_back(h_text);
+    ui.templates.push_back(header_tmpl);
+
+    TemplateConfig row_tmpl;
+    row_tmpl.id = 2;
+    row_tmpl.type = "scorecard_row";
+
+    ElementConfig p_name;
+    p_name.type = "player_name";
+    p_name.rect = {0.05f, 0.0f, 0.30f, 1.0f};
+    row_tmpl.elements.push_back(p_name);
+
+    ElementConfig p_score;
+    p_score.type = "player_score";
+    p_score.rect = {0.40f, 0.0f, 0.20f, 1.0f};
+    row_tmpl.elements.push_back(p_score);
+    ui.templates.push_back(row_tmpl);
+
+    // First window with container width = 0.50f, height = 0.40f
+    WindowConfig wcfg1;
+    wcfg1.id = 1;
+    wcfg1.rect = {0, 0, 1600, 900};
+    ElementConfig sc1;
+    sc1.type = "team_scorecard";
+    sc1.team_index = 1;
+    sc1.header_template_id = 1;
+    sc1.row_template_id = 2;
+    sc1.rect = {0.10f, 0.10f, 0.50f, 0.40f};
+    wcfg1.elements.push_back(sc1);
+
+    // Second window with same x, y, but different container width = 0.85f,
+    // and different container height = 0.75f
+    WindowConfig wcfg2;
+    wcfg2.id = 2;
+    wcfg2.rect = {0, 0, 1600, 900};
+    ElementConfig sc2;
+    sc2.type = "team_scorecard";
+    sc2.team_index = 1;
+    sc2.header_template_id = 1;
+    sc2.row_template_id = 2;
+    sc2.rect = {0.10f, 0.10f, 0.85f, 0.75f};
+    wcfg2.elements.push_back(sc2);
+
+    VisualizationWindow win1(wcfg1, ui);
+    VisualizationWindow win2(wcfg2, ui);
+
+    auto state = MockGameState::CreateMockSM5State();
+    auto batch1 = win1.GenerateBatch(state);
+    auto batch2 = win2.GenerateBatch(state);
+
+    ASSERT_EQ(batch1.commands.size(), batch2.commands.size());
+    ASSERT_FALSE(batch1.commands.empty());
+
+    const float win_h = 900.0f;
+    const float unit_w = win_h * 16.0f / 9.0f;  // 1600.0f
+    const float expected_header_x = (sc1.rect[0] + h_text.rect[0]) * unit_w;
+    const float expected_header_w = h_text.rect[2] * unit_w;
+    const float expected_name_x = (sc1.rect[0] + p_name.rect[0]) * unit_w;
+    const float expected_name_w = p_name.rect[2] * unit_w;
+    const float expected_score_x = (sc1.rect[0] + p_score.rect[0]) * unit_w;
+    const float expected_score_w = p_score.rect[2] * unit_w;
+
+    // Header command
+    EXPECT_FLOAT_EQ(batch1.commands[0].pixel_rect[0], expected_header_x);
+    EXPECT_FLOAT_EQ(batch1.commands[0].pixel_rect[2], expected_header_w);
+    EXPECT_FLOAT_EQ(batch2.commands[0].pixel_rect[0], expected_header_x);
+    EXPECT_FLOAT_EQ(batch2.commands[0].pixel_rect[2], expected_header_w);
+
+    // First player row commands (name at index 1, score at index 2)
+    EXPECT_FLOAT_EQ(batch1.commands[1].pixel_rect[0], expected_name_x);
+    EXPECT_FLOAT_EQ(batch1.commands[1].pixel_rect[2], expected_name_w);
+    EXPECT_FLOAT_EQ(batch2.commands[1].pixel_rect[0], expected_name_x);
+    EXPECT_FLOAT_EQ(batch2.commands[1].pixel_rect[2], expected_name_w);
+
+    EXPECT_FLOAT_EQ(batch1.commands[2].pixel_rect[0], expected_score_x);
+    EXPECT_FLOAT_EQ(batch1.commands[2].pixel_rect[2], expected_score_w);
+    EXPECT_FLOAT_EQ(batch2.commands[2].pixel_rect[0], expected_score_x);
+    EXPECT_FLOAT_EQ(batch2.commands[2].pixel_rect[2], expected_score_w);
+}
+
 
 
 
