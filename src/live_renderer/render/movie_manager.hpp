@@ -19,6 +19,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include "live_renderer/render/mf_video_reader.hpp"
 #include "live_renderer/render/render_batch.hpp"
 
 namespace live_renderer {
@@ -57,6 +58,7 @@ struct MovieClip {
     int active_frame_index = -1;
     int64_t last_time_ms = -1;
     double playback_clock_ms = 0.0;
+    std::unique_ptr<MfVideoReader> video_reader;
 };
 
 /**
@@ -139,7 +141,12 @@ class MovieManager {
         MovieClip& clip,
         int64_t current_time_ms,
         float playback_speed);
+    void UpdateVideoPlayback(
+        MovieClip& clip,
+        int64_t current_time_ms,
+        float playback_speed);
     void UploadActiveFrame(MovieClip& clip, int frame_index);
+    void UploadVideoFrame(MovieClip& clip);
 };
 
 }  // namespace live_renderer

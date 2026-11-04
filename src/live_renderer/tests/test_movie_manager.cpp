@@ -3,6 +3,7 @@
  * @brief Unit tests for MovieManager looped playback and frame tracking.
  */
 
+#include <filesystem>
 #include <gtest/gtest.h>
 #include "live_renderer/render/movie_manager.hpp"
 
@@ -94,6 +95,28 @@ TEST(MovieManagerTest, RenderMovieQuadHandlesFallbackSafely) {
     cmd.is_movie = true;
 
     EXPECT_NO_THROW(mm.RenderMovieQuad(cmd, 100));
+}
+
+TEST(MovieManagerTest, LoadsRealMp4VideoWhenPresent) {
+    const std::string video_path = "C:\\Users\\ebomi\\Videos\\Sequence 05.mp4";
+    if (!std::filesystem::exists(video_path)) {
+        GTEST_SKIP() << "Test video file not found, skipping real decode test.";
+    }
+
+    MovieManager mm;
+    int w = 0, h = 0;
+    EXPECT_TRUE(mm.GetMovieDimensions(video_path, w, h));
+    EXPECT_GT(w, 0);
+    EXPECT_GT(h, 0);
+
+    auto frame = mm.GetCurrentFrame(video_path, 0, 1.0f);
+    EXPECT_EQ(frame.width, w);
+    EXPECT_EQ(frame.height, h);
+
+    // Advance playback time
+    auto frame_later = mm.GetCurrentFrame(video_path, 500, 1.0f);
+    EXPECT_EQ(frame_later.width, w);
+    EXPECT_EQ(frame_later.height, h);
 }
 
 TEST(MovieManagerTest, UnloadAllClearsClips) {

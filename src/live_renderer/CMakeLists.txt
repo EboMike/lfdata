@@ -117,6 +117,7 @@ set(CORE_SOURCES
     render/render_geometry.cpp
     render/texture_manager.cpp
     render/movie_manager.cpp
+    render/mf_video_reader.cpp
     components/list_animation_tracker.cpp
     components/messages_display_tracker.cpp
     components/event_scroller_tracker.cpp
@@ -133,7 +134,9 @@ target_link_libraries(live_renderer_core PUBLIC
 )
 
 if(WIN32)
-    target_link_libraries(live_renderer_core PUBLIC ws2_32 comdlg32 dbghelp gdi32 advapi32)
+    target_link_libraries(live_renderer_core PUBLIC
+        ws2_32 comdlg32 dbghelp gdi32 advapi32
+        mfplat mfreadwrite mfuuid propsys)
 endif()
 
 # Tests
@@ -159,6 +162,7 @@ add_executable(live_renderer_tests
     tests/test_texture_fit.cpp
     tests/test_texture_manager.cpp
     tests/test_movie_manager.cpp
+    tests/test_mf_video_reader.cpp
     tests/test_list_animation_tracker.cpp
     tests/test_messages_display_tracker.cpp
     tests/test_event_scroller_tracker.cpp

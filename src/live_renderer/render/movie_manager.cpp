@@ -35,18 +35,23 @@ std::string MovieManager::ResolveAssetPath(
     if (asset_path.empty()) return "";
     namespace fs = std::filesystem;
 
-    if (fs::exists(asset_path)) {
-        return asset_path;
+    std::string clean = asset_path;
+    if (clean.size() >= 2 && clean.front() == '"' && clean.back() == '"') {
+        clean = clean.substr(1, clean.size() - 2);
     }
-    std::string candidate = "../" + asset_path;
+
+    if (fs::exists(clean)) {
+        return clean;
+    }
+    std::string candidate = "../" + clean;
     if (fs::exists(candidate)) {
         return candidate;
     }
-    candidate = "../../" + asset_path;
+    candidate = "../../" + clean;
     if (fs::exists(candidate)) {
         return candidate;
     }
-    return asset_path;
+    return clean;
 }
 
 bool MovieManager::LoadGifClip(
@@ -109,6 +114,15 @@ bool MovieManager::LoadGifClip(
 
 bool MovieManager::LoadClip(
     const std::string& resolved_path, MovieClip& out_clip) {
+    auto reader = std::make_unique<MfVideoReader>();
+    if (reader->Open(resolved_path)) {
+        out_clip.width = reader->GetWidth();
+        out_clip.height = reader->GetHeight();
+        out_clip.total_duration_ms = reader->GetDurationMs();
+        out_clip.video_reader = std::move(reader);
+        return true;
+    }
+
     if (LoadGifClip(resolved_path, out_clip)) {
         return true;
     }
@@ -140,6 +154,11 @@ void MovieManager::UpdateClipPlayback(
     MovieClip& clip,
     int64_t current_time_ms,
     float playback_speed) {
+    if (clip.video_reader) {
+        UpdateVideoPlayback(clip, current_time_ms, playback_speed);
+        return;
+    }
+
     if (clip.frames.empty() || clip.total_duration_ms <= 0) {
         return;
     }
@@ -176,6 +195,84 @@ void MovieManager::UpdateClipPlayback(
     if (target_frame != clip.active_frame_index || clip.texture_id == 0) {
         UploadActiveFrame(clip, target_frame);
     }
+}
+
+void MovieManager::UpdateVideoPlayback(
+    MovieClip& clip,
+    int64_t current_time_ms,
+    float playback_speed) {
+    if (!clip.video_reader || !clip.video_reader->IsOpen()) {
+        return;
+    }
+
+    const float speed = std::max(0.01f, playback_speed);
+    if (clip.last_time_ms < 0) {
+        clip.last_time_ms = current_time_ms;
+        clip.playback_clock_ms = 0.0;
+    } else {
+        const int64_t delta_ms = current_time_ms - clip.last_time_ms;
+        if (delta_ms > 0 && delta_ms < 2000) {
+            clip.playback_clock_ms += delta_ms * static_cast<double>(speed);
+        }
+        clip.last_time_ms = current_time_ms;
+    }
+
+    int64_t looped_ms = 0;
+    if (clip.total_duration_ms > 0) {
+        double m = std::fmod(
+            clip.playback_clock_ms,
+            static_cast<double>(clip.total_duration_ms));
+        if (m < 0.0) {
+            m += clip.total_duration_ms;
+        }
+        looped_ms = static_cast<int64_t>(m);
+    }
+
+    const bool new_frame = clip.video_reader->UpdateToTimeMs(looped_ms);
+    if (new_frame || clip.texture_id == 0) {
+        UploadVideoFrame(clip);
+    }
+}
+
+void MovieManager::UploadVideoFrame(MovieClip& clip) {
+    if (!clip.video_reader) return;
+    const auto& rgba = clip.video_reader->GetCurrentFrameRgba();
+    if (rgba.empty()) return;
+
+    if (clip.texture_id == 0) {
+        glGenTextures(1, &clip.texture_id);
+        glBindTexture(GL_TEXTURE_2D, clip.texture_id);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexImage2D(
+            GL_TEXTURE_2D,
+            0,
+            GL_RGBA,
+            clip.width,
+            clip.height,
+            0,
+            GL_RGBA,
+            GL_UNSIGNED_BYTE,
+            rgba.data());
+        glBindTexture(GL_TEXTURE_2D, 0);
+    } else {
+        glBindTexture(GL_TEXTURE_2D, clip.texture_id);
+        glTexSubImage2D(
+            GL_TEXTURE_2D,
+            0,
+            0,
+            0,
+            clip.width,
+            clip.height,
+            GL_RGBA,
+            GL_UNSIGNED_BYTE,
+            rgba.data());
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
+    clip.active_frame_index =
+        static_cast<int>(clip.video_reader->GetCurrentTimestampMs());
 }
 
 void MovieManager::UploadActiveFrame(MovieClip& clip, int frame_index) {
