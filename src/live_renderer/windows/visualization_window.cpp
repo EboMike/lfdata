@@ -722,7 +722,7 @@ void VisualizationWindow::GenerateGameScorecardCommands(
 
 void VisualizationWindow::RenderPlayerProfileCard(
     const TemplateConfig* profile_tmpl,
-    const PlayerState& player,
+    const PlayerSnapshot& player,
     const std::string& team_rgb,
     const std::array<float, 4>& card_px_rect,
     float win_h,
