@@ -273,6 +273,49 @@ void ElementPropertyInspector::RenderScorecardControls(
         if (ImGui::Combo("Header Template", &cur_hdr_idx, hdr_names.data(), static_cast<int>(hdr_names.size()))) {
             element.header_template_id = header_tmpls[cur_hdr_idx].first;
         }
+
+        // List change animation controls
+        static constexpr const char* const kChangeAnimations[] = {
+            "None",
+            "Linear",
+            "Ease-in-and-ease-out"
+        };
+        int anim_idx = 0;
+        if (element.change_animation == "linear") {
+            anim_idx = 1;
+        } else if (element.change_animation == "ease-in-and-ease-out") {
+            anim_idx = 2;
+        }
+
+        if (ImGui::Combo(
+                "List Change Animation",
+                &anim_idx,
+                kChangeAnimations,
+                IM_ARRAYSIZE(kChangeAnimations))) {
+            if (anim_idx == 1) {
+                element.change_animation = "linear";
+            } else if (anim_idx == 2) {
+                element.change_animation = "ease-in-and-ease-out";
+            } else {
+                element.change_animation = "none";
+            }
+        }
+
+        const bool is_none = (element.change_animation == "none" ||
+                              element.change_animation.empty());
+        if (is_none) {
+            ImGui::BeginDisabled();
+        }
+        ImGui::DragFloat(
+            "Animation Duration",
+            &element.animation_duration,
+            0.05f,
+            0.05f,
+            10.0f,
+            "%.2f s");
+        if (is_none) {
+            ImGui::EndDisabled();
+        }
     }
 }
 

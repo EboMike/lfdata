@@ -50,6 +50,13 @@ TEST(ConfigSerializerTest, RoundTripUIConfig) {
     timer.rect = {0.4f, 0.0f, 0.2f, 0.1f};
     timer.font_size = 36.0f;
     win.elements.push_back(timer);
+
+    ElementConfig scorecard;
+    scorecard.type = "team_scorecard";
+    scorecard.change_animation = "ease-in-and-ease-out";
+    scorecard.animation_duration = 0.75f;
+    win.elements.push_back(scorecard);
+
     ui.windows.push_back(win);
 
     std::string path = "test_ui_config.yaml";
@@ -66,8 +73,14 @@ TEST(ConfigSerializerTest, RoundTripUIConfig) {
     ASSERT_EQ(loaded.windows.size(), 1);
     EXPECT_EQ(loaded.windows[0].title, "Arena 1");
     EXPECT_EQ(loaded.windows[0].rect[2], 1920);
-    ASSERT_EQ(loaded.windows[0].elements.size(), 1);
+    ASSERT_EQ(loaded.windows[0].elements.size(), 2);
     EXPECT_EQ(loaded.windows[0].elements[0].type, "game_timer");
+    EXPECT_EQ(loaded.windows[0].elements[1].type, "team_scorecard");
+    EXPECT_EQ(
+        loaded.windows[0].elements[1].change_animation,
+        "ease-in-and-ease-out");
+    EXPECT_FLOAT_EQ(
+        loaded.windows[0].elements[1].animation_duration, 0.75f);
 
     std::filesystem::remove(path);
 }

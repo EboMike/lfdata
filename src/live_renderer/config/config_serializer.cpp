@@ -79,6 +79,12 @@ static ElementConfig ParseElementNode(const YAML::Node& node) {
     if (node["player_profile_template_id"]) {
         el.player_profile_template_id = node["player_profile_template_id"].as<int>();
     }
+    if (node["change_animation"]) {
+        el.change_animation = node["change_animation"].as<std::string>();
+    }
+    if (node["animation_duration"]) {
+        el.animation_duration = node["animation_duration"].as<float>();
+    }
     return el;
 }
 
@@ -107,6 +113,14 @@ static void EmitElementNode(YAML::Emitter& out, const ElementConfig& el) {
         if (el.header_template_id >= 0) out << YAML::Key << "header_template_id" << YAML::Value << el.header_template_id;
         if (el.player_profile_template_id >= 0) {
             out << YAML::Key << "player_profile_template_id" << YAML::Value << el.player_profile_template_id;
+        }
+        if (!el.change_animation.empty() && el.change_animation != "none") {
+            out << YAML::Key << "change_animation" << YAML::Value
+                << el.change_animation;
+        }
+        if (el.animation_duration != 0.5f) {
+            out << YAML::Key << "animation_duration" << YAML::Value
+                << el.animation_duration;
         }
     }
     out << YAML::EndMap;

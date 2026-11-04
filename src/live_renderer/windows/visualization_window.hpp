@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include "live_renderer/components/list_animation_tracker.hpp"
 #include "live_renderer/config/ui_config.hpp"
 #include "live_renderer/render/render_batch.hpp"
 #include "live_renderer/state/game_state_snapshot.hpp"
@@ -63,11 +64,13 @@ private:
         const ElementConfig& element,
         int team_id,
         const GameStateSnapshot& state,
+        int64_t current_time_ms,
         RenderBatch& batch) const;
 
     void GenerateGameScorecardCommands(
         const ElementConfig& element,
         const GameStateSnapshot& state,
+        int64_t current_time_ms,
         RenderBatch& batch) const;
 
     void GenerateEventScrollerCommands(
@@ -80,6 +83,7 @@ private:
 
     WindowConfig config_;
     const UIConfig& ui_config_;
+    mutable ListAnimationTracker list_animation_tracker_;
 };
 
 }  // namespace live_renderer

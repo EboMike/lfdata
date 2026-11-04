@@ -257,6 +257,65 @@ TEST(VisualizationWindowTest, RendersTemplateElementsAndPlayerRoleDirectly) {
     EXPECT_EQ(batch.commands[1].text, "AlphaCommander");
 }
 
+TEST(VisualizationWindowTest, AnimatesListOrderChanges) {
+    WindowConfig wcfg;
+    wcfg.id = 5;
+    wcfg.title = "Scorecard Animation";
+    wcfg.rect = {0, 0, 800, 600};
+
+    ElementConfig sc;
+    sc.type = "team_scorecard";
+    sc.team_index = 1;
+    sc.rect = {0.1f, 0.1f, 0.8f, 0.8f};
+    sc.change_animation = "linear";
+    sc.animation_duration = 1.0f;
+    wcfg.elements.push_back(sc);
+
+    UIConfig ui;
+    VisualizationWindow win(wcfg, ui);
+
+    // Initial state: team 1 players rankings: 11, 12, 13, 14, 15
+    auto state1 = MockGameState::CreateMockSM5State();
+    auto batch1 = win.GenerateBatch(state1, 0, -1);
+
+    float y11_initial = -1.0f;
+    float y12_initial = -1.0f;
+    for (const auto& cmd : batch1.commands) {
+        if (cmd.text == "AlphaCommander") y11_initial = cmd.pixel_rect[1];
+        if (cmd.text == "FireHeavy") y12_initial = cmd.pixel_rect[1];
+    }
+    ASSERT_GT(y11_initial, 0.0f);
+    ASSERT_GT(y12_initial, y11_initial);
+
+    // Swap rankings: player 12 is first, player 11 is second at t = 1000
+    auto state2 = state1;
+    state2.player_rankings_by_team[1] = {12, 11, 13, 14, 15};
+    win.GenerateBatch(state2, 1000, -1);
+
+    // Halfway through animation (t = 1500, elapsed = 500ms out of 1000ms)
+    auto batch2 = win.GenerateBatch(state2, 1500, -1);
+    float y11_mid = -1.0f;
+    float y12_mid = -1.0f;
+    for (const auto& cmd : batch2.commands) {
+        if (cmd.text == "AlphaCommander") y11_mid = cmd.pixel_rect[1];
+        if (cmd.text == "FireHeavy") y12_mid = cmd.pixel_rect[1];
+    }
+    float expected_mid = (y11_initial + y12_initial) * 0.5f;
+    EXPECT_NEAR(y11_mid, expected_mid, 1.0f);
+    EXPECT_NEAR(y12_mid, expected_mid, 1.0f);
+
+    // End of animation (t = 2000, elapsed = 1000ms)
+    auto batch3 = win.GenerateBatch(state2, 2000, -1);
+    float y11_final = -1.0f;
+    float y12_final = -1.0f;
+    for (const auto& cmd : batch3.commands) {
+        if (cmd.text == "AlphaCommander") y11_final = cmd.pixel_rect[1];
+        if (cmd.text == "FireHeavy") y12_final = cmd.pixel_rect[1];
+    }
+    EXPECT_FLOAT_EQ(y11_final, y12_initial);
+    EXPECT_FLOAT_EQ(y12_final, y11_initial);
+}
+
 
 
 

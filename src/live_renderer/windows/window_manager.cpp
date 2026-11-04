@@ -293,8 +293,7 @@ bool WindowManager::HandleEvent(
     const SDL_Event& event,
     bool is_editor_mode,
     UIEditorWindow* editor_window) {
-    // 1. In UI Editor Mode, handle mouse interactions for active
-    // window or template
+    // 1. In UI Editor Mode, handle mouse interactions for active window or template
     if (is_editor_mode && editor_window) {
         if (editor_window->IsEditingTemplate() &&
             template_instance_ && template_instance_->sdl_window) {
@@ -501,20 +500,12 @@ void WindowManager::RenderWindowBatch(
         }
 
         if (cmd.type == RenderCommand::Type::SolidQuad) {
-            const float rx = cmd.pixel_rect[0];
-            const float ry = cmd.pixel_rect[1];
-            const float rw = cmd.pixel_rect[2];
-            const float rh = cmd.pixel_rect[3];
-            glColor4f(
-                cmd.color_rgba[0],
-                cmd.color_rgba[1],
-                cmd.color_rgba[2],
-                cmd.color_rgba[3]);
+            glColor4f(cmd.color_rgba[0], cmd.color_rgba[1], cmd.color_rgba[2], cmd.color_rgba[3]);
             glBegin(GL_QUADS);
-            glVertex2f(rx, ry);
-            glVertex2f(rx + rw, ry);
-            glVertex2f(rx + rw, ry + rh);
-            glVertex2f(rx, ry + rh);
+            glVertex2f(cmd.pixel_rect[0], cmd.pixel_rect[1]);
+            glVertex2f(cmd.pixel_rect[0] + cmd.pixel_rect[2], cmd.pixel_rect[1]);
+            glVertex2f(cmd.pixel_rect[0] + cmd.pixel_rect[2], cmd.pixel_rect[1] + cmd.pixel_rect[3]);
+            glVertex2f(cmd.pixel_rect[0], cmd.pixel_rect[1] + cmd.pixel_rect[3]);
             glEnd();
         } else if (cmd.type == RenderCommand::Type::Text) {
             if (font_renderer_) {

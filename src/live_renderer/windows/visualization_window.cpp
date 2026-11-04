@@ -147,9 +147,10 @@ void VisualizationWindow::GenerateElementCommands(
         if (team_id <= 0 && !state.teams.empty()) {
             team_id = state.teams.begin()->first;
         }
-        GenerateTeamScorecardCommands(element, team_id, state, batch);
+        GenerateTeamScorecardCommands(
+            element, team_id, state, current_time_ms, batch);
     } else if (element.type == "game_scorecard") {
-        GenerateGameScorecardCommands(element, state, batch);
+        GenerateGameScorecardCommands(element, state, current_time_ms, batch);
     } else if (element.type == "event_scroller") {
         GenerateEventScrollerCommands(element, state, current_time_ms, batch);
     } else if (element.type == "player_profile_picture") {
@@ -219,6 +220,7 @@ void VisualizationWindow::GenerateTeamScorecardCommands(
     const ElementConfig& element,
     int team_id,
     const GameStateSnapshot& state,
+    int64_t current_time_ms,
     RenderBatch& batch) const {
     const auto it = state.teams.find(team_id);
     if (it == state.teams.end()) return;
@@ -229,7 +231,8 @@ void VisualizationWindow::GenerateTeamScorecardCommands(
     float current_y = base_px_rect[1];
 
     // Optional header template
-    const TemplateConfig* header_tmpl = FindTemplate(element.header_template_id);
+    const TemplateConfig* header_tmpl =
+        FindTemplate(element.header_template_id);
     if (header_tmpl != nullptr && !header_tmpl->elements.empty()) {
         for (const auto& hel : header_tmpl->elements) {
             std::array<float, 4> hp_rect{
@@ -250,6 +253,8 @@ void VisualizationWindow::GenerateTeamScorecardCommands(
         current_y += row_height_px + 4.0f;
     }
 
+    const float start_players_y = current_y;
+
     // Sorted player rows
     const PlayerSortOrder sort_order = (element.sort_order == "index")
         ? PlayerSortOrder::Index
@@ -259,16 +264,31 @@ void VisualizationWindow::GenerateTeamScorecardCommands(
 
     const TemplateConfig* row_tmpl = FindTemplate(element.row_template_id);
 
-    for (int pid : player_ids) {
+    const std::string list_key =
+        std::to_string(config_.id) + "_team_" + std::to_string(team_id);
+
+    for (size_t row_idx = 0; row_idx < player_ids.size(); ++row_idx) {
+        int pid = player_ids[row_idx];
         auto pit = state.players.find(pid);
         if (pit == state.players.end()) continue;
         const auto& player = pit->second;
+
+        const float target_row_y = start_players_y +
+            static_cast<float>(row_idx) * (row_height_px + 2.0f);
+
+        const float row_y = list_animation_tracker_.GetAnimatedPosition(
+            list_key,
+            pid,
+            target_row_y,
+            current_time_ms,
+            element.change_animation,
+            element.animation_duration);
 
         if (row_tmpl != nullptr && !row_tmpl->elements.empty()) {
             for (const auto& rel : row_tmpl->elements) {
                 std::array<float, 4> rpx_rect{
                     base_px_rect[0] + (rel.rect[0] * base_px_rect[2]),
-                    current_y + (rel.rect[1] * row_height_px),
+                    row_y + (rel.rect[1] * row_height_px),
                     rel.rect[2] * base_px_rect[2],
                     rel.rect[3] * row_height_px
                 };
@@ -288,7 +308,8 @@ void VisualizationWindow::GenerateTeamScorecardCommands(
             d_name_el.alignment = "left";
             TextComponent::GeneratePlayerElementCommands(
                 d_name_el, player, team.rgb,
-                {base_px_rect[0], current_y, base_px_rect[2] * 0.60f, row_height_px},
+                {base_px_rect[0], row_y, base_px_rect[2] * 0.60f,
+                 row_height_px},
                 static_cast<float>(GetHeight()), batch);
 
             ElementConfig d_score_el;
@@ -297,16 +318,17 @@ void VisualizationWindow::GenerateTeamScorecardCommands(
             d_score_el.alignment = "right";
             TextComponent::GeneratePlayerElementCommands(
                 d_score_el, player, team.rgb,
-                {base_px_rect[0] + base_px_rect[2] * 0.65f, current_y, base_px_rect[2] * 0.35f, row_height_px},
+                {base_px_rect[0] + base_px_rect[2] * 0.65f, row_y,
+                 base_px_rect[2] * 0.35f, row_height_px},
                 static_cast<float>(GetHeight()), batch);
         }
-        current_y += row_height_px + 2.0f;
     }
 }
 
 void VisualizationWindow::GenerateGameScorecardCommands(
     const ElementConfig& element,
     const GameStateSnapshot& state,
+    int64_t current_time_ms,
     RenderBatch& batch) const {
     const TeamSortOrder t_sort = (element.sort_order == "index")
         ? TeamSortOrder::Index
@@ -315,16 +337,32 @@ void VisualizationWindow::GenerateGameScorecardCommands(
     if (team_ids.empty()) return;
 
     const auto base_px_rect = RelativeToPixelRect(element.rect);
-    const float section_width_rel = 1.0f / static_cast<float>(team_ids.size());
+    const float section_width_rel =
+        1.0f / static_cast<float>(team_ids.size());
+
+    const std::string team_list_key =
+        std::to_string(config_.id) + "_game_teams";
 
     for (size_t i = 0; i < team_ids.size(); ++i) {
         ElementConfig sub_el = element;
         sub_el.team_index = team_ids[i];
         if (element.orientation == "horizontal") {
-            sub_el.rect[0] = element.rect[0] + (static_cast<float>(i) * section_width_rel * element.rect[2]);
+            const float target_rel_x =
+                element.rect[0] +
+                (static_cast<float>(i) * section_width_rel * element.rect[2]);
+            const float anim_rel_x =
+                list_animation_tracker_.GetAnimatedPosition(
+                    team_list_key,
+                    team_ids[i],
+                    target_rel_x,
+                    current_time_ms,
+                    element.change_animation,
+                    element.animation_duration);
+            sub_el.rect[0] = anim_rel_x;
             sub_el.rect[2] = section_width_rel * element.rect[2];
         }
-        GenerateTeamScorecardCommands(sub_el, team_ids[i], state, batch);
+        GenerateTeamScorecardCommands(
+            sub_el, team_ids[i], state, current_time_ms, batch);
     }
 }
 

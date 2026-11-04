@@ -283,10 +283,8 @@ void TextComponent::GeneratePlayerElementCommands(
         }
     }
 
-    const std::string state_color =
-        ScorecardHelper::GetRowTextColor(player, team_color);
-    const std::string text =
-        ResolvePlayerText(element.type, player, element.text);
+    const std::string state_color = ScorecardHelper::GetRowTextColor(player, team_color);
+    const std::string text = ResolvePlayerText(element.type, player, element.text);
 
     GenerateCommands(
         element,

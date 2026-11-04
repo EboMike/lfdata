@@ -113,6 +113,7 @@ set(CORE_SOURCES
     widgets/slider_float_with_input.cpp
     widgets/font_dialog.cpp
     render/texture_manager.cpp
+    components/list_animation_tracker.cpp
 )
 
 add_library(live_renderer_core STATIC ${CORE_SOURCES})
@@ -148,6 +149,7 @@ add_executable(live_renderer_tests
     tests/test_slider_float_with_input.cpp
     tests/test_font_dialog.cpp
     tests/test_texture_manager.cpp
+    tests/test_list_animation_tracker.cpp
 )
 target_link_libraries(live_renderer_tests PRIVATE
     live_renderer_core

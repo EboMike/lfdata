@@ -30,6 +30,9 @@ struct ElementConfig {
     int row_template_id = -1;                     // Template ID for scorecard row
     int header_template_id = -1;                  // Template ID for scorecard header row
     int player_profile_template_id = -1;          // Template ID for player profile
+    // Animation: "none", "linear", "ease-in-and-ease-out"
+    std::string change_animation = "none";
+    float animation_duration = 0.5f;              // Duration in seconds
 };
 
 /**

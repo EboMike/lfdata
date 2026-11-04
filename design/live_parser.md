@@ -167,6 +167,20 @@ Any event message (for example `PlayerA zaps PlayerB` will always format
 the player names so they are in the color of their team, for example
 `<font color="#ff0000">PlayerA</font> zaps <font color="#0000ff">PlayerB</font>`).
 
+### Important game event
+
+An important message that pertains to the game. Formatted in the same way
+as event messages.
+
+NOTE that every message has a sequential ID, but some messages can be replaced
+with newer text, for example:
+
+* ID 10: "Commander activates nuke"
+* ID 11: "Medic has been eliminated"
+* ID 10: "Commander detonates nuke"
+
+Nuke detonation or nuke cancel will replace the original activation message.
+
 ### List of data types
 
 | Data Type identifier | Description | Value 1 | Value 2 | Value 3 | Value 4 | Value 5 |
@@ -195,7 +209,7 @@ the player names so they are in the color of their team, for example
 | 22 | Description of a base | Base primary key | Base name | Base RGB |   |   |
 | 23 | New rapid fire state for a player | Player primary key | 1 = has rapid fire, 0 = doesn't have rapid fire |   |   |   |
 | 24 | `PRESYNC_END` - indicates concluding data for newly joined consumer |   |   |   |   |   |
-| 25 | Important game event (e.g. `Commander {name} has a nuke`) | Formatted event message |   |   |   |   |
+| 25 | Important game event (e.g. `Commander {name} has a nuke`) | Sequential game event ID | Formatted event message |   |   |   | 
 | 26 | New player ranking (typically all players in order of score within their team, highest first)  | Team primary key | Commma-separated list of player primary keys |   |   |   |
 | 27 | New team ranking (typically all teams in order of score, highest first)  | Commma-separated list of team primary keys |   |   |   |   |
 | 28 | Center where the game is played | Center ID (for example 4-43) | Center name (for example "Loveland" )  |   |   |
