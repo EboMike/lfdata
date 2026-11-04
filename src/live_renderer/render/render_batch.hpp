@@ -44,6 +44,7 @@ struct RenderCommand {
     std::array<float, 4> uv_rect{0.0f, 0.0f, 1.0f, 1.0f};
     bool is_movie = false;
     float playback_speed = 1.0f;
+    float corner_radius = 0.0f;
 };
 
 /**

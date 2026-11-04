@@ -9,6 +9,21 @@
 namespace live_renderer {
 
 /**
+ * @brief Configuration for element backgrounds (lists, scorecards, etc.).
+ */
+struct BackgroundConfig {
+    bool enabled = false;             // True if background is active
+    std::string color;                // Hex color (#RRGGBB or #RRGGBBAA)
+    std::string image_file;           // Path to image asset
+    std::string movie_file;           // Path to movie/video asset
+    std::string fit = "stretch";      // "stretch", "scale", "crop"
+    float playback_speed = 1.0f;      // Playback speed multiplier
+    float tint_team_color = 0.0f;     // Tint team color (0 to 1)
+    float opacity = 1.0f;             // 0.0 to 1.0
+    float corner_radius = 0.0f;       // Corner radius (scaled by win height)
+};
+
+/**
  * @brief Representation of an individual render element inside a template or window.
  */
 struct ElementConfig {
@@ -47,6 +62,7 @@ struct ElementConfig {
     int lines = 3;                                // Number of message lines
     float display_time = 4.0f;                    // Seconds shown before fade
     float fadeout_time = 1.0f;                    // Seconds to fade out
+    BackgroundConfig background;                  // Optional background
 };
 
 /**

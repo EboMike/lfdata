@@ -66,6 +66,8 @@ void ElementPropertyInspector::Render(
     ImGui::Spacing();
     RenderScorecardControls(element, ui_config);
     ImGui::Spacing();
+    RenderBackgroundControls(element);
+    ImGui::Spacing();
     RenderScrollerControls(element);
     ImGui::Spacing();
     RenderMessagesDisplayControls(element);
@@ -459,6 +461,85 @@ void ElementPropertyInspector::RenderScorecardControls(
         SliderFloatWithInput::Render(
             "Vertical Spacing", &element.vertical_spacing,
             -50.0f, 50.0f, "px");
+    }
+}
+
+void ElementPropertyInspector::RenderBackgroundControls(
+    ElementConfig& element) {
+    const bool is_container = (
+        element.type == "game_scorecard" ||
+        element.type == "team_scorecard" ||
+        element.type == "team_roster");
+
+    if (!is_container && !element.background.enabled) return;
+
+    if (ImGui::CollapsingHeader(
+            "Background", ImGuiTreeNodeFlags_DefaultOpen)) {
+        ImGui::Checkbox("Enable Background", &element.background.enabled);
+        if (element.background.enabled) {
+            float rgba[4]{};
+            ParseHexToRgba(element.background.color, rgba);
+            if (ImGui::ColorEdit3("Color##bg", rgba)) {
+                element.background.color = RgbaToHex(rgba);
+            }
+
+            char color_hex_buf[32]{};
+            std::snprintf(
+                color_hex_buf, sizeof(color_hex_buf), "%s",
+                element.background.color.c_str());
+            if (ImGui::InputText(
+                    "Hex Color##bg", color_hex_buf, sizeof(color_hex_buf))) {
+                element.background.color = color_hex_buf;
+            }
+
+            char img_buf[512]{};
+            std::snprintf(
+                img_buf, sizeof(img_buf), "%s",
+                element.background.image_file.c_str());
+            if (ImGui::InputText(
+                    "Image File##bg", img_buf, sizeof(img_buf))) {
+                element.background.image_file = img_buf;
+            }
+
+            char mov_buf[512]{};
+            std::snprintf(
+                mov_buf, sizeof(mov_buf), "%s",
+                element.background.movie_file.c_str());
+            if (ImGui::InputText(
+                    "Video File##bg", mov_buf, sizeof(mov_buf))) {
+                element.background.movie_file = mov_buf;
+            }
+
+            int fit_idx = 0;
+            if (element.background.fit == "scale") fit_idx = 1;
+            else if (element.background.fit == "crop") fit_idx = 2;
+            if (ImGui::Combo(
+                    "Fit##bg", &fit_idx, kFitModes, IM_ARRAYSIZE(kFitModes))) {
+                element.background.fit = kFitModes[fit_idx];
+            }
+
+            if (!element.background.movie_file.empty()) {
+                ImGui::DragFloat(
+                    "Playback Speed##bg",
+                    &element.background.playback_speed,
+                    0.1f, 0.1f, 5.0f, "%.2fx");
+            }
+
+            ImGui::SliderFloat(
+                "Tint Team Color##bg",
+                &element.background.tint_team_color,
+                0.0f, 1.0f, "%.2f");
+
+            ImGui::SliderFloat(
+                "Opacity##bg",
+                &element.background.opacity,
+                0.0f, 1.0f, "%.2f");
+
+            ImGui::DragFloat(
+                "Corner Radius##bg",
+                &element.background.corner_radius,
+                0.5f, 0.0f, 100.0f, "%.1f px");
+        }
     }
 }
 

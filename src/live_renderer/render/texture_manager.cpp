@@ -4,6 +4,7 @@
  */
 
 #include "live_renderer/render/texture_manager.hpp"
+#include "live_renderer/render/render_geometry.hpp"
 #include "live_renderer/render/texture_fit.hpp"
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -165,12 +166,10 @@ void TextureManager::RenderTexturedQuad(const RenderCommand& cmd) {
             cmd.color_rgba[1],
             cmd.color_rgba[2],
             alpha * cmd.color_rgba[3]);
-        glBegin(GL_QUADS);
-        glTexCoord2f(u0, v0); glVertex2f(x, y);
-        glTexCoord2f(u1, v0); glVertex2f(x + w, y);
-        glTexCoord2f(u1, v1); glVertex2f(x + w, y + h);
-        glTexCoord2f(u0, v1); glVertex2f(x, y + h);
-        glEnd();
+        RenderGeometry::DrawTexturedQuad(
+            {x, y, w, h},
+            {u0, v0, u1, v1},
+            cmd.corner_radius);
         glBindTexture(GL_TEXTURE_2D, 0);
         glDisable(GL_TEXTURE_2D);
     } else {

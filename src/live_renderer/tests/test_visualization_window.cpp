@@ -717,6 +717,87 @@ TEST(VisualizationWindowTest,
     EXPECT_FLOAT_EQ(batch2.commands[2].pixel_rect[2], expected_score_w);
 }
 
+TEST(VisualizationWindowTest, RendersTeamScorecardBackgroundUnderneath) {
+    UIConfig ui;
+    WindowConfig wcfg;
+    wcfg.id = 1;
+    wcfg.rect = {0, 0, 1600, 800};
+
+    ElementConfig sc;
+    sc.type = "team_scorecard";
+    sc.team_index = 1;
+    sc.rect = {0.1f, 0.1f, 0.5f, 0.8f};
+    sc.background.enabled = true;
+    sc.background.color = "#FF0000";
+    sc.background.image_file = "assets/bg.png";
+    sc.background.movie_file = "assets/bg.mp4";
+    sc.background.fit = "crop";
+    sc.background.playback_speed = 1.2f;
+    sc.background.tint_team_color = 0.5f;
+    sc.background.opacity = 0.8f;
+    sc.background.corner_radius = 16.0f;
+    wcfg.elements.push_back(sc);
+
+    VisualizationWindow win(wcfg, ui);
+    auto state = MockGameState::CreateMockSM5State();
+    auto batch = win.GenerateBatch(state);
+
+    // Commands should start with background commands immediately underneath:
+    // 1. Solid quad with color #FF0000 and 0.8 opacity
+    ASSERT_GE(batch.commands.size(), 3u);
+    EXPECT_EQ(batch.commands[0].type, RenderCommand::Type::SolidQuad);
+    EXPECT_FLOAT_EQ(batch.commands[0].color_rgba[0], 1.0f);
+    EXPECT_FLOAT_EQ(batch.commands[0].color_rgba[1], 0.0f);
+    EXPECT_FLOAT_EQ(batch.commands[0].color_rgba[2], 0.0f);
+    EXPECT_FLOAT_EQ(batch.commands[0].color_rgba[3], 0.8f);
+    EXPECT_FLOAT_EQ(batch.commands[0].corner_radius, 16.0f);
+
+    // 2. Video quad
+    EXPECT_EQ(batch.commands[1].type, RenderCommand::Type::TexturedQuad);
+    EXPECT_TRUE(batch.commands[1].is_movie);
+    EXPECT_EQ(batch.commands[1].texture_asset, "assets/bg.mp4");
+    EXPECT_EQ(batch.commands[1].fit, "crop");
+    EXPECT_FLOAT_EQ(batch.commands[1].playback_speed, 1.2f);
+    EXPECT_FLOAT_EQ(batch.commands[1].opacity, 0.8f);
+    EXPECT_FLOAT_EQ(batch.commands[1].corner_radius, 16.0f);
+
+    // 3. Image quad
+    EXPECT_EQ(batch.commands[2].type, RenderCommand::Type::TexturedQuad);
+    EXPECT_FALSE(batch.commands[2].is_movie);
+    EXPECT_EQ(batch.commands[2].texture_asset, "assets/bg.png");
+    EXPECT_EQ(batch.commands[2].fit, "crop");
+    EXPECT_FLOAT_EQ(batch.commands[2].opacity, 0.8f);
+    EXPECT_FLOAT_EQ(batch.commands[2].corner_radius, 16.0f);
+}
+
+TEST(VisualizationWindowTest, RendersGameScorecardBackgroundOnceUnderneath) {
+    UIConfig ui;
+    WindowConfig wcfg;
+    wcfg.id = 2;
+    wcfg.rect = {0, 0, 1600, 800};
+
+    ElementConfig gsc;
+    gsc.type = "game_scorecard";
+    gsc.rect = {0.05f, 0.05f, 0.9f, 0.9f};
+    gsc.background.enabled = true;
+    gsc.background.color = "#0000FF";
+    gsc.background.opacity = 1.0f;
+    gsc.background.corner_radius = 10.0f;
+    wcfg.elements.push_back(gsc);
+
+    VisualizationWindow win(wcfg, ui);
+    auto state = MockGameState::CreateMockSM5State();
+    auto batch = win.GenerateBatch(state);
+
+    ASSERT_GE(batch.commands.size(), 1u);
+    EXPECT_EQ(batch.commands[0].type, RenderCommand::Type::SolidQuad);
+    EXPECT_FLOAT_EQ(batch.commands[0].color_rgba[0], 0.0f);
+    EXPECT_FLOAT_EQ(batch.commands[0].color_rgba[1], 0.0f);
+    EXPECT_FLOAT_EQ(batch.commands[0].color_rgba[2], 1.0f);
+    EXPECT_FLOAT_EQ(batch.commands[0].corner_radius, 10.0f);
+}
+
+
 
 
 

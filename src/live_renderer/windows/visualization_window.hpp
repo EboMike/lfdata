@@ -92,6 +92,13 @@ private:
         int64_t current_time_ms,
         RenderBatch& batch) const;
 
+    void GenerateBackgroundCommands(
+        const BackgroundConfig& bg,
+        const std::array<float, 4>& pixel_rect,
+        int team_id,
+        const GameStateSnapshot& state,
+        RenderBatch& batch) const;
+
     const TemplateConfig* FindTemplate(int template_id) const;
     ElementConfig ResolveElementFont(const ElementConfig& element) const;
     float ComputeTeamScorecardHeightPx(

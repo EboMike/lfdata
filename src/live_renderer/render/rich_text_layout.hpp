@@ -56,6 +56,16 @@ public:
         float vertical_spacing, float window_height) {
         return vertical_spacing * (window_height / 800.0f);
     }
+
+    /**
+     * @brief Computes scaled pixel corner radius relative to window height.
+     *        A corner radius of 10 will take up 10px in a window that is 800
+     *        pixels high, and scales proportionally with window height.
+     */
+    static float ComputePixelCornerRadius(
+        float corner_radius, float window_height) {
+        return corner_radius * (window_height / 800.0f);
+    }
 };
 
 }  // namespace live_renderer

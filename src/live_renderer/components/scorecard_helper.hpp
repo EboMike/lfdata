@@ -49,6 +49,13 @@ public:
     static std::array<float, 4> ComputeTeamTint(
         const std::string& team_rgb,
         float tint_amount);
+
+    /**
+     * @brief Parses a hex color string (#RGB, #RRGGBB, #RRGGBBAA) into RGBA.
+     */
+    static std::array<float, 4> ParseHexColor(
+        const std::string& hex,
+        float default_alpha = 1.0f);
 };
 
 }  // namespace live_renderer

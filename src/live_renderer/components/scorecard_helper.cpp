@@ -142,5 +142,31 @@ std::array<float, 4> ScorecardHelper::ComputeTeamTint(
     };
 }
 
+std::array<float, 4> ScorecardHelper::ParseHexColor(
+    const std::string& hex,
+    float default_alpha) {
+    if (hex.empty() || hex[0] != '#') {
+        return {1.0f, 1.0f, 1.0f, default_alpha};
+    }
+    try {
+        if (hex.size() == 7) {
+            int r = std::stoi(hex.substr(1, 2), nullptr, 16);
+            int g = std::stoi(hex.substr(3, 2), nullptr, 16);
+            int b = std::stoi(hex.substr(5, 2), nullptr, 16);
+            return {r / 255.0f, g / 255.0f, b / 255.0f, default_alpha};
+        }
+        if (hex.size() == 9) {
+            int r = std::stoi(hex.substr(1, 2), nullptr, 16);
+            int g = std::stoi(hex.substr(3, 2), nullptr, 16);
+            int b = std::stoi(hex.substr(5, 2), nullptr, 16);
+            int a = std::stoi(hex.substr(7, 2), nullptr, 16);
+            return {r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f};
+        }
+    } catch (...) {
+        return {1.0f, 1.0f, 1.0f, default_alpha};
+    }
+    return {1.0f, 1.0f, 1.0f, default_alpha};
+}
+
 }  // namespace live_renderer
 

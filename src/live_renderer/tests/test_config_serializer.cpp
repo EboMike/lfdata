@@ -59,6 +59,15 @@ TEST(ConfigSerializerTest, RoundTripUIConfig) {
     scorecard.team_change_animation = "ease-in-and-ease-out";
     scorecard.team_animation_duration = 0.8f;
     scorecard.vertical_spacing = 6.0f;
+    scorecard.background.enabled = true;
+    scorecard.background.color = "#112233";
+    scorecard.background.image_file = "assets/bg.png";
+    scorecard.background.movie_file = "assets/bg.mp4";
+    scorecard.background.fit = "crop";
+    scorecard.background.playback_speed = 0.5f;
+    scorecard.background.tint_team_color = 0.8f;
+    scorecard.background.opacity = 0.9f;
+    scorecard.background.corner_radius = 8.0f;
     win.elements.push_back(scorecard);
 
     ElementConfig msgs;
@@ -114,6 +123,21 @@ TEST(ConfigSerializerTest, RoundTripUIConfig) {
         loaded.windows[0].elements[1].team_animation_duration, 0.8f);
     EXPECT_FLOAT_EQ(
         loaded.windows[0].elements[1].vertical_spacing, 6.0f);
+    EXPECT_TRUE(loaded.windows[0].elements[1].background.enabled);
+    EXPECT_EQ(loaded.windows[0].elements[1].background.color, "#112233");
+    EXPECT_EQ(
+        loaded.windows[0].elements[1].background.image_file, "assets/bg.png");
+    EXPECT_EQ(
+        loaded.windows[0].elements[1].background.movie_file, "assets/bg.mp4");
+    EXPECT_EQ(loaded.windows[0].elements[1].background.fit, "crop");
+    EXPECT_FLOAT_EQ(
+        loaded.windows[0].elements[1].background.playback_speed, 0.5f);
+    EXPECT_FLOAT_EQ(
+        loaded.windows[0].elements[1].background.tint_team_color, 0.8f);
+    EXPECT_FLOAT_EQ(
+        loaded.windows[0].elements[1].background.opacity, 0.9f);
+    EXPECT_FLOAT_EQ(
+        loaded.windows[0].elements[1].background.corner_radius, 8.0f);
     EXPECT_EQ(loaded.windows[0].elements[2].type, "important_game_messages");
     EXPECT_EQ(loaded.windows[0].elements[2].lines, 5);
     EXPECT_FLOAT_EQ(loaded.windows[0].elements[2].display_time, 6.0f);

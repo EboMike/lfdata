@@ -139,6 +139,16 @@ void VisualizationWindow::GenerateElementCommands(
     const float font_size_px = RichTextLayout::ComputePixelFontSize(
         resolved_el.font_size, static_cast<float>(GetHeight()));
 
+    if (resolved_el.type != "team_scorecard" &&
+        resolved_el.type != "game_scorecard") {
+        GenerateBackgroundCommands(
+            resolved_el.background,
+            px_rect,
+            resolved_el.team_index,
+            state,
+            batch);
+    }
+
     if (resolved_el.type == "user_text") {
         TextComponent::GenerateUserTextCommands(
             resolved_el, state, px_rect, static_cast<float>(GetHeight()), batch);
@@ -262,6 +272,77 @@ void VisualizationWindow::GenerateElementCommands(
     }
 }
 
+void VisualizationWindow::GenerateBackgroundCommands(
+    const BackgroundConfig& bg,
+    const std::array<float, 4>& pixel_rect,
+    int team_id,
+    const GameStateSnapshot& state,
+    RenderBatch& batch) const {
+    if (!bg.enabled && bg.color.empty() && bg.image_file.empty() &&
+        bg.movie_file.empty()) {
+        return;
+    }
+
+    const float win_h = static_cast<float>(GetHeight());
+    const float scaled_radius =
+        RichTextLayout::ComputePixelCornerRadius(bg.corner_radius, win_h);
+    const float alpha = std::clamp(bg.opacity, 0.0f, 1.0f);
+
+    std::string team_rgb;
+    if (team_id > 0) {
+        auto tit = state.teams.find(team_id);
+        if (tit != state.teams.end()) {
+            team_rgb = tit->second.rgb;
+        }
+    }
+
+    // 1. Solid color background
+    if (!bg.color.empty()) {
+        auto rgba = ScorecardHelper::ParseHexColor(bg.color, 1.0f);
+        rgba[3] *= alpha;
+        RenderCommand cmd;
+        cmd.type = RenderCommand::Type::SolidQuad;
+        cmd.pixel_rect = pixel_rect;
+        cmd.color_rgba = rgba;
+        cmd.corner_radius = scaled_radius;
+        batch.commands.push_back(cmd);
+    }
+
+    // 2. Video background
+    if (!bg.movie_file.empty()) {
+        RenderCommand cmd;
+        cmd.type = RenderCommand::Type::TexturedQuad;
+        cmd.pixel_rect = pixel_rect;
+        cmd.texture_asset = bg.movie_file;
+        cmd.opacity = alpha;
+        cmd.fit = bg.fit.empty() ? "stretch" : bg.fit;
+        cmd.is_movie = true;
+        cmd.playback_speed = bg.playback_speed;
+        cmd.corner_radius = scaled_radius;
+        if (bg.tint_team_color > 0.0f && !team_rgb.empty()) {
+            cmd.color_rgba = ScorecardHelper::ComputeTeamTint(
+                team_rgb, bg.tint_team_color);
+        }
+        batch.commands.push_back(cmd);
+    }
+
+    // 3. Image background
+    if (!bg.image_file.empty()) {
+        RenderCommand cmd;
+        cmd.type = RenderCommand::Type::TexturedQuad;
+        cmd.pixel_rect = pixel_rect;
+        cmd.texture_asset = bg.image_file;
+        cmd.opacity = alpha;
+        cmd.fit = bg.fit.empty() ? "stretch" : bg.fit;
+        cmd.corner_radius = scaled_radius;
+        if (bg.tint_team_color > 0.0f && !team_rgb.empty()) {
+            cmd.color_rgba = ScorecardHelper::ComputeTeamTint(
+                team_rgb, bg.tint_team_color);
+        }
+        batch.commands.push_back(cmd);
+    }
+}
+
 void VisualizationWindow::GenerateGameTimerCommands(
     const ElementConfig& element,
     const GameStateSnapshot& state,
@@ -328,6 +409,9 @@ void VisualizationWindow::GenerateTeamScorecardCommands(
     const auto& team = it->second;
 
     const auto base_px_rect = RelativeToPixelRect(element.rect);
+    GenerateBackgroundCommands(
+        element.background, base_px_rect, team_id, state, batch);
+
     const float win_h = static_cast<float>(GetHeight());
     const float unit_w = win_h * 16.0f / 9.0f;
     const float row_height_px = 32.0f;
@@ -529,6 +613,9 @@ void VisualizationWindow::GenerateGameScorecardCommands(
     if (team_ids.empty()) return;
 
     const auto base_px_rect = RelativeToPixelRect(element.rect);
+    GenerateBackgroundCommands(
+        element.background, base_px_rect, -1, state, batch);
+
     const float win_h = static_cast<float>(GetHeight());
     const std::string team_list_key =
         std::to_string(config_.id) + "_game_teams";
@@ -553,6 +640,7 @@ void VisualizationWindow::GenerateGameScorecardCommands(
         for (size_t i = 0; i < team_ids.size(); ++i) {
             ElementConfig sub_el = element;
             sub_el.team_index = team_ids[i];
+            sub_el.background = {};
             const float target_rel_x =
                 element.rect[0] +
                 (static_cast<float>(i) * section_width_rel * element.rect[2]);
@@ -577,6 +665,7 @@ void VisualizationWindow::GenerateGameScorecardCommands(
         for (size_t i = 0; i < team_ids.size(); ++i) {
             ElementConfig sub_el = element;
             sub_el.team_index = team_ids[i];
+            sub_el.background = {};
 
             const float target_rel_y = curr_px_y / win_h;
             const float anim_rel_y =

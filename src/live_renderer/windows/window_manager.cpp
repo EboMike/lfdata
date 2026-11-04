@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <chrono>
 #include <iostream>
+#include "live_renderer/render/render_geometry.hpp"
 #include "live_renderer/windows/ui_editor_window.hpp"
 
 namespace live_renderer {
@@ -505,13 +506,8 @@ void WindowManager::RenderWindowBatch(
         }
 
         if (cmd.type == RenderCommand::Type::SolidQuad) {
-            glColor4f(cmd.color_rgba[0], cmd.color_rgba[1], cmd.color_rgba[2], cmd.color_rgba[3]);
-            glBegin(GL_QUADS);
-            glVertex2f(cmd.pixel_rect[0], cmd.pixel_rect[1]);
-            glVertex2f(cmd.pixel_rect[0] + cmd.pixel_rect[2], cmd.pixel_rect[1]);
-            glVertex2f(cmd.pixel_rect[0] + cmd.pixel_rect[2], cmd.pixel_rect[1] + cmd.pixel_rect[3]);
-            glVertex2f(cmd.pixel_rect[0], cmd.pixel_rect[1] + cmd.pixel_rect[3]);
-            glEnd();
+            RenderGeometry::DrawSolidQuad(
+                cmd.pixel_rect, cmd.color_rgba, cmd.corner_radius);
         } else if (cmd.type == RenderCommand::Type::Text) {
             if (font_renderer_) {
                 font_renderer_->RenderText(cmd, current_time_ms);

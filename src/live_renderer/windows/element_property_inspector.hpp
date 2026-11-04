@@ -45,6 +45,7 @@ private:
     void RenderImageControls(ElementConfig& element);
     void RenderMovieControls(ElementConfig& element);
     void RenderScorecardControls(ElementConfig& element, const UIConfig& ui_config);
+    void RenderBackgroundControls(ElementConfig& element);
     void RenderScrollerControls(ElementConfig& element);
     void RenderMessagesDisplayControls(ElementConfig& element);
 };

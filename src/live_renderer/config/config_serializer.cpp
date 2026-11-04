@@ -125,6 +125,37 @@ static ElementConfig ParseElementNode(const YAML::Node& node) {
     if (node["fadeout_time"]) {
         el.fadeout_time = node["fadeout_time"].as<float>();
     }
+    if (node["background"] && node["background"].IsMap()) {
+        const auto& bg = node["background"];
+        el.background.enabled = true;
+        if (bg["enabled"]) {
+            el.background.enabled = bg["enabled"].as<bool>();
+        }
+        if (bg["color"]) {
+            el.background.color = bg["color"].as<std::string>();
+        }
+        if (bg["image_file"]) {
+            el.background.image_file = bg["image_file"].as<std::string>();
+        }
+        if (bg["movie_file"]) {
+            el.background.movie_file = bg["movie_file"].as<std::string>();
+        }
+        if (bg["fit"]) {
+            el.background.fit = bg["fit"].as<std::string>();
+        }
+        if (bg["playback_speed"]) {
+            el.background.playback_speed = bg["playback_speed"].as<float>();
+        }
+        if (bg["tint_team_color"]) {
+            el.background.tint_team_color = bg["tint_team_color"].as<float>();
+        }
+        if (bg["opacity"]) {
+            el.background.opacity = bg["opacity"].as<float>();
+        }
+        if (bg["corner_radius"]) {
+            el.background.corner_radius = bg["corner_radius"].as<float>();
+        }
+    }
     return el;
 }
 
@@ -191,6 +222,42 @@ static void EmitElementNode(YAML::Emitter& out, const ElementConfig& el) {
     if (el.vertical_spacing != 0.0f) {
         out << YAML::Key << "vertical_spacing"
             << YAML::Value << el.vertical_spacing;
+    }
+    const auto& bg = el.background;
+    if (bg.enabled || !bg.color.empty() || !bg.image_file.empty() ||
+        !bg.movie_file.empty()) {
+        out << YAML::Key << "background" << YAML::Value << YAML::BeginMap;
+        if (bg.enabled) {
+            out << YAML::Key << "enabled" << YAML::Value << bg.enabled;
+        }
+        if (!bg.color.empty()) {
+            out << YAML::Key << "color" << YAML::Value << bg.color;
+        }
+        if (!bg.image_file.empty()) {
+            out << YAML::Key << "image_file" << YAML::Value << bg.image_file;
+        }
+        if (!bg.movie_file.empty()) {
+            out << YAML::Key << "movie_file" << YAML::Value << bg.movie_file;
+        }
+        if (!bg.fit.empty() && bg.fit != "stretch") {
+            out << YAML::Key << "fit" << YAML::Value << bg.fit;
+        }
+        if (bg.playback_speed != 1.0f) {
+            out << YAML::Key << "playback_speed" << YAML::Value
+                << bg.playback_speed;
+        }
+        if (bg.tint_team_color > 0.0f) {
+            out << YAML::Key << "tint_team_color" << YAML::Value
+                << bg.tint_team_color;
+        }
+        if (bg.opacity != 1.0f) {
+            out << YAML::Key << "opacity" << YAML::Value << bg.opacity;
+        }
+        if (bg.corner_radius > 0.0f) {
+            out << YAML::Key << "corner_radius" << YAML::Value
+                << bg.corner_radius;
+        }
+        out << YAML::EndMap;
     }
     if (el.type == "important_game_messages" ||
         el.type == "messages_display") {

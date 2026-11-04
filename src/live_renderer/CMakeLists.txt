@@ -113,6 +113,7 @@ set(CORE_SOURCES
     widgets/slider_float_with_input.cpp
     widgets/font_dialog.cpp
     render/texture_fit.cpp
+    render/render_geometry.cpp
     render/texture_manager.cpp
     render/movie_manager.cpp
     components/list_animation_tracker.cpp
@@ -159,6 +160,7 @@ add_executable(live_renderer_tests
     tests/test_list_animation_tracker.cpp
     tests/test_messages_display_tracker.cpp
     tests/test_event_scroller_tracker.cpp
+    tests/test_render_geometry.cpp
 )
 target_link_libraries(live_renderer_tests PRIVATE
     live_renderer_core
