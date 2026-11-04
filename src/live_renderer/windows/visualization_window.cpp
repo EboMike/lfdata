@@ -152,6 +152,46 @@ void VisualizationWindow::GenerateElementCommands(
         GenerateGameScorecardCommands(element, state, batch);
     } else if (element.type == "event_scroller") {
         GenerateEventScrollerCommands(element, state, current_time_ms, batch);
+    } else if (element.type == "player_profile_picture") {
+        RenderCommand cmd;
+        cmd.type = RenderCommand::Type::TexturedQuad;
+        cmd.pixel_rect = px_rect;
+        cmd.texture_asset = element.image_file.empty()
+            ? "assets/sm5/commander.png" : element.image_file;
+        cmd.opacity = element.opacity;
+        batch.commands.push_back(cmd);
+    } else if (element.type == "team_logo") {
+        RenderCommand cmd;
+        cmd.type = RenderCommand::Type::TexturedQuad;
+        cmd.pixel_rect = px_rect;
+        cmd.texture_asset = element.image_file.empty()
+            ? "assets/ball.png" : element.image_file;
+        cmd.opacity = element.opacity;
+        batch.commands.push_back(cmd);
+    } else {
+        // Player elements: player_name, player_role, player_score, etc.
+        PlayerSnapshot sample_player{
+            11, "AlphaCommander", "#101", 1, "commander",
+            8200, 12, 45, 3, 20, 2, 0, false};
+        std::string team_color = "#FF5000";
+
+        for (const auto& [pid, p] : state.players) {
+            if (!p.is_dummy) {
+                sample_player = p;
+                auto tit = state.teams.find(p.team_id);
+                if (tit != state.teams.end()) {
+                    team_color = tit->second.rgb;
+                }
+                break;
+            }
+        }
+        TextComponent::GeneratePlayerElementCommands(
+            element,
+            sample_player,
+            team_color,
+            px_rect,
+            static_cast<float>(GetHeight()),
+            batch);
     }
 }
 

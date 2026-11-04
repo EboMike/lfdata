@@ -168,3 +168,44 @@ TEST(TextComponentTest, InlineImageRunInText) {
     EXPECT_EQ(batch.commands[2].text, " Rank");
 }
 
+TEST(TextComponentTest, PlayerRoleVisualizesAsImageInSM5) {
+    EXPECT_EQ(
+        TextComponent::GetRoleImageAsset("Commander"),
+        "assets/sm5/commander.png");
+    EXPECT_EQ(
+        TextComponent::GetRoleImageAsset("heavy"),
+        "assets/sm5/heavy.png");
+    EXPECT_EQ(
+        TextComponent::GetRoleImageAsset("Scout"),
+        "assets/sm5/scout.png");
+    EXPECT_EQ(
+        TextComponent::GetRoleImageAsset("Medic"),
+        "assets/sm5/medic.png");
+    EXPECT_EQ(
+        TextComponent::GetRoleImageAsset("Ammo Carrier"),
+        "assets/sm5/ammo.png");
+    EXPECT_EQ(
+        TextComponent::GetRoleImageAsset("ammo"),
+        "assets/sm5/ammo.png");
+    EXPECT_EQ(
+        TextComponent::GetRoleImageAsset(""),
+        "assets/sm5/commander.png");
+
+    ElementConfig el;
+    el.type = "player_role";
+    el.font_size = 20.0f;
+    el.opacity = 0.95f;
+
+    PlayerSnapshot p;
+    p.role = "heavy";
+
+    RenderBatch batch;
+    TextComponent::GeneratePlayerElementCommands(
+        el, p, "#FF5000", {50.0f, 100.0f, 60.0f, 30.0f}, 720.0f, batch);
+
+    ASSERT_EQ(batch.commands.size(), 1u);
+    EXPECT_EQ(batch.commands[0].type, RenderCommand::Type::TexturedQuad);
+    EXPECT_EQ(batch.commands[0].texture_asset, "assets/sm5/heavy.png");
+    EXPECT_FLOAT_EQ(batch.commands[0].opacity, 0.95f);
+}
+

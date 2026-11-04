@@ -22,6 +22,14 @@ public:
     ~TextComponent() = default;
 
     /**
+     * @brief Resolves the role icon PNG asset path for a player role in SM5.
+     *
+     * @param role Role name string (e.g. "Commander", "heavy", "ammo carrier").
+     * @return Path to role PNG asset in assets/sm5/.
+     */
+    static std::string GetRoleImageAsset(std::string_view role);
+
+    /**
      * @brief Resolves raw string value for a player template element.
      *
      * Formats player names, scores, lives, shots/ammo, missiles, special points,

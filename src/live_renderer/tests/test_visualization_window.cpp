@@ -227,6 +227,36 @@ TEST(VisualizationWindowTest, EventScrollerPropertiesAndTilt) {
     }
 }
 
+TEST(VisualizationWindowTest, RendersTemplateElementsAndPlayerRoleDirectly) {
+    WindowConfig wcfg;
+    wcfg.id = 99;
+    wcfg.title = "Template Window";
+    wcfg.rect = {0, 0, 800, 200};
+
+    ElementConfig role_el;
+    role_el.type = "player_role";
+    role_el.rect = {0.05f, 0.1f, 0.2f, 0.8f};
+    wcfg.elements.push_back(role_el);
+
+    ElementConfig name_el;
+    name_el.type = "player_name";
+    name_el.rect = {0.3f, 0.1f, 0.6f, 0.8f};
+    wcfg.elements.push_back(name_el);
+
+    UIConfig ui;
+    VisualizationWindow win(wcfg, ui);
+
+    auto state = MockGameState::CreateMockSM5State();
+    auto batch = win.GenerateBatch(state, 0, -1);
+
+    ASSERT_GE(batch.commands.size(), 2u);
+    EXPECT_EQ(batch.commands[0].type, RenderCommand::Type::TexturedQuad);
+    EXPECT_EQ(batch.commands[0].texture_asset, "assets/sm5/commander.png");
+
+    EXPECT_EQ(batch.commands[1].type, RenderCommand::Type::Text);
+    EXPECT_EQ(batch.commands[1].text, "AlphaCommander");
+}
+
 
 
 

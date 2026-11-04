@@ -107,3 +107,36 @@ TEST(WindowManagerTest, AppliesStoredPreferencesOnStartup) {
         std::filesystem::remove(temp_prefs_path);
     }
 }
+
+TEST(WindowManagerTest, SyncsAndRendersTemplateWindow) {
+    UIConfig ui;
+    TemplateConfig tmpl;
+    tmpl.id = 10;
+    tmpl.name = "ScorecardRow";
+    tmpl.type = "scorecard_row";
+    ElementConfig el;
+    el.type = "player_role";
+    el.rect = {0.05f, 0.05f, 0.2f, 0.9f};
+    tmpl.elements.push_back(el);
+    ui.templates.push_back(tmpl);
+
+    WindowManager mgr(ui, nullptr);
+    EXPECT_EQ(mgr.GetTemplateWindow(), nullptr);
+
+    mgr.SyncTemplateWindow(10, &tmpl);
+    if (mgr.GetTemplateSdlWindow()) {
+        EXPECT_NE(mgr.GetTemplateWindow(), nullptr);
+        EXPECT_EQ(mgr.GetTemplateWindow()->GetConfig().elements.size(), 1u);
+        EXPECT_EQ(
+            mgr.GetTemplateWindow()->GetConfig().elements[0].type,
+            "player_role");
+    }
+
+    mgr.SyncTemplateWindow(-1, nullptr);
+    if (mgr.GetTemplateSdlWindow()) {
+        Uint32 flags = SDL_GetWindowFlags(mgr.GetTemplateSdlWindow());
+        EXPECT_TRUE(
+            (flags & SDL_WINDOW_SHOWN) == 0 ||
+            (flags & SDL_WINDOW_HIDDEN) != 0);
+    }
+}

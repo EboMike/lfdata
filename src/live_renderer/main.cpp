@@ -147,7 +147,9 @@ int main(int argc, char* argv[]) {
     ImGui_ImplOpenGL3_Init(glsl_version);
 
     // Initialize all visualization windows from UI config on startup
-    live_renderer::WindowManager window_manager(ui_cfg, gl_context, &pref_manager);
+    live_renderer::WindowManager window_manager(
+        ui_cfg, gl_context, &pref_manager);
+    window_manager.SetMainWindow(main_window);
 
     control_window.SetCallbacks({
         .on_reconnect = []() {},

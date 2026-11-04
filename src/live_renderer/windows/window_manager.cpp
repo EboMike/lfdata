@@ -19,11 +19,16 @@ WindowManager::WindowManager(
     : ui_config_(ui_config),
       shared_gl_context_(shared_gl_context),
       preferences_manager_(preferences_manager),
-      font_renderer_(std::make_unique<FontRenderer>()) {
+      font_renderer_(std::make_unique<FontRenderer>()),
+      texture_manager_(std::make_unique<TextureManager>()) {
     SyncWithConfig(ui_config_);
 }
 
 WindowManager::~WindowManager() {
+    if (template_instance_) {
+        DestroyWindowInstance(*template_instance_);
+        template_instance_.reset();
+    }
     for (auto& instance : instances_) {
         DestroyWindowInstance(instance);
     }
@@ -201,40 +206,165 @@ void WindowManager::SyncWithConfig(const UIConfig& ui_config) {
     }
 }
 
+void WindowManager::SyncTemplateWindow(
+    int active_template_id, const TemplateConfig* tmpl) {
+    if (active_template_id < 0 || tmpl == nullptr) {
+        if (template_instance_ && template_instance_->sdl_window) {
+            SDL_HideWindow(template_instance_->sdl_window);
+        }
+        return;
+    }
+
+    if (!template_instance_ || !template_instance_->sdl_window) {
+        int w = (tmpl->type == "player_profile" ? 500 : 700);
+        int h = (tmpl->type == "player_profile" ? 500 : 140);
+        int x = SDL_WINDOWPOS_CENTERED;
+        int y = SDL_WINDOWPOS_CENTERED;
+
+        if (main_control_window_) {
+            int mx = 0, my = 0, mw = 0, mh = 0;
+            SDL_GetWindowPosition(main_control_window_, &mx, &my);
+            SDL_GetWindowSize(main_control_window_, &mw, &mh);
+            x = mx + mw + 20;
+            y = my;
+        }
+
+        if (preferences_manager_) {
+            const auto* pref =
+                preferences_manager_->GetWindowPreference(-1000);
+            if (pref) {
+                x = pref->x;
+                y = pref->y;
+                w = std::max(100, pref->width);
+                h = std::max(50, pref->height);
+            }
+        }
+
+        Uint32 flags = SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE |
+                       SDL_WINDOW_ALLOW_HIGHDPI;
+        std::string title = "LF Live Renderer - Template: " + tmpl->name;
+
+        SDL_Window* sdl_win = SDL_CreateWindow(
+            title.c_str(), x, y, w, h, flags);
+        if (!sdl_win) {
+            std::cerr << "[WindowManager] Failed to create template window: "
+                      << SDL_GetError() << "\n";
+            return;
+        }
+
+        SDL_GLContext gl_ctx = nullptr;
+        if (shared_gl_context_) {
+            SDL_GL_SetAttribute(SDL_GL_SHARE_WITH_CURRENT_CONTEXT, 1);
+            gl_ctx = SDL_GL_CreateContext(sdl_win);
+        }
+
+        WindowConfig cfg;
+        cfg.id = -1000;
+        cfg.title = tmpl->name;
+        cfg.rect = {x, y, w, h};
+        cfg.elements = tmpl->elements;
+
+        template_instance_ = std::make_unique<WindowInstance>();
+        template_instance_->id = -1000;
+        template_instance_->sdl_window = sdl_win;
+        template_instance_->gl_context = gl_ctx;
+        template_instance_->vis_window =
+            std::make_unique<VisualizationWindow>(cfg, ui_config_);
+        template_instance_->is_minimized = false;
+    } else {
+        std::string title = "LF Live Renderer - Template: " + tmpl->name;
+        SDL_SetWindowTitle(template_instance_->sdl_window, title.c_str());
+
+        int cur_w = 0, cur_h = 0;
+        SDL_GetWindowSize(template_instance_->sdl_window, &cur_w, &cur_h);
+        WindowConfig cfg = template_instance_->vis_window->GetConfig();
+        cfg.title = tmpl->name;
+        if (cur_w > 0 && cur_h > 0) {
+            cfg.rect[2] = cur_w;
+            cfg.rect[3] = cur_h;
+        }
+        cfg.elements = tmpl->elements;
+        template_instance_->vis_window->SetConfig(cfg);
+        SDL_ShowWindow(template_instance_->sdl_window);
+    }
+}
+
 bool WindowManager::HandleEvent(
     const SDL_Event& event,
     bool is_editor_mode,
     UIEditorWindow* editor_window) {
-    // 1. In UI Editor Mode, handle mouse interactions for the active visualization window
-    if (is_editor_mode && editor_window && !editor_window->IsEditingTemplate()) {
-        int active_idx = editor_window->GetActiveWindowIndex();
-        if (active_idx >= 0 && active_idx < static_cast<int>(instances_.size())) {
-            auto& active_inst = instances_[active_idx];
-            if (active_inst.sdl_window) {
-                Uint32 active_win_id = SDL_GetWindowID(active_inst.sdl_window);
-                Uint32 event_win_id = 0;
-                if (event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEBUTTONUP) {
-                    event_win_id = event.button.windowID;
-                } else if (event.type == SDL_MOUSEMOTION) {
-                    event_win_id = event.motion.windowID;
+    // 1. In UI Editor Mode, handle mouse interactions for active
+    // window or template
+    if (is_editor_mode && editor_window) {
+        if (editor_window->IsEditingTemplate() &&
+            template_instance_ && template_instance_->sdl_window) {
+            Uint32 tmpl_win_id =
+                SDL_GetWindowID(template_instance_->sdl_window);
+            Uint32 event_win_id = 0;
+            if (event.type == SDL_MOUSEBUTTONDOWN ||
+                event.type == SDL_MOUSEBUTTONUP) {
+                event_win_id = event.button.windowID;
+            } else if (event.type == SDL_MOUSEMOTION) {
+                event_win_id = event.motion.windowID;
+            }
+
+            if (event_win_id == tmpl_win_id) {
+                int sel_idx = editor_window->GetSelectedElementIndex();
+                int win_w = 0, win_h = 0;
+                SDL_GetWindowSize(
+                    template_instance_->sdl_window, &win_w, &win_h);
+                if (win_w <= 0 || win_h <= 0) {
+                    win_w = template_instance_->vis_window->GetWidth();
+                    win_h = template_instance_->vis_window->GetHeight();
                 }
+                auto& elements = editor_window->GetActiveElements();
 
-                if (event_win_id == active_win_id) {
-                    int sel_idx = editor_window->GetSelectedElementIndex();
-                    int win_w = 0, win_h = 0;
-                    SDL_GetWindowSize(active_inst.sdl_window, &win_w, &win_h);
-                    if (win_w <= 0 || win_h <= 0) {
-                        win_w = active_inst.vis_window->GetWidth();
-                        win_h = active_inst.vis_window->GetHeight();
+                bool handled = editor_interaction_.HandleSdlEvent(
+                    event, win_w, win_h, elements, sel_idx);
+                if (handled) {
+                    editor_window->SetSelectedElementIndex(sel_idx);
+                    WindowConfig cfg =
+                        template_instance_->vis_window->GetConfig();
+                    cfg.elements = elements;
+                    template_instance_->vis_window->SetConfig(cfg);
+                    return true;
+                }
+            }
+        } else if (!editor_window->IsEditingTemplate()) {
+            int active_idx = editor_window->GetActiveWindowIndex();
+            if (active_idx >= 0 &&
+                active_idx < static_cast<int>(instances_.size())) {
+                auto& active_inst = instances_[active_idx];
+                if (active_inst.sdl_window) {
+                    Uint32 active_win_id =
+                        SDL_GetWindowID(active_inst.sdl_window);
+                    Uint32 event_win_id = 0;
+                    if (event.type == SDL_MOUSEBUTTONDOWN ||
+                        event.type == SDL_MOUSEBUTTONUP) {
+                        event_win_id = event.button.windowID;
+                    } else if (event.type == SDL_MOUSEMOTION) {
+                        event_win_id = event.motion.windowID;
                     }
-                    auto& elements = editor_window->GetActiveElements();
 
-                    bool handled = editor_interaction_.HandleSdlEvent(
-                        event, win_w, win_h, elements, sel_idx);
-                    if (handled) {
-                        editor_window->SetSelectedElementIndex(sel_idx);
-                        active_inst.vis_window->SetConfig(ui_config_.windows[active_idx]);
-                        return true;
+                    if (event_win_id == active_win_id) {
+                        int sel_idx = editor_window->GetSelectedElementIndex();
+                        int win_w = 0, win_h = 0;
+                        SDL_GetWindowSize(
+                            active_inst.sdl_window, &win_w, &win_h);
+                        if (win_w <= 0 || win_h <= 0) {
+                            win_w = active_inst.vis_window->GetWidth();
+                            win_h = active_inst.vis_window->GetHeight();
+                        }
+                        auto& elements = editor_window->GetActiveElements();
+
+                        bool handled = editor_interaction_.HandleSdlEvent(
+                            event, win_w, win_h, elements, sel_idx);
+                        if (handled) {
+                            editor_window->SetSelectedElementIndex(sel_idx);
+                            active_inst.vis_window->SetConfig(
+                                ui_config_.windows[active_idx]);
+                            return true;
+                        }
                     }
                 }
             }
@@ -243,6 +373,35 @@ bool WindowManager::HandleEvent(
 
     if (event.type != SDL_WINDOWEVENT) {
         return false;
+    }
+
+    // Handle template window events
+    if (template_instance_ && template_instance_->sdl_window &&
+        SDL_GetWindowID(template_instance_->sdl_window) ==
+            event.window.windowID) {
+        if (event.window.event == SDL_WINDOWEVENT_CLOSE) {
+            if (editor_window) {
+                editor_window->DoneWithTemplate();
+            }
+            SDL_HideWindow(template_instance_->sdl_window);
+            return true;
+        } else if (event.window.event == SDL_WINDOWEVENT_MOVED ||
+                   event.window.event == SDL_WINDOWEVENT_RESIZED ||
+                   event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
+            if (preferences_manager_) {
+                preferences_manager_->CaptureWindow(
+                    -1000, template_instance_->sdl_window);
+            }
+            int w = 0, h = 0;
+            SDL_GetWindowSize(template_instance_->sdl_window, &w, &h);
+            if (w > 0 && h > 0) {
+                WindowConfig cfg = template_instance_->vis_window->GetConfig();
+                cfg.rect[2] = w;
+                cfg.rect[3] = h;
+                template_instance_->vis_window->SetConfig(cfg);
+            }
+            return true;
+        }
     }
 
     for (auto& inst : instances_) {
@@ -342,16 +501,28 @@ void WindowManager::RenderWindowBatch(
         }
 
         if (cmd.type == RenderCommand::Type::SolidQuad) {
-            glColor4f(cmd.color_rgba[0], cmd.color_rgba[1], cmd.color_rgba[2], cmd.color_rgba[3]);
+            const float rx = cmd.pixel_rect[0];
+            const float ry = cmd.pixel_rect[1];
+            const float rw = cmd.pixel_rect[2];
+            const float rh = cmd.pixel_rect[3];
+            glColor4f(
+                cmd.color_rgba[0],
+                cmd.color_rgba[1],
+                cmd.color_rgba[2],
+                cmd.color_rgba[3]);
             glBegin(GL_QUADS);
-            glVertex2f(cmd.pixel_rect[0], cmd.pixel_rect[1]);
-            glVertex2f(cmd.pixel_rect[0] + cmd.pixel_rect[2], cmd.pixel_rect[1]);
-            glVertex2f(cmd.pixel_rect[0] + cmd.pixel_rect[2], cmd.pixel_rect[1] + cmd.pixel_rect[3]);
-            glVertex2f(cmd.pixel_rect[0], cmd.pixel_rect[1] + cmd.pixel_rect[3]);
+            glVertex2f(rx, ry);
+            glVertex2f(rx + rw, ry);
+            glVertex2f(rx + rw, ry + rh);
+            glVertex2f(rx, ry + rh);
             glEnd();
         } else if (cmd.type == RenderCommand::Type::Text) {
             if (font_renderer_) {
                 font_renderer_->RenderText(cmd, current_time_ms);
+            }
+        } else if (cmd.type == RenderCommand::Type::TexturedQuad) {
+            if (texture_manager_) {
+                texture_manager_->RenderTexturedQuad(cmd);
             }
         }
 
@@ -375,19 +546,58 @@ void WindowManager::RenderAllWindows(
         std::chrono::duration_cast<std::chrono::milliseconds>(
             now_steady).count();
 
+    if (is_editor_mode && active_editor_template_id >= 0) {
+        for (auto& inst : instances_) {
+            if (inst.sdl_window) {
+                SDL_HideWindow(inst.sdl_window);
+            }
+        }
+
+        const TemplateConfig* tmpl = nullptr;
+        for (const auto& t : ui_config_.templates) {
+            if (t.id == active_editor_template_id) {
+                tmpl = &t;
+                break;
+            }
+        }
+
+        if (tmpl) {
+            SyncTemplateWindow(active_editor_template_id, tmpl);
+            if (template_instance_ && template_instance_->sdl_window) {
+                WindowConfig cfg =
+                    template_instance_->vis_window->GetConfig();
+                cfg.elements = tmpl->elements;
+                template_instance_->vis_window->SetConfig(cfg);
+
+                SDL_GLContext ctx = template_instance_->gl_context
+                                        ? template_instance_->gl_context
+                                        : shared_gl_context_;
+                if (ctx) {
+                    SDL_GL_MakeCurrent(template_instance_->sdl_window, ctx);
+                    RenderBatch batch =
+                        template_instance_->vis_window->GenerateBatch(
+                            state, now_ms, selected_element_index);
+                    RenderWindowBatch(*template_instance_, batch, now_ms);
+                }
+            }
+        }
+        return;
+    }
+
+    if (template_instance_ && template_instance_->sdl_window) {
+        SDL_HideWindow(template_instance_->sdl_window);
+    }
+
     for (size_t i = 0; i < instances_.size(); ++i) {
         auto& inst = instances_[i];
         if (!inst.sdl_window) continue;
 
         Uint32 flags = SDL_GetWindowFlags(inst.sdl_window);
-        bool minimized = inst.is_minimized || ((flags & SDL_WINDOW_MINIMIZED) != 0);
+        bool minimized =
+            inst.is_minimized || ((flags & SDL_WINDOW_MINIMIZED) != 0);
 
-        // In UI Editor Mode, only one window is shown at a time (or none if editing a template)
+        // In UI Editor Mode, only one window is shown at a time
         if (is_editor_mode) {
-            if (active_editor_template_id >= 0) {
-                SDL_HideWindow(inst.sdl_window);
-                continue;
-            }
             if (static_cast<int>(i) != active_editor_window_index) {
                 SDL_HideWindow(inst.sdl_window);
                 continue;
@@ -411,13 +621,17 @@ void WindowManager::RenderAllWindows(
             continue;
         }
 
-        SDL_GLContext ctx = inst.gl_context ? inst.gl_context : shared_gl_context_;
+        SDL_GLContext ctx =
+            inst.gl_context ? inst.gl_context : shared_gl_context_;
         if (ctx) {
             SDL_GL_MakeCurrent(inst.sdl_window, ctx);
-            const int highlight_elem = (is_editor_mode && static_cast<int>(i) == active_editor_window_index)
-                ? selected_element_index
-                : -1;
-            RenderBatch batch = inst.vis_window->GenerateBatch(state, now_ms, highlight_elem);
+            const int highlight_elem =
+                (is_editor_mode &&
+                 static_cast<int>(i) == active_editor_window_index)
+                    ? selected_element_index
+                    : -1;
+            RenderBatch batch =
+                inst.vis_window->GenerateBatch(state, now_ms, highlight_elem);
             RenderWindowBatch(inst, batch, now_ms);
         }
     }

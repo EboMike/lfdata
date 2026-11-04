@@ -13,6 +13,7 @@
 #include "live_renderer/config/preferences_manager.hpp"
 #include "live_renderer/config/ui_config.hpp"
 #include "live_renderer/render/font_renderer.hpp"
+#include "live_renderer/render/texture_manager.hpp"
 #include "live_renderer/state/game_state_snapshot.hpp"
 #include "live_renderer/windows/ui_editor_interaction.hpp"
 #include "live_renderer/windows/visualization_window.hpp"
@@ -126,6 +127,44 @@ public:
     void RestoreWindow(size_t index);
 
     /**
+     * @brief Sets the anchor main control window pointer for placement.
+     *
+     * @param main_window Pointer to main SDL_Window.
+     */
+    void SetMainWindow(SDL_Window* main_window) {
+        main_control_window_ = main_window;
+    }
+
+    /**
+     * @brief Gets the active template visualization window pointer.
+     *
+     * @return Pointer to template VisualizationWindow or nullptr if none.
+     */
+    VisualizationWindow* GetTemplateWindow() const {
+        return template_instance_
+            ? template_instance_->vis_window.get()
+            : nullptr;
+    }
+
+    /**
+     * @brief Gets the underlying SDL_Window pointer for the template editor.
+     *
+     * @return Pointer to template SDL_Window, or nullptr if none.
+     */
+    SDL_Window* GetTemplateSdlWindow() const {
+        return template_instance_ ? template_instance_->sdl_window : nullptr;
+    }
+
+    /**
+     * @brief Synchronizes the template editor visualization window.
+     *
+     * @param active_template_id Template ID being edited, or -1 to hide.
+     * @param tmpl Optional pointer to TemplateConfig.
+     */
+    void SyncTemplateWindow(
+        int active_template_id, const TemplateConfig* tmpl);
+
+    /**
      * @brief Sets or updates the preferences manager.
      *
      * @param preferences_manager Pointer to PreferencesManager.
@@ -193,10 +232,13 @@ private:
 
     const UIConfig& ui_config_;
     SDL_GLContext shared_gl_context_ = nullptr;
+    SDL_Window* main_control_window_ = nullptr;
     PreferencesManager* preferences_manager_ = nullptr;
     std::vector<WindowInstance> instances_;
+    std::unique_ptr<WindowInstance> template_instance_;
     std::vector<std::unique_ptr<VisualizationWindow>> windows_;
     std::unique_ptr<FontRenderer> font_renderer_;
+    std::unique_ptr<TextureManager> texture_manager_;
     UIEditorInteraction editor_interaction_;
 };
 

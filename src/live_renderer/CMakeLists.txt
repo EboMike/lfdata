@@ -61,6 +61,14 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(imgui)
 
+# stb
+FetchContent_Declare(
+    stb
+    GIT_REPOSITORY https://github.com/nothings/stb.git
+    GIT_TAG master
+)
+FetchContent_MakeAvailable(stb)
+
 find_package(OpenGL REQUIRED)
 
 add_library(imgui_sdl_gl3 STATIC
@@ -104,11 +112,13 @@ set(CORE_SOURCES
     diagnostics/crash_handler.cpp
     widgets/slider_float_with_input.cpp
     widgets/font_dialog.cpp
+    render/texture_manager.cpp
 )
 
 add_library(live_renderer_core STATIC ${CORE_SOURCES})
 target_include_directories(live_renderer_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${stb_SOURCE_DIR}
 )
 target_link_libraries(live_renderer_core PUBLIC
     yaml-cpp::yaml-cpp
@@ -137,6 +147,7 @@ add_executable(live_renderer_tests
     tests/test_crash_handler.cpp
     tests/test_slider_float_with_input.cpp
     tests/test_font_dialog.cpp
+    tests/test_texture_manager.cpp
 )
 target_link_libraries(live_renderer_tests PRIVATE
     live_renderer_core

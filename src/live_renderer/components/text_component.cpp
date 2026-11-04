@@ -209,6 +209,35 @@ void TextComponent::GenerateUserTextCommands(
         batch);
 }
 
+std::string TextComponent::GetRoleImageAsset(std::string_view role) {
+    if (role.empty()) return "assets/sm5/commander.png";
+
+    std::string lower_role;
+    lower_role.reserve(role.size());
+    for (char c : role) {
+        lower_role.push_back(
+            static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+    }
+
+    if (lower_role.find("ammo") != std::string::npos) {
+        return "assets/sm5/ammo.png";
+    }
+    if (lower_role.find("commander") != std::string::npos) {
+        return "assets/sm5/commander.png";
+    }
+    if (lower_role.find("heavy") != std::string::npos) {
+        return "assets/sm5/heavy.png";
+    }
+    if (lower_role.find("scout") != std::string::npos) {
+        return "assets/sm5/scout.png";
+    }
+    if (lower_role.find("medic") != std::string::npos) {
+        return "assets/sm5/medic.png";
+    }
+
+    return "assets/sm5/" + lower_role + ".png";
+}
+
 void TextComponent::GeneratePlayerElementCommands(
     const ElementConfig& element,
     const PlayerSnapshot& player,
@@ -216,27 +245,48 @@ void TextComponent::GeneratePlayerElementCommands(
     const std::array<float, 4>& pixel_rect,
     float window_height,
     RenderBatch& batch) {
-    // If element is player_role and has role icon without custom text, render role image
-    if (element.type == "player_role" && !player.role.empty() && element.text.empty()) {
-        const float font_size_px = RichTextLayout::ComputePixelFontSize(
-            element.font_size > 0.0f ? element.font_size : 20.0f,
-            window_height);
-        RenderCommand cmd;
-        cmd.type = RenderCommand::Type::TexturedQuad;
-        cmd.pixel_rect = {
-            pixel_rect[0],
-            pixel_rect[1] + (pixel_rect[3] - font_size_px) * 0.5f,
-            font_size_px,
-            font_size_px
-        };
-        cmd.texture_asset = "assets/sm5/" + player.role + ".png";
-        cmd.opacity = element.opacity;
-        batch.commands.push_back(cmd);
-        return;
+    // In SM5, player_role is visualized with an image from assets/sm5/
+    if (element.type == "player_role") {
+        std::string role_name = player.role.empty() ? "commander" : player.role;
+        std::string role_asset = GetRoleImageAsset(role_name);
+        if (!role_asset.empty()) {
+            const float font_size_px = RichTextLayout::ComputePixelFontSize(
+                element.font_size > 0.0f ? element.font_size : 20.0f,
+                window_height);
+
+            float icon_size = std::min(pixel_rect[2], pixel_rect[3]);
+            if (icon_size <= 0.0f || icon_size > pixel_rect[3]) {
+                icon_size = pixel_rect[3];
+            }
+            if (icon_size > font_size_px * 1.5f && font_size_px > 0.0f) {
+                icon_size = font_size_px * 1.2f;
+            }
+
+            float icon_x = pixel_rect[0];
+            const std::string align =
+                element.alignment.empty() ? "left" : element.alignment;
+            if (align == "center") {
+                icon_x += std::max(0.0f, (pixel_rect[2] - icon_size) * 0.5f);
+            } else if (align == "right") {
+                icon_x += std::max(0.0f, pixel_rect[2] - icon_size);
+            }
+            const float icon_y =
+                pixel_rect[1] + (pixel_rect[3] - icon_size) * 0.5f;
+
+            RenderCommand cmd;
+            cmd.type = RenderCommand::Type::TexturedQuad;
+            cmd.pixel_rect = {icon_x, icon_y, icon_size, icon_size};
+            cmd.texture_asset = role_asset;
+            cmd.opacity = element.opacity;
+            batch.commands.push_back(cmd);
+            return;
+        }
     }
 
-    const std::string state_color = ScorecardHelper::GetRowTextColor(player, team_color);
-    const std::string text = ResolvePlayerText(element.type, player, element.text);
+    const std::string state_color =
+        ScorecardHelper::GetRowTextColor(player, team_color);
+    const std::string text =
+        ResolvePlayerText(element.type, player, element.text);
 
     GenerateCommands(
         element,
