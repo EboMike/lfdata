@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include "live_renderer/components/text_component.hpp"
+#include "live_renderer/render/font_renderer.hpp"
 #include "live_renderer/state/mock_game_state.hpp"
 
 using namespace live_renderer;
@@ -234,4 +235,45 @@ TEST(TextComponentTest, MultilineTextWithVerticalSpacing) {
     EXPECT_FLOAT_EQ(batch.commands[1].pixel_rect[1], 125.0f);
     EXPECT_FLOAT_EQ(batch.commands[2].pixel_rect[1], 150.0f);
 }
+
+TEST(TextComponentTest, MultiRunSegmentsAlignWithFontMetrics) {
+    ElementConfig el;
+    el.type = "user_text";
+    el.font = "Anton-Regular";
+    el.font_size = 20.0f;
+    el.alignment = "left";
+
+    std::string msg =
+        "<font color=\"#ff0000\">PlayerA</font> zaps "
+        "<font color=\"#0000ff\">PlayerB</font>";
+
+    RenderBatch batch;
+    TextComponent::GenerateCommands(
+        el,
+        msg,
+        {50.0f, 100.0f, 600.0f, 30.0f},
+        "#ffffff",
+        false,
+        800.0f,
+        batch);
+
+    ASSERT_EQ(batch.commands.size(), 3u);
+    EXPECT_EQ(batch.commands[0].text, "PlayerA");
+    EXPECT_EQ(batch.commands[1].text, " zaps ");
+    EXPECT_EQ(batch.commands[2].text, "PlayerB");
+
+    float w_playera = FontRenderer::MeasureText(
+        "PlayerA", "Anton-Regular", 20.0f);
+    float w_zaps = FontRenderer::MeasureText(
+        " zaps ", "Anton-Regular", 20.0f);
+
+    EXPECT_GT(w_playera, 0.0f);
+    EXPECT_GT(w_zaps, 0.0f);
+
+    EXPECT_FLOAT_EQ(batch.commands[0].pixel_rect[0], 50.0f);
+    EXPECT_FLOAT_EQ(batch.commands[1].pixel_rect[0], 50.0f + w_playera);
+    EXPECT_FLOAT_EQ(
+        batch.commands[2].pixel_rect[0], 50.0f + w_playera + w_zaps);
+}
+
 

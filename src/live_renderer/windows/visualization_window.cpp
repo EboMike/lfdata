@@ -474,26 +474,25 @@ void VisualizationWindow::GenerateEventScrollerCommands(
     const float step_y = line_h + line_spacing;
 
     const size_t num_events = state.event_scroller.size();
-    const int idx = static_cast<int>(num_events) - 1;
-    const float target_offset = static_cast<float>(idx) * step_y;
+    std::string scroller_key =
+        std::to_string(element.z_position) + "_" +
+        std::to_string(element.rect[0]) + "_" +
+        std::to_string(element.rect[1]);
 
-    float y_scroll = target_offset;
-    if (state.in_session && state.game_start_time_local_ms > 0) {
-        const int64_t t_latest = state.event_scroller.back().timestamp_ms;
-        const int64_t current_game_time_ms =
-            current_time_ms - state.game_start_time_local_ms;
-        const int64_t elapsed_ms = current_game_time_ms - t_latest;
-        constexpr int64_t kScrollDurationMs = 500;
-        if (elapsed_ms >= 0 && elapsed_ms < kScrollDurationMs) {
-            float p = static_cast<float>(elapsed_ms) /
-                static_cast<float>(kScrollDurationMs);
-            constexpr float kPi = 3.14159265358979323846f;
-            float p_anim = 0.5f * (1.0f - std::cos(p * kPi));
-            float prev_offset =
-                static_cast<float>(std::max(0, idx - 1)) * step_y;
-            y_scroll = prev_offset + (target_offset - prev_offset) * p_anim;
-        }
-    }
+    const std::string anim_type =
+        element.change_animation == "none" ? "none" :
+        (element.change_animation == "linear" ? "linear" :
+         "ease-in-and-ease-out");
+    const float duration_s =
+        element.animation_duration > 0.0f ? element.animation_duration : 0.5f;
+
+    float y_scroll = event_scroller_tracker_.GetScrollOffset(
+        scroller_key,
+        num_events,
+        step_y,
+        current_time_ms,
+        anim_type,
+        duration_s);
 
     ElementConfig line_el = element;
     line_el.font = (element.font.empty() || element.font == "default")

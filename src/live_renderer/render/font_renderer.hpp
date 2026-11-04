@@ -8,6 +8,7 @@
 
 #include <array>
 #include <cstdint>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -28,6 +29,7 @@ struct BakedGlyphFont {
     float descent = 0.0f;
     float line_gap = 0.0f;
     std::vector<stbtt_bakedchar> cdata;
+    std::vector<uint8_t> rgba_pixels;
     bool is_valid = false;
 };
 
@@ -40,8 +42,8 @@ struct BakedGlyphFont {
  * font is unavailable.
  */
 class FontRenderer {
-public:
-    FontRenderer() = default;
+ public:
+    FontRenderer();
     ~FontRenderer();
 
     /**
@@ -49,14 +51,14 @@ public:
      *
      * @param font_name Font face name or asset path.
      */
-    void SetDefaultFont(const std::string& font_name);
+    static void SetDefaultFont(const std::string& font_name);
 
     /**
      * @brief Gets the current default font name.
      *
      * @return Current default font face or filename.
      */
-    const std::string& GetDefaultFont() const { return default_font_; }
+    static const std::string& GetDefaultFont();
 
     /**
      * @brief Resolves a font face name or path to a filesystem path.
@@ -68,6 +70,19 @@ public:
 
     /**
      * @brief Measures the pixel width of a rendered text string.
+     *
+     * @param text Text string to measure.
+     * @param font_name Font face name or filename.
+     * @param font_size_px Desired font height in pixels.
+     * @return Measured pixel width.
+     */
+    static float MeasureText(
+        const std::string& text,
+        const std::string& font_name,
+        float font_size_px);
+
+    /**
+     * @brief Instance wrapper measuring pixel width of rendered text.
      *
      * @param text Text string to measure.
      * @param font_name Font face name or filename.
@@ -87,8 +102,9 @@ public:
      */
     void RenderText(const RenderCommand& cmd, int64_t current_time_ms = 0);
 
-private:
-    BakedGlyphFont* GetOrLoadFont(const std::string& font_name);
+ private:
+    static BakedGlyphFont* GetOrLoadFontLocked(const std::string& font_name);
+    static void EnsureTextureUploaded(BakedGlyphFont& font);
     void EnsureFallbackTextureInitialized();
 
     void DrawStringQuadsTTF(
@@ -99,7 +115,8 @@ private:
         float font_size_px,
         const float color_rgba[4],
         float tilt_deg = 0.0f,
-        const std::array<float, 4>& container_rect = {0.0f, 0.0f, 0.0f, 0.0f});
+        const std::array<float, 4>& container_rect =
+            {0.0f, 0.0f, 0.0f, 0.0f});
 
     void DrawStringQuadsFallback(
         const std::string& text,
@@ -108,17 +125,20 @@ private:
         float font_size_px,
         const float color_rgba[4],
         float tilt_deg = 0.0f,
-        const std::array<float, 4>& container_rect = {0.0f, 0.0f, 0.0f, 0.0f});
+        const std::array<float, 4>& container_rect =
+            {0.0f, 0.0f, 0.0f, 0.0f});
 
     void DrawRapidFireEffect(
         const std::array<float, 4>& pixel_rect,
         const float base_color_rgba[4],
         int64_t current_time_ms);
 
-    std::string default_font_ = "default";
+    static std::string default_font_;
+    static std::unordered_map<std::string, BakedGlyphFont> font_cache_;
+    static std::mutex font_mutex_;
+    static int instance_count_;
     unsigned int fallback_texture_id_ = 0;
     bool fallback_initialized_ = false;
-    std::unordered_map<std::string, BakedGlyphFont> font_cache_;
 };
 
 }  // namespace live_renderer

@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include "live_renderer/components/event_scroller_tracker.hpp"
 #include "live_renderer/components/list_animation_tracker.hpp"
 #include "live_renderer/components/messages_display_tracker.hpp"
 #include "live_renderer/config/ui_config.hpp"
@@ -97,6 +98,7 @@ private:
     const UIConfig& ui_config_;
     mutable ListAnimationTracker list_animation_tracker_;
     mutable MessagesDisplayTracker messages_display_tracker_;
+    mutable EventScrollerTracker event_scroller_tracker_;
 };
 
 }  // namespace live_renderer

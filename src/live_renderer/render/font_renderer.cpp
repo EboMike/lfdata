@@ -172,22 +172,42 @@ std::vector<uint8_t> LoadFontDataViaGDI(const std::string& font_name) {
 
 }  // namespace
 
+std::string FontRenderer::default_font_ = "default";
+std::unordered_map<std::string, BakedGlyphFont> FontRenderer::font_cache_;
+std::mutex FontRenderer::font_mutex_;
+int FontRenderer::instance_count_ = 0;
+
+FontRenderer::FontRenderer() {
+    std::lock_guard<std::mutex> lock(font_mutex_);
+    ++instance_count_;
+}
+
 FontRenderer::~FontRenderer() {
     if (fallback_texture_id_ != 0) {
         glDeleteTextures(1, &fallback_texture_id_);
         fallback_texture_id_ = 0;
     }
-    for (auto& [name, font] : font_cache_) {
-        if (font.texture_id != 0) {
-            glDeleteTextures(1, &font.texture_id);
-            font.texture_id = 0;
+    std::lock_guard<std::mutex> lock(font_mutex_);
+    if (--instance_count_ <= 0) {
+        instance_count_ = 0;
+        for (auto& [name, font] : font_cache_) {
+            if (font.texture_id != 0) {
+                glDeleteTextures(1, &font.texture_id);
+                font.texture_id = 0;
+            }
         }
+        font_cache_.clear();
     }
-    font_cache_.clear();
 }
 
 void FontRenderer::SetDefaultFont(const std::string& font_name) {
+    std::lock_guard<std::mutex> lock(font_mutex_);
     default_font_ = font_name;
+}
+
+const std::string& FontRenderer::GetDefaultFont() {
+    std::lock_guard<std::mutex> lock(font_mutex_);
+    return default_font_;
 }
 
 std::string FontRenderer::ResolveFontPath(const std::string& font_name) {
@@ -292,7 +312,8 @@ std::string FontRenderer::ResolveFontPath(const std::string& font_name) {
     return "";
 }
 
-BakedGlyphFont* FontRenderer::GetOrLoadFont(const std::string& font_name) {
+BakedGlyphFont* FontRenderer::GetOrLoadFontLocked(
+    const std::string& font_name) {
     std::string effective_name =
         (font_name.empty() || font_name == "default")
             ? default_font_
@@ -373,31 +394,34 @@ BakedGlyphFont* FontRenderer::GetOrLoadFont(const std::string& font_name) {
         return nullptr;
     }
 
-    std::vector<uint8_t> rgba_pixels(
-        font.tex_width * font.tex_height * 4, 255);
+    font.rgba_pixels.resize(font.tex_width * font.tex_height * 4, 255);
     for (size_t i = 0; i < mono_bitmap.size(); ++i) {
-        rgba_pixels[i * 4 + 0] = 255;
-        rgba_pixels[i * 4 + 1] = 255;
-        rgba_pixels[i * 4 + 2] = 255;
-        rgba_pixels[i * 4 + 3] = mono_bitmap[i];
+        font.rgba_pixels[i * 4 + 0] = 255;
+        font.rgba_pixels[i * 4 + 1] = 255;
+        font.rgba_pixels[i * 4 + 2] = 255;
+        font.rgba_pixels[i * 4 + 3] = mono_bitmap[i];
     }
-
-    glGenTextures(1, &font.texture_id);
-    glBindTexture(GL_TEXTURE_2D, font.texture_id);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-    glTexImage2D(
-        GL_TEXTURE_2D, 0, GL_RGBA,
-        font.tex_width, font.tex_height, 0,
-        GL_RGBA, GL_UNSIGNED_BYTE, rgba_pixels.data());
-    glBindTexture(GL_TEXTURE_2D, 0);
 
     font.is_valid = true;
     font_cache_[effective_name] = std::move(font);
     return &font_cache_[effective_name];
+}
+
+void FontRenderer::EnsureTextureUploaded(BakedGlyphFont& font) {
+    if (font.texture_id == 0 && !font.rgba_pixels.empty()) {
+        glGenTextures(1, &font.texture_id);
+        glBindTexture(GL_TEXTURE_2D, font.texture_id);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+        glTexImage2D(
+            GL_TEXTURE_2D, 0, GL_RGBA,
+            font.tex_width, font.tex_height, 0,
+            GL_RGBA, GL_UNSIGNED_BYTE, font.rgba_pixels.data());
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
 }
 
 void FontRenderer::EnsureFallbackTextureInitialized() {
@@ -443,18 +467,19 @@ void FontRenderer::EnsureFallbackTextureInitialized() {
     fallback_initialized_ = true;
 }
 
-float FontRenderer::MeasureTextWidth(
+float FontRenderer::MeasureText(
     const std::string& text,
     const std::string& font_name,
     float font_size_px) {
-    if (text.empty()) return 0.0f;
+    if (text.empty() || font_size_px <= 0.0f) return 0.0f;
 
+    std::lock_guard<std::mutex> lock(font_mutex_);
     std::string font_to_use =
         (font_name.empty() || font_name == "default")
             ? default_font_
             : font_name;
 
-    BakedGlyphFont* font = GetOrLoadFont(font_to_use);
+    BakedGlyphFont* font = GetOrLoadFontLocked(font_to_use);
     if (font != nullptr && font->is_valid) {
         float scale = font_size_px / font->baked_size;
         float total_w = 0.0f;
@@ -471,6 +496,13 @@ float FontRenderer::MeasureTextWidth(
     return static_cast<float>(text.size()) * (font_size_px * 0.60f);
 }
 
+float FontRenderer::MeasureTextWidth(
+    const std::string& text,
+    const std::string& font_name,
+    float font_size_px) {
+    return MeasureText(text, font_name, font_size_px);
+}
+
 void FontRenderer::DrawStringQuadsTTF(
     const BakedGlyphFont& font,
     const std::string& text,
@@ -480,6 +512,13 @@ void FontRenderer::DrawStringQuadsTTF(
     const float color_rgba[4],
     float tilt_deg,
     const std::array<float, 4>& container_rect) {
+    EnsureTextureUploaded(const_cast<BakedGlyphFont&>(font));
+    if (font.texture_id == 0) {
+        DrawStringQuadsFallback(
+            text, x, y, font_size_px, color_rgba, tilt_deg, container_rect);
+        return;
+    }
+
     glEnable(GL_TEXTURE_2D);
     glBindTexture(GL_TEXTURE_2D, font.texture_id);
     glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
@@ -703,9 +742,13 @@ void FontRenderer::RenderText(
             ? default_font_
             : cmd.font;
 
-    BakedGlyphFont* font = GetOrLoadFont(font_to_use);
+    BakedGlyphFont* font = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(font_mutex_);
+        font = GetOrLoadFontLocked(font_to_use);
+    }
     const float total_w =
-        MeasureTextWidth(cmd.text, font_to_use, cmd.font_size_px);
+        MeasureText(cmd.text, font_to_use, cmd.font_size_px);
 
     float x = cmd.pixel_rect[0];
     if (cmd.alignment == "center") {
@@ -719,7 +762,7 @@ void FontRenderer::RenderText(
 
     auto DrawTextVariant = [&](float dx_offset, float dy_offset,
                                const float color[4]) {
-        if (font != nullptr && font->is_valid && font->texture_id != 0) {
+        if (font != nullptr && font->is_valid) {
             DrawStringQuadsTTF(
                 *font, cmd.text, x + dx_offset, y + dy_offset, cmd.font_size_px,
                 color, cmd.tilt_deg, cmd.container_rect);

@@ -1,6 +1,7 @@
 #include "live_renderer/components/text_component.hpp"
 #include <algorithm>
 #include "live_renderer/components/scorecard_helper.hpp"
+#include "live_renderer/render/font_renderer.hpp"
 
 namespace live_renderer {
 
@@ -160,7 +161,6 @@ void TextComponent::GenerateCommands(
     }
 
     // Multi-run layout with inline images or multiple colors
-    const float char_w = font_size_px * 0.60f;
     std::vector<float> run_widths;
     float total_width = 0.0f;
 
@@ -169,14 +169,16 @@ void TextComponent::GenerateCommands(
         if (run.is_image) {
             w = font_size_px;
         } else {
-            w = static_cast<float>(run.text.size()) * char_w;
+            w = FontRenderer::MeasureText(
+                run.text, element.font, font_size_px);
         }
         run_widths.push_back(w);
         total_width += w;
     }
 
     float cur_x = pixel_rect[0];
-    const std::string align = element.alignment.empty() ? "left" : element.alignment;
+    const std::string align =
+        element.alignment.empty() ? "left" : element.alignment;
     if (align == "center") {
         cur_x += std::max(0.0f, (pixel_rect[2] - total_width) * 0.5f);
     } else if (align == "right") {
