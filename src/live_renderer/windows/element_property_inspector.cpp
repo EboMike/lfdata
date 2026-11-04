@@ -188,6 +188,10 @@ void ElementPropertyInspector::RenderTextControls(ElementConfig& element) {
                 "Hex Color Code", color_hex_buf, sizeof(color_hex_buf))) {
             element.color = color_hex_buf;
         }
+
+        SliderFloatWithInput::Render(
+            "Vertical Spacing", &element.vertical_spacing,
+            -50.0f, 50.0f, "px");
     }
 }
 
@@ -316,6 +320,10 @@ void ElementPropertyInspector::RenderScorecardControls(
         if (is_none) {
             ImGui::EndDisabled();
         }
+
+        SliderFloatWithInput::Render(
+            "Vertical Spacing", &element.vertical_spacing,
+            -50.0f, 50.0f, "px");
     }
 }
 

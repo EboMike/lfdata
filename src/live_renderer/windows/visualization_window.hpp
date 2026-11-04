@@ -81,6 +81,10 @@ private:
 
     const TemplateConfig* FindTemplate(int template_id) const;
     ElementConfig ResolveElementFont(const ElementConfig& element) const;
+    float ComputeTeamScorecardHeightPx(
+        const ElementConfig& element,
+        int team_id,
+        const GameStateSnapshot& state) const;
 
     WindowConfig config_;
     const UIConfig& ui_config_;

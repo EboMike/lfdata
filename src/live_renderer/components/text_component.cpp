@@ -97,6 +97,36 @@ void TextComponent::GenerateCommands(
         element.font_size > 0.0f ? element.font_size : 20.0f,
         window_height);
 
+    if (raw_text.find('\n') != std::string_view::npos) {
+        const float line_h = font_size_px;
+        const float step_y = line_h + element.vertical_spacing;
+        size_t start = 0;
+        size_t line_idx = 0;
+        while (start <= raw_text.size()) {
+            size_t end = raw_text.find('\n', start);
+            std::string_view line = (end == std::string_view::npos)
+                ? raw_text.substr(start)
+                : raw_text.substr(start, end - start);
+
+            std::array<float, 4> line_rect{
+                pixel_rect[0],
+                pixel_rect[1] + (static_cast<float>(line_idx) * step_y),
+                pixel_rect[2],
+                line_h
+            };
+
+            GenerateCommands(
+                element, line, line_rect, base_color, rapid_fire,
+                window_height, batch, tilt_deg, container_rect,
+                clip_to_container);
+
+            if (end == std::string_view::npos) break;
+            start = end + 1;
+            line_idx++;
+        }
+        return;
+    }
+
     std::string color;
     if (!element.color.empty() && element.color != "#ffffff") {
         color = element.color;

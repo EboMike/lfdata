@@ -85,6 +85,9 @@ static ElementConfig ParseElementNode(const YAML::Node& node) {
     if (node["animation_duration"]) {
         el.animation_duration = node["animation_duration"].as<float>();
     }
+    if (node["vertical_spacing"]) {
+        el.vertical_spacing = node["vertical_spacing"].as<float>();
+    }
     return el;
 }
 
@@ -122,6 +125,10 @@ static void EmitElementNode(YAML::Emitter& out, const ElementConfig& el) {
             out << YAML::Key << "animation_duration" << YAML::Value
                 << el.animation_duration;
         }
+    }
+    if (el.vertical_spacing != 0.0f) {
+        out << YAML::Key << "vertical_spacing"
+            << YAML::Value << el.vertical_spacing;
     }
     out << YAML::EndMap;
 }

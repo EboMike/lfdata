@@ -231,6 +231,34 @@ void VisualizationWindow::GenerateGameTimerCommands(
     batch.commands.push_back(cmd);
 }
 
+float VisualizationWindow::ComputeTeamScorecardHeightPx(
+    const ElementConfig& element,
+    int team_id,
+    const GameStateSnapshot& state) const {
+    const float row_height_px = 32.0f;
+    float height = 0.0f;
+
+    const TemplateConfig* header_tmpl =
+        FindTemplate(element.header_template_id);
+    if (header_tmpl != nullptr && !header_tmpl->elements.empty()) {
+        height += row_height_px + 4.0f + element.vertical_spacing;
+    }
+
+    const PlayerSortOrder sort_order = (element.sort_order == "index")
+        ? PlayerSortOrder::Index
+        : PlayerSortOrder::Ranking;
+    const auto player_ids = ScorecardHelper::GetSortedPlayerIds(
+        state, team_id, sort_order, element.add_totals);
+
+    if (!player_ids.empty()) {
+        const float row_spacing = 2.0f + element.vertical_spacing;
+        height += static_cast<float>(player_ids.size()) *
+            (row_height_px + row_spacing);
+    }
+
+    return height;
+}
+
 void VisualizationWindow::GenerateTeamScorecardCommands(
     const ElementConfig& element,
     int team_id,
@@ -265,7 +293,7 @@ void VisualizationWindow::GenerateTeamScorecardCommands(
                 static_cast<float>(GetHeight()),
                 batch);
         }
-        current_y += row_height_px + 4.0f;
+        current_y += row_height_px + 4.0f + element.vertical_spacing;
     }
 
     const float start_players_y = current_y;
@@ -282,6 +310,7 @@ void VisualizationWindow::GenerateTeamScorecardCommands(
     const std::string list_key =
         std::to_string(config_.id) + "_team_" + std::to_string(team_id);
 
+    const float row_spacing = 2.0f + element.vertical_spacing;
     for (size_t row_idx = 0; row_idx < player_ids.size(); ++row_idx) {
         int pid = player_ids[row_idx];
         auto pit = state.players.find(pid);
@@ -289,7 +318,7 @@ void VisualizationWindow::GenerateTeamScorecardCommands(
         const auto& player = pit->second;
 
         const float target_row_y = start_players_y +
-            static_cast<float>(row_idx) * (row_height_px + 2.0f);
+            static_cast<float>(row_idx) * (row_height_px + row_spacing);
 
         const float row_y = list_animation_tracker_.GetAnimatedPosition(
             list_key,
@@ -360,16 +389,17 @@ void VisualizationWindow::GenerateGameScorecardCommands(
     if (team_ids.empty()) return;
 
     const auto base_px_rect = RelativeToPixelRect(element.rect);
-    const float section_width_rel =
-        1.0f / static_cast<float>(team_ids.size());
-
+    const float win_h = static_cast<float>(GetHeight());
     const std::string team_list_key =
         std::to_string(config_.id) + "_game_teams";
 
-    for (size_t i = 0; i < team_ids.size(); ++i) {
-        ElementConfig sub_el = element;
-        sub_el.team_index = team_ids[i];
-        if (element.orientation == "horizontal") {
+    if (element.orientation == "horizontal") {
+        const float section_width_rel =
+            1.0f / static_cast<float>(team_ids.size());
+
+        for (size_t i = 0; i < team_ids.size(); ++i) {
+            ElementConfig sub_el = element;
+            sub_el.team_index = team_ids[i];
             const float target_rel_x =
                 element.rect[0] +
                 (static_cast<float>(i) * section_width_rel * element.rect[2]);
@@ -383,9 +413,44 @@ void VisualizationWindow::GenerateGameScorecardCommands(
                     element.animation_duration);
             sub_el.rect[0] = anim_rel_x;
             sub_el.rect[2] = section_width_rel * element.rect[2];
+
+            GenerateTeamScorecardCommands(
+                sub_el, team_ids[i], state, current_time_ms, batch);
         }
-        GenerateTeamScorecardCommands(
-            sub_el, team_ids[i], state, current_time_ms, batch);
+    } else {
+        // Vertical orientation: render team scorecards one below the other
+        float curr_px_y = base_px_rect[1];
+
+        for (size_t i = 0; i < team_ids.size(); ++i) {
+            ElementConfig sub_el = element;
+            sub_el.team_index = team_ids[i];
+
+            const float target_rel_y = curr_px_y / win_h;
+            const float anim_rel_y =
+                list_animation_tracker_.GetAnimatedPosition(
+                    team_list_key,
+                    team_ids[i],
+                    target_rel_y,
+                    current_time_ms,
+                    element.change_animation,
+                    element.animation_duration);
+
+            float team_h_px = ComputeTeamScorecardHeightPx(
+                sub_el, team_ids[i], state);
+            if (team_h_px <= 0.0f) {
+                team_h_px = base_px_rect[3] /
+                    static_cast<float>(team_ids.size());
+            }
+
+            sub_el.rect[1] = anim_rel_y;
+            sub_el.rect[3] = team_h_px / win_h;
+
+            GenerateTeamScorecardCommands(
+                sub_el, team_ids[i], state, current_time_ms, batch);
+
+            const float team_spacing_px = 16.0f + element.vertical_spacing;
+            curr_px_y += team_h_px + team_spacing_px;
+        }
     }
 }
 
@@ -401,7 +466,7 @@ void VisualizationWindow::GenerateEventScrollerCommands(
     const float font_size_px = RichTextLayout::ComputePixelFontSize(
         element.font_size > 0.0f ? element.font_size : 16.0f, win_h);
     const float line_h = font_size_px * 1.4f;
-    const float line_spacing = font_size_px * 0.15f;
+    const float line_spacing = font_size_px * 0.15f + element.vertical_spacing;
     const float step_y = line_h + line_spacing;
 
     const size_t num_events = state.event_scroller.size();

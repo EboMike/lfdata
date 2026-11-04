@@ -347,6 +347,41 @@ TEST(VisualizationWindowTest, DefaultFontInheritanceAndOverride) {
     EXPECT_EQ(batch.commands[1].font, "Consolas");
 }
 
+TEST(VisualizationWindowTest, GameScorecardsVerticalListLayout) {
+    WindowConfig wcfg;
+    wcfg.id = 1;
+    wcfg.rect = {0, 0, 1280, 800};
+
+    ElementConfig game_sc;
+    game_sc.type = "game_scorecard";
+    game_sc.orientation = "vertical";
+    game_sc.rect = {0.1f, 0.1f, 0.8f, 0.8f};
+    game_sc.vertical_spacing = 10.0f;
+    wcfg.elements.push_back(game_sc);
+
+    UIConfig ui;
+    VisualizationWindow win(wcfg, ui);
+
+    auto state = MockGameState::CreateMockSM5State();
+    auto batch = win.GenerateBatch(state, 1000);
+
+    float min_team1_y = 9999.0f;
+    float max_team1_y = -9999.0f;
+    float min_team2_y = 9999.0f;
+
+    for (const auto& cmd : batch.commands) {
+        if (cmd.text == "AlphaCommander" || cmd.text == "FireHeavy") {
+            min_team1_y = std::min(min_team1_y, cmd.pixel_rect[1]);
+            max_team1_y = std::max(max_team1_y, cmd.pixel_rect[1]);
+        }
+        if (cmd.text == "BravoScout" || cmd.text == "EarthAmmo") {
+            min_team2_y = std::min(min_team2_y, cmd.pixel_rect[1]);
+        }
+    }
+
+    EXPECT_GT(min_team2_y, max_team1_y);
+}
+
 
 
 

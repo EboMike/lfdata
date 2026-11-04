@@ -56,6 +56,7 @@ TEST(ConfigSerializerTest, RoundTripUIConfig) {
     scorecard.type = "team_scorecard";
     scorecard.change_animation = "ease-in-and-ease-out";
     scorecard.animation_duration = 0.75f;
+    scorecard.vertical_spacing = 6.0f;
     win.elements.push_back(scorecard);
 
     ui.windows.push_back(win);
@@ -83,6 +84,8 @@ TEST(ConfigSerializerTest, RoundTripUIConfig) {
         "ease-in-and-ease-out");
     EXPECT_FLOAT_EQ(
         loaded.windows[0].elements[1].animation_duration, 0.75f);
+    EXPECT_FLOAT_EQ(
+        loaded.windows[0].elements[1].vertical_spacing, 6.0f);
 
     std::filesystem::remove(path);
 }

@@ -33,6 +33,7 @@ struct ElementConfig {
     // Animation: "none", "linear", "ease-in-and-ease-out"
     std::string change_animation = "none";
     float animation_duration = 0.5f;              // Duration in seconds
+    float vertical_spacing = 0.0f;                // Spacing between lines/items
 };
 
 /**
