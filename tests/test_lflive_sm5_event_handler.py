@@ -206,3 +206,122 @@ def test_sm5_event_handler_with_ranking_manager() -> None:
     assert f'{DATA_TYPE_PLAYER_RANKING}\t1000\t1\t1' in emitter.emitted_lines
     assert f'{DATA_TYPE_PLAYER_RANKING}\t1000\t2\t2' in emitter.emitted_lines
     assert f'{DATA_TYPE_TEAM_RANKING}\t1000\t1,2' in emitter.emitted_lines
+
+
+def test_nuke_events_sequential_id_and_replacement() -> None:
+    state = LiveGameState(game_type='SM5')
+    state.add_team(team_id=1, name='Red', color='Red', rgb='#ff0000')
+    state.add_player(1, '#P1', 'Ace', 1, 'commander')
+    p1 = state.players[1]
+    p1.special_points = 25
+
+    emitter = OutputEmitter()
+    handler = SM5EventHandler(game_state=state, emitter=emitter)
+
+    handler.handle_event(10000, SM5_EVENT_ACTIVATE_NUKE, ['#P1'])
+    act_lines = [
+        line for line in emitter.emitted_lines
+        if line.startswith(f'{DATA_TYPE_IMPORTANT_EVENT}\t10000')
+    ]
+    assert len(act_lines) == 1
+    assert act_lines[0] == (
+        f'{DATA_TYPE_IMPORTANT_EVENT}\t10000\t1\t'
+        '<font color="#ff0000">Ace</font> activates nuke'
+    )
+
+    handler.handle_event(14000, SM5_EVENT_DETONATE_NUKE, ['#P1'])
+    det_lines = [
+        line for line in emitter.emitted_lines
+        if line.startswith(f'{DATA_TYPE_IMPORTANT_EVENT}\t14000')
+    ]
+    assert len(det_lines) == 1
+    # Sequential ID 1 reused for the detonation replacement message
+    assert det_lines[0] == (
+        f'{DATA_TYPE_IMPORTANT_EVENT}\t14000\t1\t'
+        '<font color="#ff0000">Ace</font> detonates nuke'
+    )
+
+    # Next activation receives sequential ID 2
+    p1.special_points = 20
+    handler.handle_event(20000, SM5_EVENT_ACTIVATE_NUKE, ['#P1'])
+    act_lines_2 = [
+        line for line in emitter.emitted_lines
+        if line.startswith(f'{DATA_TYPE_IMPORTANT_EVENT}\t20000')
+    ]
+    assert len(act_lines_2) == 1
+    assert act_lines_2[0] == (
+        f'{DATA_TYPE_IMPORTANT_EVENT}\t20000\t2\t'
+        '<font color="#ff0000">Ace</font> activates nuke'
+    )
+
+
+def test_nuke_canceled_on_down_reuses_sequential_id() -> None:
+    state = LiveGameState(game_type='SM5')
+    state.add_team(team_id=1, name='Red', color='Red', rgb='#ff0000')
+    state.add_team(team_id=2, name='Blue', color='Blue', rgb='#0000ff')
+    state.add_player(1, '#P1', 'Ace', 1, 'commander')
+    state.add_player(2, '#P2', 'Bravo', 2, 'scout')
+    state.players[1].special_points = 20
+
+    emitter = OutputEmitter()
+    handler = SM5EventHandler(game_state=state, emitter=emitter)
+
+    handler.handle_event(10000, SM5_EVENT_ACTIVATE_NUKE, ['#P1'])
+    assert (
+        f'{DATA_TYPE_IMPORTANT_EVENT}\t10000\t1\t'
+        '<font color="#ff0000">Ace</font> activates nuke'
+    ) in emitter.emitted_lines
+
+    # Bravo downs Ace while nuke is active
+    handler.handle_event(
+        13000,
+        SM5_EVENT_DOWNED_OPPONENT,
+        ['#P2', 'downs', '#P1'],
+    )
+    assert (
+        f'{DATA_TYPE_IMPORTANT_EVENT}\t13000\t1\t'
+        '<font color="#ff0000">Ace</font>\'s nuke canceled by '
+        '<font color="#0000ff">Bravo</font>'
+    ) in emitter.emitted_lines
+
+
+def test_nuke_canceled_by_enemy_nuke() -> None:
+    state = LiveGameState(game_type='SM5')
+    state.add_team(team_id=1, name='Red', color='Red', rgb='#ff0000')
+    state.add_team(team_id=2, name='Blue', color='Blue', rgb='#0000ff')
+    state.add_player(1, '#P1', 'Ace', 1, 'commander')
+    state.add_player(2, '#P2', 'Bravo', 2, 'commander')
+    state.players[1].special_points = 20
+    state.players[2].special_points = 20
+
+    emitter = OutputEmitter()
+    handler = SM5EventHandler(game_state=state, emitter=emitter)
+
+    # Ace activates nuke (ID 1)
+    handler.handle_event(10000, SM5_EVENT_ACTIVATE_NUKE, ['#P1'])
+    # Bravo activates nuke (ID 2)
+    handler.handle_event(11000, SM5_EVENT_ACTIVATE_NUKE, ['#P2'])
+
+    # Ace detonates nuke at 14000
+    handler.handle_event(14000, SM5_EVENT_DETONATE_NUKE, ['#P1'])
+
+    # Ace's detonation replaces ID 1
+    assert (
+        f'{DATA_TYPE_IMPORTANT_EVENT}\t14000\t1\t'
+        '<font color="#ff0000">Ace</font> detonates nuke'
+    ) in emitter.emitted_lines
+    # Bravo's in-flight nuke replaced with cancel under ID 2
+    assert (
+        f'{DATA_TYPE_IMPORTANT_EVENT}\t14000\t2\t'
+        '<font color="#0000ff">Bravo</font>\'s nuke canceled by enemy nuke'
+    ) in emitter.emitted_lines
+
+
+def test_sm5_event_handler_reset() -> None:
+    state = LiveGameState(game_type='SM5')
+    handler = SM5EventHandler(game_state=state)
+    handler._next_event_id_counter = 10
+    handler._active_nuke_event_ids[1] = 5
+    handler.reset()
+    assert handler._next_event_id_counter == 1
+    assert len(handler._active_nuke_event_ids) == 0

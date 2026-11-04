@@ -227,11 +227,26 @@ void LiveStateStore::AddEventScrollerItem(int64_t timestamp_ms, const std::strin
     BumpVersionLocked();
 }
 
-void LiveStateStore::AddImportantEventItem(int64_t timestamp_ms, const std::string& formatted_message) {
+void LiveStateStore::AddImportantEventItem(
+    int id,
+    int64_t timestamp_ms,
+    const std::string& formatted_message
+) {
     std::lock_guard<std::mutex> lock(mutex_);
-    state_.important_events.push_back({timestamp_ms, formatted_message});
+    for (auto& item : state_.important_events) {
+        if (item.id == id) {
+            item.timestamp_ms = timestamp_ms;
+            item.formatted_message = formatted_message;
+            BumpVersionLocked();
+            return;
+        }
+    }
+    state_.important_events.push_back({id, timestamp_ms, formatted_message});
     if (state_.important_events.size() > 50) {
-        state_.important_events.erase(state_.important_events.begin(), state_.important_events.begin() + 10);
+        state_.important_events.erase(
+            state_.important_events.begin(),
+            state_.important_events.begin() + 10
+        );
     }
     BumpVersionLocked();
 }

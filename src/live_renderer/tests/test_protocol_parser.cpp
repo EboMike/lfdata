@@ -72,7 +72,7 @@ TEST(ProtocolParserTest, ParsesRankingsAndEvents) {
     EXPECT_TRUE(parser.ParseLine("26\t500\t1\t11,12,13\r\n"));
     EXPECT_TRUE(parser.ParseLine("27\t500\t1,2\r\n"));
     EXPECT_TRUE(parser.ParseLine("8\t600\t<font color=\"#FF5000\">Alpha</font> zapped Bravo\r\n"));
-    EXPECT_TRUE(parser.ParseLine("25\t610\tAlpha detonates nuke\r\n"));
+    EXPECT_TRUE(parser.ParseLine("25\t610\t1\tAlpha detonates nuke\r\n"));
 
     auto s = store.GetSnapshot();
     ASSERT_TRUE(s.player_rankings_by_team.contains(1));
@@ -81,7 +81,45 @@ TEST(ProtocolParserTest, ParsesRankingsAndEvents) {
     ASSERT_EQ(s.event_scroller.size(), 1);
     EXPECT_EQ(s.event_scroller[0].formatted_message, "<font color=\"#FF5000\">Alpha</font> zapped Bravo");
     ASSERT_EQ(s.important_events.size(), 1);
+    EXPECT_EQ(s.important_events[0].id, 1);
+    EXPECT_EQ(s.important_events[0].timestamp_ms, 610);
     EXPECT_EQ(s.important_events[0].formatted_message, "Alpha detonates nuke");
+}
+
+TEST(ProtocolParserTest, ParsesImportantEventsWithReplacementAndRejection) {
+    LiveStateStore store;
+    ProtocolParser parser(store);
+
+    EXPECT_TRUE(parser.ParseLine("25\t600\t10\tCommander activates nuke\r\n"));
+    EXPECT_TRUE(parser.ParseLine("25\t610\t11\tMedic has been eliminated\r\n"));
+
+    auto s = store.GetSnapshot();
+    ASSERT_EQ(s.important_events.size(), 2);
+    EXPECT_EQ(s.important_events[0].id, 10);
+    EXPECT_EQ(
+        s.important_events[0].formatted_message,
+        "Commander activates nuke"
+    );
+    EXPECT_EQ(s.important_events[1].id, 11);
+    EXPECT_EQ(
+        s.important_events[1].formatted_message,
+        "Medic has been eliminated"
+    );
+
+    // Replacement of ID 10
+    EXPECT_TRUE(parser.ParseLine("25\t620\t10\tCommander detonates nuke\r\n"));
+    s = store.GetSnapshot();
+    ASSERT_EQ(s.important_events.size(), 2);
+    EXPECT_EQ(s.important_events[0].id, 10);
+    EXPECT_EQ(s.important_events[0].timestamp_ms, 620);
+    EXPECT_EQ(
+        s.important_events[0].formatted_message,
+        "Commander detonates nuke"
+    );
+
+    // Malformed lines with missing fields rejected
+    EXPECT_FALSE(parser.ParseLine("25\t630\r\n"));
+    EXPECT_FALSE(parser.ParseLine("25\t630\t12\r\n"));
 }
 
 TEST(ProtocolParserTest, HandlesResetAndGameOver) {

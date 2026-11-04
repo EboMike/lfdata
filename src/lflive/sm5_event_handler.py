@@ -88,6 +88,29 @@ class SM5EventHandler:
         self.game_state = game_state
         self.emitter = emitter
         self.ranking_manager = ranking_manager
+        self._active_nuke_event_ids: dict[int, int] = {}
+        self._next_event_id_counter: int = 1
+
+    def reset(self) -> None:
+        """Resets active power state trackers and sequential ID counters.
+
+        Usage example:
+            handler.reset()
+        """
+        self._active_nuke_event_ids.clear()
+        self._next_event_id_counter = 1
+
+    def _allocate_event_id(self) -> int:
+        """Allocates a sequential event ID from emitter or local counter.
+
+        Returns:
+            int: Sequential unique event identifier.
+        """
+        if self.emitter:
+            return self.emitter.next_important_event_id()
+        eid = self._next_event_id_counter
+        self._next_event_id_counter += 1
+        return eid
 
     def _colored_player(self, player: LivePlayerState | None) -> str:
         """Returns player name wrapped in HTML team color font tag."""
@@ -204,7 +227,13 @@ class SM5EventHandler:
             )
             msg = f'{self._colored_player(actor)} activates nuke'
             self.emitter.emit(DATA_TYPE_EVENT_SCROLLER, time_ms, msg)
-            self.emitter.emit(DATA_TYPE_IMPORTANT_EVENT, time_ms, msg)
+            event_id = self._allocate_event_id()
+            self._active_nuke_event_ids[actor.player_id] = event_id
+            self.emitter.emit_important_event(
+                time_ms=time_ms,
+                message=msg,
+                event_id=event_id,
+            )
 
     def _handle_nuke_detonate(
         self, time_ms: int, actor: LivePlayerState
@@ -226,9 +255,44 @@ class SM5EventHandler:
                 )
             msg = f'{self._colored_player(actor)} detonates nuke'
             self.emitter.emit(DATA_TYPE_EVENT_SCROLLER, time_ms, msg)
-            self.emitter.emit(DATA_TYPE_IMPORTANT_EVENT, time_ms, msg)
+            event_id = self._active_nuke_event_ids.pop(actor.player_id, None)
+            if event_id is None:
+                event_id = self._allocate_event_id()
+            self.emitter.emit_important_event(
+                time_ms=time_ms,
+                message=msg,
+                event_id=event_id,
+            )
+            self._cancel_enemy_nukes(time_ms=time_ms, nuking_actor=actor)
         if self.ranking_manager:
             self.ranking_manager.update_rankings(time_ms=time_ms)
+
+    def _cancel_enemy_nukes(
+        self,
+        time_ms: int,
+        nuking_actor: LivePlayerState,
+    ) -> None:
+        """Cancels in-flight active nukes belonging to opponent teams.
+
+        Args:
+            time_ms: Elapsed game time in milliseconds.
+            nuking_actor: Player state of the commander detonating a nuke.
+        """
+        if not self.emitter:
+            return
+        for other_pid, other_eid in list(self._active_nuke_event_ids.items()):
+            other_player = self.game_state.players.get(other_pid)
+            if other_player and other_player.team_id != nuking_actor.team_id:
+                del self._active_nuke_event_ids[other_pid]
+                cancel_msg = (
+                    f"{self._colored_player(other_player)}'s nuke "
+                    'canceled by enemy nuke'
+                )
+                self.emitter.emit_important_event(
+                    time_ms=time_ms,
+                    message=cancel_msg,
+                    event_id=other_eid,
+                )
 
     def _extract_target_entity_id(self, varies: list[str]) -> str | None:
         """Extracts the target entity ID from variable event arguments.
@@ -374,6 +438,9 @@ class SM5EventHandler:
                 time_ms,
                 f'{act_name} downs {tar_name}',
             )
+            self._check_nuke_cancel_on_down(
+                time_ms=time_ms, actor=actor, target=target
+            )
         elif code == SM5_EVENT_DAMAGED_TEAM:
             self.emitter.emit(
                 DATA_TYPE_EVENT_SCROLLER,
@@ -385,6 +452,9 @@ class SM5EventHandler:
                 DATA_TYPE_EVENT_SCROLLER,
                 time_ms,
                 f'{act_name} downs teammate {tar_name}',
+            )
+            self._check_nuke_cancel_on_down(
+                time_ms=time_ms, actor=actor, target=target
             )
         elif code == SM5_EVENT_MISSILE_DAMAGE_OPPONENT:
             self.emitter.emit(
@@ -398,6 +468,9 @@ class SM5EventHandler:
                 time_ms,
                 f'{act_name} downs {tar_name} with missile',
             )
+            self._check_nuke_cancel_on_down(
+                time_ms=time_ms, actor=actor, target=target
+            )
         elif code == SM5_EVENT_MISSILE_DAMAGE_TEAM:
             self.emitter.emit(
                 DATA_TYPE_EVENT_SCROLLER,
@@ -409,6 +482,9 @@ class SM5EventHandler:
                 DATA_TYPE_EVENT_SCROLLER,
                 time_ms,
                 f'{act_name} downs teammate {tar_name} with missile',
+            )
+            self._check_nuke_cancel_on_down(
+                time_ms=time_ms, actor=actor, target=target
             )
         elif code == SM5_EVENT_RESUPPLY_AMMO:
             self.emitter.emit(
@@ -428,3 +504,31 @@ class SM5EventHandler:
                 time_ms,
                 f'{act_name} gets a penalty',
             )
+
+    def _check_nuke_cancel_on_down(
+        self,
+        time_ms: int,
+        actor: LivePlayerState,
+        target: LivePlayerState | None,
+    ) -> None:
+        """Cancels an in-flight nuke if the target commander is downed.
+
+        Args:
+            time_ms: Elapsed game time in milliseconds.
+            actor: Player state who downed the commander.
+            target: Downed player state.
+        """
+        if not self.emitter or not target:
+            return
+        if target.player_id not in self._active_nuke_event_ids:
+            return
+        event_id = self._active_nuke_event_ids.pop(target.player_id)
+        cancel_msg = (
+            f"{self._colored_player(target)}'s nuke canceled by "
+            f'{self._colored_player(actor)}'
+        )
+        self.emitter.emit_important_event(
+            time_ms=time_ms,
+            message=cancel_msg,
+            event_id=event_id,
+        )

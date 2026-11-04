@@ -194,3 +194,32 @@ def test_emitter_generate_presync_events() -> None:
         ev.startswith(f'{DATA_TYPE_BALL_CARRIER}\t45000\t1') for ev in events
     )
     assert events[-1] == f'{DATA_TYPE_PRESYNC_END}\t45000'
+
+
+def test_emitter_emit_important_event() -> None:
+    emitter = OutputEmitter()
+    eid1, line1 = emitter.emit_important_event(
+        time_ms=1000,
+        message='Commander has nuke',
+    )
+    assert eid1 == 1
+    assert line1 == '25\t1000\t1\tCommander has nuke'
+
+    eid2, line2 = emitter.emit_important_event(
+        time_ms=2000,
+        message='Medic eliminated',
+    )
+    assert eid2 == 2
+    assert line2 == '25\t2000\t2\tMedic eliminated'
+
+    # Reusing existing sequential ID for replacement message
+    eid3, line3 = emitter.emit_important_event(
+        time_ms=3000,
+        message='Commander detonates nuke',
+        event_id=eid1,
+    )
+    assert eid3 == 1
+    assert line3 == '25\t3000\t1\tCommander detonates nuke'
+
+    emitter.clear()
+    assert emitter.next_important_event_id() == 1

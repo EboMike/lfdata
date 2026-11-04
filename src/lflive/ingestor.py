@@ -111,6 +111,7 @@ class TdfIngestor:
         self.registrar.reset()
         self.ranking_manager.reset()
         self.dummy_manager.reset()
+        self.event_handler.reset()
         if self.emitter:
             self.emitter.emit(DATA_TYPE_NEW_GAME, 0)
 

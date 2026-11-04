@@ -64,6 +64,16 @@ struct EventItem {
 };
 
 /**
+ * @brief Representation of an individual important game event with
+ * sequential ID.
+ */
+struct ImportantEventItem {
+    int id = 0;
+    int64_t timestamp_ms = 0;
+    std::string formatted_message;
+};
+
+/**
  * @brief Thread-safe immutable snapshot of the entire game session state at a point in time.
  */
 struct GameStateSnapshot {
@@ -84,7 +94,7 @@ struct GameStateSnapshot {
     std::vector<int> team_rankings;
     std::unordered_map<int, std::vector<int>> player_rankings_by_team;
     std::vector<EventItem> event_scroller;
-    std::vector<EventItem> important_events;
+    std::vector<ImportantEventItem> important_events;
 };
 
 }  // namespace live_renderer

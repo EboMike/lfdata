@@ -18,6 +18,7 @@ from lflive.constants import (
     DATA_TYPE_CENTER_INFO,
     DATA_TYPE_GAME_START_TIME,
     DATA_TYPE_GAME_TYPE,
+    DATA_TYPE_IMPORTANT_EVENT,
     DATA_TYPE_NEW_GAME,
     DATA_TYPE_PLAYER_DESCRIPTION,
     DATA_TYPE_PLAYER_HITPOINTS,
@@ -74,6 +75,7 @@ class OutputEmitter:
         self.log_output = log_output
         self.listeners: list[Callable[[str], None]] = []
         self.emitted_lines: list[str] = []
+        self._next_important_event_id: int = 1
 
     def add_listener(self, callback: Callable[[str], None]) -> None:
         """Registers a listener callback for emitted broadcast lines.
@@ -106,6 +108,52 @@ class OutputEmitter:
             emitter.clear()
         """
         self.emitted_lines.clear()
+        self._next_important_event_id = 1
+
+    def next_important_event_id(self) -> int:
+        """Returns next sequential important event ID and increments counter.
+
+        Returns:
+            int: Sequential unique event identifier.
+
+        Usage example:
+            eid = emitter.next_important_event_id()
+            assert eid >= 1
+        """
+        event_id = self._next_important_event_id
+        self._next_important_event_id += 1
+        return event_id
+
+    def emit_important_event(
+        self,
+        time_ms: int,
+        message: str,
+        event_id: int | None = None,
+    ) -> tuple[int, str]:
+        """Emits an important game event (type 25) with a sequential ID.
+
+        If event_id is None, a new sequential ID is allocated.
+
+        Args:
+            time_ms: Elapsed game time in milliseconds.
+            message: Formatted event message.
+            event_id: Optional existing event ID to reuse for updates.
+
+        Returns:
+            tuple[int, str]: Sequential event ID and formatted protocol line.
+
+        Usage example:
+            eid, line = emitter.emit_important_event(1000, 'Nuke active')
+        """
+        if event_id is None:
+            event_id = self.next_important_event_id()
+        line = self.emit(
+            DATA_TYPE_IMPORTANT_EVENT,
+            time_ms,
+            event_id,
+            message,
+        )
+        return event_id, line
 
     def emit(
         self,

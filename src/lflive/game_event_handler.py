@@ -79,6 +79,14 @@ class GameEventHandler:
             ranking_manager=ranking_manager,
         )
 
+    def reset(self) -> None:
+        """Resets subordinate handlers for a fresh session.
+
+        Usage example:
+            handler.reset()
+        """
+        self.sm5_handler.reset()
+
     def handle_event(
         self,
         time_ms: int,

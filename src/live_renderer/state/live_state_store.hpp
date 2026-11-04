@@ -51,7 +51,11 @@ public:
 
     void UpdateTargetDescription(int target_id, const std::string& entity_id, const std::string& name, const std::string& rgb);
     void AddEventScrollerItem(int64_t timestamp_ms, const std::string& formatted_message);
-    void AddImportantEventItem(int64_t timestamp_ms, const std::string& formatted_message);
+    void AddImportantEventItem(
+        int id,
+        int64_t timestamp_ms,
+        const std::string& formatted_message
+    );
 
     void SetLatestEventTimeMs(int64_t time_ms);
 

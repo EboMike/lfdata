@@ -169,9 +169,19 @@ bool ProtocolParser::ParseLine(std::string_view line) {
         case 24: { // PRESYNC_END: type, time
             return true;
         }
-        case 25: { // Important event: type, time, message
-            if (tokens.size() < 3) return false;
-            store_.AddImportantEventItem(time_ms, std::string(tokens[2]));
+        case 25: { // Important event: type, time, event_id, message
+            if (tokens.size() < 4) return false;
+            int event_id = ParseInt(tokens[2]);
+            std::string msg;
+            if (tokens.size() == 4) {
+                msg = std::string(tokens[3]);
+            } else {
+                for (size_t i = 3; i < tokens.size(); ++i) {
+                    if (i > 3) msg.push_back('\t');
+                    msg.append(tokens[i]);
+                }
+            }
+            store_.AddImportantEventItem(event_id, time_ms, msg);
             return true;
         }
         case 26: { // Player ranking: type, time, team_id, comma-separated player_ids
