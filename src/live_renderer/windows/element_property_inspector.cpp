@@ -6,6 +6,7 @@
 #include <sstream>
 #include <vector>
 #include <imgui.h>
+#include "live_renderer/widgets/slider_float_with_input.hpp"
 
 namespace live_renderer {
 
@@ -116,26 +117,41 @@ void ElementPropertyInspector::RenderTextControls(ElementConfig& element) {
     const bool is_textual = (
         element.type == "user_text" ||
         element.type == "game_timer" ||
+        element.type == "event_scroller" ||
         element.type.rfind("player_", 0) == 0);
 
     if (!is_textual && element.text.empty() && element.font_size == 20.0f) {
         return;
     }
 
-    if (ImGui::CollapsingHeader("Text & Typography", ImGuiTreeNodeFlags_DefaultOpen)) {
-        char text_buf[512]{};
-        std::snprintf(text_buf, sizeof(text_buf), "%s", element.text.c_str());
-        if (ImGui::InputText("Text Content / Pattern", text_buf, sizeof(text_buf))) {
-            element.text = text_buf;
+    if (ImGui::CollapsingHeader(
+            "Text & Typography", ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (element.type != "event_scroller") {
+            char text_buf[512]{};
+            std::snprintf(
+                text_buf, sizeof(text_buf), "%s", element.text.c_str());
+            if (ImGui::InputText(
+                    "Text Content / Pattern", text_buf, sizeof(text_buf))) {
+                element.text = text_buf;
+            }
         }
 
-        ImGui::DragFloat("Font Size", &element.font_size, 0.5f, 6.0f, 120.0f, "%.1f");
+        char font_buf[128]{};
+        std::snprintf(font_buf, sizeof(font_buf), "%s", element.font.c_str());
+        if (ImGui::InputText("Font", font_buf, sizeof(font_buf))) {
+            element.font = font_buf;
+        }
+
+        ImGui::DragFloat(
+            "Font Size", &element.font_size, 0.5f, 6.0f, 120.0f, "%.1f");
 
         int align_idx = 0;
         if (element.alignment == "center") align_idx = 1;
         else if (element.alignment == "right") align_idx = 2;
 
-        if (ImGui::Combo("Alignment", &align_idx, kAlignments, IM_ARRAYSIZE(kAlignments))) {
+        if (ImGui::Combo(
+                "Alignment", &align_idx, kAlignments,
+                IM_ARRAYSIZE(kAlignments))) {
             element.alignment = kAlignments[align_idx];
         }
 
@@ -146,8 +162,11 @@ void ElementPropertyInspector::RenderTextControls(ElementConfig& element) {
         }
 
         char color_hex_buf[32]{};
-        std::snprintf(color_hex_buf, sizeof(color_hex_buf), "%s", element.color.c_str());
-        if (ImGui::InputText("Hex Color Code", color_hex_buf, sizeof(color_hex_buf))) {
+        std::snprintf(
+            color_hex_buf, sizeof(color_hex_buf), "%s",
+            element.color.c_str());
+        if (ImGui::InputText(
+                "Hex Color Code", color_hex_buf, sizeof(color_hex_buf))) {
             element.color = color_hex_buf;
         }
     }
@@ -242,7 +261,12 @@ void ElementPropertyInspector::RenderScrollerControls(ElementConfig& element) {
     if (element.type != "event_scroller") return;
 
     if (ImGui::CollapsingHeader("Event Scroller Settings", ImGuiTreeNodeFlags_DefaultOpen)) {
-        ImGui::SliderFloat("Tilt Angle (deg)", &element.tilt, -45.0f, 45.0f, "%.1f deg");
+        SliderFloatWithInput::Render(
+            "Tilt Angle",
+            &element.tilt,
+            -45.0f,
+            45.0f,
+            "deg");
     }
 }
 

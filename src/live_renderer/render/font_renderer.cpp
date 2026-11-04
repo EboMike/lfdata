@@ -137,7 +137,7 @@ FontRenderer::~FontRenderer() {
 void FontRenderer::EnsureTextureInitialized() {
     if (texture_initialized_) return;
 
-    // Build a 128x128 RGBA texture: 16 columns x 8 rows of 8x8 glyphs (up to 128 characters)
+    // Build a 128x128 RGBA texture: 16 cols x 8 rows of 8x8 glyphs (128 chars)
     constexpr int kTexWidth = 128;
     constexpr int kTexHeight = 128;
     std::vector<uint8_t> pixels(kTexWidth * kTexHeight * 4, 0);
@@ -183,19 +183,59 @@ void FontRenderer::DrawStringQuads(
     float x,
     float y,
     float font_size_px,
-    const float color_rgba[4]) {
+    const float color_rgba[4],
+    float tilt_deg,
+    const std::array<float, 4>& container_rect) {
     EnsureTextureInitialized();
 
     glEnable(GL_TEXTURE_2D);
     glBindTexture(GL_TEXTURE_2D, font_texture_id_);
     glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-    glColor4f(color_rgba[0], color_rgba[1], color_rgba[2], color_rgba[3]);
 
     const float char_w = font_size_px * 0.60f;
     const float char_h = font_size_px;
-    float cur_x = x;
+
+    const bool has_tilt = (
+        tilt_deg != 0.0f &&
+        container_rect[2] > 0.0f &&
+        container_rect[3] > 0.0f);
+
+    const float cx0 = container_rect[0];
+    const float cy0 = container_rect[1];
+    const float cw  = container_rect[2];
+    const float ch  = container_rect[3];
+    const float cx_center = cx0 + cw * 0.5f;
+
+    constexpr float kDegToRad = 3.14159265358979323846f / 180.0f;
+    float dx = 0.0f;
+    if (has_tilt) {
+        dx = ch * std::tan(tilt_deg * kDegToRad);
+        dx = std::clamp(dx, -cw * 0.45f, cw * 0.45f);
+    }
+
+    auto TransformVertex = [&](float vx, float vy) -> std::pair<float, float> {
+        if (!has_tilt) return {vx, vy};
+        float t = std::clamp((vy - cy0) / ch, 0.0f, 1.0f);
+        float s = 1.0f - (1.0f - t) * (2.0f * dx / cw);
+        float nx = cx_center + (vx - cx_center) * s;
+        float ny = (cy0 + ch) - ((cy0 + ch) - vy) * s;
+        return {nx, ny};
+    };
+
+    auto GetAlphaScale = [&](float vy) -> float {
+        if (!has_tilt) return 1.0f;
+        float t = (vy - cy0) / ch;
+        if (t < 0.25f) {
+            return std::clamp(t / 0.25f, 0.0f, 1.0f);
+        }
+        return 1.0f;
+    };
+
+    const float alpha_top = color_rgba[3] * GetAlphaScale(y);
+    const float alpha_bot = color_rgba[3] * GetAlphaScale(y + char_h);
 
     glBegin(GL_QUADS);
+    float cur_x = x;
     for (char c : text) {
         if (c < 32 || c > 126) c = ' ';
         int char_idx = c - 32;
@@ -207,10 +247,18 @@ void FontRenderer::DrawStringQuads(
         float u1 = ((col + 1) * 8.0f) / 128.0f;
         float v1 = ((row + 1) * 8.0f) / 128.0f;
 
-        glTexCoord2f(u0, v0); glVertex2f(cur_x, y);
-        glTexCoord2f(u1, v0); glVertex2f(cur_x + char_w, y);
-        glTexCoord2f(u1, v1); glVertex2f(cur_x + char_w, y + char_h);
-        glTexCoord2f(u0, v1); glVertex2f(cur_x, y + char_h);
+        auto [x0, y0] = TransformVertex(cur_x, y);
+        auto [x1, y1] = TransformVertex(cur_x + char_w, y);
+        auto [x2, y2] = TransformVertex(cur_x + char_w, y + char_h);
+        auto [x3, y3] = TransformVertex(cur_x, y + char_h);
+
+        glColor4f(color_rgba[0], color_rgba[1], color_rgba[2], alpha_top);
+        glTexCoord2f(u0, v0); glVertex2f(x0, y0);
+        glTexCoord2f(u1, v0); glVertex2f(x1, y1);
+
+        glColor4f(color_rgba[0], color_rgba[1], color_rgba[2], alpha_bot);
+        glTexCoord2f(u1, v1); glVertex2f(x2, y2);
+        glTexCoord2f(u0, v1); glVertex2f(x3, y3);
 
         cur_x += char_w;
     }
@@ -235,10 +283,13 @@ void FontRenderer::DrawRapidFireEffect(
 
     constexpr float kStripePeriod = 16.0f;
     constexpr float kStripeWidth = 2.5f;
-    const float offset = std::fmod(static_cast<float>(current_time_ms) * 0.08f, kStripePeriod);
+    const float offset = std::fmod(
+        static_cast<float>(current_time_ms) * 0.08f, kStripePeriod);
 
     glBegin(GL_QUADS);
-    for (float sx = pixel_rect[0] + offset; sx < pixel_rect[0] + pixel_rect[2]; sx += kStripePeriod) {
+    for (float sx = pixel_rect[0] + offset;
+         sx < pixel_rect[0] + pixel_rect[2];
+         sx += kStripePeriod) {
         float x1 = sx;
         float x2 = std::min(sx + kStripeWidth, pixel_rect[0] + pixel_rect[2]);
         glVertex2f(x1, pixel_rect[1]);
@@ -249,7 +300,8 @@ void FontRenderer::DrawRapidFireEffect(
     glEnd();
 }
 
-void FontRenderer::RenderText(const RenderCommand& cmd, int64_t current_time_ms) {
+void FontRenderer::RenderText(
+    const RenderCommand& cmd, int64_t current_time_ms) {
     if (cmd.text.empty()) return;
 
     float text_rgba[4]{};
@@ -265,20 +317,31 @@ void FontRenderer::RenderText(const RenderCommand& cmd, int64_t current_time_ms)
         x += std::max(0.0f, cmd.pixel_rect[2] - total_w);
     }
 
-    const float y = cmd.pixel_rect[1] + std::max(0.0f, (cmd.pixel_rect[3] - cmd.font_size_px) * 0.5f);
+    const float y = cmd.pixel_rect[1] +
+        std::max(0.0f, (cmd.pixel_rect[3] - cmd.font_size_px) * 0.5f);
 
     // 1. Draw black outline if enabled (offset in 4 directions)
     if (cmd.black_outline) {
         constexpr float kOutlineBlack[4] = {0.0f, 0.0f, 0.0f, 1.0f};
         constexpr float kD = 1.5f;
-        DrawStringQuads(cmd.text, x - kD, y, cmd.font_size_px, kOutlineBlack);
-        DrawStringQuads(cmd.text, x + kD, y, cmd.font_size_px, kOutlineBlack);
-        DrawStringQuads(cmd.text, x, y - kD, cmd.font_size_px, kOutlineBlack);
-        DrawStringQuads(cmd.text, x, y + kD, cmd.font_size_px, kOutlineBlack);
+        DrawStringQuads(
+            cmd.text, x - kD, y, cmd.font_size_px, kOutlineBlack,
+            cmd.tilt_deg, cmd.container_rect);
+        DrawStringQuads(
+            cmd.text, x + kD, y, cmd.font_size_px, kOutlineBlack,
+            cmd.tilt_deg, cmd.container_rect);
+        DrawStringQuads(
+            cmd.text, x, y - kD, cmd.font_size_px, kOutlineBlack,
+            cmd.tilt_deg, cmd.container_rect);
+        DrawStringQuads(
+            cmd.text, x, y + kD, cmd.font_size_px, kOutlineBlack,
+            cmd.tilt_deg, cmd.container_rect);
     }
 
     // 2. Draw main text
-    DrawStringQuads(cmd.text, x, y, cmd.font_size_px, text_rgba);
+    DrawStringQuads(
+        cmd.text, x, y, cmd.font_size_px, text_rgba,
+        cmd.tilt_deg, cmd.container_rect);
 
     // 3. Draw rapid fire vertical lines if enabled
     if (cmd.rapid_fire_effect) {

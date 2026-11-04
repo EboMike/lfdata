@@ -16,6 +16,7 @@ struct ElementConfig {
     std::array<float, 4> rect{0.0f, 0.0f, 1.0f, 1.0f}; // [x, y, width, height] relative (0.0 to 1.0)
     int z_position = 0;                           // Z-order: higher renders on top
     std::string text;                             // For user_text or placeholder strings
+    std::string font = "default";                 // Font family or asset path
     std::string color = "#ffffff";                // Hex color string (#RRGGBB or #RRGGBBAA)
     float font_size = 20.0f;                      // Relative font size (20 = 1/40th of 800px)
     std::string alignment = "left";               // "left", "center", "right"

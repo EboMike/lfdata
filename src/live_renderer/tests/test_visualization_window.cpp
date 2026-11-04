@@ -186,5 +186,47 @@ TEST(VisualizationWindowTest, RespectsZPositionOrdering) {
     EXPECT_EQ(batch.commands[1].text, "Top Text");
 }
 
+TEST(VisualizationWindowTest, EventScrollerPropertiesAndTilt) {
+    WindowConfig wcfg;
+    wcfg.id = 1;
+    wcfg.rect = {0, 0, 1000, 800};
+
+    ElementConfig scroller;
+    scroller.type = "event_scroller";
+    scroller.rect = {0.1f, 0.2f, 0.8f, 0.6f};
+    scroller.font = "roboto";
+    scroller.font_size = 24.0f;
+    scroller.alignment = "center";
+    scroller.tilt = 15.0f;
+    wcfg.elements.push_back(scroller);
+
+    UIConfig ui;
+    VisualizationWindow win(wcfg, ui);
+
+    GameStateSnapshot state;
+    state.in_session = false;
+    state.event_scroller = {
+        {1000, "Alpha zapped Beta"},
+        {2000, "Beta destroyed Base"}
+    };
+
+    auto batch = win.GenerateBatch(state, 0, -1);
+    ASSERT_EQ(batch.commands.size(), 2u);
+
+    for (const auto& cmd : batch.commands) {
+        EXPECT_EQ(cmd.type, RenderCommand::Type::Text);
+        EXPECT_EQ(cmd.font, "roboto");
+        EXPECT_FLOAT_EQ(cmd.font_size_px, 24.0f);
+        EXPECT_EQ(cmd.alignment, "center");
+        EXPECT_FLOAT_EQ(cmd.tilt_deg, 15.0f);
+        EXPECT_TRUE(cmd.clip_to_container);
+        EXPECT_FLOAT_EQ(cmd.container_rect[0], 100.0f);
+        EXPECT_FLOAT_EQ(cmd.container_rect[1], 160.0f);
+        EXPECT_FLOAT_EQ(cmd.container_rect[2], 800.0f);
+        EXPECT_FLOAT_EQ(cmd.container_rect[3], 480.0f);
+    }
+}
+
+
 
 

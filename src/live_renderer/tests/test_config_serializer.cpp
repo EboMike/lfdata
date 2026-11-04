@@ -32,6 +32,7 @@ TEST(ConfigSerializerTest, RoundTripUIConfig) {
 
     ElementConfig el;
     el.type = "player_name";
+    el.font = "arial";
     el.rect = {0.0f, 0.0f, 0.5f, 1.0f};
     el.font_size = 22.0f;
     el.alignment = "left";
@@ -60,6 +61,7 @@ TEST(ConfigSerializerTest, RoundTripUIConfig) {
     EXPECT_EQ(loaded.templates[0].name, "RowTmpl");
     ASSERT_EQ(loaded.templates[0].elements.size(), 1);
     EXPECT_EQ(loaded.templates[0].elements[0].type, "player_name");
+    EXPECT_EQ(loaded.templates[0].elements[0].font, "arial");
 
     ASSERT_EQ(loaded.windows.size(), 1);
     EXPECT_EQ(loaded.windows[0].title, "Arena 1");

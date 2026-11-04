@@ -151,7 +151,7 @@ void VisualizationWindow::GenerateElementCommands(
     } else if (element.type == "game_scorecard") {
         GenerateGameScorecardCommands(element, state, batch);
     } else if (element.type == "event_scroller") {
-        GenerateEventScrollerCommands(element, state, batch);
+        GenerateEventScrollerCommands(element, state, current_time_ms, batch);
     }
 }
 
@@ -291,29 +291,67 @@ void VisualizationWindow::GenerateGameScorecardCommands(
 void VisualizationWindow::GenerateEventScrollerCommands(
     const ElementConfig& element,
     const GameStateSnapshot& state,
+    int64_t current_time_ms,
     RenderBatch& batch) const {
+    if (state.event_scroller.empty()) return;
+
     const auto base_px_rect = RelativeToPixelRect(element.rect);
-    const float line_h = 24.0f;
-    float y = base_px_rect[1] + base_px_rect[3] - line_h;
+    const float win_h = static_cast<float>(GetHeight());
+    const float font_size_px = RichTextLayout::ComputePixelFontSize(
+        element.font_size > 0.0f ? element.font_size : 16.0f, win_h);
+    const float line_h = font_size_px * 1.4f;
+    const float line_spacing = font_size_px * 0.15f;
+    const float step_y = line_h + line_spacing;
 
-    // Show recent events from bottom up
-    for (auto it = state.event_scroller.rbegin(); it != state.event_scroller.rend(); ++it) {
-        if (y < base_px_rect[1]) break;
+    const size_t num_events = state.event_scroller.size();
+    const int idx = static_cast<int>(num_events) - 1;
+    const float target_offset = static_cast<float>(idx) * step_y;
 
-        ElementConfig line_el = element;
-        line_el.font_size = element.font_size > 0.0f ? element.font_size : 16.0f;
-        line_el.alignment = "left";
+    float y_scroll = target_offset;
+    if (state.in_session && state.game_start_time_local_ms > 0) {
+        const int64_t t_latest = state.event_scroller.back().timestamp_ms;
+        const int64_t current_game_time_ms =
+            current_time_ms - state.game_start_time_local_ms;
+        const int64_t elapsed_ms = current_game_time_ms - t_latest;
+        constexpr int64_t kScrollDurationMs = 500;
+        if (elapsed_ms >= 0 && elapsed_ms < kScrollDurationMs) {
+            float p = static_cast<float>(elapsed_ms) /
+                static_cast<float>(kScrollDurationMs);
+            constexpr float kPi = 3.14159265358979323846f;
+            float p_anim = 0.5f * (1.0f - std::cos(p * kPi));
+            float prev_offset =
+                static_cast<float>(std::max(0, idx - 1)) * step_y;
+            y_scroll = prev_offset + (target_offset - prev_offset) * p_anim;
+        }
+    }
 
+    ElementConfig line_el = element;
+    line_el.font = element.font;
+    line_el.font_size = element.font_size > 0.0f ? element.font_size : 16.0f;
+    line_el.alignment = element.alignment.empty() ? "left" : element.alignment;
+    line_el.color = element.color.empty() ? "#ffffff" : element.color;
+
+    const float container_bottom = base_px_rect[1] + base_px_rect[3];
+    for (size_t i = 0; i < num_events; ++i) {
+        float y = (container_bottom - line_h) +
+            (static_cast<float>(i) * step_y - y_scroll);
+
+        if (y + line_h < base_px_rect[1] || y > container_bottom) {
+            continue;
+        }
+
+        const auto& ev = state.event_scroller[i];
         TextComponent::GenerateCommands(
             line_el,
-            it->formatted_message,
+            ev.formatted_message,
             {base_px_rect[0], y, base_px_rect[2], line_h},
-            element.color.empty() ? "#ffffff" : element.color,
+            line_el.color,
             false,
-            static_cast<float>(GetHeight()),
-            batch);
-
-        y -= (line_h + 2.0f);
+            win_h,
+            batch,
+            element.tilt,
+            base_px_rect,
+            true);
     }
 }
 

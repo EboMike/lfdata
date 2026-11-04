@@ -102,6 +102,7 @@ set(CORE_SOURCES
     windows/visualization_window.cpp
     windows/window_manager.cpp
     diagnostics/crash_handler.cpp
+    widgets/slider_float_with_input.cpp
 )
 
 add_library(live_renderer_core STATIC ${CORE_SOURCES})
@@ -133,6 +134,7 @@ add_executable(live_renderer_tests
     tests/test_preferences_manager.cpp
     tests/test_ui_editor_interaction.cpp
     tests/test_crash_handler.cpp
+    tests/test_slider_float_with_input.cpp
 )
 target_link_libraries(live_renderer_tests PRIVATE
     live_renderer_core

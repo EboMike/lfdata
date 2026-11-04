@@ -24,11 +24,17 @@ struct RenderCommand {
 
     // Text properties
     std::string text;
+    std::string font;
     std::string hex_color = "#ffffff";
     float font_size_px = 20.0f;
     std::string alignment = "left"; // "left", "center", "right"
     bool black_outline = true;
     bool rapid_fire_effect = false;
+
+    // Perspective tilt / container clipping
+    float tilt_deg = 0.0f;
+    std::array<float, 4> container_rect{0.0f, 0.0f, 0.0f, 0.0f};
+    bool clip_to_container = false;
 
     // Image / Texture properties
     std::string texture_asset;

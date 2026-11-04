@@ -321,6 +321,25 @@ void WindowManager::RenderWindowBatch(
     glDisable(GL_TEXTURE_2D);
 
     for (const auto& cmd : batch.commands) {
+        bool scissor_active = false;
+        if (cmd.clip_to_container &&
+            cmd.container_rect[2] > 0.0f &&
+            cmd.container_rect[3] > 0.0f) {
+            const double scale_x = static_cast<double>(w) / ortho_w;
+            const double scale_y = static_cast<double>(h) / ortho_h;
+            const int sx = static_cast<int>(cmd.container_rect[0] * scale_x);
+            const int sy = static_cast<int>(
+                (ortho_h - (cmd.container_rect[1] + cmd.container_rect[3])) * scale_y);
+            const int sw = static_cast<int>(cmd.container_rect[2] * scale_x);
+            const int sh = static_cast<int>(cmd.container_rect[3] * scale_y);
+
+            if (sw > 0 && sh > 0) {
+                glEnable(GL_SCISSOR_TEST);
+                glScissor(sx, sy, sw, sh);
+                scissor_active = true;
+            }
+        }
+
         if (cmd.type == RenderCommand::Type::SolidQuad) {
             glColor4f(cmd.color_rgba[0], cmd.color_rgba[1], cmd.color_rgba[2], cmd.color_rgba[3]);
             glBegin(GL_QUADS);
@@ -333,6 +352,10 @@ void WindowManager::RenderWindowBatch(
             if (font_renderer_) {
                 font_renderer_->RenderText(cmd, current_time_ms);
             }
+        }
+
+        if (scissor_active) {
+            glDisable(GL_SCISSOR_TEST);
         }
     }
 

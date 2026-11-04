@@ -50,6 +50,9 @@ public:
      * @param rapid_fire True if player has rapid fire active.
      * @param window_height Total height of window in pixels (for font scaling).
      * @param batch Destination RenderBatch to append generated commands to.
+     * @param tilt_deg Perspective tilt angle in degrees (for Star Wars scroller effect).
+     * @param container_rect Container bounds [x, y, w, h] for perspective projection.
+     * @param clip_to_container True to clip rendered primitives to container bounds.
      */
     static void GenerateCommands(
         const ElementConfig& element,
@@ -58,7 +61,10 @@ public:
         const std::string& base_color,
         bool rapid_fire,
         float window_height,
-        RenderBatch& batch);
+        RenderBatch& batch,
+        float tilt_deg = 0.0f,
+        const std::array<float, 4>& container_rect = {0.0f, 0.0f, 0.0f, 0.0f},
+        bool clip_to_container = false);
 
     /**
      * @brief Generates render commands for a top-level user_text element.

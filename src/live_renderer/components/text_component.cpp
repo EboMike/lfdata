@@ -87,7 +87,10 @@ void TextComponent::GenerateCommands(
     const std::string& base_color,
     bool rapid_fire,
     float window_height,
-    RenderBatch& batch) {
+    RenderBatch& batch,
+    float tilt_deg,
+    const std::array<float, 4>& container_rect,
+    bool clip_to_container) {
     if (raw_text.empty()) return;
 
     const float font_size_px = RichTextLayout::ComputePixelFontSize(
@@ -112,11 +115,15 @@ void TextComponent::GenerateCommands(
         cmd.type = RenderCommand::Type::Text;
         cmd.pixel_rect = pixel_rect;
         cmd.text = runs[0].text;
+        cmd.font = element.font;
         cmd.hex_color = runs[0].hex_color;
         cmd.font_size_px = font_size_px;
         cmd.alignment = element.alignment.empty() ? "left" : element.alignment;
         cmd.black_outline = true;
         cmd.rapid_fire_effect = rapid_fire;
+        cmd.tilt_deg = tilt_deg;
+        cmd.container_rect = container_rect;
+        cmd.clip_to_container = clip_to_container;
         batch.commands.push_back(cmd);
         return;
     }
@@ -160,17 +167,24 @@ void TextComponent::GenerateCommands(
             };
             icmd.texture_asset = run.image_asset;
             icmd.opacity = element.opacity;
+            icmd.tilt_deg = tilt_deg;
+            icmd.container_rect = container_rect;
+            icmd.clip_to_container = clip_to_container;
             batch.commands.push_back(icmd);
         } else if (!run.text.empty()) {
             RenderCommand tcmd;
             tcmd.type = RenderCommand::Type::Text;
             tcmd.pixel_rect = {cur_x, pixel_rect[1], rw, pixel_rect[3]};
             tcmd.text = run.text;
+            tcmd.font = element.font;
             tcmd.hex_color = run.hex_color;
             tcmd.font_size_px = font_size_px;
             tcmd.alignment = "left";
             tcmd.black_outline = true;
             tcmd.rapid_fire_effect = rapid_fire;
+            tcmd.tilt_deg = tilt_deg;
+            tcmd.container_rect = container_rect;
+            tcmd.clip_to_container = clip_to_container;
             batch.commands.push_back(tcmd);
         }
 

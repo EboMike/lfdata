@@ -73,6 +73,7 @@ private:
     void GenerateEventScrollerCommands(
         const ElementConfig& element,
         const GameStateSnapshot& state,
+        int64_t current_time_ms,
         RenderBatch& batch) const;
 
     const TemplateConfig* FindTemplate(int template_id) const;
