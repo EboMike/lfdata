@@ -16,13 +16,14 @@ void VisualizationWindow::SetDimensions(int width, int height) {
     config_.rect[3] = std::max(100, height);
 }
 
-std::array<float, 4> VisualizationWindow::RelativeToPixelRect(const std::array<float, 4>& rel_rect) const {
-    const float win_w = static_cast<float>(GetWidth());
+std::array<float, 4> VisualizationWindow::RelativeToPixelRect(
+    const std::array<float, 4>& rel_rect) const {
     const float win_h = static_cast<float>(GetHeight());
+    const float unit_w = win_h * 16.0f / 9.0f;
     return {
-        rel_rect[0] * win_w,
+        rel_rect[0] * unit_w,
         rel_rect[1] * win_h,
-        rel_rect[2] * win_w,
+        rel_rect[2] * unit_w,
         rel_rect[3] * win_h
     };
 }

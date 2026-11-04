@@ -57,13 +57,14 @@ int UIEditorInteraction::FindHitElementIndex(
         });
 
     // Check from top to bottom (highest Z on top)
+    const float unit_w = static_cast<float>(win_h) * 16.0f / 9.0f;
     for (auto it = ordered_indices.rbegin(); it != ordered_indices.rend(); ++it) {
         const size_t idx = *it;
         const auto& el = elements[idx];
         const std::array<float, 4> rect_px{
-            el.rect[0] * static_cast<float>(win_w),
+            el.rect[0] * unit_w,
             el.rect[1] * static_cast<float>(win_h),
-            el.rect[2] * static_cast<float>(win_w),
+            el.rect[2] * unit_w,
             el.rect[3] * static_cast<float>(win_h)
         };
 
@@ -89,15 +90,16 @@ bool UIEditorInteraction::HandleMouseDown(
 
     const float mx = static_cast<float>(mouse_x);
     const float my = static_cast<float>(mouse_y);
+    const float unit_w = static_cast<float>(win_h) * 16.0f / 9.0f;
 
     // 1. If an element is already selected and covers mouse, keep selection and drag it
     if (in_out_selected_index >= 0 &&
         in_out_selected_index < static_cast<int>(elements.size())) {
         const auto& sel_el = elements[in_out_selected_index];
         const std::array<float, 4> sel_px{
-            sel_el.rect[0] * static_cast<float>(win_w),
+            sel_el.rect[0] * unit_w,
             sel_el.rect[1] * static_cast<float>(win_h),
-            sel_el.rect[2] * static_cast<float>(win_w),
+            sel_el.rect[2] * unit_w,
             sel_el.rect[3] * static_cast<float>(win_h)
         };
 
@@ -119,7 +121,7 @@ bool UIEditorInteraction::HandleMouseDown(
     if (hit >= 0) {
         in_out_selected_index = hit;
         const auto& hit_el = elements[hit];
-        const float el_x = hit_el.rect[0] * static_cast<float>(win_w);
+        const float el_x = hit_el.rect[0] * unit_w;
         const float el_y = hit_el.rect[1] * static_cast<float>(win_h);
 
         drag_mode_ = DragMode::Move;
@@ -150,8 +152,8 @@ bool UIEditorInteraction::HandleMouseMove(
     auto& el = elements[selected_index];
     const float mx = static_cast<float>(mouse_x);
     const float my = static_cast<float>(mouse_y);
-    const float fw = static_cast<float>(win_w);
     const float fh = static_cast<float>(win_h);
+    const float unit_w = fh * 16.0f / 9.0f;
 
     if (drag_mode_ == DragMode::Move) {
         float new_px_x = mx - drag_offset_x_;
@@ -159,10 +161,10 @@ bool UIEditorInteraction::HandleMouseMove(
 
         float rel_w = el.rect[2];
         float rel_h = el.rect[3];
-        float rel_x = new_px_x / fw;
+        float rel_x = new_px_x / unit_w;
         float rel_y = new_px_y / fh;
 
-        rel_x = std::clamp(rel_x, 0.0f, std::max(0.0f, 1.0f - rel_w));
+        rel_x = std::max(0.0f, rel_x);
         rel_y = std::clamp(rel_y, 0.0f, std::max(0.0f, 1.0f - rel_h));
 
         el.rect[0] = rel_x;
@@ -171,7 +173,7 @@ bool UIEditorInteraction::HandleMouseMove(
     }
 
     if (drag_mode_ == DragMode::Resize) {
-        float el_px_x = el.rect[0] * fw;
+        float el_px_x = el.rect[0] * unit_w;
         float el_px_y = el.rect[1] * fh;
 
         float new_px_w = mx - el_px_x;
@@ -181,10 +183,10 @@ bool UIEditorInteraction::HandleMouseMove(
         new_px_w = std::max(kMinPx, new_px_w);
         new_px_h = std::max(kMinPx, new_px_h);
 
-        float rel_w = new_px_w / fw;
+        float rel_w = new_px_w / unit_w;
         float rel_h = new_px_h / fh;
 
-        rel_w = std::clamp(rel_w, 0.01f, 1.0f - el.rect[0]);
+        rel_w = std::max(0.005f, rel_w);
         rel_h = std::clamp(rel_h, 0.01f, 1.0f - el.rect[1]);
 
         el.rect[2] = rel_w;

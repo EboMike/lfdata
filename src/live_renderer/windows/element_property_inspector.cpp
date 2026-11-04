@@ -92,23 +92,30 @@ void ElementPropertyInspector::RenderHeaderAndActions(
     ImGui::PopStyleColor(3);
 }
 
-void ElementPropertyInspector::RenderGeometryControls(ElementConfig& element) {
-    if (ImGui::CollapsingHeader("Geometry / Bounds (0.0 to 1.0)", ImGuiTreeNodeFlags_DefaultOpen)) {
+void ElementPropertyInspector::RenderGeometryControls(
+    ElementConfig& element) {
+    if (ImGui::CollapsingHeader(
+            "Geometry / Bounds (0.0 to 1.0)",
+            ImGuiTreeNodeFlags_DefaultOpen)) {
         float x = element.rect[0];
         float y = element.rect[1];
         float w = element.rect[2];
         float h = element.rect[3];
 
         bool changed = false;
-        changed |= ImGui::DragFloat("X (rel)", &x, 0.005f, 0.0f, 1.0f, "%.3f");
-        changed |= ImGui::DragFloat("Y (rel)", &y, 0.005f, 0.0f, 1.0f, "%.3f");
-        changed |= ImGui::DragFloat("Width (rel)", &w, 0.005f, 0.005f, 1.0f, "%.3f");
-        changed |= ImGui::DragFloat("Height (rel)", &h, 0.005f, 0.005f, 1.0f, "%.3f");
+        changed |= ImGui::DragFloat(
+            "X (rel)", &x, 0.005f, 0.0f, 10.0f, "%.3f");
+        changed |= ImGui::DragFloat(
+            "Y (rel)", &y, 0.005f, 0.0f, 1.0f, "%.3f");
+        changed |= ImGui::DragFloat(
+            "Width (rel)", &w, 0.005f, 0.001f, 10.0f, "%.3f");
+        changed |= ImGui::DragFloat(
+            "Height (rel)", &h, 0.005f, 0.001f, 1.0f, "%.3f");
 
         if (changed) {
-            element.rect[0] = std::clamp(x, 0.0f, 1.0f);
+            element.rect[0] = std::max(0.0f, x);
             element.rect[1] = std::clamp(y, 0.0f, 1.0f);
-            element.rect[2] = std::clamp(w, 0.001f, 1.0f);
+            element.rect[2] = std::max(0.001f, w);
             element.rect[3] = std::clamp(h, 0.001f, 1.0f);
         }
 

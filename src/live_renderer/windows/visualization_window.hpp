@@ -45,9 +45,14 @@ public:
         int highlight_element_index = -1) const;
 
     /**
-     * @brief Converts a relative [0.0, 1.0] rect [x, y, w, h] to absolute window pixel coordinates.
+     * @brief Converts relative rect [x, y, w, h] to absolute window pixels.
+     *
+     * Coordinates assume a 16:9 aspect ratio anchored at top-left (0,0),
+     * where y=1.0 represents the window height and x=1.0 represents
+     * height * 16 / 9.
      */
-    std::array<float, 4> RelativeToPixelRect(const std::array<float, 4>& rel_rect) const;
+    std::array<float, 4> RelativeToPixelRect(
+        const std::array<float, 4>& rel_rect) const;
 
 private:
     void GenerateElementCommands(

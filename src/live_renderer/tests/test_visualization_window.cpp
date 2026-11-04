@@ -8,6 +8,7 @@ TEST(VisualizationWindowTest, CoordinateTransformation) {
     WindowConfig wcfg;
     wcfg.id = 1;
     wcfg.title = "Test Window";
+    // 16:9 window: 1920x1080 -> unit_w = 1080 * 16 / 9 = 1920
     wcfg.rect = {0, 0, 1920, 1080};
 
     UIConfig ui;
@@ -20,6 +21,16 @@ TEST(VisualizationWindowTest, CoordinateTransformation) {
     EXPECT_FLOAT_EQ(px_rect[1], 540.0f);
     EXPECT_FLOAT_EQ(px_rect[2], 960.0f);
     EXPECT_FLOAT_EQ(px_rect[3], 270.0f);
+
+    // Non-16:9 window: 1000x900 -> height 900, so unit_w = 900 * 16 / 9 = 1600
+    WindowConfig wcfg2;
+    wcfg2.rect = {0, 0, 1000, 900};
+    VisualizationWindow win2(wcfg2, ui);
+    auto px_rect2 = win2.RelativeToPixelRect({1.0f, 1.0f, 0.5f, 0.5f});
+    EXPECT_FLOAT_EQ(px_rect2[0], 1600.0f);
+    EXPECT_FLOAT_EQ(px_rect2[1], 900.0f);
+    EXPECT_FLOAT_EQ(px_rect2[2], 800.0f);
+    EXPECT_FLOAT_EQ(px_rect2[3], 450.0f);
 }
 
 TEST(VisualizationWindowTest, GeneratesTextAndTimerCommands) {
@@ -140,9 +151,10 @@ TEST(VisualizationWindowTest, HighlightElementAppendsHighlightCommands) {
 
     // Check highlight fill command is orange
     EXPECT_EQ(highlight_batch.commands[1].type, RenderCommand::Type::SolidQuad);
-    EXPECT_FLOAT_EQ(highlight_batch.commands[1].pixel_rect[0], 100.0f);
+    const float unit_w = 1000.0f * 16.0f / 9.0f;
+    EXPECT_FLOAT_EQ(highlight_batch.commands[1].pixel_rect[0], 0.1f * unit_w);
     EXPECT_FLOAT_EQ(highlight_batch.commands[1].pixel_rect[1], 200.0f);
-    EXPECT_FLOAT_EQ(highlight_batch.commands[1].pixel_rect[2], 300.0f);
+    EXPECT_FLOAT_EQ(highlight_batch.commands[1].pixel_rect[2], 0.3f * unit_w);
     EXPECT_FLOAT_EQ(highlight_batch.commands[1].pixel_rect[3], 400.0f);
     EXPECT_FLOAT_EQ(highlight_batch.commands[1].color_rgba[0], 1.0f);
     EXPECT_FLOAT_EQ(highlight_batch.commands[1].color_rgba[1], 0.55f);
@@ -220,9 +232,10 @@ TEST(VisualizationWindowTest, EventScrollerPropertiesAndTilt) {
         EXPECT_EQ(cmd.alignment, "center");
         EXPECT_FLOAT_EQ(cmd.tilt_deg, 15.0f);
         EXPECT_TRUE(cmd.clip_to_container);
-        EXPECT_FLOAT_EQ(cmd.container_rect[0], 100.0f);
+        const float unit_w = 800.0f * 16.0f / 9.0f;
+        EXPECT_FLOAT_EQ(cmd.container_rect[0], 0.1f * unit_w);
         EXPECT_FLOAT_EQ(cmd.container_rect[1], 160.0f);
-        EXPECT_FLOAT_EQ(cmd.container_rect[2], 800.0f);
+        EXPECT_FLOAT_EQ(cmd.container_rect[2], 0.8f * unit_w);
         EXPECT_FLOAT_EQ(cmd.container_rect[3], 480.0f);
     }
 }
