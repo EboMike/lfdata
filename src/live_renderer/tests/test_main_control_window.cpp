@@ -204,10 +204,14 @@ TEST(MainControlWindowTest, AboutModalAndMetadata) {
 
     win.OpenAboutDialog();
     EXPECT_TRUE(win.IsAboutDialogOpen());
-    EXPECT_STREQ(MainControlWindow::GetApplicationName(), "LF Live Renderer");
-    EXPECT_STREQ(MainControlWindow::GetApplicationVersion(), kLiveRendererVersion);
-    EXPECT_STREQ(MainControlWindow::GetApplicationVersion(), "0.1.21");
-    EXPECT_STREQ(MainControlWindow::GetApplicationAuthor(), "EboMike");
+    EXPECT_STREQ(
+        MainControlWindow::GetApplicationName(), "LF Live Renderer");
+    EXPECT_STREQ(
+        MainControlWindow::GetApplicationVersion(), kLiveRendererVersion);
+    EXPECT_STREQ(
+        MainControlWindow::GetApplicationVersion(), "0.1.22");
+    EXPECT_STREQ(
+        MainControlWindow::GetApplicationAuthor(), "EboMike");
 
     win.CloseAboutDialog();
     EXPECT_FALSE(win.IsAboutDialogOpen());

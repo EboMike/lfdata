@@ -343,6 +343,9 @@ void TextComponent::GeneratePlayerElementCommands(
     const std::array<float, 4>& pixel_rect,
     float window_height,
     RenderBatch& batch) {
+    const std::string state_color =
+        ScorecardHelper::GetRowTextColor(player, team_color);
+
     // In SM5, player_role is visualized with an image from assets/sm5/
     if (element.type == "player_role") {
         std::string role_name = player.role.empty() ? "commander" : player.role;
@@ -352,13 +355,8 @@ void TextComponent::GeneratePlayerElementCommands(
                 element.font_size > 0.0f ? element.font_size : 20.0f,
                 window_height);
 
-            float icon_size = std::min(pixel_rect[2], pixel_rect[3]);
-            if (icon_size <= 0.0f || icon_size > pixel_rect[3]) {
-                icon_size = pixel_rect[3];
-            }
-            if (icon_size > font_size_px * 1.5f && font_size_px > 0.0f) {
-                icon_size = font_size_px * 1.2f;
-            }
+            const float icon_size =
+                font_size_px > 0.0f ? font_size_px : 20.0f;
 
             float icon_x = pixel_rect[0];
             const std::string align =
@@ -369,24 +367,23 @@ void TextComponent::GeneratePlayerElementCommands(
                 icon_x += std::max(0.0f, pixel_rect[2] - icon_size);
             }
             const float icon_y =
-                pixel_rect[1] + (pixel_rect[3] - icon_size) * 0.5f;
+                pixel_rect[1] +
+                std::max(0.0f, (pixel_rect[3] - icon_size) * 0.5f);
 
             RenderCommand cmd;
             cmd.type = RenderCommand::Type::TexturedQuad;
             cmd.pixel_rect = {icon_x, icon_y, icon_size, icon_size};
             cmd.texture_asset = role_asset;
             cmd.opacity = element.opacity;
-            if (element.tint_team_color > 0.0f && !team_color.empty()) {
-                cmd.color_rgba = ScorecardHelper::ComputeTeamTint(
-                    team_color, element.tint_team_color);
-            }
+            const float tint_amount =
+                element.tint_team_color > 0.0f ? element.tint_team_color : 1.0f;
+            cmd.color_rgba = ScorecardHelper::ComputeTeamTint(
+                state_color, tint_amount);
             batch.commands.push_back(cmd);
             return;
         }
     }
 
-    const std::string state_color =
-        ScorecardHelper::GetRowTextColor(player, team_color);
     const std::string text =
         ResolvePlayerText(element.type, player, element.text);
 

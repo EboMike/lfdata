@@ -109,6 +109,21 @@ Parameters:
     a team (for example a team score card). Float value. If >0.0, the video
     will be tinted with the team color (higher value = higher tint). 
 
+### Background
+
+This is not a component by itself, but it can be used by other components,
+such as lists. It will be rendered immediately underneath the element it is
+assigned to.
+
+Parameters:
+
+*   **Color**: If set, a simple RGB color.
+*   **Image**: If set, an image. Has all the parameters of "Image" components.
+*   **Video**: If set, a video. Has all the parmaters of "Video" components.
+*   **Opacity**: A float value from 0.0 (invisible) to 1.0
+    (opaque).
+*   **Corner radius**: The corner radius of the background. Defaults to 0.0.
+
 ### Lists
 
 A list of elements. This could be a list of players, or a list
@@ -125,6 +140,7 @@ Parameters:
 *   **Template**: A template for each element.
 *   **Header Template**: An optional template for a header.
 *   **Elements**: All, or a specific one by its index.
+*   **Background**: The background for this element.
 
 ### Team Scorecard
 

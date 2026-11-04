@@ -302,6 +302,8 @@ TEST(TextComponentTest, PlayerRoleVisualizesAsImageInSM5) {
 
     PlayerSnapshot p;
     p.role = "heavy";
+    p.lives = 3;
+    p.state = 0;
 
     RenderBatch batch;
     TextComponent::GeneratePlayerElementCommands(
@@ -311,6 +313,51 @@ TEST(TextComponentTest, PlayerRoleVisualizesAsImageInSM5) {
     EXPECT_EQ(batch.commands[0].type, RenderCommand::Type::TexturedQuad);
     EXPECT_EQ(batch.commands[0].texture_asset, "assets/sm5/heavy.png");
     EXPECT_FLOAT_EQ(batch.commands[0].opacity, 0.95f);
+    // At 720p height, font size 20 is 18px
+    EXPECT_FLOAT_EQ(batch.commands[0].pixel_rect[2], 18.0f);
+    EXPECT_FLOAT_EQ(batch.commands[0].pixel_rect[3], 18.0f);
+    // Active player is tinted with team color
+    EXPECT_FLOAT_EQ(batch.commands[0].color_rgba[0], 1.0f);
+    EXPECT_FLOAT_EQ(batch.commands[0].color_rgba[1], 80.0f / 255.0f);
+    EXPECT_FLOAT_EQ(batch.commands[0].color_rgba[2], 0.0f);
+}
+
+TEST(TextComponentTest, PlayerRoleTintMatchesPlayerState) {
+    ElementConfig el;
+    el.type = "player_role";
+    el.font_size = 20.0f;
+
+    // 1. Down player (state 3) -> darkened team color
+    PlayerSnapshot down_p;
+    down_p.role = "medic";
+    down_p.lives = 2;
+    down_p.state = 3;
+
+    RenderBatch batch_down;
+    TextComponent::GeneratePlayerElementCommands(
+        el, down_p, "#00FF00", {0.0f, 0.0f, 100.0f, 30.0f}, 800.0f,
+        batch_down);
+    ASSERT_EQ(batch_down.commands.size(), 1u);
+    EXPECT_FLOAT_EQ(batch_down.commands[0].pixel_rect[2], 20.0f);
+    EXPECT_FLOAT_EQ(batch_down.commands[0].pixel_rect[3], 20.0f);
+    EXPECT_FLOAT_EQ(batch_down.commands[0].color_rgba[0], 0.0f);
+    EXPECT_FLOAT_EQ(batch_down.commands[0].color_rgba[1], 127.0f / 255.0f);
+    EXPECT_FLOAT_EQ(batch_down.commands[0].color_rgba[2], 0.0f);
+
+    // 2. Dead player (lives 0 or state 4) -> gray #808080
+    PlayerSnapshot dead_p;
+    dead_p.role = "scout";
+    dead_p.lives = 0;
+    dead_p.state = 4;
+
+    RenderBatch batch_dead;
+    TextComponent::GeneratePlayerElementCommands(
+        el, dead_p, "#00FF00", {0.0f, 0.0f, 100.0f, 30.0f}, 800.0f,
+        batch_dead);
+    ASSERT_EQ(batch_dead.commands.size(), 1u);
+    EXPECT_FLOAT_EQ(batch_dead.commands[0].color_rgba[0], 128.0f / 255.0f);
+    EXPECT_FLOAT_EQ(batch_dead.commands[0].color_rgba[1], 128.0f / 255.0f);
+    EXPECT_FLOAT_EQ(batch_dead.commands[0].color_rgba[2], 128.0f / 255.0f);
 }
 
 TEST(TextComponentTest, MultilineTextWithVerticalSpacing) {
