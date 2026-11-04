@@ -304,6 +304,11 @@ the following elements:
 *   Nukes detonated
 *   Player accuracy string (shown as "shots landed/shots fired (accuracy)", for
     example "30/60 (50%)". Empty string if no shots fired.)
+*   Missiles fired
+*   Missiles landed
+*   Missile accuracy string (shown as "missiles landed/missiles landed", for
+    example "3/5". Empty string if player role has no missiles, otherwise
+    always shown, even "0/0").
 
 Note that the content of a scorecard row is generally rendered in the
 color of the team.
@@ -347,6 +352,11 @@ following elements:
 *   Nukes detonated
 *   Player accuracy string (shown as "shots landed/shots fired (accuracy)", for
     example "30/60 (50%)". Empty string if no shots fired.)
+*   Missiles fired
+*   Missiles landed
+*   Missile accuracy string (shown as "missiles landed/missiles landed", for
+    example "3/5". Empty string if player role has no missiles, otherwise
+    always shown, even "0/0").
 
 ## UI configuration file
 

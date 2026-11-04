@@ -29,5 +29,9 @@ def test_constants_values() -> None:
     assert constants.DATA_TYPE_IMPORTANT_EVENT == 25
     assert constants.DATA_TYPE_PLAYER_RANKING == 26
     assert constants.DATA_TYPE_TEAM_RANKING == 27
+    assert constants.DATA_TYPE_CENTER_INFO == 28
+    assert constants.DATA_TYPE_NUKES_ACTIVATED == 29
+    assert constants.DATA_TYPE_NUKES_DETONATED == 30
+    assert constants.DATA_TYPE_MEDIC_HITS == 31
     assert constants.DATA_TYPE_NEW_GAME == 98
     assert constants.DATA_TYPE_GAME_OVER == 99

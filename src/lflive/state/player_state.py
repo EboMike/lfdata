@@ -42,6 +42,15 @@ class LivePlayerState:
         state: Numerical player state (0=Up, 2=Resettable, 3=Down, 4=Dead).
         rapid_fire: Whether rapid fire is currently active.
         ranking: 1-based scoreboard position ranking.
+        shots_fired: Total shots/zaps fired.
+        shots_hit: Total shots/zaps hitting a target or opponent.
+        missiles_fired: Total missiles fired.
+        missiles_landed: Total missiles landing a hit.
+        nukes_activated: Total nukes activated.
+        nukes_detonated: Total nukes detonated.
+        enemy_medic_hits: Total hits dealt to enemy medics.
+        own_medic_hits: Total hits dealt to friendly medics.
+        medic_nukes: Enemy medic lives stripped by nukes.
     """
 
     player_id: int
@@ -63,6 +72,54 @@ class LivePlayerState:
     state: int = 0
     rapid_fire: bool = False
     ranking: int = 1
+    shots_fired: int = 0
+    shots_hit: int = 0
+    missiles_fired: int = 0
+    missiles_landed: int = 0
+    nukes_activated: int = 0
+    nukes_detonated: int = 0
+    enemy_medic_hits: int = 0
+    own_medic_hits: int = 0
+    medic_nukes: int = 0
+
+    def get_accuracy_string(self) -> str:
+        """Returns player shot accuracy percentage string.
+
+        Calculates shots hit divided by shots fired. Returns empty string if
+        no shots have been fired.
+
+        Returns:
+            str: Accuracy string (e.g. '54.2%') or empty string if 0 fired.
+
+        Usage example:
+            acc = player.get_accuracy_string()
+        """
+        if self.shots_fired <= 0:
+            return ''
+        pct = (self.shots_hit / self.shots_fired) * 100.0
+        return f'{pct:.1f}%'
+
+    def get_formatted_medic_hits(self) -> str:
+        """Returns formatted medic hits string.
+
+        Displays {enemy}/{nukes}/-{own} based on non-zero components.
+
+        Returns:
+            str: Formatted medic hits representation.
+
+        Usage example:
+            hits_str = player.get_formatted_medic_hits()
+        """
+        if self.medic_nukes != 0 and self.own_medic_hits != 0:
+            return (
+                f'{self.enemy_medic_hits}/{self.medic_nukes}'
+                f'/-{self.own_medic_hits}'
+            )
+        if self.medic_nukes != 0:
+            return f'{self.enemy_medic_hits}/{self.medic_nukes}'
+        if self.own_medic_hits != 0:
+            return f'{self.enemy_medic_hits}/-{self.own_medic_hits}'
+        return str(self.enemy_medic_hits)
 
     def calculate_ranking_score(self, is_laserball: bool = False) -> int:
         """Calculates player ranking score based on game mode.

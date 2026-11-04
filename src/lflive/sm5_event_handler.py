@@ -35,21 +35,31 @@ from lfdata.model.gametypes.sm5_events import (
     SM5_EVENT_DOWNED_OPPONENT,
     SM5_EVENT_DOWNED_TEAM,
     SM5_EVENT_HIT_BASE,
+    SM5_EVENT_MISS,
+    SM5_EVENT_MISS_BASE,
     SM5_EVENT_MISSILE_BASE_DAMAGE,
     SM5_EVENT_MISSILE_BASE_DESTROY,
+    SM5_EVENT_MISSILE_BASE_MISS,
     SM5_EVENT_MISSILE_DAMAGE_OPPONENT,
     SM5_EVENT_MISSILE_DAMAGE_TEAM,
     SM5_EVENT_MISSILE_DOWN_OPPONENT,
     SM5_EVENT_MISSILE_DOWN_TEAM,
+    SM5_EVENT_MISSILE_MISS,
     SM5_EVENT_PENALTY,
     SM5_EVENT_RESUPPLY_AMMO,
     SM5_EVENT_RESUPPLY_LIVES,
+    SM5_EVENT_SHOT_EMPTY,
+    SM5_EVENT_WARBOT_ZAP,
 )
 from lflive.constants import (
     DATA_TYPE_BASE_CAPTURED,
     DATA_TYPE_EVENT_SCROLLER,
-    DATA_TYPE_IMPORTANT_EVENT,
+    DATA_TYPE_MEDIC_HITS,
+    DATA_TYPE_NUKES_ACTIVATED,
+    DATA_TYPE_NUKES_DETONATED,
+    DATA_TYPE_PLAYER_MISSILES,
     DATA_TYPE_PLAYER_SCORE,
+    DATA_TYPE_PLAYER_SHOTS,
     DATA_TYPE_PLAYER_SPECIAL_POINTS,
     DATA_TYPE_RAPID_FIRE_STATE,
     DATA_TYPE_TEAM_SCORE,
@@ -211,6 +221,7 @@ class SM5EventHandler:
         actor.special_points = max(
             0, actor.special_points - SM5_SPECIAL_POINTS_NUKE
         )
+        actor.nukes_activated += 1
         self.game_state.record_change(
             time_ms,
             'player',
@@ -224,6 +235,12 @@ class SM5EventHandler:
                 time_ms,
                 actor.player_id,
                 actor.special_points,
+            )
+            self.emitter.emit(
+                DATA_TYPE_NUKES_ACTIVATED,
+                time_ms,
+                actor.player_id,
+                actor.nukes_activated,
             )
             msg = f'{self._colored_player(actor)} activates nuke'
             self.emitter.emit(DATA_TYPE_EVENT_SCROLLER, time_ms, msg)
@@ -240,6 +257,7 @@ class SM5EventHandler:
     ) -> None:
         """Handles nuke detonation."""
         actor.score += SM5_SCORE_NUKE_DETONATE
+        actor.nukes_detonated += 1
         self.game_state.record_change(
             time_ms, 'player', actor.player_id, 'score', str(actor.score)
         )
@@ -247,6 +265,12 @@ class SM5EventHandler:
         if self.emitter:
             self.emitter.emit(
                 DATA_TYPE_PLAYER_SCORE, time_ms, actor.player_id, actor.score
+            )
+            self.emitter.emit(
+                DATA_TYPE_NUKES_DETONATED,
+                time_ms,
+                actor.player_id,
+                actor.nukes_detonated,
             )
             team = self.game_state.teams.get(actor.team_id)
             if team:
@@ -264,6 +288,26 @@ class SM5EventHandler:
                 event_id=event_id,
             )
             self._cancel_enemy_nukes(time_ms=time_ms, nuking_actor=actor)
+
+        # Record enemy medic lives taken by nuke
+        medic_nukes_added = 0
+        for enemy in self.game_state.players.values():
+            if (
+                enemy.team_id != actor.team_id
+                and enemy.role.lower() == 'medic'
+                and enemy.lives > 0
+            ):
+                medic_nukes_added += min(3, enemy.lives)
+        if medic_nukes_added > 0:
+            actor.medic_nukes += medic_nukes_added
+            if self.emitter:
+                self.emitter.emit(
+                    DATA_TYPE_MEDIC_HITS,
+                    time_ms,
+                    actor.player_id,
+                    actor.get_formatted_medic_hits(),
+                )
+
         if self.ranking_manager:
             self.ranking_manager.update_rankings(time_ms=time_ms)
 
@@ -337,6 +381,14 @@ class SM5EventHandler:
         t_name = self._colored_target(target)
         act_name = self._colored_player(actor)
 
+        if code in (SM5_EVENT_DESTROY_BASE, SM5_EVENT_HIT_BASE):
+            self._record_shot(time_ms=time_ms, actor=actor, hit=True)
+        elif code in (
+            SM5_EVENT_MISSILE_BASE_DAMAGE,
+            SM5_EVENT_MISSILE_BASE_DESTROY,
+        ):
+            self._record_missile(time_ms=time_ms, actor=actor, landed=True)
+
         if code in (SM5_EVENT_DESTROY_BASE, SM5_EVENT_MISSILE_BASE_DESTROY):
             actor.score += SM5_BASE_CAPTURE_SCORE
             actor.special_points = min(
@@ -395,6 +447,83 @@ class SM5EventHandler:
                 f'{act_name} missiles {t_name}',
             )
 
+    def _record_shot(
+        self, time_ms: int, actor: LivePlayerState, hit: bool
+    ) -> None:
+        """Records a fired shot and broadcasts updated stats.
+
+        Args:
+            time_ms: Elapsed game time in milliseconds.
+            actor: Player state firing the shot.
+            hit: True if the shot hit an entity, False if missed.
+        """
+        actor.shots_fired += 1
+        if hit:
+            actor.shots_hit += 1
+        if self.emitter:
+            self.emitter.emit(
+                DATA_TYPE_PLAYER_SHOTS,
+                time_ms,
+                actor.player_id,
+                actor.shots,
+                actor.shots_fired,
+                actor.shots_hit,
+                actor.get_accuracy_string(),
+            )
+
+    def _record_missile(
+        self, time_ms: int, actor: LivePlayerState, landed: bool
+    ) -> None:
+        """Records a fired missile and broadcasts updated stats.
+
+        Args:
+            time_ms: Elapsed game time in milliseconds.
+            actor: Player state firing the missile.
+            landed: True if the missile hit an entity, False if missed.
+        """
+        actor.missiles_fired += 1
+        if landed:
+            actor.missiles_landed += 1
+        if self.emitter:
+            self.emitter.emit(
+                DATA_TYPE_PLAYER_MISSILES,
+                time_ms,
+                actor.player_id,
+                actor.missiles,
+                actor.missiles_fired,
+                actor.missiles_landed,
+            )
+
+    def _record_medic_hit(
+        self,
+        time_ms: int,
+        actor: LivePlayerState,
+        target: LivePlayerState | None,
+        is_missile: bool,
+    ) -> None:
+        """Records hit against a medic and broadcasts updated stats.
+
+        Args:
+            time_ms: Elapsed game time in milliseconds.
+            actor: Player state delivering the hit.
+            target: Hit player state.
+            is_missile: True if delivered by a missile, False if by zap.
+        """
+        if not target or target.role.lower() != 'medic':
+            return
+        inc = (2 if target.lives > 1 else 1) if is_missile else 1
+        if target.team_id != actor.team_id:
+            actor.enemy_medic_hits += inc
+        else:
+            actor.own_medic_hits += inc
+        if self.emitter:
+            self.emitter.emit(
+                DATA_TYPE_MEDIC_HITS,
+                time_ms,
+                actor.player_id,
+                actor.get_formatted_medic_hits(),
+            )
+
     def _handle_combat(
         self,
         time_ms: int,
@@ -409,6 +538,37 @@ class SM5EventHandler:
             if target_id
             else None
         )
+
+        if code in (
+            SM5_EVENT_DAMAGED_OPPONENT,
+            SM5_EVENT_DOWNED_OPPONENT,
+            SM5_EVENT_DAMAGED_TEAM,
+            SM5_EVENT_DOWNED_TEAM,
+            SM5_EVENT_WARBOT_ZAP,
+        ):
+            self._record_shot(time_ms=time_ms, actor=actor, hit=True)
+            self._record_medic_hit(
+                time_ms=time_ms, actor=actor, target=target, is_missile=False
+            )
+        elif code in (
+            SM5_EVENT_MISS,
+            SM5_EVENT_MISS_BASE,
+            SM5_EVENT_SHOT_EMPTY,
+        ):
+            self._record_shot(time_ms=time_ms, actor=actor, hit=False)
+        elif code in (
+            SM5_EVENT_MISSILE_DAMAGE_OPPONENT,
+            SM5_EVENT_MISSILE_DOWN_OPPONENT,
+            SM5_EVENT_MISSILE_DAMAGE_TEAM,
+            SM5_EVENT_MISSILE_DOWN_TEAM,
+        ):
+            self._record_missile(time_ms=time_ms, actor=actor, landed=True)
+            self._record_medic_hit(
+                time_ms=time_ms, actor=actor, target=target, is_missile=True
+            )
+        elif code in (SM5_EVENT_MISSILE_MISS, SM5_EVENT_MISSILE_BASE_MISS):
+            self._record_missile(time_ms=time_ms, actor=actor, landed=False)
+
         if not self.emitter:
             return
 

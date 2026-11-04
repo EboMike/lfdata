@@ -26,6 +26,8 @@ from lflive.constants import (
     DATA_TYPE_PLAYER_SHOTS,
     DATA_TYPE_PLAYER_SPECIAL_POINTS,
     DATA_TYPE_PLAYER_STEALS,
+    DATA_TYPE_NUKES_ACTIVATED,
+    DATA_TYPE_NUKES_DETONATED,
 )
 
 if TYPE_CHECKING:
@@ -44,6 +46,8 @@ STAT_TYPE_TO_ATTR: dict[int, str] = {
     DATA_TYPE_PLAYER_ASSISTS: 'assists',
     DATA_TYPE_PLAYER_BLOCKS: 'blocks',
     DATA_TYPE_PLAYER_STEALS: 'steals',
+    DATA_TYPE_NUKES_ACTIVATED: 'nukes_activated',
+    DATA_TYPE_NUKES_DETONATED: 'nukes_detonated',
 }
 
 
@@ -162,6 +166,56 @@ class DummyPlayerManager:
         team_players = [
             p for p in self.game_state.players.values() if p.team_id == team_id
         ]
+
+        if event_type == DATA_TYPE_PLAYER_SHOTS:
+            new_shots = sum(p.shots for p in team_players)
+            new_fired = sum(p.shots_fired for p in team_players)
+            new_hit = sum(p.shots_hit for p in team_players)
+            changed = (
+                dummy.shots != new_shots
+                or dummy.shots_fired != new_fired
+                or dummy.shots_hit != new_hit
+            )
+            if changed:
+                dummy.shots = new_shots
+                dummy.shots_fired = new_fired
+                dummy.shots_hit = new_hit
+                if self.emitter:
+                    self.emitter.emit(
+                        DATA_TYPE_PLAYER_SHOTS,
+                        time_ms,
+                        dummy.player_id,
+                        dummy.shots,
+                        dummy.shots_fired,
+                        dummy.shots_hit,
+                        dummy.get_accuracy_string(),
+                    )
+            return
+
+        if event_type == DATA_TYPE_PLAYER_MISSILES:
+            new_missiles = sum(p.missiles for p in team_players)
+            new_fired = sum(p.missiles_fired for p in team_players)
+            new_landed = sum(p.missiles_landed for p in team_players)
+            changed = (
+                dummy.missiles != new_missiles
+                or dummy.missiles_fired != new_fired
+                or dummy.missiles_landed != new_landed
+            )
+            if changed:
+                dummy.missiles = new_missiles
+                dummy.missiles_fired = new_fired
+                dummy.missiles_landed = new_landed
+                if self.emitter:
+                    self.emitter.emit(
+                        DATA_TYPE_PLAYER_MISSILES,
+                        time_ms,
+                        dummy.player_id,
+                        dummy.missiles,
+                        dummy.missiles_fired,
+                        dummy.missiles_landed,
+                    )
+            return
+
         new_total = sum(getattr(p, attr, 0) for p in team_players)
         if getattr(dummy, attr) != new_total:
             setattr(dummy, attr, new_total)

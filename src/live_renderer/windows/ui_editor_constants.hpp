@@ -27,7 +27,17 @@ inline constexpr const char* const kScorecardRowElementTypes[] = {
     "player_assists",
     "player_clears",
     "player_steals",
-    "player_zaps"
+    "player_zaps",
+    "player_medic_hits",
+    "player_shots_fired",
+    "player_shots_landed",
+    "player_accuracy",
+    "player_accuracy_string",
+    "missiles_fired",
+    "missiles_landed",
+    "missile_accuracy_string",
+    "nukes_activated",
+    "nukes_detonated"
 };
 
 inline constexpr const char* const kScorecardHeaderElementTypes[] = {
@@ -45,7 +55,17 @@ inline constexpr const char* const kPlayerProfileElementTypes[] = {
     "player_missiles",
     "player_special_points",
     "player_profile_picture",
-    "team_logo"
+    "team_logo",
+    "player_medic_hits",
+    "player_shots_fired",
+    "player_shots_landed",
+    "player_accuracy",
+    "player_accuracy_string",
+    "missiles_fired",
+    "missiles_landed",
+    "missile_accuracy_string",
+    "nukes_activated",
+    "nukes_detonated"
 };
 
 inline constexpr const char* const kTemplateTypes[] = {

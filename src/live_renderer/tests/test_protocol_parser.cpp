@@ -137,3 +137,35 @@ TEST(ProtocolParserTest, HandlesResetAndGameOver) {
     EXPECT_TRUE(s.players.empty());
 }
 
+TEST(ProtocolParserTest, ParsesNewStatsAndDataTypes) {
+    LiveStateStore store;
+    ProtocolParser parser(store);
+
+    EXPECT_TRUE(
+        parser.ParseLine("16\t100\t11\tAlpha\t#101\t1\tcommander\r\n"));
+    EXPECT_TRUE(
+        parser.ParseLine("5\t150\t11\t25\t100\t54\t54.0%\r\n"));
+    EXPECT_TRUE(
+        parser.ParseLine("10\t160\t11\t4\t5\t3\r\n"));
+    EXPECT_TRUE(
+        parser.ParseLine("29\t170\t11\t2\r\n"));
+    EXPECT_TRUE(
+        parser.ParseLine("30\t180\t11\t1\r\n"));
+    EXPECT_TRUE(
+        parser.ParseLine("31\t190\t11\t1/3/-1\r\n"));
+
+    auto s = store.GetSnapshot();
+    ASSERT_TRUE(s.players.contains(11));
+    const auto& p = s.players[11];
+    EXPECT_EQ(p.shots, 25);
+    EXPECT_EQ(p.shots_fired, 100);
+    EXPECT_EQ(p.shots_hit, 54);
+    EXPECT_EQ(p.accuracy, "54.0%");
+    EXPECT_EQ(p.missiles, 4);
+    EXPECT_EQ(p.missiles_fired, 5);
+    EXPECT_EQ(p.missiles_landed, 3);
+    EXPECT_EQ(p.nukes_activated, 2);
+    EXPECT_EQ(p.nukes_detonated, 1);
+    EXPECT_EQ(p.medic_hits, "1/3/-1");
+}
+

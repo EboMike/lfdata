@@ -19,7 +19,10 @@ from lflive.constants import (
     DATA_TYPE_GAME_START_TIME,
     DATA_TYPE_GAME_TYPE,
     DATA_TYPE_IMPORTANT_EVENT,
+    DATA_TYPE_MEDIC_HITS,
     DATA_TYPE_NEW_GAME,
+    DATA_TYPE_NUKES_ACTIVATED,
+    DATA_TYPE_NUKES_DETONATED,
     DATA_TYPE_PLAYER_DESCRIPTION,
     DATA_TYPE_PLAYER_HITPOINTS,
     DATA_TYPE_PLAYER_LIVES,
@@ -249,11 +252,25 @@ class OutputEmitter:
             )
             events.append(
                 f'{DATA_TYPE_PLAYER_SHOTS}\t{cur_ms}\t{player.player_id}\t'
-                f'{player.shots}'
+                f'{player.shots}\t{player.shots_fired}\t{player.shots_hit}\t'
+                f'{player.get_accuracy_string()}'
             )
             events.append(
                 f'{DATA_TYPE_PLAYER_MISSILES}\t{cur_ms}\t{player.player_id}\t'
-                f'{player.missiles}'
+                f'{player.missiles}\t{player.missiles_fired}\t'
+                f'{player.missiles_landed}'
+            )
+            events.append(
+                f'{DATA_TYPE_NUKES_ACTIVATED}\t{cur_ms}\t{player.player_id}\t'
+                f'{player.nukes_activated}'
+            )
+            events.append(
+                f'{DATA_TYPE_NUKES_DETONATED}\t{cur_ms}\t{player.player_id}\t'
+                f'{player.nukes_detonated}'
+            )
+            events.append(
+                f'{DATA_TYPE_MEDIC_HITS}\t{cur_ms}\t{player.player_id}\t'
+                f'{player.get_formatted_medic_hits()}'
             )
             events.append(
                 f'{DATA_TYPE_PLAYER_SPECIAL_POINTS}\t{cur_ms}\t'
@@ -286,11 +303,21 @@ class OutputEmitter:
                 )
                 events.append(
                     f'{DATA_TYPE_PLAYER_SHOTS}\t{cur_ms}\t{dummy.player_id}\t'
-                    f'{dummy.shots}'
+                    f'{dummy.shots}\t{dummy.shots_fired}\t{dummy.shots_hit}\t'
+                    f'{dummy.get_accuracy_string()}'
                 )
                 events.append(
-                    f'{DATA_TYPE_PLAYER_MISSILES}\t{cur_ms}\t{dummy.player_id}\t'
-                    f'{dummy.missiles}'
+                    f'{DATA_TYPE_PLAYER_MISSILES}\t{cur_ms}\t'
+                    f'{dummy.player_id}\t{dummy.missiles}\t'
+                    f'{dummy.missiles_fired}\t{dummy.missiles_landed}'
+                )
+                events.append(
+                    f'{DATA_TYPE_NUKES_ACTIVATED}\t{cur_ms}\t'
+                    f'{dummy.player_id}\t{dummy.nukes_activated}'
+                )
+                events.append(
+                    f'{DATA_TYPE_NUKES_DETONATED}\t{cur_ms}\t'
+                    f'{dummy.player_id}\t{dummy.nukes_detonated}'
                 )
                 events.append(
                     f'{DATA_TYPE_PLAYER_SPECIAL_POINTS}\t{cur_ms}\t'

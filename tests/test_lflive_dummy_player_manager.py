@@ -71,14 +71,20 @@ def test_dummy_player_stat_aggregation_via_emitter() -> None:
     p2.shots = 50
     emitter.emit(DATA_TYPE_PLAYER_SHOTS, 600, p2.player_id, 50)
     assert state.dummy_players[1].shots == 150
-    assert f'{DATA_TYPE_PLAYER_SHOTS}\t600\t101\t150' in emitter.emitted_lines
+    assert (
+        f'{DATA_TYPE_PLAYER_SHOTS}\t600\t101\t150\t0\t0\t'
+        in emitter.emitted_lines
+    )
 
     p1.missiles = 5
     emitter.emit(DATA_TYPE_PLAYER_MISSILES, 700, p1.player_id, 5)
     p2.missiles = 3
     emitter.emit(DATA_TYPE_PLAYER_MISSILES, 800, p2.player_id, 3)
     assert state.dummy_players[1].missiles == 8
-    assert f'{DATA_TYPE_PLAYER_MISSILES}\t800\t101\t8' in emitter.emitted_lines
+    assert (
+        f'{DATA_TYPE_PLAYER_MISSILES}\t800\t101\t8\t0\t0'
+        in emitter.emitted_lines
+    )
 
     # Special points and hitpoints
     p1.special_points = 20

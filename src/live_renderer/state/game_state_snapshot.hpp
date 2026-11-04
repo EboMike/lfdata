@@ -30,6 +30,14 @@ struct PlayerSnapshot {
     int blocks = 0;            // Also called zaps
     int steals = 0;
     int clears = 0;
+    int shots_fired = 0;
+    int shots_hit = 0;
+    std::string accuracy;
+    int missiles_fired = 0;
+    int missiles_landed = 0;
+    int nukes_activated = 0;
+    int nukes_detonated = 0;
+    std::string medic_hits = "0";
     bool is_dummy = false;
 };
 

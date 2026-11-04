@@ -141,15 +141,55 @@ void LiveStateStore::UpdatePlayerLives(int player_id, int lives) {
     BumpVersionLocked();
 }
 
-void LiveStateStore::UpdatePlayerShots(int player_id, int shots) {
+void LiveStateStore::UpdatePlayerShots(
+    int player_id,
+    int shots,
+    int shots_fired,
+    int shots_hit,
+    const std::string& accuracy) {
     std::lock_guard<std::mutex> lock(mutex_);
-    state_.players[player_id].shots = shots;
+    auto& p = state_.players[player_id];
+    p.shots = shots;
+    if (shots_fired > 0 || shots_hit > 0 || !accuracy.empty()) {
+        p.shots_fired = shots_fired;
+        p.shots_hit = shots_hit;
+        p.accuracy = accuracy;
+    }
     BumpVersionLocked();
 }
 
-void LiveStateStore::UpdatePlayerMissiles(int player_id, int missiles) {
+void LiveStateStore::UpdatePlayerMissiles(
+    int player_id,
+    int missiles,
+    int missiles_fired,
+    int missiles_landed) {
     std::lock_guard<std::mutex> lock(mutex_);
-    state_.players[player_id].missiles = missiles;
+    auto& p = state_.players[player_id];
+    p.missiles = missiles;
+    if (missiles_fired > 0 || missiles_landed > 0) {
+        p.missiles_fired = missiles_fired;
+        p.missiles_landed = missiles_landed;
+    }
+    BumpVersionLocked();
+}
+
+void LiveStateStore::UpdatePlayerNukesActivated(int player_id, int count) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    state_.players[player_id].nukes_activated = count;
+    BumpVersionLocked();
+}
+
+void LiveStateStore::UpdatePlayerNukesDetonated(int player_id, int count) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    state_.players[player_id].nukes_detonated = count;
+    BumpVersionLocked();
+}
+
+void LiveStateStore::UpdatePlayerMedicHits(
+    int player_id,
+    const std::string& medic_hits) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    state_.players[player_id].medic_hits = medic_hits;
     BumpVersionLocked();
 }
 

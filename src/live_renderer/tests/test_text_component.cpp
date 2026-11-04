@@ -63,7 +63,82 @@ TEST(TextComponentTest, ResolvePlayerTextValues) {
 
     // Custom text substitution
     std::string custom = "{name} [{role}]: {score} pts, {lives} lives";
-    EXPECT_EQ(TextComponent::ResolvePlayerText("custom", p, custom), "BravoScout [Scout]: 5400 pts, 8 lives");
+    EXPECT_EQ(
+        TextComponent::ResolvePlayerText("custom", p, custom),
+        "BravoScout [Scout]: 5400 pts, 8 lives");
+}
+
+TEST(TextComponentTest, ResolveNewStatsAndPlaceholders) {
+    PlayerSnapshot p;
+    p.name = "CommanderAlpha";
+    p.role = "Commander";
+    p.medic_hits = "10/3/-2";
+    p.shots_fired = 400;
+    p.shots_hit = 100;
+    p.accuracy = "25.0%";
+    p.missiles_fired = 10;
+    p.missiles_landed = 4;
+    p.nukes_activated = 2;
+    p.nukes_detonated = 1;
+
+    EXPECT_EQ(
+        TextComponent::ResolvePlayerText("player_medic_hits", p),
+        "10/3/-2");
+    EXPECT_EQ(
+        TextComponent::ResolvePlayerText("player_shots_fired", p),
+        "400");
+    EXPECT_EQ(
+        TextComponent::ResolvePlayerText("player_shots_landed", p),
+        "100");
+    EXPECT_EQ(
+        TextComponent::ResolvePlayerText("player_accuracy", p),
+        "25.0%");
+    EXPECT_EQ(
+        TextComponent::ResolvePlayerText("player_accuracy_string", p),
+        "100/400 (25.0%)");
+    EXPECT_EQ(
+        TextComponent::ResolvePlayerText("nukes_activated", p),
+        "2");
+    EXPECT_EQ(
+        TextComponent::ResolvePlayerText("nukes_detonated", p),
+        "1");
+    EXPECT_EQ(
+        TextComponent::ResolvePlayerText("missiles_fired", p),
+        "10");
+    EXPECT_EQ(
+        TextComponent::ResolvePlayerText("missiles_landed", p),
+        "4");
+    EXPECT_EQ(
+        TextComponent::ResolvePlayerText("missile_accuracy_string", p),
+        "4/10");
+
+    // Scout role should return empty missile_accuracy_string
+    PlayerSnapshot scout;
+    scout.role = "Scout";
+    scout.missiles_fired = 5;
+    scout.missiles_landed = 2;
+    EXPECT_EQ(
+        TextComponent::ResolvePlayerText("missile_accuracy_string", scout),
+        "");
+
+    // Dummy totals player should return missile accuracy string
+    PlayerSnapshot dummy;
+    dummy.is_dummy = true;
+    dummy.missiles_fired = 20;
+    dummy.missiles_landed = 8;
+    EXPECT_EQ(
+        TextComponent::ResolvePlayerText("missile_accuracy_string", dummy),
+        "8/20");
+
+    // Custom placeholders test
+    std::string template_str =
+        "Hits: {medic_hits} | Shots: {shots_landed}/{shots_fired} ({accuracy}) "
+        "| Nukes: {nukes_activated}/{nukes_detonated} "
+        "| Missiles: {missiles_landed}/{missiles_fired}";
+    EXPECT_EQ(
+        TextComponent::ResolvePlayerText("custom", p, template_str),
+        "Hits: 10/3/-2 | Shots: 100/400 (25.0%) "
+        "| Nukes: 2/1 | Missiles: 4/10");
 }
 
 TEST(TextComponentTest, PlayerStateColorsAndRapidFire) {

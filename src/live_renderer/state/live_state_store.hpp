@@ -37,8 +37,25 @@ public:
     void UpdatePlayerDescription(int player_id, const std::string& name, const std::string& entity_id, int team_id, const std::string& role);
     void UpdatePlayerScore(int player_id, int score);
     void UpdatePlayerLives(int player_id, int lives);
-    void UpdatePlayerShots(int player_id, int shots);
-    void UpdatePlayerMissiles(int player_id, int missiles);
+    void UpdatePlayerShots(
+        int player_id,
+        int shots,
+        int shots_fired = 0,
+        int shots_hit = 0,
+        const std::string& accuracy = ""
+    );
+    void UpdatePlayerMissiles(
+        int player_id,
+        int missiles,
+        int missiles_fired = 0,
+        int missiles_landed = 0
+    );
+    void UpdatePlayerNukesActivated(int player_id, int count);
+    void UpdatePlayerNukesDetonated(int player_id, int count);
+    void UpdatePlayerMedicHits(
+        int player_id,
+        const std::string& medic_hits
+    );
     void UpdatePlayerSpecialPoints(int player_id, int sp);
     void UpdatePlayerHitpoints(int player_id, int hp);
     void UpdatePlayerState(int player_id, int state);

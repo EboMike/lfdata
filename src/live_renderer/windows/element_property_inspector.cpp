@@ -133,7 +133,9 @@ void ElementPropertyInspector::RenderTextControls(ElementConfig& element) {
         element.type == "event_scroller" ||
         element.type == "important_game_messages" ||
         element.type == "messages_display" ||
-        element.type.rfind("player_", 0) == 0);
+        element.type.rfind("player_", 0) == 0 ||
+        element.type.rfind("missile", 0) == 0 ||
+        element.type.rfind("nuke", 0) == 0);
 
     if (!is_textual && element.text.empty() && element.font_size == 20.0f) {
         return;

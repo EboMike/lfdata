@@ -33,6 +33,7 @@ from lflive.constants import (
     DATA_TYPE_PLAYER_ASSISTS,
     DATA_TYPE_PLAYER_BLOCKS,
     DATA_TYPE_PLAYER_GOALS,
+    DATA_TYPE_PLAYER_SHOTS,
     DATA_TYPE_PLAYER_STATE,
     DATA_TYPE_PLAYER_STEALS,
     DATA_TYPE_ROUND_BEGINS,
@@ -303,6 +304,30 @@ class LaserballEventHandler:
         if self.ranking_manager:
             self.ranking_manager.update_rankings(time_ms=time_ms)
 
+    def _record_shot(
+        self, time_ms: int, actor: LivePlayerState, hit: bool
+    ) -> None:
+        """Records a fired shot and broadcasts updated stats.
+
+        Args:
+            time_ms: Elapsed game time in milliseconds.
+            actor: Player state firing the shot.
+            hit: True if the shot hit an entity, False if missed.
+        """
+        actor.shots_fired += 1
+        if hit:
+            actor.shots_hit += 1
+        if self.emitter:
+            self.emitter.emit(
+                DATA_TYPE_PLAYER_SHOTS,
+                time_ms,
+                actor.player_id,
+                actor.shots,
+                actor.shots_fired,
+                actor.shots_hit,
+                actor.get_accuracy_string(),
+            )
+
     def _handle_block(
         self,
         time_ms: int,
@@ -311,6 +336,7 @@ class LaserballEventHandler:
     ) -> None:
         """Handles Laserball block."""
         actor.blocks += 1
+        self._record_shot(time_ms=time_ms, actor=actor, hit=True)
         self.game_state.record_change(
             time_ms, 'player', actor.player_id, 'blocks', str(actor.blocks)
         )
@@ -344,6 +370,7 @@ class LaserballEventHandler:
     ) -> None:
         """Handles Laserball steal."""
         actor.steals += 1
+        self._record_shot(time_ms=time_ms, actor=actor, hit=True)
         self.game_state.ball_carrier_id = actor.player_id
         self.game_state.record_change(
             time_ms, 'player', actor.player_id, 'steals', str(actor.steals)
@@ -382,6 +409,7 @@ class LaserballEventHandler:
     ) -> None:
         """Handles Laserball clear."""
         actor.clears += 1
+        self._record_shot(time_ms=time_ms, actor=actor, hit=True)
         self.game_state.record_change(
             time_ms, 'player', actor.player_id, 'clears', str(actor.clears)
         )

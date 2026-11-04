@@ -84,9 +84,15 @@ bool ProtocolParser::ParseLine(std::string_view line) {
             store_.UpdatePlayerLives(ParseInt(tokens[2]), ParseInt(tokens[3]));
             return true;
         }
-        case 5: { // Player shots: type, time, player_id, shots
+        case 5: { // Player shots: type, time, player_id, shots [, fired, hit]
             if (tokens.size() < 4) return false;
-            store_.UpdatePlayerShots(ParseInt(tokens[2]), ParseInt(tokens[3]));
+            int pid = ParseInt(tokens[2]);
+            int shots = ParseInt(tokens[3]);
+            int fired = (tokens.size() >= 5) ? ParseInt(tokens[4]) : 0;
+            int hit = (tokens.size() >= 6) ? ParseInt(tokens[5]) : 0;
+            std::string acc =
+                (tokens.size() >= 7) ? std::string(tokens[6]) : "";
+            store_.UpdatePlayerShots(pid, shots, fired, hit, acc);
             return true;
         }
         case 6: { // Player special points: type, time, player_id, sp
@@ -109,9 +115,13 @@ bool ProtocolParser::ParseLine(std::string_view line) {
             store_.UpdatePlayerState(ParseInt(tokens[2]), ParseInt(tokens[3]));
             return true;
         }
-        case 10: { // Player missiles: type, time, player_id, missiles
+        case 10: { // Player missiles: type, time, pid, missiles [, fired]
             if (tokens.size() < 4) return false;
-            store_.UpdatePlayerMissiles(ParseInt(tokens[2]), ParseInt(tokens[3]));
+            int pid = ParseInt(tokens[2]);
+            int missiles = ParseInt(tokens[3]);
+            int fired = (tokens.size() >= 5) ? ParseInt(tokens[4]) : 0;
+            int landed = (tokens.size() >= 6) ? ParseInt(tokens[5]) : 0;
+            store_.UpdatePlayerMissiles(pid, missiles, fired, landed);
             return true;
         }
         case 11: { // Player goals: type, time, player_id, goals
@@ -197,6 +207,24 @@ bool ProtocolParser::ParseLine(std::string_view line) {
         case 28: { // Center info: type, time, center_id, center_name
             if (tokens.size() < 4) return false;
             store_.SetCenterInfo(std::string(tokens[2]), std::string(tokens[3]));
+            return true;
+        }
+        case 29: { // Nukes activated: type, time, player_id, count
+            if (tokens.size() < 4) return false;
+            store_.UpdatePlayerNukesActivated(
+                ParseInt(tokens[2]), ParseInt(tokens[3]));
+            return true;
+        }
+        case 30: { // Nukes detonated: type, time, player_id, count
+            if (tokens.size() < 4) return false;
+            store_.UpdatePlayerNukesDetonated(
+                ParseInt(tokens[2]), ParseInt(tokens[3]));
+            return true;
+        }
+        case 31: { // Medic hits: type, time, player_id, medic_hits
+            if (tokens.size() < 4) return false;
+            store_.UpdatePlayerMedicHits(
+                ParseInt(tokens[2]), std::string(tokens[3]));
             return true;
         }
         case 98: { // New game start: type, time

@@ -258,10 +258,16 @@ def test_ingestor_with_emitter() -> None:
     assert f'{DATA_TYPE_PLAYER_STATE}\t2000\t1\t2' in emitter.emitted_lines
 
     ingestor.ingest_line('12\t0003000\t#P1\t30\t28')
-    assert f'{DATA_TYPE_PLAYER_SHOTS}\t3000\t1\t28' in emitter.emitted_lines
+    assert (
+        f'{DATA_TYPE_PLAYER_SHOTS}\t3000\t1\t28\t0\t0\t'
+        in emitter.emitted_lines
+    )
 
     ingestor.ingest_line('13\t0004000\t#P1\t5\t3')
-    assert f'{DATA_TYPE_PLAYER_MISSILES}\t4000\t1\t3' in emitter.emitted_lines
+    assert (
+        f'{DATA_TYPE_PLAYER_MISSILES}\t4000\t1\t3\t0\t0'
+        in emitter.emitted_lines
+    )
 
     ingestor.ingest_line('11\t0005000\t#P1\t1\t0')
     assert f'{DATA_TYPE_PLAYER_LIVES}\t5000\t1\t0' in emitter.emitted_lines

@@ -50,7 +50,17 @@ GameStateSnapshot MockGameState::CreateMockSM5State() {
     s.players[15] = {15, "PyroAmmo",       "#105", 1, "ammo",      2500, 0,  0,  0, 0,  0, 4, false}; // Eliminated
 
     // Fire Dummy Player
-    s.players[101] = {101, "", "", 1, "", 24500, 52, 112, 5, 45, 5, 0, false, 0, 0, 0, 0, 0, true};
+    PlayerSnapshot d1;
+    d1.id = 101;
+    d1.team_id = 1;
+    d1.score = 24500;
+    d1.lives = 52;
+    d1.shots = 112;
+    d1.missiles = 5;
+    d1.special_points = 45;
+    d1.hitpoints = 5;
+    d1.is_dummy = true;
+    s.players[101] = d1;
 
     // Earth Players
     s.players[21] = {21, "TerraCommander", "#201", 2, "commander", 7500, 10, 40, 1, 15, 1, 0, false};
@@ -60,7 +70,17 @@ GameStateSnapshot MockGameState::CreateMockSM5State() {
     s.players[25] = {25, "RockAmmo",       "#205", 2, "ammo",      1800, 8,  0,  0, 0,  1, 0, false};
 
     // Earth Dummy Player
-    s.players[102] = {102, "", "", 2, "", 21800, 55, 103, 2, 35, 4, 0, false, 0, 0, 0, 0, 0, true};
+    PlayerSnapshot d2;
+    d2.id = 102;
+    d2.team_id = 2;
+    d2.score = 21800;
+    d2.lives = 55;
+    d2.shots = 103;
+    d2.missiles = 2;
+    d2.special_points = 35;
+    d2.hitpoints = 4;
+    d2.is_dummy = true;
+    s.players[102] = d2;
 
     s.player_rankings_by_team[1] = {11, 12, 13, 14, 15};
     s.player_rankings_by_team[2] = {21, 22, 23, 24, 25};

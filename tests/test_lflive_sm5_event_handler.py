@@ -9,12 +9,14 @@ from lfdata.model.gametypes.sm5_events import (
     SM5_EVENT_DOWNED_OPPONENT,
     SM5_EVENT_DOWNED_TEAM,
     SM5_EVENT_HIT_BASE,
+    SM5_EVENT_MISS,
     SM5_EVENT_MISSILE_BASE_DAMAGE,
     SM5_EVENT_MISSILE_BASE_DESTROY,
     SM5_EVENT_MISSILE_DAMAGE_OPPONENT,
     SM5_EVENT_MISSILE_DAMAGE_TEAM,
     SM5_EVENT_MISSILE_DOWN_OPPONENT,
     SM5_EVENT_MISSILE_DOWN_TEAM,
+    SM5_EVENT_MISSILE_MISS,
     SM5_EVENT_PENALTY,
     SM5_EVENT_RESUPPLY_AMMO,
     SM5_EVENT_RESUPPLY_LIVES,
@@ -22,7 +24,12 @@ from lfdata.model.gametypes.sm5_events import (
 from lflive.constants import (
     DATA_TYPE_BASE_CAPTURED,
     DATA_TYPE_IMPORTANT_EVENT,
+    DATA_TYPE_MEDIC_HITS,
+    DATA_TYPE_NUKES_ACTIVATED,
+    DATA_TYPE_NUKES_DETONATED,
+    DATA_TYPE_PLAYER_MISSILES,
     DATA_TYPE_PLAYER_SCORE,
+    DATA_TYPE_PLAYER_SHOTS,
     DATA_TYPE_PLAYER_SPECIAL_POINTS,
     DATA_TYPE_RAPID_FIRE_STATE,
     DATA_TYPE_TEAM_SCORE,
@@ -166,7 +173,10 @@ def test_sm5_event_handler_three_part_varies() -> None:
         1000, SM5_EVENT_DAMAGED_OPPONENT, ['#P1', ' zaps ', '#P2']
     )
     assert any(
-        '<font color="#ff0000">Ace</font> zaps <font color="#0000ff">Boba</font>'
+        (
+            '<font color="#ff0000">Ace</font> zaps '
+            '<font color="#0000ff">Boba</font>'
+        )
         in ev
         for ev in emitter.emitted_lines
     )
@@ -177,7 +187,10 @@ def test_sm5_event_handler_three_part_varies() -> None:
         2000, SM5_EVENT_DESTROY_BASE, ['#P1', ' destroys ', '@66']
     )
     assert any(
-        '<font color="#ff0000">Ace</font> destroys <font color="#ff0000">Red Base</font>'
+        (
+            '<font color="#ff0000">Ace</font> destroys '
+            '<font color="#ff0000">Red Base</font>'
+        )
         in ev
         for ev in emitter.emitted_lines
     )
@@ -325,3 +338,89 @@ def test_sm5_event_handler_reset() -> None:
     handler.reset()
     assert handler._next_event_id_counter == 1
     assert len(handler._active_nuke_event_ids) == 0
+
+
+def test_sm5_event_handler_new_computed_stats() -> None:
+    state = LiveGameState(game_type='SM5')
+    state.add_team(team_id=1, name='Fire', color='Red', rgb='#ff0000')
+    state.add_team(team_id=2, name='Ice', color='Blue', rgb='#0000ff')
+
+    p1 = state.add_player(1, '#P1', 'Ace', 1, 'commander')
+    p1.special_points = 20
+    p1.shots = 30
+    p1.missiles = 5
+
+    med_friendly = state.add_player(2, '#M1', 'Doc1', 1, 'medic')
+    med_friendly.lives = 10
+
+    med_enemy = state.add_player(3, '#M2', 'Doc2', 2, 'medic')
+    med_enemy.lives = 5
+
+    emitter = OutputEmitter()
+    handler = SM5EventHandler(game_state=state, emitter=emitter)
+
+    # 1. Zap enemy medic -> hit=True, enemy medic hit
+    handler.handle_event(1000, SM5_EVENT_DAMAGED_OPPONENT, ['#P1', '#M2'])
+    assert p1.shots_fired == 1
+    assert p1.shots_hit == 1
+    assert p1.get_accuracy_string() == '100.0%'
+    assert p1.enemy_medic_hits == 1
+    assert p1.get_formatted_medic_hits() == '1'
+    assert (
+        f'{DATA_TYPE_PLAYER_SHOTS}\t1000\t1\t30\t1\t1\t100.0%'
+        in emitter.emitted_lines
+    )
+    assert f'{DATA_TYPE_MEDIC_HITS}\t1000\t1\t1' in emitter.emitted_lines
+
+    # 2. Missed zap
+    handler.handle_event(2000, SM5_EVENT_MISS, ['#P1'])
+    assert p1.shots_fired == 2
+    assert p1.shots_hit == 1
+    assert p1.get_accuracy_string() == '50.0%'
+    assert (
+        f'{DATA_TYPE_PLAYER_SHOTS}\t2000\t1\t30\t2\t1\t50.0%'
+        in emitter.emitted_lines
+    )
+
+    # 3. Zap friendly medic -> own medic hit
+    handler.handle_event(3000, SM5_EVENT_DAMAGED_TEAM, ['#P1', '#M1'])
+    assert p1.own_medic_hits == 1
+    assert p1.get_formatted_medic_hits() == '1/-1'
+    assert f'{DATA_TYPE_MEDIC_HITS}\t3000\t1\t1/-1' in emitter.emitted_lines
+
+    # 4. Missile enemy medic with 1 life left -> increases enemy medic hits by 1
+    med_enemy.lives = 1
+    handler.handle_event(
+        4000, SM5_EVENT_MISSILE_DOWN_OPPONENT, ['#P1', '#M2']
+    )
+    assert p1.missiles_fired == 1
+    assert p1.missiles_landed == 1
+    assert p1.enemy_medic_hits == 2
+    assert p1.get_formatted_medic_hits() == '2/-1'
+    assert (
+        f'{DATA_TYPE_PLAYER_MISSILES}\t4000\t1\t5\t1\t1'
+        in emitter.emitted_lines
+    )
+    assert f'{DATA_TYPE_MEDIC_HITS}\t4000\t1\t2/-1' in emitter.emitted_lines
+
+    # 5. Missed missile
+    handler.handle_event(5000, SM5_EVENT_MISSILE_MISS, ['#P1'])
+    assert p1.missiles_fired == 2
+    assert p1.missiles_landed == 1
+    assert (
+        f'{DATA_TYPE_PLAYER_MISSILES}\t5000\t1\t5\t2\t1'
+        in emitter.emitted_lines
+    )
+
+    # 6. Activate and detonate nuke
+    med_enemy.lives = 4
+    handler.handle_event(6000, SM5_EVENT_ACTIVATE_NUKE, ['#P1'])
+    assert p1.nukes_activated == 1
+    assert f'{DATA_TYPE_NUKES_ACTIVATED}\t6000\t1\t1' in emitter.emitted_lines
+
+    handler.handle_event(7000, SM5_EVENT_DETONATE_NUKE, ['#P1'])
+    assert p1.nukes_detonated == 1
+    assert p1.medic_nukes == 3  # min(3, 4 lives)
+    assert p1.get_formatted_medic_hits() == '2/3/-1'
+    assert f'{DATA_TYPE_NUKES_DETONATED}\t7000\t1\t1' in emitter.emitted_lines
+    assert f'{DATA_TYPE_MEDIC_HITS}\t7000\t1\t2/3/-1' in emitter.emitted_lines

@@ -85,3 +85,47 @@ def test_player_state_custom_values() -> None:
     assert player.steals == 4
     assert player.state == 2
     assert player.rapid_fire is True
+
+
+def test_player_state_accuracy_and_medic_hits() -> None:
+    player = LivePlayerState(
+        player_id=1,
+        entity_id='#1A',
+        name='Ace',
+        team_id=1,
+    )
+    # Default 0 shots fired -> empty string
+    assert player.get_accuracy_string() == ''
+
+    player.shots_fired = 100
+    player.shots_hit = 54
+    assert player.get_accuracy_string() == '54.0%'
+
+    player.shots_hit = 55
+    assert player.get_accuracy_string() == '55.0%'
+
+    # Medic hits formatting:
+    # 1. Only enemy medic hits
+    assert player.get_formatted_medic_hits() == '0'
+    player.enemy_medic_hits = 1
+    assert player.get_formatted_medic_hits() == '1'
+
+    # 2. Enemy medic hits + nuke hits
+    player.medic_nukes = 3
+    assert player.get_formatted_medic_hits() == '1/3'
+
+    # 3. Enemy medic hits + nuke hits + own medic hits
+    player.own_medic_hits = 1
+    assert player.get_formatted_medic_hits() == '1/3/-1'
+
+    # 4. Enemy medic hits + own medic hits (no nukes)
+    player.medic_nukes = 0
+    player.enemy_medic_hits = 2
+    player.own_medic_hits = 3
+    assert player.get_formatted_medic_hits() == '2/-3'
+
+    # 5. 0 enemy medic hits, 5 medic hits through nukes
+    player.enemy_medic_hits = 0
+    player.medic_nukes = 5
+    player.own_medic_hits = 0
+    assert player.get_formatted_medic_hits() == '0/5'

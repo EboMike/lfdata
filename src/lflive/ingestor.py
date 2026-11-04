@@ -410,6 +410,9 @@ class TdfIngestor:
                     time_offset_ms,
                     player.player_id,
                     shots_val,
+                    player.shots_fired,
+                    player.shots_hit,
+                    player.get_accuracy_string(),
                 )
 
     def _handle_player_missiles(self, parts: list[str]) -> None:
@@ -438,4 +441,6 @@ class TdfIngestor:
                     time_offset_ms,
                     player.player_id,
                     missiles_val,
+                    player.missiles_fired,
+                    player.missiles_landed,
                 )

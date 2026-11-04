@@ -58,6 +58,55 @@ std::string TextComponent::ResolvePlayerText(
     if (element_type == "player_role") {
         return player.role;
     }
+    if (element_type == "player_medic_hits") {
+        return player.medic_hits;
+    }
+    if (element_type == "player_shots_fired") {
+        return std::to_string(player.shots_fired);
+    }
+    if (element_type == "player_shots_landed") {
+        return std::to_string(player.shots_hit);
+    }
+    if (element_type == "player_accuracy") {
+        return player.accuracy;
+    }
+    if (element_type == "player_accuracy_string") {
+        if (player.shots_fired == 0) return "";
+        return std::to_string(player.shots_hit) + "/" +
+               std::to_string(player.shots_fired) + " (" +
+               player.accuracy + ")";
+    }
+    if (element_type == "nukes_activated" ||
+        element_type == "player_nukes_activated") {
+        return std::to_string(player.nukes_activated);
+    }
+    if (element_type == "nukes_detonated" ||
+        element_type == "player_nukes_detonated") {
+        return std::to_string(player.nukes_detonated);
+    }
+    if (element_type == "missiles_fired" ||
+        element_type == "player_missiles_fired") {
+        return std::to_string(player.missiles_fired);
+    }
+    if (element_type == "missiles_landed" ||
+        element_type == "player_missiles_landed") {
+        return std::to_string(player.missiles_landed);
+    }
+    if (element_type == "missile_accuracy_string" ||
+        element_type == "player_missile_accuracy_string") {
+        std::string role_lower = player.role;
+        std::transform(
+            role_lower.begin(),
+            role_lower.end(),
+            role_lower.begin(),
+            ::tolower);
+        if (!player.is_dummy && role_lower != "commander" &&
+            role_lower != "heavy") {
+            return "";
+        }
+        return std::to_string(player.missiles_landed) + "/" +
+               std::to_string(player.missiles_fired);
+    }
 
     if (!default_text.empty()) {
         std::string res(default_text);
@@ -75,6 +124,18 @@ std::string TextComponent::ResolvePlayerText(
         ReplaceAll(res, "{clears}", std::to_string(player.clears));
         ReplaceAll(res, "{steals}", std::to_string(player.steals));
         ReplaceAll(res, "{zaps}", std::to_string(player.blocks));
+        ReplaceAll(res, "{medic_hits}", player.medic_hits);
+        ReplaceAll(res, "{shots_fired}", std::to_string(player.shots_fired));
+        ReplaceAll(res, "{shots_landed}", std::to_string(player.shots_hit));
+        ReplaceAll(res, "{accuracy}", player.accuracy);
+        ReplaceAll(
+            res, "{nukes_activated}", std::to_string(player.nukes_activated));
+        ReplaceAll(
+            res, "{nukes_detonated}", std::to_string(player.nukes_detonated));
+        ReplaceAll(
+            res, "{missiles_fired}", std::to_string(player.missiles_fired));
+        ReplaceAll(
+            res, "{missiles_landed}", std::to_string(player.missiles_landed));
         return res;
     }
 

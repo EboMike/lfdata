@@ -218,7 +218,7 @@ Additional data should be calculated as necessary so it can be sent as part of t
 | 2 | Time when the game started | Timestamp YYYYMMDDHHMMSSmmm |   |   |   |   |
 | 3 | Current score for a player | Player primary key | New score |   |   |   |
 | 4 | Current lives for a player | Player primary key | New number of lives |   |   |   |
-| 5 | Current shots for a player | Player primary key | New number of shots |   |   |   |
+| 5 | Current shots for a player | Player primary key | New number of shots | Number of shots fired | Number of shots hit | Accuracy |
 | 6 | Current special points for a player | Player primary key | New number of special points |   |   |   |
 | 7 | Current hitpoints for a player | Player primary key | New number of hitpoints |   |   |   |
 | 8 | Event for the event scroller | Formatted event message |   |   |   |   |
