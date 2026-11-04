@@ -1,6 +1,7 @@
 #ifndef LIVE_RENDERER_COMPONENTS_SCORECARD_HELPER_HPP_
 #define LIVE_RENDERER_COMPONENTS_SCORECARD_HELPER_HPP_
 
+#include <array>
 #include <vector>
 #include "live_renderer/state/game_state_snapshot.hpp"
 
@@ -40,6 +41,14 @@ public:
     static std::string GetRowTextColor(
         const PlayerSnapshot& player,
         const std::string& team_rgb);
+
+    /**
+     * @brief Computes RGBA color multipliers to tint an image/movie with team
+     *        color according to tint_team_color (0.0 to 1.0).
+     */
+    static std::array<float, 4> ComputeTeamTint(
+        const std::string& team_rgb,
+        float tint_amount);
 };
 
 }  // namespace live_renderer

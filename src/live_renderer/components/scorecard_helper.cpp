@@ -110,5 +110,37 @@ std::string ScorecardHelper::GetRowTextColor(
     return team_rgb;
 }
 
+std::array<float, 4> ScorecardHelper::ComputeTeamTint(
+    const std::string& team_rgb,
+    float tint_amount) {
+    if (tint_amount <= 0.0f) {
+        return {1.0f, 1.0f, 1.0f, 1.0f};
+    }
+    const float t = std::clamp(tint_amount, 0.0f, 1.0f);
+    if (team_rgb.size() < 7 || team_rgb[0] != '#') {
+        return {1.0f, 1.0f, 1.0f, 1.0f};
+    }
+    int r = 255;
+    int g = 255;
+    int b = 255;
+    try {
+        r = std::stoi(team_rgb.substr(1, 2), nullptr, 16);
+        g = std::stoi(team_rgb.substr(3, 2), nullptr, 16);
+        b = std::stoi(team_rgb.substr(5, 2), nullptr, 16);
+    } catch (...) {
+        return {1.0f, 1.0f, 1.0f, 1.0f};
+    }
+    const float team_r = r / 255.0f;
+    const float team_g = g / 255.0f;
+    const float team_b = b / 255.0f;
+
+    return {
+        1.0f + t * (team_r - 1.0f),
+        1.0f + t * (team_g - 1.0f),
+        1.0f + t * (team_b - 1.0f),
+        1.0f
+    };
+}
+
 }  // namespace live_renderer
 

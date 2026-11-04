@@ -376,6 +376,10 @@ void TextComponent::GeneratePlayerElementCommands(
             cmd.pixel_rect = {icon_x, icon_y, icon_size, icon_size};
             cmd.texture_asset = role_asset;
             cmd.opacity = element.opacity;
+            if (element.tint_team_color > 0.0f && !team_color.empty()) {
+                cmd.color_rgba = ScorecardHelper::ComputeTeamTint(
+                    team_color, element.tint_team_color);
+            }
             batch.commands.push_back(cmd);
             return;
         }

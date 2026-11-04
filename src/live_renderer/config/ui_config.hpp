@@ -24,6 +24,7 @@ struct ElementConfig {
     std::string movie_file;                       // Path to movie asset
     std::string fit = "stretch";                  // "stretch", "scale", "crop"
     float playback_speed = 1.0f;                  // Playback speed multiplier
+    float tint_team_color = 0.0f;                 // Tint team color (0 to 1)
     float opacity = 1.0f;                         // 0.0 to 1.0
     float tilt = 10.0f;                           // Event scroller tilt degrees
     std::string orientation = "vertical";         // For lists: "horizontal" or "vertical"

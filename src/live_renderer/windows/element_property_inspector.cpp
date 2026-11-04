@@ -241,6 +241,9 @@ void ElementPropertyInspector::RenderImageControls(ElementConfig& element) {
                 "Fit Mode", &current_fit, kFitModes, IM_ARRAYSIZE(kFitModes))) {
             element.fit = kFitModes[current_fit];
         }
+
+        ImGui::SliderFloat(
+            "Tint Team Color", &element.tint_team_color, 0.0f, 1.0f, "%.2f");
     }
 }
 
@@ -277,6 +280,13 @@ void ElementPropertyInspector::RenderMovieControls(ElementConfig& element) {
 
         ImGui::SliderFloat(
             "Playback Speed", &element.playback_speed, 0.1f, 5.0f, "%.2fx");
+
+        ImGui::SliderFloat(
+            "Tint Team Color##movie",
+            &element.tint_team_color,
+            0.0f,
+            1.0f,
+            "%.2f");
     }
 }
 

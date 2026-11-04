@@ -153,6 +153,14 @@ void VisualizationWindow::GenerateElementCommands(
             cmd.texture_asset = resolved_el.image_file;
             cmd.opacity = resolved_el.opacity;
             cmd.fit = resolved_el.fit.empty() ? "stretch" : resolved_el.fit;
+            if (resolved_el.tint_team_color > 0.0f &&
+                resolved_el.team_index > 0) {
+                auto tit = state.teams.find(resolved_el.team_index);
+                if (tit != state.teams.end()) {
+                    cmd.color_rgba = ScorecardHelper::ComputeTeamTint(
+                        tit->second.rgb, resolved_el.tint_team_color);
+                }
+            }
             batch.commands.push_back(cmd);
         }
     } else if (resolved_el.type == "movie" ||
@@ -166,6 +174,14 @@ void VisualizationWindow::GenerateElementCommands(
             cmd.fit = resolved_el.fit.empty() ? "stretch" : resolved_el.fit;
             cmd.is_movie = true;
             cmd.playback_speed = resolved_el.playback_speed;
+            if (resolved_el.tint_team_color > 0.0f &&
+                resolved_el.team_index > 0) {
+                auto tit = state.teams.find(resolved_el.team_index);
+                if (tit != state.teams.end()) {
+                    cmd.color_rgba = ScorecardHelper::ComputeTeamTint(
+                        tit->second.rgb, resolved_el.tint_team_color);
+                }
+            }
             batch.commands.push_back(cmd);
         }
     } else if (resolved_el.type == "team_scorecard") {
@@ -193,6 +209,14 @@ void VisualizationWindow::GenerateElementCommands(
             ? "assets/sm5/commander.png" : resolved_el.image_file;
         cmd.opacity = resolved_el.opacity;
         cmd.fit = resolved_el.fit.empty() ? "stretch" : resolved_el.fit;
+        if (resolved_el.tint_team_color > 0.0f &&
+            resolved_el.team_index > 0) {
+            auto tit = state.teams.find(resolved_el.team_index);
+            if (tit != state.teams.end()) {
+                cmd.color_rgba = ScorecardHelper::ComputeTeamTint(
+                    tit->second.rgb, resolved_el.tint_team_color);
+            }
+        }
         batch.commands.push_back(cmd);
     } else if (resolved_el.type == "team_logo") {
         RenderCommand cmd;
@@ -202,6 +226,14 @@ void VisualizationWindow::GenerateElementCommands(
             ? "assets/ball.png" : resolved_el.image_file;
         cmd.opacity = resolved_el.opacity;
         cmd.fit = resolved_el.fit.empty() ? "stretch" : resolved_el.fit;
+        if (resolved_el.tint_team_color > 0.0f &&
+            resolved_el.team_index > 0) {
+            auto tit = state.teams.find(resolved_el.team_index);
+            if (tit != state.teams.end()) {
+                cmd.color_rgba = ScorecardHelper::ComputeTeamTint(
+                    tit->second.rgb, resolved_el.tint_team_color);
+            }
+        }
         batch.commands.push_back(cmd);
     } else {
         // Player elements: player_name, player_role, player_score, etc.
@@ -315,14 +347,46 @@ void VisualizationWindow::GenerateTeamScorecardCommands(
                 hel.rect[2] * unit_w,
                 hel.rect[3] * row_height_px
             };
-            TextComponent::GenerateCommands(
-                ResolveElementFont(hel),
-                hel.text.empty() ? "PLAYER" : hel.text,
-                hp_rect,
-                team.rgb,
-                false,
-                win_h,
-                batch);
+            if (hel.type == "user_image" || hel.type == "image") {
+                if (!hel.image_file.empty()) {
+                    RenderCommand cmd;
+                    cmd.type = RenderCommand::Type::TexturedQuad;
+                    cmd.pixel_rect = hp_rect;
+                    cmd.texture_asset = hel.image_file;
+                    cmd.opacity = hel.opacity;
+                    cmd.fit = hel.fit.empty() ? "stretch" : hel.fit;
+                    if (hel.tint_team_color > 0.0f) {
+                        cmd.color_rgba = ScorecardHelper::ComputeTeamTint(
+                            team.rgb, hel.tint_team_color);
+                    }
+                    batch.commands.push_back(cmd);
+                }
+            } else if (hel.type == "movie" || hel.type == "user_movie") {
+                if (!hel.movie_file.empty()) {
+                    RenderCommand cmd;
+                    cmd.type = RenderCommand::Type::TexturedQuad;
+                    cmd.pixel_rect = hp_rect;
+                    cmd.texture_asset = hel.movie_file;
+                    cmd.opacity = hel.opacity;
+                    cmd.fit = hel.fit.empty() ? "stretch" : hel.fit;
+                    cmd.is_movie = true;
+                    cmd.playback_speed = hel.playback_speed;
+                    if (hel.tint_team_color > 0.0f) {
+                        cmd.color_rgba = ScorecardHelper::ComputeTeamTint(
+                            team.rgb, hel.tint_team_color);
+                    }
+                    batch.commands.push_back(cmd);
+                }
+            } else {
+                TextComponent::GenerateCommands(
+                    ResolveElementFont(hel),
+                    hel.text.empty() ? "PLAYER" : hel.text,
+                    hp_rect,
+                    team.rgb,
+                    false,
+                    win_h,
+                    batch);
+            }
         }
         current_y += row_height_px + 4.0f + scaled_spacing;
     }
@@ -380,13 +444,45 @@ void VisualizationWindow::GenerateTeamScorecardCommands(
                     rel.rect[2] * unit_w,
                     rel.rect[3] * row_height_px
                 };
-                TextComponent::GeneratePlayerElementCommands(
-                    ResolveElementFont(rel),
-                    player,
-                    team.rgb,
-                    rpx_rect,
-                    win_h,
-                    batch);
+                if (rel.type == "user_image" || rel.type == "image") {
+                    if (!rel.image_file.empty()) {
+                        RenderCommand cmd;
+                        cmd.type = RenderCommand::Type::TexturedQuad;
+                        cmd.pixel_rect = rpx_rect;
+                        cmd.texture_asset = rel.image_file;
+                        cmd.opacity = rel.opacity;
+                        cmd.fit = rel.fit.empty() ? "stretch" : rel.fit;
+                        if (rel.tint_team_color > 0.0f) {
+                            cmd.color_rgba = ScorecardHelper::ComputeTeamTint(
+                                team.rgb, rel.tint_team_color);
+                        }
+                        batch.commands.push_back(cmd);
+                    }
+                } else if (rel.type == "movie" || rel.type == "user_movie") {
+                    if (!rel.movie_file.empty()) {
+                        RenderCommand cmd;
+                        cmd.type = RenderCommand::Type::TexturedQuad;
+                        cmd.pixel_rect = rpx_rect;
+                        cmd.texture_asset = rel.movie_file;
+                        cmd.opacity = rel.opacity;
+                        cmd.fit = rel.fit.empty() ? "stretch" : rel.fit;
+                        cmd.is_movie = true;
+                        cmd.playback_speed = rel.playback_speed;
+                        if (rel.tint_team_color > 0.0f) {
+                            cmd.color_rgba = ScorecardHelper::ComputeTeamTint(
+                                team.rgb, rel.tint_team_color);
+                        }
+                        batch.commands.push_back(cmd);
+                    }
+                } else {
+                    TextComponent::GeneratePlayerElementCommands(
+                        ResolveElementFont(rel),
+                        player,
+                        team.rgb,
+                        rpx_rect,
+                        win_h,
+                        batch);
+                }
             }
         } else {
             // Default row formatting if no template specified

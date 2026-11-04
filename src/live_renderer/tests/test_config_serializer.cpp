@@ -72,6 +72,7 @@ TEST(ConfigSerializerTest, RoundTripUIConfig) {
     img.type = "user_image";
     img.image_file = "assets/logo.png";
     img.fit = "crop";
+    img.tint_team_color = 0.75f;
     win.elements.push_back(img);
 
     ElementConfig movie;
@@ -121,6 +122,7 @@ TEST(ConfigSerializerTest, RoundTripUIConfig) {
     EXPECT_EQ(loaded.windows[0].elements[3].type, "user_image");
     EXPECT_EQ(loaded.windows[0].elements[3].image_file, "assets/logo.png");
     EXPECT_EQ(loaded.windows[0].elements[3].fit, "crop");
+    EXPECT_FLOAT_EQ(loaded.windows[0].elements[3].tint_team_color, 0.75f);
 
     EXPECT_EQ(loaded.windows[0].elements[4].type, "movie");
     EXPECT_EQ(loaded.windows[0].elements[4].movie_file, "assets/clip.mp4");

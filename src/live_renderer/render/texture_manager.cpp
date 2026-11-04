@@ -160,7 +160,11 @@ void TextureManager::RenderTexturedQuad(const RenderCommand& cmd) {
     if (tex != 0) {
         glEnable(GL_TEXTURE_2D);
         glBindTexture(GL_TEXTURE_2D, tex);
-        glColor4f(1.0f, 1.0f, 1.0f, alpha);
+        glColor4f(
+            cmd.color_rgba[0],
+            cmd.color_rgba[1],
+            cmd.color_rgba[2],
+            alpha * cmd.color_rgba[3]);
         glBegin(GL_QUADS);
         glTexCoord2f(u0, v0); glVertex2f(x, y);
         glTexCoord2f(u1, v0); glVertex2f(x + w, y);
@@ -171,7 +175,11 @@ void TextureManager::RenderTexturedQuad(const RenderCommand& cmd) {
         glDisable(GL_TEXTURE_2D);
     } else {
         // Fallback placeholder outline quad if texture file not loaded
-        glColor4f(0.4f, 0.4f, 0.4f, alpha * 0.6f);
+        glColor4f(
+            cmd.color_rgba[0] * 0.4f,
+            cmd.color_rgba[1] * 0.4f,
+            cmd.color_rgba[2] * 0.4f,
+            alpha * 0.6f);
         glBegin(GL_LINE_LOOP);
         glVertex2f(x, y);
         glVertex2f(x + w, y);

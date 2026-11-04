@@ -540,6 +540,92 @@ TEST(VisualizationWindowTest, MovieComponentGeneratesMovieCommand) {
     EXPECT_FLOAT_EQ(batch.commands[0].playback_speed, 1.25f);
 }
 
+TEST(VisualizationWindowTest, ImageAndMovieTintTeamColorInScorecard) {
+    UIConfig ui;
+
+    // Header template with image and movie tinted by team color
+    TemplateConfig header_tmpl;
+    header_tmpl.id = 1;
+    header_tmpl.type = "scorecard_header_row";
+
+    ElementConfig h_img;
+    h_img.type = "user_image";
+    h_img.image_file = "assets/badge.png";
+    h_img.tint_team_color = 1.0f;
+    h_img.rect = {0.0f, 0.0f, 0.2f, 1.0f};
+    header_tmpl.elements.push_back(h_img);
+
+    ElementConfig h_movie;
+    h_movie.type = "movie";
+    h_movie.movie_file = "assets/fire.gif";
+    h_movie.tint_team_color = 0.5f;
+    h_movie.rect = {0.2f, 0.0f, 0.2f, 1.0f};
+    header_tmpl.elements.push_back(h_movie);
+
+    ui.templates.push_back(header_tmpl);
+
+    WindowConfig wcfg;
+    wcfg.id = 1;
+    wcfg.rect = {0, 0, 1280, 800};
+
+    ElementConfig sc;
+    sc.type = "team_scorecard";
+    sc.team_index = 1; // Team 1 is Fire (#FF5000: 1.0, 80/255=0.3137, 0.0)
+    sc.header_template_id = 1;
+    sc.rect = {0.0f, 0.0f, 1.0f, 1.0f};
+    wcfg.elements.push_back(sc);
+
+    VisualizationWindow win(wcfg, ui);
+    auto state = MockGameState::CreateMockSM5State();
+    auto batch = win.GenerateBatch(state);
+
+    ASSERT_GE(batch.commands.size(), 2u);
+
+    // Command 0 is h_img tinted with 100% Fire team color (#FF5000)
+    EXPECT_EQ(batch.commands[0].type, RenderCommand::Type::TexturedQuad);
+    EXPECT_EQ(batch.commands[0].texture_asset, "assets/badge.png");
+    EXPECT_FLOAT_EQ(batch.commands[0].color_rgba[0], 1.0f);
+    EXPECT_NEAR(batch.commands[0].color_rgba[1], 80.0f / 255.0f, 0.01f);
+    EXPECT_FLOAT_EQ(batch.commands[0].color_rgba[2], 0.0f);
+
+    // Command 1 is h_movie tinted with 50% Fire team color
+    EXPECT_EQ(batch.commands[1].type, RenderCommand::Type::TexturedQuad);
+    EXPECT_EQ(batch.commands[1].texture_asset, "assets/fire.gif");
+    EXPECT_TRUE(batch.commands[1].is_movie);
+    EXPECT_FLOAT_EQ(batch.commands[1].color_rgba[0], 1.0f);
+    EXPECT_NEAR(
+        batch.commands[1].color_rgba[1],
+        1.0f + 0.5f * (80.0f / 255.0f - 1.0f),
+        0.01f);
+    EXPECT_FLOAT_EQ(batch.commands[1].color_rgba[2], 0.5f);
+}
+
+TEST(VisualizationWindowTest, TopLevelImageWithTeamTint) {
+    WindowConfig wcfg;
+    wcfg.id = 1;
+    wcfg.rect = {0, 0, 1280, 800};
+
+    ElementConfig img;
+    img.type = "user_image";
+    img.image_file = "assets/emblem.png";
+    img.team_index = 1;
+    img.tint_team_color = 1.0f;
+    img.rect = {0.1f, 0.1f, 0.3f, 0.3f};
+    wcfg.elements.push_back(img);
+
+    UIConfig ui;
+    VisualizationWindow win(wcfg, ui);
+    auto state = MockGameState::CreateMockSM5State();
+    auto batch = win.GenerateBatch(state);
+
+    ASSERT_EQ(batch.commands.size(), 1u);
+    EXPECT_EQ(batch.commands[0].type, RenderCommand::Type::TexturedQuad);
+    EXPECT_EQ(batch.commands[0].texture_asset, "assets/emblem.png");
+    EXPECT_FLOAT_EQ(batch.commands[0].color_rgba[0], 1.0f);
+    EXPECT_NEAR(batch.commands[0].color_rgba[1], 80.0f / 255.0f, 0.01f);
+    EXPECT_FLOAT_EQ(batch.commands[0].color_rgba[2], 0.0f);
+}
+
 TEST(VisualizationWindowTest,
      ScorecardTemplateElementsXOffsetUnaffectedByContainerWidthOrHeight) {
     UIConfig ui;

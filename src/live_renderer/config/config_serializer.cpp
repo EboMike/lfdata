@@ -113,6 +113,9 @@ static ElementConfig ParseElementNode(const YAML::Node& node) {
     if (node["vertical_spacing"]) {
         el.vertical_spacing = node["vertical_spacing"].as<float>();
     }
+    if (node["tint_team_color"]) {
+        el.tint_team_color = node["tint_team_color"].as<float>();
+    }
     if (node["lines"]) {
         el.lines = node["lines"].as<int>();
     }
@@ -145,6 +148,10 @@ static void EmitElementNode(YAML::Emitter& out, const ElementConfig& el) {
     }
     if (el.playback_speed != 1.0f) {
         out << YAML::Key << "playback_speed" << YAML::Value << el.playback_speed;
+    }
+    if (el.tint_team_color > 0.0f) {
+        out << YAML::Key << "tint_team_color" << YAML::Value
+            << el.tint_team_color;
     }
     if (el.opacity < 1.0f) out << YAML::Key << "opacity" << YAML::Value << el.opacity;
     if (el.tilt != 10.0f) out << YAML::Key << "tilt" << YAML::Value << el.tilt;
