@@ -6,6 +6,7 @@
 #include "live_renderer/windows/window_manager.hpp"
 #include <SDL_opengl.h>
 #include <algorithm>
+#include <chrono>
 #include <iostream>
 #include "live_renderer/windows/ui_editor_window.hpp"
 
@@ -368,7 +369,11 @@ void WindowManager::RenderAllWindows(
     int active_editor_window_index,
     int active_editor_template_id,
     int selected_element_index) {
-    const int64_t now_ms = static_cast<int64_t>(SDL_GetTicks());
+    const auto now_steady =
+        std::chrono::steady_clock::now().time_since_epoch();
+    const int64_t now_ms =
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            now_steady).count();
 
     for (size_t i = 0; i < instances_.size(); ++i) {
         auto& inst = instances_[i];

@@ -239,6 +239,10 @@ void LiveStateStore::AddImportantEventItem(int64_t timestamp_ms, const std::stri
 void LiveStateStore::SetLatestEventTimeMs(int64_t time_ms) {
     std::lock_guard<std::mutex> lock(mutex_);
     state_.latest_event_time_ms = time_ms;
+    if (time_ms > 0 && !state_.in_session) {
+        state_.in_session = true;
+        state_.game_start_time_local_ms = GetCurrentSteadyMillis() - time_ms;
+    }
     BumpVersionLocked();
 }
 

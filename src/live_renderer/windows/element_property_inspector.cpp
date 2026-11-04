@@ -6,6 +6,7 @@
 #include <sstream>
 #include <vector>
 #include <imgui.h>
+#include "live_renderer/widgets/font_dialog.hpp"
 #include "live_renderer/widgets/slider_float_with_input.hpp"
 
 namespace live_renderer {
@@ -138,9 +139,27 @@ void ElementPropertyInspector::RenderTextControls(ElementConfig& element) {
 
         char font_buf[128]{};
         std::snprintf(font_buf, sizeof(font_buf), "%s", element.font.c_str());
-        if (ImGui::InputText("Font", font_buf, sizeof(font_buf))) {
+        if (FontDialog::IsSupported()) {
+            const float btn_w = 75.0f;
+            const float spacing = ImGui::GetStyle().ItemSpacing.x;
+            ImGui::SetNextItemWidth(
+                ImGui::GetContentRegionAvail().x - btn_w - spacing - 50.0f);
+        }
+        if (ImGui::InputText("##font_name", font_buf, sizeof(font_buf))) {
             element.font = font_buf;
         }
+
+        if (FontDialog::IsSupported()) {
+            ImGui::SameLine();
+            if (ImGui::Button("Select...##font_btn", ImVec2(75.0f, 0.0f))) {
+                std::string picked = FontDialog::ShowFontDialog(element.font);
+                if (!picked.empty()) {
+                    element.font = picked;
+                }
+            }
+        }
+        ImGui::SameLine();
+        ImGui::TextUnformatted("Font");
 
         ImGui::DragFloat(
             "Font Size", &element.font_size, 0.5f, 6.0f, 120.0f, "%.1f");

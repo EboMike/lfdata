@@ -36,6 +36,17 @@ TEST(GameTimerTest, FreezesWhenGameOver) {
     EXPECT_EQ(t, "05:00");
 }
 
+TEST(GameTimerTest, FormatsCountdownWithEventTime) {
+    GameStateSnapshot state;
+    state.in_session = true;
+    state.max_game_length_seconds = 900;
+    state.game_start_time_local_ms = 0;
+    state.latest_event_time_ms = 300000; // 5m in -> 10:00 remaining
+
+    std::string t = GameTimerElement::FormatRemainingTime(state, 0);
+    EXPECT_EQ(t, "10:00");
+}
+
 TEST(ScorecardHelperTest, SortsTeamsAndPlayers) {
     auto state = MockGameState::CreateMockSM5State();
 
