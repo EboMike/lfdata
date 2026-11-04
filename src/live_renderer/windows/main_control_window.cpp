@@ -3,6 +3,7 @@
 #include <cstring>
 #include <imgui.h>
 #include "live_renderer/config/config_serializer.hpp"
+#include "live_renderer/version.hpp"
 
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
@@ -14,7 +15,6 @@ namespace live_renderer {
 
 namespace {
 constexpr const char* kAppName = "LF Live Renderer";
-constexpr const char* kAppVersion = "0.1.0";
 constexpr const char* kAppAuthor = "EboMike";
 }  // namespace
 
@@ -23,7 +23,7 @@ const char* MainControlWindow::GetApplicationName() {
 }
 
 const char* MainControlWindow::GetApplicationVersion() {
-    return kAppVersion;
+    return kLiveRendererVersion;
 }
 
 const char* MainControlWindow::GetApplicationAuthor() {
@@ -478,7 +478,7 @@ void MainControlWindow::RenderModals() {
     }
     if (ImGui::BeginPopupModal("About", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
         ImGui::Text("Application: %s", kAppName);
-        ImGui::Text("Version: %s", kAppVersion);
+        ImGui::Text("Version: %s", kLiveRendererVersion);
         ImGui::Text("Author: %s", kAppAuthor);
         ImGui::Spacing();
         ImGui::Separator();

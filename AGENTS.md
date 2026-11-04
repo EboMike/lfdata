@@ -83,6 +83,8 @@
 * Do not use magic numbers or magic strings unless their meaning is obvious.
   Instead, define them as constants. If they are shared in multiple places, define
   the constant in a shared, common location.
+* For every update to live_renderer, increase the version number (defined in
+  src/live_renderer/version.hpp) to verify that a new executable was built.
 
 ## Documentation
 

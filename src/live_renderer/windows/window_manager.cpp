@@ -98,14 +98,19 @@ void WindowManager::CreateWindowInstance(
         gl_ctx = SDL_GL_CreateContext(sdl_win);
     }
 
+    WindowConfig effective_config = config;
+    effective_config.rect = {x, y, w, h};
+
     WindowInstance instance;
     instance.id = config.id;
     instance.sdl_window = sdl_win;
     instance.gl_context = gl_ctx;
-    instance.vis_window = std::make_unique<VisualizationWindow>(config, ui_config);
+    instance.vis_window =
+        std::make_unique<VisualizationWindow>(effective_config, ui_config);
     instance.is_minimized = false;
 
-    windows_.push_back(std::make_unique<VisualizationWindow>(config, ui_config));
+    windows_.push_back(
+        std::make_unique<VisualizationWindow>(effective_config, ui_config));
     instances_.push_back(std::move(instance));
 }
 
@@ -215,8 +220,12 @@ bool WindowManager::HandleEvent(
 
                 if (event_win_id == active_win_id) {
                     int sel_idx = editor_window->GetSelectedElementIndex();
-                    int win_w = active_inst.vis_window->GetWidth();
-                    int win_h = active_inst.vis_window->GetHeight();
+                    int win_w = 0, win_h = 0;
+                    SDL_GetWindowSize(active_inst.sdl_window, &win_w, &win_h);
+                    if (win_w <= 0 || win_h <= 0) {
+                        win_w = active_inst.vis_window->GetWidth();
+                        win_h = active_inst.vis_window->GetHeight();
+                    }
                     auto& elements = editor_window->GetActiveElements();
 
                     bool handled = editor_interaction_.HandleSdlEvent(
@@ -294,7 +303,13 @@ void WindowManager::RenderWindowBatch(
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    glOrtho(0.0, static_cast<double>(w), static_cast<double>(h), 0.0, -1.0, 1.0);
+    const double ortho_w = (batch.window_width > 0)
+                               ? static_cast<double>(batch.window_width)
+                               : static_cast<double>(w);
+    const double ortho_h = (batch.window_height > 0)
+                               ? static_cast<double>(batch.window_height)
+                               : static_cast<double>(h);
+    glOrtho(0.0, ortho_w, ortho_h, 0.0, -1.0, 1.0);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 

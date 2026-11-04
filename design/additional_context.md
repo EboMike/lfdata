@@ -208,3 +208,8 @@ If none apply, the fallback is: `{blocks}/{blocked_by_others} blocks`.
   `SDL_WINDOWEVENT_CLOSE`), the close action is intercepted and the window is
   minimized rather than destroyed or triggering an application exit. Only
   closing the main control window prompts to quit the application.
+
+## Live Renderer Versioning
+
+* Every update to the live renderer must increment the version number in
+  src/live_renderer/version.hpp to verify that a new executable was built.

@@ -374,3 +374,6 @@ never block on I/O operations.
 
 Any elements that do not change should cache as much of their
 intermediate states and objects as possible.
+
+* Every update to the live renderer must increase the version number in
+  src/live_renderer/version.hpp to verify that a new executable was built.

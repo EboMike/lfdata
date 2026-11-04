@@ -4,6 +4,7 @@
 #include "live_renderer/network/protocol_parser.hpp"
 #include "live_renderer/network/tcp_consumer_client.hpp"
 #include "live_renderer/state/live_state_store.hpp"
+#include "live_renderer/version.hpp"
 #include "live_renderer/windows/main_control_window.hpp"
 
 using namespace live_renderer;
@@ -204,7 +205,8 @@ TEST(MainControlWindowTest, AboutModalAndMetadata) {
     win.OpenAboutDialog();
     EXPECT_TRUE(win.IsAboutDialogOpen());
     EXPECT_STREQ(MainControlWindow::GetApplicationName(), "LF Live Renderer");
-    EXPECT_STREQ(MainControlWindow::GetApplicationVersion(), "0.1.0");
+    EXPECT_STREQ(MainControlWindow::GetApplicationVersion(), kLiveRendererVersion);
+    EXPECT_STREQ(MainControlWindow::GetApplicationVersion(), "0.1.1");
     EXPECT_STREQ(MainControlWindow::GetApplicationAuthor(), "EboMike");
 
     win.CloseAboutDialog();

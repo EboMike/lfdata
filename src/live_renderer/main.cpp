@@ -22,6 +22,7 @@
 #include "live_renderer/state/mock_game_state.hpp"
 #include "live_renderer/windows/main_control_window.hpp"
 #include "live_renderer/windows/ui_editor_window.hpp"
+#include "live_renderer/version.hpp"
 #include "live_renderer/windows/window_manager.hpp"
 
 namespace {
@@ -47,6 +48,10 @@ int main(int argc, char* argv[]) {
             max_frames = std::stoi(argv[++i]);
         }
     }
+
+    std::cout << "[live_renderer] LF Live Renderer v"
+              << live_renderer::MainControlWindow::GetApplicationVersion()
+              << " (built " << __DATE__ << " " << __TIME__ << ")\n";
 
     live_renderer::GlobalConfig global_cfg;
     if (!live_renderer::ConfigSerializer::LoadGlobalConfig(config_path, global_cfg)) {
