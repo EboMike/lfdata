@@ -257,13 +257,17 @@ float VisualizationWindow::ComputeTeamScorecardHeightPx(
     const ElementConfig& element,
     int team_id,
     const GameStateSnapshot& state) const {
+    const float win_h = static_cast<float>(GetHeight());
     const float row_height_px = 32.0f;
+    const float scaled_spacing =
+        RichTextLayout::ComputePixelVerticalSpacing(
+            element.vertical_spacing, win_h);
     float height = 0.0f;
 
     const TemplateConfig* header_tmpl =
         FindTemplate(element.header_template_id);
     if (header_tmpl != nullptr && !header_tmpl->elements.empty()) {
-        height += row_height_px + 4.0f + element.vertical_spacing;
+        height += row_height_px + 4.0f + scaled_spacing;
     }
 
     const PlayerSortOrder sort_order = (element.sort_order == "index")
@@ -273,7 +277,7 @@ float VisualizationWindow::ComputeTeamScorecardHeightPx(
         state, team_id, sort_order, element.add_totals);
 
     if (!player_ids.empty()) {
-        const float row_spacing = 2.0f + element.vertical_spacing;
+        const float row_spacing = 2.0f + scaled_spacing;
         height += static_cast<float>(player_ids.size()) *
             (row_height_px + row_spacing);
     }
@@ -295,6 +299,9 @@ void VisualizationWindow::GenerateTeamScorecardCommands(
     const float win_h = static_cast<float>(GetHeight());
     const float unit_w = win_h * 16.0f / 9.0f;
     const float row_height_px = 32.0f;
+    const float scaled_spacing =
+        RichTextLayout::ComputePixelVerticalSpacing(
+            element.vertical_spacing, win_h);
     float current_y = base_px_rect[1];
 
     // Optional header template
@@ -317,7 +324,7 @@ void VisualizationWindow::GenerateTeamScorecardCommands(
                 win_h,
                 batch);
         }
-        current_y += row_height_px + 4.0f + element.vertical_spacing;
+        current_y += row_height_px + 4.0f + scaled_spacing;
     }
 
     const float start_players_y = current_y;
@@ -334,7 +341,7 @@ void VisualizationWindow::GenerateTeamScorecardCommands(
     const std::string list_key =
         std::to_string(config_.id) + "_team_" + std::to_string(team_id);
 
-    const float row_spacing = 2.0f + element.vertical_spacing;
+    const float row_spacing = 2.0f + scaled_spacing;
     for (size_t row_idx = 0; row_idx < player_ids.size(); ++row_idx) {
         int pid = player_ids[row_idx];
         auto pit = state.players.find(pid);
@@ -498,7 +505,10 @@ void VisualizationWindow::GenerateGameScorecardCommands(
             GenerateTeamScorecardCommands(
                 sub_el, team_ids[i], state, current_time_ms, batch);
 
-            const float team_spacing_px = 16.0f + element.vertical_spacing;
+            const float scaled_spacing =
+                RichTextLayout::ComputePixelVerticalSpacing(
+                    element.vertical_spacing, win_h);
+            const float team_spacing_px = 16.0f + scaled_spacing;
             curr_px_y += team_h_px + team_spacing_px;
         }
     }
@@ -516,7 +526,10 @@ void VisualizationWindow::GenerateEventScrollerCommands(
     const float font_size_px = RichTextLayout::ComputePixelFontSize(
         element.font_size > 0.0f ? element.font_size : 16.0f, win_h);
     const float line_h = font_size_px * 1.4f;
-    const float line_spacing = font_size_px * 0.15f + element.vertical_spacing;
+    const float scaled_spacing =
+        RichTextLayout::ComputePixelVerticalSpacing(
+            element.vertical_spacing, win_h);
+    const float line_spacing = font_size_px * 0.15f + scaled_spacing;
     const float step_y = line_h + line_spacing;
 
     const size_t num_events = state.event_scroller.size();
@@ -603,8 +616,11 @@ void VisualizationWindow::GenerateImportantMessagesCommands(
     const float font_size_px = RichTextLayout::ComputePixelFontSize(
         element.font_size > 0.0f ? element.font_size : 20.0f, win_h);
     const float line_h = font_size_px * 1.4f;
+    const float scaled_spacing =
+        RichTextLayout::ComputePixelVerticalSpacing(
+            element.vertical_spacing, win_h);
 
-    float step_y = line_h + element.vertical_spacing;
+    float step_y = line_h + scaled_spacing;
     if (element.vertical_spacing == 0.0f && num_lines > 0) {
         float auto_slot_h = base_px_rect[3] / static_cast<float>(num_lines);
         if (auto_slot_h >= line_h) {

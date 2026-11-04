@@ -46,6 +46,16 @@ public:
     static float ComputePixelFontSize(float font_size, float window_height) {
         return font_size * (window_height / 800.0f);
     }
+
+    /**
+     * @brief Computes scaled pixel vertical spacing relative to window height.
+     *        A vertical spacing of 5 will take up 5px in a window that is 800
+     *        pixels high, and scales proportionally with window height.
+     */
+    static float ComputePixelVerticalSpacing(
+        float vertical_spacing, float window_height) {
+        return vertical_spacing * (window_height / 800.0f);
+    }
 };
 
 }  // namespace live_renderer

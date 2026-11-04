@@ -339,6 +339,36 @@ TEST(TextComponentTest, MultilineTextWithVerticalSpacing) {
     EXPECT_FLOAT_EQ(batch.commands[2].pixel_rect[1], 150.0f);
 }
 
+TEST(TextComponentTest,
+     MultilineTextWithVerticalSpacingScalesWithWindowHeight) {
+    ElementConfig el;
+    el.type = "user_text";
+    el.font_size = 20.0f;
+    el.vertical_spacing = 5.0f;
+
+    RenderBatch batch;
+    TextComponent::GenerateCommands(
+        el,
+        "Line 1\nLine 2\nLine 3",
+        {10.0f, 100.0f, 200.0f, 100.0f},
+        "#ffffff",
+        false,
+        1600.0f,
+        batch);
+
+    ASSERT_EQ(batch.commands.size(), 3u);
+    EXPECT_EQ(batch.commands[0].text, "Line 1");
+    EXPECT_EQ(batch.commands[1].text, "Line 2");
+    EXPECT_EQ(batch.commands[2].text, "Line 3");
+
+    // At 1600px window height:
+    // font_size_px = 40.0f, scaled vertical_spacing = 10.0f
+    // step_y = 40.0f + 10.0f = 50.0f
+    EXPECT_FLOAT_EQ(batch.commands[0].pixel_rect[1], 100.0f);
+    EXPECT_FLOAT_EQ(batch.commands[1].pixel_rect[1], 150.0f);
+    EXPECT_FLOAT_EQ(batch.commands[2].pixel_rect[1], 200.0f);
+}
+
 TEST(TextComponentTest, MultiRunSegmentsAlignWithFontMetrics) {
     ElementConfig el;
     el.type = "user_text";

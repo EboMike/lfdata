@@ -60,6 +60,10 @@ Parameters:
     800 pixels high.
 *   **Alignment**: Horizontal alignment relative to container
     dimensions. Left, center, right.
+*   **Vertical spacing**: Extra spacing between lines. This scales
+    proportionally with the window height (relative to an 800-pixel-high
+    window), ensuring line spacing scales consistently when a window is
+    resized.
 
 ### Image
 
@@ -80,24 +84,30 @@ Parameters:
     *    **Scale**: Scale to fit within boundaries, keeping aspect ratio.
     *    **Crop**: Scale to fill boundaries, keeping aspect ratio.
     *    **Stretch**: Stretch to fill boundaries, ignoring aspect ratio.
+*   **Tint team color**: Can be used only if the image is in the context of
+    a team (for example a team score card). Float value. If >0.0, the image
+    will be tinted with the team color (higher value = higher tint). 
 
-### Movie
+### Video
 
-A movie clip element that will be played repeatedly. Audio is
+A video clip element that will be played repeatedly. Audio is
 ignored.
 
 Parameters:
 
 *   **Opacity**: A float value from 0.0 (invisible) to 1.0
     (opaque).
-*   **Movie file**: If set, points to a local file with the
-    movie data.
-*   **Fit**: How the movie should be sized and positioned within
+*   **Video file**: If set, points to a local file with the
+    video data.
+*   **Fit**: How the video should be sized and positioned within
     the boundaries of the element.
     *    **Scale**: Scale to fit within boundaries, keeping aspect ratio.
     *    **Crop**: Scale to fill boundaries, keeping aspect ratio.
     *    **Stretch**: Stretch to fill boundaries, ignoring aspect ratio.
 *   **Playback speed**: Multiplier for the playback speed, defaults to 1.0.
+*   **Tint team color**: Can be used only if the video is in the context of
+    a team (for example a team score card). Float value. If >0.0, the video
+    will be tinted with the team color (higher value = higher tint). 
 
 ### Lists
 

@@ -49,3 +49,14 @@ TEST(RichTextLayoutTest, FontSizeCalculation) {
     EXPECT_FLOAT_EQ(px1600, 40.0f);
 }
 
+TEST(RichTextLayoutTest, VerticalSpacingCalculation) {
+    float sp800 = RichTextLayout::ComputePixelVerticalSpacing(5.0f, 800.0f);
+    EXPECT_FLOAT_EQ(sp800, 5.0f);
+
+    float sp1600 = RichTextLayout::ComputePixelVerticalSpacing(5.0f, 1600.0f);
+    EXPECT_FLOAT_EQ(sp1600, 10.0f);
+
+    float sp400 = RichTextLayout::ComputePixelVerticalSpacing(5.0f, 400.0f);
+    EXPECT_FLOAT_EQ(sp400, 2.5f);
+}
+

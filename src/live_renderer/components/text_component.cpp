@@ -161,7 +161,10 @@ void TextComponent::GenerateCommands(
 
     if (raw_text.find('\n') != std::string_view::npos) {
         const float line_h = font_size_px;
-        const float step_y = line_h + element.vertical_spacing;
+        const float scaled_spacing =
+            RichTextLayout::ComputePixelVerticalSpacing(
+                element.vertical_spacing, window_height);
+        const float step_y = line_h + scaled_spacing;
         size_t start = 0;
         size_t line_idx = 0;
         while (start <= raw_text.size()) {
