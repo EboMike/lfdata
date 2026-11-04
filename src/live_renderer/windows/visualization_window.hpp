@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include "live_renderer/components/list_animation_tracker.hpp"
+#include "live_renderer/components/messages_display_tracker.hpp"
 #include "live_renderer/config/ui_config.hpp"
 #include "live_renderer/render/render_batch.hpp"
 #include "live_renderer/state/game_state_snapshot.hpp"
@@ -79,6 +80,12 @@ private:
         int64_t current_time_ms,
         RenderBatch& batch) const;
 
+    void GenerateImportantMessagesCommands(
+        const ElementConfig& element,
+        const GameStateSnapshot& state,
+        int64_t current_time_ms,
+        RenderBatch& batch) const;
+
     const TemplateConfig* FindTemplate(int template_id) const;
     ElementConfig ResolveElementFont(const ElementConfig& element) const;
     float ComputeTeamScorecardHeightPx(
@@ -89,6 +96,7 @@ private:
     WindowConfig config_;
     const UIConfig& ui_config_;
     mutable ListAnimationTracker list_animation_tracker_;
+    mutable MessagesDisplayTracker messages_display_tracker_;
 };
 
 }  // namespace live_renderer

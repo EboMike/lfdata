@@ -72,6 +72,11 @@ GameStateSnapshot MockGameState::CreateMockSM5State() {
         {245000, "<font color=\"#FF5000\">AlphaCommander</font> detonates nuke"}
     };
 
+    s.important_events = {
+        {1, 245000,
+         "<font color=\"#FF5000\">AlphaCommander</font> detonates nuke"}
+    };
+
     return s;
 }
 

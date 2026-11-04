@@ -165,6 +165,10 @@ void VisualizationWindow::GenerateElementCommands(
     } else if (resolved_el.type == "event_scroller") {
         GenerateEventScrollerCommands(
             resolved_el, state, current_time_ms, batch);
+    } else if (resolved_el.type == "important_game_messages" ||
+               resolved_el.type == "messages_display") {
+        GenerateImportantMessagesCommands(
+            resolved_el, state, current_time_ms, batch);
     } else if (resolved_el.type == "player_profile_picture") {
         RenderCommand cmd;
         cmd.type = RenderCommand::Type::TexturedQuad;
@@ -518,6 +522,82 @@ void VisualizationWindow::GenerateEventScrollerCommands(
             win_h,
             batch,
             element.tilt,
+            base_px_rect,
+            true);
+    }
+}
+
+void VisualizationWindow::GenerateImportantMessagesCommands(
+    const ElementConfig& element,
+    const GameStateSnapshot& state,
+    int64_t current_time_ms,
+    RenderBatch& batch
+) const {
+    const auto base_px_rect = RelativeToPixelRect(element.rect);
+    const int num_lines = std::max(1, element.lines);
+    const float display_time_s =
+        element.display_time > 0.0f ? element.display_time : 4.0f;
+    const float fadeout_time_s =
+        element.fadeout_time >= 0.0f ? element.fadeout_time : 1.0f;
+
+    std::string display_key =
+        std::to_string(element.z_position) + "_" +
+        std::to_string(element.rect[0]) + "_" +
+        std::to_string(element.rect[1]);
+
+    messages_display_tracker_.Update(
+        display_key,
+        state.important_events,
+        num_lines,
+        display_time_s,
+        fadeout_time_s,
+        current_time_ms);
+
+    const auto& slots = messages_display_tracker_.GetSlots(display_key);
+    const float win_h = static_cast<float>(GetHeight());
+    const float font_size_px = RichTextLayout::ComputePixelFontSize(
+        element.font_size > 0.0f ? element.font_size : 20.0f, win_h);
+    const float line_h = font_size_px * 1.4f;
+
+    float step_y = line_h + element.vertical_spacing;
+    if (element.vertical_spacing == 0.0f && num_lines > 0) {
+        float auto_slot_h = base_px_rect[3] / static_cast<float>(num_lines);
+        if (auto_slot_h >= line_h) {
+            step_y = auto_slot_h;
+        }
+    }
+
+    ElementConfig line_el = element;
+    line_el.font = (element.font.empty() || element.font == "default")
+        ? ui_config_.default_font
+        : element.font;
+    line_el.font_size = element.font_size > 0.0f ? element.font_size : 20.0f;
+    line_el.alignment =
+        element.alignment.empty() ? "center" : element.alignment;
+    line_el.color = element.color.empty() ? "#ffffff" : element.color;
+
+    bool any_active = false;
+    for (size_t i = 0; i < slots.size(); ++i) {
+        if (!slots[i].active || slots[i].opacity <= 0.0f) {
+            continue;
+        }
+        any_active = true;
+        float y = base_px_rect[1] + static_cast<float>(i) * step_y;
+        if (y + line_h < base_px_rect[1] ||
+            y > base_px_rect[1] + base_px_rect[3]) {
+            continue;
+        }
+
+        line_el.opacity = element.opacity * slots[i].opacity;
+        TextComponent::GenerateCommands(
+            line_el,
+            slots[i].message,
+            {base_px_rect[0], y, base_px_rect[2], line_h},
+            line_el.color,
+            false,
+            win_h,
+            batch,
+            0.0f,
             base_px_rect,
             true);
     }

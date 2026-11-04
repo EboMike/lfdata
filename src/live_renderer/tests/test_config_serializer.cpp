@@ -59,6 +59,13 @@ TEST(ConfigSerializerTest, RoundTripUIConfig) {
     scorecard.vertical_spacing = 6.0f;
     win.elements.push_back(scorecard);
 
+    ElementConfig msgs;
+    msgs.type = "important_game_messages";
+    msgs.lines = 5;
+    msgs.display_time = 6.0f;
+    msgs.fadeout_time = 1.5f;
+    win.elements.push_back(msgs);
+
     ui.windows.push_back(win);
 
     std::string path = "test_ui_config.yaml";
@@ -76,7 +83,7 @@ TEST(ConfigSerializerTest, RoundTripUIConfig) {
     ASSERT_EQ(loaded.windows.size(), 1);
     EXPECT_EQ(loaded.windows[0].title, "Arena 1");
     EXPECT_EQ(loaded.windows[0].rect[2], 1920);
-    ASSERT_EQ(loaded.windows[0].elements.size(), 2);
+    ASSERT_EQ(loaded.windows[0].elements.size(), 3);
     EXPECT_EQ(loaded.windows[0].elements[0].type, "game_timer");
     EXPECT_EQ(loaded.windows[0].elements[1].type, "team_scorecard");
     EXPECT_EQ(
@@ -86,6 +93,10 @@ TEST(ConfigSerializerTest, RoundTripUIConfig) {
         loaded.windows[0].elements[1].animation_duration, 0.75f);
     EXPECT_FLOAT_EQ(
         loaded.windows[0].elements[1].vertical_spacing, 6.0f);
+    EXPECT_EQ(loaded.windows[0].elements[2].type, "important_game_messages");
+    EXPECT_EQ(loaded.windows[0].elements[2].lines, 5);
+    EXPECT_FLOAT_EQ(loaded.windows[0].elements[2].display_time, 6.0f);
+    EXPECT_FLOAT_EQ(loaded.windows[0].elements[2].fadeout_time, 1.5f);
 
     std::filesystem::remove(path);
 }

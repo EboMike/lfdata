@@ -45,6 +45,7 @@ private:
     void RenderImageControls(ElementConfig& element);
     void RenderScorecardControls(ElementConfig& element, const UIConfig& ui_config);
     void RenderScrollerControls(ElementConfig& element);
+    void RenderMessagesDisplayControls(ElementConfig& element);
 };
 
 }  // namespace live_renderer

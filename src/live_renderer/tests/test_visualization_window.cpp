@@ -382,6 +382,52 @@ TEST(VisualizationWindowTest, GameScorecardsVerticalListLayout) {
     EXPECT_GT(min_team2_y, max_team1_y);
 }
 
+TEST(VisualizationWindowTest, ImportantGameMessagesRendering) {
+    WindowConfig wcfg;
+    wcfg.id = 1;
+    wcfg.rect = {0, 0, 1000, 1000};
+
+    ElementConfig msgs;
+    msgs.type = "important_game_messages";
+    msgs.rect = {0.1f, 0.2f, 0.8f, 0.4f};
+    msgs.lines = 3;
+    msgs.display_time = 4.0f;
+    msgs.fadeout_time = 1.0f;
+    wcfg.elements.push_back(msgs);
+
+    UIConfig ui;
+    VisualizationWindow win(wcfg, ui);
+
+    GameStateSnapshot state;
+    state.in_session = true;
+    state.important_events = {
+        {10, 1000, "Commander activates nuke"}
+    };
+
+    auto batch = win.GenerateBatch(state, 1000);
+    bool found_msg = false;
+    for (const auto& cmd : batch.commands) {
+        if (cmd.text.find("Commander activates nuke") != std::string::npos) {
+            found_msg = true;
+            EXPECT_NEAR(cmd.opacity, 1.0f, 0.05f);
+            EXPECT_GE(cmd.pixel_rect[1], 200.0f);
+        }
+    }
+    EXPECT_TRUE(found_msg);
+
+    // Fadeout at t=5500
+    auto fade_batch = win.GenerateBatch(state, 5500);
+    bool found_fading = false;
+    for (const auto& cmd : fade_batch.commands) {
+        if (cmd.text.find("Commander activates nuke") != std::string::npos) {
+            found_fading = true;
+            EXPECT_LT(cmd.opacity, 0.8f);
+            EXPECT_GT(cmd.opacity, 0.2f);
+        }
+    }
+    EXPECT_TRUE(found_fading);
+}
+
 
 
 

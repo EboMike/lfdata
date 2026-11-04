@@ -10,7 +10,8 @@ inline constexpr const char* const kTopLevelElementTypes[] = {
     "team_scorecard",
     "game_scorecard",
     "team_roster",
-    "event_scroller"
+    "event_scroller",
+    "important_game_messages"
 };
 
 inline constexpr const char* const kScorecardRowElementTypes[] = {

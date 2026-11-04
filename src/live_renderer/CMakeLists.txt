@@ -114,6 +114,7 @@ set(CORE_SOURCES
     widgets/font_dialog.cpp
     render/texture_manager.cpp
     components/list_animation_tracker.cpp
+    components/messages_display_tracker.cpp
 )
 
 add_library(live_renderer_core STATIC ${CORE_SOURCES})
@@ -151,6 +152,7 @@ add_executable(live_renderer_tests
     tests/test_font_renderer.cpp
     tests/test_texture_manager.cpp
     tests/test_list_animation_tracker.cpp
+    tests/test_messages_display_tracker.cpp
 )
 target_link_libraries(live_renderer_tests PRIVATE
     live_renderer_core

@@ -64,6 +64,8 @@ void ElementPropertyInspector::Render(
     RenderScorecardControls(element, ui_config);
     ImGui::Spacing();
     RenderScrollerControls(element);
+    ImGui::Spacing();
+    RenderMessagesDisplayControls(element);
 }
 
 void ElementPropertyInspector::RenderHeaderAndActions(
@@ -119,6 +121,8 @@ void ElementPropertyInspector::RenderTextControls(ElementConfig& element) {
         element.type == "user_text" ||
         element.type == "game_timer" ||
         element.type == "event_scroller" ||
+        element.type == "important_game_messages" ||
+        element.type == "messages_display" ||
         element.type.rfind("player_", 0) == 0);
 
     if (!is_textual && element.text.empty() && element.font_size == 20.0f) {
@@ -127,7 +131,9 @@ void ElementPropertyInspector::RenderTextControls(ElementConfig& element) {
 
     if (ImGui::CollapsingHeader(
             "Text & Typography", ImGuiTreeNodeFlags_DefaultOpen)) {
-        if (element.type != "event_scroller") {
+        if (element.type != "event_scroller" &&
+            element.type != "important_game_messages" &&
+            element.type != "messages_display") {
             char text_buf[512]{};
             std::snprintf(
                 text_buf, sizeof(text_buf), "%s", element.text.c_str());
@@ -337,6 +343,36 @@ void ElementPropertyInspector::RenderScrollerControls(ElementConfig& element) {
             -45.0f,
             45.0f,
             "deg");
+    }
+}
+
+void ElementPropertyInspector::RenderMessagesDisplayControls(
+    ElementConfig& element
+) {
+    if (element.type != "important_game_messages" &&
+        element.type != "messages_display") {
+        return;
+    }
+
+    if (ImGui::CollapsingHeader(
+            "Important Messages Settings", ImGuiTreeNodeFlags_DefaultOpen)) {
+        ImGui::InputInt("Number of Lines", &element.lines);
+        if (element.lines < 1) {
+            element.lines = 1;
+        }
+
+        SliderFloatWithInput::Render(
+            "Display Time",
+            &element.display_time,
+            0.5f,
+            30.0f,
+            "s");
+        SliderFloatWithInput::Render(
+            "Fadeout Time",
+            &element.fadeout_time,
+            0.0f,
+            10.0f,
+            "s");
     }
 }
 

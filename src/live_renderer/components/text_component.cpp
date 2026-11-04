@@ -151,6 +151,7 @@ void TextComponent::GenerateCommands(
         cmd.alignment = element.alignment.empty() ? "left" : element.alignment;
         cmd.black_outline = true;
         cmd.rapid_fire_effect = rapid_fire;
+        cmd.opacity = element.opacity;
         cmd.tilt_deg = tilt_deg;
         cmd.container_rect = container_rect;
         cmd.clip_to_container = clip_to_container;
@@ -212,6 +213,7 @@ void TextComponent::GenerateCommands(
             tcmd.alignment = "left";
             tcmd.black_outline = true;
             tcmd.rapid_fire_effect = rapid_fire;
+            tcmd.opacity = element.opacity;
             tcmd.tilt_deg = tilt_deg;
             tcmd.container_rect = container_rect;
             tcmd.clip_to_container = clip_to_container;

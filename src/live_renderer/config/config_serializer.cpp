@@ -88,6 +88,15 @@ static ElementConfig ParseElementNode(const YAML::Node& node) {
     if (node["vertical_spacing"]) {
         el.vertical_spacing = node["vertical_spacing"].as<float>();
     }
+    if (node["lines"]) {
+        el.lines = node["lines"].as<int>();
+    }
+    if (node["display_time"]) {
+        el.display_time = node["display_time"].as<float>();
+    }
+    if (node["fadeout_time"]) {
+        el.fadeout_time = node["fadeout_time"].as<float>();
+    }
     return el;
 }
 
@@ -129,6 +138,18 @@ static void EmitElementNode(YAML::Emitter& out, const ElementConfig& el) {
     if (el.vertical_spacing != 0.0f) {
         out << YAML::Key << "vertical_spacing"
             << YAML::Value << el.vertical_spacing;
+    }
+    if (el.type == "important_game_messages" ||
+        el.type == "messages_display") {
+        out << YAML::Key << "lines" << YAML::Value << el.lines;
+        if (el.display_time != 4.0f) {
+            out << YAML::Key << "display_time" << YAML::Value
+                << el.display_time;
+        }
+        if (el.fadeout_time != 1.0f) {
+            out << YAML::Key << "fadeout_time" << YAML::Value
+                << el.fadeout_time;
+        }
     }
     out << YAML::EndMap;
 }

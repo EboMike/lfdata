@@ -34,6 +34,9 @@ struct ElementConfig {
     std::string change_animation = "none";
     float animation_duration = 0.5f;              // Duration in seconds
     float vertical_spacing = 0.0f;                // Spacing between lines/items
+    int lines = 3;                                // Number of message lines
+    float display_time = 4.0f;                    // Seconds shown before fade
+    float fadeout_time = 1.0f;                    // Seconds to fade out
 };
 
 /**
