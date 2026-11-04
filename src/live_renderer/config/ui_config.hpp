@@ -63,6 +63,7 @@ struct ElementConfig {
     float display_time = 4.0f;                    // Seconds shown before fade
     float fadeout_time = 1.0f;                    // Seconds to fade out
     BackgroundConfig background;                  // Optional background
+    BackgroundConfig team_background;             // Optional team background
 };
 
 /**

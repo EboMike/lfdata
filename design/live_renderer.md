@@ -162,13 +162,17 @@ Parameters:
 
 A list subclass with the elements being team scorecards. Its
 template is a "scorecard row". Its header template is a "scorecard
-header row".
+header row". Because a game scorecard is a nested list, it has two
+background settings: one for the game scorecard as a whole (behind
+all teams), and one for each individual team scorecard.
 
 *   **Add totals**: Boolean. If enabled, will add a final row, always
     at the end, with the stats of the dummy player for each team.
 *   **Sort order**: "Team index" or "Team ranking".
 *   **Scorecard row template**
 *   **Scorecard header row template**
+*   **Background**: Background for the overall game scorecard.
+*   **Team background**: Background for each team scorecard within it.
 
 ### Team Roster
 

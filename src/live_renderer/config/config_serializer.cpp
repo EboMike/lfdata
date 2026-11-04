@@ -50,6 +50,38 @@ bool ConfigSerializer::SaveGlobalConfig(const std::string& path, const GlobalCon
     }
 }
 
+static void ParseBackgroundConfigNode(
+    const YAML::Node& bg, BackgroundConfig& out_bg) {
+    out_bg.enabled = true;
+    if (bg["enabled"]) {
+        out_bg.enabled = bg["enabled"].as<bool>();
+    }
+    if (bg["color"]) {
+        out_bg.color = bg["color"].as<std::string>();
+    }
+    if (bg["image_file"]) {
+        out_bg.image_file = bg["image_file"].as<std::string>();
+    }
+    if (bg["movie_file"]) {
+        out_bg.movie_file = bg["movie_file"].as<std::string>();
+    }
+    if (bg["fit"]) {
+        out_bg.fit = bg["fit"].as<std::string>();
+    }
+    if (bg["playback_speed"]) {
+        out_bg.playback_speed = bg["playback_speed"].as<float>();
+    }
+    if (bg["tint_team_color"]) {
+        out_bg.tint_team_color = bg["tint_team_color"].as<float>();
+    }
+    if (bg["opacity"]) {
+        out_bg.opacity = bg["opacity"].as<float>();
+    }
+    if (bg["corner_radius"]) {
+        out_bg.corner_radius = bg["corner_radius"].as<float>();
+    }
+}
+
 static ElementConfig ParseElementNode(const YAML::Node& node) {
     ElementConfig el;
     if (node["type"]) el.type = node["type"].as<std::string>();
@@ -126,37 +158,52 @@ static ElementConfig ParseElementNode(const YAML::Node& node) {
         el.fadeout_time = node["fadeout_time"].as<float>();
     }
     if (node["background"] && node["background"].IsMap()) {
-        const auto& bg = node["background"];
-        el.background.enabled = true;
-        if (bg["enabled"]) {
-            el.background.enabled = bg["enabled"].as<bool>();
-        }
-        if (bg["color"]) {
-            el.background.color = bg["color"].as<std::string>();
-        }
-        if (bg["image_file"]) {
-            el.background.image_file = bg["image_file"].as<std::string>();
-        }
-        if (bg["movie_file"]) {
-            el.background.movie_file = bg["movie_file"].as<std::string>();
-        }
-        if (bg["fit"]) {
-            el.background.fit = bg["fit"].as<std::string>();
-        }
-        if (bg["playback_speed"]) {
-            el.background.playback_speed = bg["playback_speed"].as<float>();
-        }
-        if (bg["tint_team_color"]) {
-            el.background.tint_team_color = bg["tint_team_color"].as<float>();
-        }
-        if (bg["opacity"]) {
-            el.background.opacity = bg["opacity"].as<float>();
-        }
-        if (bg["corner_radius"]) {
-            el.background.corner_radius = bg["corner_radius"].as<float>();
-        }
+        ParseBackgroundConfigNode(node["background"], el.background);
+    }
+    if (node["team_background"] && node["team_background"].IsMap()) {
+        ParseBackgroundConfigNode(node["team_background"], el.team_background);
     }
     return el;
+}
+
+static void EmitBackgroundConfigNode(
+    YAML::Emitter& out,
+    const std::string& key_name,
+    const BackgroundConfig& bg) {
+    if (!bg.enabled && bg.color.empty() && bg.image_file.empty() &&
+        bg.movie_file.empty()) {
+        return;
+    }
+    out << YAML::Key << key_name << YAML::Value << YAML::BeginMap;
+    out << YAML::Key << "enabled" << YAML::Value << bg.enabled;
+    if (!bg.color.empty()) {
+        out << YAML::Key << "color" << YAML::Value << bg.color;
+    }
+    if (!bg.image_file.empty()) {
+        out << YAML::Key << "image_file" << YAML::Value << bg.image_file;
+    }
+    if (!bg.movie_file.empty()) {
+        out << YAML::Key << "movie_file" << YAML::Value << bg.movie_file;
+    }
+    if (!bg.fit.empty() && bg.fit != "stretch") {
+        out << YAML::Key << "fit" << YAML::Value << bg.fit;
+    }
+    if (bg.playback_speed != 1.0f) {
+        out << YAML::Key << "playback_speed" << YAML::Value
+            << bg.playback_speed;
+    }
+    if (bg.tint_team_color > 0.0f) {
+        out << YAML::Key << "tint_team_color" << YAML::Value
+            << bg.tint_team_color;
+    }
+    if (bg.opacity != 1.0f) {
+        out << YAML::Key << "opacity" << YAML::Value << bg.opacity;
+    }
+    if (bg.corner_radius > 0.0f) {
+        out << YAML::Key << "corner_radius" << YAML::Value
+            << bg.corner_radius;
+    }
+    out << YAML::EndMap;
 }
 
 static void EmitElementNode(YAML::Emitter& out, const ElementConfig& el) {
@@ -223,42 +270,8 @@ static void EmitElementNode(YAML::Emitter& out, const ElementConfig& el) {
         out << YAML::Key << "vertical_spacing"
             << YAML::Value << el.vertical_spacing;
     }
-    const auto& bg = el.background;
-    if (bg.enabled || !bg.color.empty() || !bg.image_file.empty() ||
-        !bg.movie_file.empty()) {
-        out << YAML::Key << "background" << YAML::Value << YAML::BeginMap;
-        if (bg.enabled) {
-            out << YAML::Key << "enabled" << YAML::Value << bg.enabled;
-        }
-        if (!bg.color.empty()) {
-            out << YAML::Key << "color" << YAML::Value << bg.color;
-        }
-        if (!bg.image_file.empty()) {
-            out << YAML::Key << "image_file" << YAML::Value << bg.image_file;
-        }
-        if (!bg.movie_file.empty()) {
-            out << YAML::Key << "movie_file" << YAML::Value << bg.movie_file;
-        }
-        if (!bg.fit.empty() && bg.fit != "stretch") {
-            out << YAML::Key << "fit" << YAML::Value << bg.fit;
-        }
-        if (bg.playback_speed != 1.0f) {
-            out << YAML::Key << "playback_speed" << YAML::Value
-                << bg.playback_speed;
-        }
-        if (bg.tint_team_color > 0.0f) {
-            out << YAML::Key << "tint_team_color" << YAML::Value
-                << bg.tint_team_color;
-        }
-        if (bg.opacity != 1.0f) {
-            out << YAML::Key << "opacity" << YAML::Value << bg.opacity;
-        }
-        if (bg.corner_radius > 0.0f) {
-            out << YAML::Key << "corner_radius" << YAML::Value
-                << bg.corner_radius;
-        }
-        out << YAML::EndMap;
-    }
+    EmitBackgroundConfigNode(out, "background", el.background);
+    EmitBackgroundConfigNode(out, "team_background", el.team_background);
     if (el.type == "important_game_messages" ||
         el.type == "messages_display") {
         out << YAML::Key << "lines" << YAML::Value << el.lines;

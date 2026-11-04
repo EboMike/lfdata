@@ -797,6 +797,76 @@ TEST(VisualizationWindowTest, RendersGameScorecardBackgroundOnceUnderneath) {
     EXPECT_FLOAT_EQ(batch.commands[0].corner_radius, 10.0f);
 }
 
+TEST(VisualizationWindowTest, GameScorecardRendersBothOuterAndTeamBackgrounds) {
+    UIConfig ui;
+    WindowConfig wcfg;
+    wcfg.id = 2;
+    wcfg.rect = {0, 0, 1600, 800};
+
+    ElementConfig gsc;
+    gsc.type = "game_scorecard";
+    gsc.rect = {0.05f, 0.05f, 0.9f, 0.9f};
+    gsc.background.enabled = true;
+    gsc.background.color = "#0000FF";
+    gsc.background.opacity = 1.0f;
+    gsc.background.corner_radius = 10.0f;
+
+    gsc.team_background.enabled = true;
+    gsc.team_background.color = "#00FF00";
+    gsc.team_background.opacity = 0.8f;
+    gsc.team_background.tint_team_color = 0.5f;
+    gsc.team_background.corner_radius = 4.0f;
+    wcfg.elements.push_back(gsc);
+
+    VisualizationWindow win(wcfg, ui);
+    auto state = MockGameState::CreateMockSM5State();
+    auto batch = win.GenerateBatch(state);
+
+    ASSERT_GE(batch.commands.size(), 3u);
+    // Command 0 is outer game scorecard background
+    EXPECT_EQ(batch.commands[0].type, RenderCommand::Type::SolidQuad);
+    EXPECT_FLOAT_EQ(batch.commands[0].color_rgba[0], 0.0f);
+    EXPECT_FLOAT_EQ(batch.commands[0].color_rgba[1], 0.0f);
+    EXPECT_FLOAT_EQ(batch.commands[0].color_rgba[2], 1.0f);
+    EXPECT_FLOAT_EQ(batch.commands[0].corner_radius, 10.0f);
+
+    // Command 1 is the first team's team background
+    EXPECT_EQ(batch.commands[1].type, RenderCommand::Type::SolidQuad);
+    EXPECT_FLOAT_EQ(batch.commands[1].corner_radius, 4.0f);
+    EXPECT_FLOAT_EQ(batch.commands[1].color_rgba[3], 0.8f);
+}
+
+TEST(VisualizationWindowTest, DisabledBackgroundProducesNoCommands) {
+    UIConfig ui;
+    WindowConfig wcfg;
+    wcfg.id = 2;
+    wcfg.rect = {0, 0, 1600, 800};
+
+    ElementConfig sc;
+    sc.type = "team_scorecard";
+    sc.rect = {0.05f, 0.05f, 0.4f, 0.8f};
+    sc.team_index = 1;
+    sc.background.enabled = false;
+    sc.background.color = "#FF0000";
+    sc.background.image_file = "assets/bg.png";
+    sc.background.movie_file = "assets/bg.mp4";
+    wcfg.elements.push_back(sc);
+
+    VisualizationWindow win(wcfg, ui);
+    auto state = MockGameState::CreateMockSM5State();
+    auto batch = win.GenerateBatch(state);
+
+    for (const auto& cmd : batch.commands) {
+        if (cmd.type == RenderCommand::Type::SolidQuad) {
+            const bool is_bg =
+                (std::abs(cmd.color_rgba[0] - 1.0f) < 0.01f &&
+                 std::abs(cmd.color_rgba[1] - 0.0f) < 0.01f &&
+                 std::abs(cmd.color_rgba[2] - 0.0f) < 0.01f);
+            EXPECT_FALSE(is_bg);
+        }
+    }
+}
+
 TEST(VisualizationWindowTest, OnlyOneTotalsRowPerActiveTeam) {
     UIConfig ui;
     WindowConfig wcfg;
@@ -846,6 +916,63 @@ TEST(VisualizationWindowTest, OnlyOneTotalsRowPerActiveTeam) {
     EXPECT_EQ(fire_totals_count, 1);
     EXPECT_EQ(earth_totals_count, 1);
     EXPECT_EQ(neutral_totals_count, 0);
+}
+
+TEST(VisualizationWindowTest, TeamRosterRendersPlayerProfileTemplate) {
+    UIConfig ui;
+
+    TemplateConfig tmpl;
+    tmpl.id = 10;
+    tmpl.name = "Custom Player Profile";
+    tmpl.type = "player_profile";
+    tmpl.size = {1.0f, 1.0f};
+
+    ElementConfig name_el;
+    name_el.type = "player_name";
+    name_el.rect = {0.0f, 0.0f, 1.0f, 0.3f};
+    tmpl.elements.push_back(name_el);
+
+    ElementConfig pic_el;
+    pic_el.type = "player_profile_picture";
+    pic_el.rect = {0.0f, 0.3f, 1.0f, 0.7f};
+    tmpl.elements.push_back(pic_el);
+
+    ui.templates.push_back(tmpl);
+
+    WindowConfig wcfg;
+    wcfg.id = 4;
+    wcfg.rect = {0, 0, 1600, 800};
+
+    ElementConfig roster;
+    roster.type = "team_roster";
+    roster.rect = {0.1f, 0.1f, 0.3f, 0.8f};
+    roster.team_index = 1;
+    roster.player_profile_template_id = 10;
+    wcfg.elements.push_back(roster);
+
+    VisualizationWindow win(wcfg, ui);
+    auto state = MockGameState::CreateMockSM5State();
+    auto batch = win.GenerateBatch(state);
+
+    bool has_alpha = false;
+    bool has_fire_heavy = false;
+    int profile_pic_count = 0;
+    for (const auto& cmd : batch.commands) {
+        if (cmd.text.find("Alpha") != std::string::npos) {
+            has_alpha = true;
+        }
+        if (cmd.text.find("FireHeavy") != std::string::npos) {
+            has_fire_heavy = true;
+        }
+        if (cmd.type == RenderCommand::Type::TexturedQuad &&
+            cmd.texture_asset == "assets/sm5/commander.png") {
+            ++profile_pic_count;
+        }
+    }
+
+    EXPECT_TRUE(has_alpha);
+    EXPECT_TRUE(has_fire_heavy);
+    EXPECT_GE(profile_pic_count, 5);
 }
 
 

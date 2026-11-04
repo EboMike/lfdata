@@ -80,6 +80,21 @@ private:
         int64_t current_time_ms,
         RenderBatch& batch) const;
 
+    void GenerateTeamRosterCommands(
+        const ElementConfig& element,
+        int team_id,
+        const GameStateSnapshot& state,
+        int64_t current_time_ms,
+        RenderBatch& batch) const;
+
+    void RenderPlayerProfileCard(
+        const TemplateConfig* profile_tmpl,
+        const PlayerSnapshot& player,
+        const std::string& team_rgb,
+        const std::array<float, 4>& card_px_rect,
+        float win_h,
+        RenderBatch& batch) const;
+
     void GenerateEventScrollerCommands(
         const ElementConfig& element,
         const GameStateSnapshot& state,

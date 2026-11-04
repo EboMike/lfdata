@@ -50,6 +50,10 @@ private:
     void RenderScorecardControls(
         ElementConfig& element, const UIConfig& ui_config);
     void RenderBackgroundControls(ElementConfig& element);
+    void RenderBackgroundSection(
+        const char* title,
+        const char* id_suffix,
+        BackgroundConfig& bg);
     void RenderScrollerControls(ElementConfig& element);
     void RenderMessagesDisplayControls(ElementConfig& element);
 

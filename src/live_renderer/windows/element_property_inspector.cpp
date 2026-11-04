@@ -361,48 +361,101 @@ void ElementPropertyInspector::RenderScorecardControls(
         }
 
         int sort_idx = (element.sort_order == "index") ? 1 : 0;
-        if (ImGui::Combo("Sort Order", &sort_idx, kSortOrders, IM_ARRAYSIZE(kSortOrders))) {
+        if (ImGui::Combo(
+                "Sort Order",
+                &sort_idx,
+                kSortOrders,
+                IM_ARRAYSIZE(kSortOrders))) {
             element.sort_order = kSortOrders[sort_idx];
         }
 
-        ImGui::Checkbox("Add Totals Row (Dummy Player)", &element.add_totals);
-
         ImGui::InputInt("Team Index (-1 for all)", &element.team_index);
 
-        // Row template selection
-        std::vector<std::pair<int, std::string>> row_tmpls;
-        row_tmpls.push_back({-1, "None (-1)"});
-        for (const auto& t : ui_config.templates) {
-            if (t.type == "scorecard_row") {
-                row_tmpls.push_back({t.id, "#" + std::to_string(t.id) + ": " + t.name});
+        if (element.type == "team_roster") {
+            // Player Profile template selection for team_roster
+            std::vector<std::pair<int, std::string>> prof_tmpls;
+            prof_tmpls.push_back({-1, "None (-1)"});
+            for (const auto& t : ui_config.templates) {
+                if (t.type == "player_profile") {
+                    prof_tmpls.push_back(
+                        {t.id, "#" + std::to_string(t.id) + ": " + t.name});
+                }
             }
-        }
-        int cur_row_idx = 0;
-        for (size_t i = 0; i < row_tmpls.size(); ++i) {
-            if (row_tmpls[i].first == element.row_template_id) cur_row_idx = static_cast<int>(i);
-        }
-        std::vector<const char*> row_names;
-        for (const auto& p : row_tmpls) row_names.push_back(p.second.c_str());
-        if (ImGui::Combo("Row Template", &cur_row_idx, row_names.data(), static_cast<int>(row_names.size()))) {
-            element.row_template_id = row_tmpls[cur_row_idx].first;
-        }
+            int cur_prof_idx = 0;
+            for (size_t i = 0; i < prof_tmpls.size(); ++i) {
+                if (prof_tmpls[i].first == element.player_profile_template_id) {
+                    cur_prof_idx = static_cast<int>(i);
+                }
+            }
+            std::vector<const char*> prof_names;
+            for (const auto& p : prof_tmpls) {
+                prof_names.push_back(p.second.c_str());
+            }
+            if (ImGui::Combo(
+                    "Player Profile Template",
+                    &cur_prof_idx,
+                    prof_names.data(),
+                    static_cast<int>(prof_names.size()))) {
+                element.player_profile_template_id =
+                    prof_tmpls[cur_prof_idx].first;
+            }
+        } else {
+            ImGui::Checkbox(
+                "Add Totals Row (Dummy Player)", &element.add_totals);
 
-        // Header template selection
-        std::vector<std::pair<int, std::string>> header_tmpls;
-        header_tmpls.push_back({-1, "None (-1)"});
-        for (const auto& t : ui_config.templates) {
-            if (t.type == "scorecard_header_row") {
-                header_tmpls.push_back({t.id, "#" + std::to_string(t.id) + ": " + t.name});
+            // Row template selection
+            std::vector<std::pair<int, std::string>> row_tmpls;
+            row_tmpls.push_back({-1, "None (-1)"});
+            for (const auto& t : ui_config.templates) {
+                if (t.type == "scorecard_row") {
+                    row_tmpls.push_back(
+                        {t.id, "#" + std::to_string(t.id) + ": " + t.name});
+                }
             }
-        }
-        int cur_hdr_idx = 0;
-        for (size_t i = 0; i < header_tmpls.size(); ++i) {
-            if (header_tmpls[i].first == element.header_template_id) cur_hdr_idx = static_cast<int>(i);
-        }
-        std::vector<const char*> hdr_names;
-        for (const auto& p : header_tmpls) hdr_names.push_back(p.second.c_str());
-        if (ImGui::Combo("Header Template", &cur_hdr_idx, hdr_names.data(), static_cast<int>(hdr_names.size()))) {
-            element.header_template_id = header_tmpls[cur_hdr_idx].first;
+            int cur_row_idx = 0;
+            for (size_t i = 0; i < row_tmpls.size(); ++i) {
+                if (row_tmpls[i].first == element.row_template_id) {
+                    cur_row_idx = static_cast<int>(i);
+                }
+            }
+            std::vector<const char*> row_names;
+            for (const auto& p : row_tmpls) {
+                row_names.push_back(p.second.c_str());
+            }
+            if (ImGui::Combo(
+                    "Row Template",
+                    &cur_row_idx,
+                    row_names.data(),
+                    static_cast<int>(row_names.size()))) {
+                element.row_template_id = row_tmpls[cur_row_idx].first;
+            }
+
+            // Header template selection
+            std::vector<std::pair<int, std::string>> header_tmpls;
+            header_tmpls.push_back({-1, "None (-1)"});
+            for (const auto& t : ui_config.templates) {
+                if (t.type == "scorecard_header_row") {
+                    header_tmpls.push_back(
+                        {t.id, "#" + std::to_string(t.id) + ": " + t.name});
+                }
+            }
+            int cur_hdr_idx = 0;
+            for (size_t i = 0; i < header_tmpls.size(); ++i) {
+                if (header_tmpls[i].first == element.header_template_id) {
+                    cur_hdr_idx = static_cast<int>(i);
+                }
+            }
+            std::vector<const char*> hdr_names;
+            for (const auto& p : header_tmpls) {
+                hdr_names.push_back(p.second.c_str());
+            }
+            if (ImGui::Combo(
+                    "Header Template",
+                    &cur_hdr_idx,
+                    hdr_names.data(),
+                    static_cast<int>(hdr_names.size()))) {
+                element.header_template_id = header_tmpls[cur_hdr_idx].first;
+            }
         }
 
         // List change animation controls
@@ -462,57 +515,146 @@ void ElementPropertyInspector::RenderScorecardControls(
             ImGui::EndDisabled();
         }
 
-        // 2. Team ranking animation
-        const std::string effective_team_anim =
-            !element.team_change_animation.empty()
-                ? element.team_change_animation
-                : (!element.change_animation.empty()
-                       ? element.change_animation
-                       : "none");
-        int team_anim_idx = 0;
-        if (effective_team_anim == "linear") {
-            team_anim_idx = 1;
-        } else if (effective_team_anim == "ease-in-and-ease-out") {
-            team_anim_idx = 2;
-        }
-
-        if (ImGui::Combo(
-                "Team Ranking Animation",
-                &team_anim_idx,
-                kChangeAnimations,
-                IM_ARRAYSIZE(kChangeAnimations))) {
-            if (team_anim_idx == 1) {
-                element.team_change_animation = "linear";
-            } else if (team_anim_idx == 2) {
-                element.team_change_animation = "ease-in-and-ease-out";
-            } else {
-                element.team_change_animation = "none";
+        // 2. Team ranking animation (for game scorecard only)
+        if (element.type == "game_scorecard") {
+            const std::string effective_team_anim =
+                !element.team_change_animation.empty()
+                    ? element.team_change_animation
+                    : (!element.change_animation.empty()
+                           ? element.change_animation
+                           : "none");
+            int team_anim_idx = 0;
+            if (effective_team_anim == "linear") {
+                team_anim_idx = 1;
+            } else if (effective_team_anim == "ease-in-and-ease-out") {
+                team_anim_idx = 2;
             }
-        }
 
-        const bool is_team_none = (effective_team_anim == "none");
-        if (is_team_none) {
-            ImGui::BeginDisabled();
-        }
-        float team_dur = element.team_animation_duration > 0.0f
-            ? element.team_animation_duration
-            : element.animation_duration;
-        if (ImGui::DragFloat(
-                "Team Animation Duration",
-                &team_dur,
-                0.05f,
-                0.05f,
-                10.0f,
-                "%.2f s")) {
-            element.team_animation_duration = team_dur;
-        }
-        if (is_team_none) {
-            ImGui::EndDisabled();
+            if (ImGui::Combo(
+                    "Team Ranking Animation",
+                    &team_anim_idx,
+                    kChangeAnimations,
+                    IM_ARRAYSIZE(kChangeAnimations))) {
+                if (team_anim_idx == 1) {
+                    element.team_change_animation = "linear";
+                } else if (team_anim_idx == 2) {
+                    element.team_change_animation = "ease-in-and-ease-out";
+                } else {
+                    element.team_change_animation = "none";
+                }
+            }
+
+            const bool is_team_none = (effective_team_anim == "none");
+            if (is_team_none) {
+                ImGui::BeginDisabled();
+            }
+            float team_dur = element.team_animation_duration > 0.0f
+                ? element.team_animation_duration
+                : element.animation_duration;
+            if (ImGui::DragFloat(
+                    "Team Animation Duration",
+                    &team_dur,
+                    0.05f,
+                    0.05f,
+                    10.0f,
+                    "%.2f s")) {
+                element.team_animation_duration = team_dur;
+            }
+            if (is_team_none) {
+                ImGui::EndDisabled();
+            }
         }
 
         SliderFloatWithInput::Render(
             "Vertical Spacing", &element.vertical_spacing,
             -50.0f, 50.0f, "px");
+    }
+}
+
+void ElementPropertyInspector::RenderBackgroundSection(
+    const char* title,
+    const char* id_suffix,
+    BackgroundConfig& bg) {
+    if (ImGui::CollapsingHeader(title, ImGuiTreeNodeFlags_DefaultOpen)) {
+        std::string enable_label = std::string("Enable Background") + id_suffix;
+        ImGui::Checkbox(enable_label.c_str(), &bg.enabled);
+        if (bg.enabled) {
+            float rgba[4]{};
+            ParseHexToRgba(bg.color, rgba);
+            std::string col_label = std::string("Color") + id_suffix;
+            if (ImGui::ColorEdit3(col_label.c_str(), rgba)) {
+                bg.color = RgbaToHex(rgba);
+            }
+
+            char color_hex_buf[32]{};
+            std::snprintf(
+                color_hex_buf, sizeof(color_hex_buf), "%s",
+                bg.color.c_str());
+            std::string hex_label = std::string("Hex Color") + id_suffix;
+            if (ImGui::InputText(
+                    hex_label.c_str(), color_hex_buf, sizeof(color_hex_buf))) {
+                bg.color = color_hex_buf;
+            }
+
+            std::string img_in = std::string("##img") + id_suffix;
+            std::string img_btn = std::string("Browse...##img_btn") + id_suffix;
+            RenderPathInputWithPicker(
+                "Image File",
+                img_in.c_str(),
+                img_btn.c_str(),
+                bg.image_file,
+                false);
+
+            std::string mov_in = std::string("##mov") + id_suffix;
+            std::string mov_btn = std::string("Browse...##mov_btn") + id_suffix;
+            RenderPathInputWithPicker(
+                "Video File",
+                mov_in.c_str(),
+                mov_btn.c_str(),
+                bg.movie_file,
+                true);
+
+            int fit_idx = 0;
+            if (bg.fit == "scale") fit_idx = 1;
+            else if (bg.fit == "crop") fit_idx = 2;
+            std::string fit_label = std::string("Fit") + id_suffix;
+            if (ImGui::Combo(
+                    fit_label.c_str(),
+                    &fit_idx,
+                    kFitModes,
+                    IM_ARRAYSIZE(kFitModes))) {
+                bg.fit = kFitModes[fit_idx];
+            }
+
+            if (!bg.movie_file.empty()) {
+                std::string spd_label =
+                    std::string("Playback Speed") + id_suffix;
+                ImGui::DragFloat(
+                    spd_label.c_str(),
+                    &bg.playback_speed,
+                    0.1f, 0.1f, 5.0f, "%.2fx");
+            }
+
+            std::string tint_label =
+                std::string("Tint Team Color") + id_suffix;
+            ImGui::SliderFloat(
+                tint_label.c_str(),
+                &bg.tint_team_color,
+                0.0f, 1.0f, "%.2f");
+
+            std::string opac_label = std::string("Opacity") + id_suffix;
+            ImGui::SliderFloat(
+                opac_label.c_str(),
+                &bg.opacity,
+                0.0f, 1.0f, "%.2f");
+
+            std::string rad_label =
+                std::string("Corner Radius") + id_suffix;
+            ImGui::DragFloat(
+                rad_label.c_str(),
+                &bg.corner_radius,
+                0.5f, 0.0f, 100.0f, "%.1f px");
+        }
     }
 }
 
@@ -523,72 +665,17 @@ void ElementPropertyInspector::RenderBackgroundControls(
         element.type == "team_scorecard" ||
         element.type == "team_roster");
 
+    if (element.type == "game_scorecard") {
+        RenderBackgroundSection(
+            "Game Scorecard Background", "##game_bg", element.background);
+        RenderBackgroundSection(
+            "Team Scorecard Background", "##team_bg", element.team_background);
+        return;
+    }
+
     if (!is_container && !element.background.enabled) return;
 
-    if (ImGui::CollapsingHeader(
-            "Background", ImGuiTreeNodeFlags_DefaultOpen)) {
-        ImGui::Checkbox("Enable Background", &element.background.enabled);
-        if (element.background.enabled) {
-            float rgba[4]{};
-            ParseHexToRgba(element.background.color, rgba);
-            if (ImGui::ColorEdit3("Color##bg", rgba)) {
-                element.background.color = RgbaToHex(rgba);
-            }
-
-            char color_hex_buf[32]{};
-            std::snprintf(
-                color_hex_buf, sizeof(color_hex_buf), "%s",
-                element.background.color.c_str());
-            if (ImGui::InputText(
-                    "Hex Color##bg", color_hex_buf, sizeof(color_hex_buf))) {
-                element.background.color = color_hex_buf;
-            }
-
-            RenderPathInputWithPicker(
-                "Image File",
-                "##bg_img",
-                "Browse...##bg_img_btn",
-                element.background.image_file,
-                false);
-
-            RenderPathInputWithPicker(
-                "Video File",
-                "##bg_mov",
-                "Browse...##bg_mov_btn",
-                element.background.movie_file,
-                true);
-
-            int fit_idx = 0;
-            if (element.background.fit == "scale") fit_idx = 1;
-            else if (element.background.fit == "crop") fit_idx = 2;
-            if (ImGui::Combo(
-                    "Fit##bg", &fit_idx, kFitModes, IM_ARRAYSIZE(kFitModes))) {
-                element.background.fit = kFitModes[fit_idx];
-            }
-
-            if (!element.background.movie_file.empty()) {
-                ImGui::DragFloat(
-                    "Playback Speed##bg",
-                    &element.background.playback_speed,
-                    0.1f, 0.1f, 5.0f, "%.2fx");
-            }
-
-            ImGui::SliderFloat(
-                "Tint Team Color##bg",
-                &element.background.tint_team_color,
-                0.0f, 1.0f, "%.2f");
-
-            ImGui::SliderFloat(
-                "Opacity##bg",
-                &element.background.opacity,
-                0.0f, 1.0f, "%.2f");
-
-            ImGui::DragFloat(
-                "Corner Radius##bg",
-                &element.background.corner_radius,
-                0.5f, 0.0f, 100.0f, "%.1f px");
-        }
-    }
+    RenderBackgroundSection("Background", "##bg", element.background);
 }
 
 void ElementPropertyInspector::RenderScrollerControls(ElementConfig& element) {

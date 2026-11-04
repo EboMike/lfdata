@@ -140,7 +140,8 @@ void VisualizationWindow::GenerateElementCommands(
         resolved_el.font_size, static_cast<float>(GetHeight()));
 
     if (resolved_el.type != "team_scorecard" &&
-        resolved_el.type != "game_scorecard") {
+        resolved_el.type != "game_scorecard" &&
+        resolved_el.type != "team_roster") {
         GenerateBackgroundCommands(
             resolved_el.background,
             px_rect,
@@ -211,6 +212,20 @@ void VisualizationWindow::GenerateElementCommands(
     } else if (resolved_el.type == "game_scorecard") {
         GenerateGameScorecardCommands(
             resolved_el, state, current_time_ms, batch);
+    } else if (resolved_el.type == "team_roster") {
+        int team_id = resolved_el.team_index;
+        if (team_id <= 0) {
+            for (const auto& [id, t] : state.teams) {
+                if (!t.player_ids.empty()) {
+                    team_id = id;
+                    break;
+                }
+            }
+        }
+        if (team_id > 0) {
+            GenerateTeamRosterCommands(
+                resolved_el, team_id, state, current_time_ms, batch);
+        }
     } else if (resolved_el.type == "event_scroller") {
         GenerateEventScrollerCommands(
             resolved_el, state, current_time_ms, batch);
@@ -285,8 +300,7 @@ void VisualizationWindow::GenerateBackgroundCommands(
     int team_id,
     const GameStateSnapshot& state,
     RenderBatch& batch) const {
-    if (!bg.enabled && bg.color.empty() && bg.image_file.empty() &&
-        bg.movie_file.empty()) {
+    if (!bg.enabled) {
         return;
     }
 
@@ -647,7 +661,7 @@ void VisualizationWindow::GenerateGameScorecardCommands(
         for (size_t i = 0; i < team_ids.size(); ++i) {
             ElementConfig sub_el = element;
             sub_el.team_index = team_ids[i];
-            sub_el.background = {};
+            sub_el.background = element.team_background;
             const float target_rel_x =
                 element.rect[0] +
                 (static_cast<float>(i) * section_width_rel * element.rect[2]);
@@ -672,7 +686,7 @@ void VisualizationWindow::GenerateGameScorecardCommands(
         for (size_t i = 0; i < team_ids.size(); ++i) {
             ElementConfig sub_el = element;
             sub_el.team_index = team_ids[i];
-            sub_el.background = {};
+            sub_el.background = element.team_background;
 
             const float target_rel_y = curr_px_y / win_h;
             const float anim_rel_y =
@@ -702,6 +716,204 @@ void VisualizationWindow::GenerateGameScorecardCommands(
                     element.vertical_spacing, win_h);
             const float team_spacing_px = 16.0f + scaled_spacing;
             curr_px_y += team_h_px + team_spacing_px;
+        }
+    }
+}
+
+void VisualizationWindow::RenderPlayerProfileCard(
+    const TemplateConfig* profile_tmpl,
+    const PlayerState& player,
+    const std::string& team_rgb,
+    const std::array<float, 4>& card_px_rect,
+    float win_h,
+    RenderBatch& batch) const {
+    if (!profile_tmpl || profile_tmpl->elements.empty()) {
+        ElementConfig d_name;
+        d_name.type = "player_name";
+        d_name.font_size = 18.0f;
+        std::array<float, 4> nrect{
+            card_px_rect[0] + 4.0f,
+            card_px_rect[1] + 2.0f,
+            card_px_rect[2] - 8.0f,
+            card_px_rect[3] * 0.5f
+        };
+        TextComponent::GeneratePlayerElementCommands(
+            d_name, player, team_rgb, nrect, win_h, batch);
+        return;
+    }
+
+    for (const auto& pel : profile_tmpl->elements) {
+        std::array<float, 4> pel_rect{
+            card_px_rect[0] + (pel.rect[0] * card_px_rect[2]),
+            card_px_rect[1] + (pel.rect[1] * card_px_rect[3]),
+            pel.rect[2] * card_px_rect[2],
+            pel.rect[3] * card_px_rect[3]
+        };
+
+        if (pel.type == "user_image" || pel.type == "image") {
+            if (!pel.image_file.empty()) {
+                RenderCommand cmd;
+                cmd.type = RenderCommand::Type::TexturedQuad;
+                cmd.pixel_rect = pel_rect;
+                cmd.texture_asset = pel.image_file;
+                cmd.opacity = pel.opacity;
+                cmd.fit = pel.fit.empty() ? "stretch" : pel.fit;
+                if (pel.tint_team_color > 0.0f) {
+                    cmd.color_rgba = ScorecardHelper::ComputeTeamTint(
+                        team_rgb, pel.tint_team_color);
+                }
+                batch.commands.push_back(cmd);
+            }
+        } else if (pel.type == "movie" || pel.type == "user_movie") {
+            if (!pel.movie_file.empty()) {
+                RenderCommand cmd;
+                cmd.type = RenderCommand::Type::TexturedQuad;
+                cmd.pixel_rect = pel_rect;
+                cmd.texture_asset = pel.movie_file;
+                cmd.opacity = pel.opacity;
+                cmd.fit = pel.fit.empty() ? "stretch" : pel.fit;
+                cmd.is_movie = true;
+                cmd.playback_speed = pel.playback_speed;
+                if (pel.tint_team_color > 0.0f) {
+                    cmd.color_rgba = ScorecardHelper::ComputeTeamTint(
+                        team_rgb, pel.tint_team_color);
+                }
+                batch.commands.push_back(cmd);
+            }
+        } else if (pel.type == "player_profile_picture") {
+            RenderCommand cmd;
+            cmd.type = RenderCommand::Type::TexturedQuad;
+            cmd.pixel_rect = pel_rect;
+            cmd.texture_asset = pel.image_file.empty()
+                ? "assets/sm5/commander.png" : pel.image_file;
+            cmd.opacity = pel.opacity;
+            cmd.fit = pel.fit.empty() ? "stretch" : pel.fit;
+            if (pel.tint_team_color > 0.0f) {
+                cmd.color_rgba = ScorecardHelper::ComputeTeamTint(
+                    team_rgb, pel.tint_team_color);
+            }
+            batch.commands.push_back(cmd);
+        } else {
+            TextComponent::GeneratePlayerElementCommands(
+                ResolveElementFont(pel),
+                player,
+                team_rgb,
+                pel_rect,
+                win_h,
+                batch);
+        }
+    }
+}
+
+void VisualizationWindow::GenerateTeamRosterCommands(
+    const ElementConfig& element,
+    int team_id,
+    const GameStateSnapshot& state,
+    int64_t current_time_ms,
+    RenderBatch& batch) const {
+    const auto it = state.teams.find(team_id);
+    if (it == state.teams.end()) return;
+    const auto& team = it->second;
+
+    const auto base_px_rect = RelativeToPixelRect(element.rect);
+    GenerateBackgroundCommands(
+        element.background, base_px_rect, team_id, state, batch);
+
+    const PlayerSortOrder sort_order = (element.sort_order == "index")
+        ? PlayerSortOrder::Index
+        : PlayerSortOrder::Ranking;
+    const auto player_ids = ScorecardHelper::GetSortedPlayerIds(
+        state, team_id, sort_order, false);
+    if (player_ids.empty()) return;
+
+    const TemplateConfig* profile_tmpl =
+        FindTemplate(element.player_profile_template_id);
+    if (!profile_tmpl) {
+        for (const auto& t : ui_config_.templates) {
+            if (t.type == "player_profile") {
+                profile_tmpl = &t;
+                break;
+            }
+        }
+    }
+
+    const float win_h = static_cast<float>(GetHeight());
+    const float scaled_spacing =
+        RichTextLayout::ComputePixelVerticalSpacing(
+            element.vertical_spacing, win_h);
+    const float item_spacing = 8.0f + scaled_spacing;
+
+    const std::string anim_type =
+        !element.player_change_animation.empty()
+            ? element.player_change_animation
+            : (!element.change_animation.empty()
+                   ? element.change_animation
+                   : "none");
+    const float anim_dur =
+        element.player_animation_duration > 0.0f
+            ? element.player_animation_duration
+            : (element.animation_duration > 0.0f
+                   ? element.animation_duration
+                   : 0.5f);
+    const std::string list_key =
+        std::to_string(config_.id) + "_roster_" + std::to_string(team_id);
+
+    float aspect = 1.0f;
+    if (profile_tmpl && profile_tmpl->size[0] > 0.0f &&
+        profile_tmpl->size[1] > 0.0f) {
+        aspect = profile_tmpl->size[1] / profile_tmpl->size[0];
+    }
+
+    const size_t num_players = player_ids.size();
+    if (element.orientation == "horizontal") {
+        float card_h = base_px_rect[3];
+        float card_w = card_h / aspect;
+        const float total_space = base_px_rect[2] -
+            item_spacing * static_cast<float>(num_players - 1);
+        const float max_w = total_space / static_cast<float>(num_players);
+        if (max_w > 0.0f && card_w > max_w) {
+            card_w = max_w;
+            card_h = card_w * aspect;
+        }
+
+        for (size_t i = 0; i < num_players; ++i) {
+            const int pid = player_ids[i];
+            const auto pit = state.players.find(pid);
+            if (pit == state.players.end()) continue;
+
+            const float target_x = base_px_rect[0] +
+                static_cast<float>(i) * (card_w + item_spacing);
+            const float anim_x = list_animation_tracker_.GetAnimatedPosition(
+                list_key, pid, target_x, current_time_ms, anim_type, anim_dur);
+            const std::array<float, 4> card_rect{
+                anim_x, base_px_rect[1], card_w, card_h};
+            RenderPlayerProfileCard(
+                profile_tmpl, pit->second, team.rgb, card_rect, win_h, batch);
+        }
+    } else {
+        float card_w = base_px_rect[2];
+        float card_h = card_w * aspect;
+        const float total_space = base_px_rect[3] -
+            item_spacing * static_cast<float>(num_players - 1);
+        const float max_h = total_space / static_cast<float>(num_players);
+        if (max_h > 0.0f && card_h > max_h) {
+            card_h = max_h;
+            card_w = card_h / aspect;
+        }
+
+        for (size_t i = 0; i < num_players; ++i) {
+            const int pid = player_ids[i];
+            const auto pit = state.players.find(pid);
+            if (pit == state.players.end()) continue;
+
+            const float target_y = base_px_rect[1] +
+                static_cast<float>(i) * (card_h + item_spacing);
+            const float anim_y = list_animation_tracker_.GetAnimatedPosition(
+                list_key, pid, target_y, current_time_ms, anim_type, anim_dur);
+            const std::array<float, 4> card_rect{
+                base_px_rect[0], anim_y, card_w, card_h};
+            RenderPlayerProfileCard(
+                profile_tmpl, pit->second, team.rgb, card_rect, win_h, batch);
         }
     }
 }
