@@ -102,6 +102,15 @@ class FontRenderer {
      */
     void RenderText(const RenderCommand& cmd, int64_t current_time_ms = 0);
 
+    /**
+     * @brief Computes brightened text color for rapid fire moving gradient.
+     */
+    static void ComputeBrightenedColor(
+        const float base_color[4],
+        float px,
+        int64_t current_time_ms,
+        float out_color[4]);
+
  private:
     static BakedGlyphFont* GetOrLoadFontLocked(const std::string& font_name);
     static void EnsureTextureUploaded(BakedGlyphFont& font);
@@ -116,7 +125,9 @@ class FontRenderer {
         const float color_rgba[4],
         float tilt_deg = 0.0f,
         const std::array<float, 4>& container_rect =
-            {0.0f, 0.0f, 0.0f, 0.0f});
+            {0.0f, 0.0f, 0.0f, 0.0f},
+        bool rapid_fire_effect = false,
+        int64_t current_time_ms = 0);
 
     void DrawStringQuadsFallback(
         const std::string& text,
@@ -126,12 +137,9 @@ class FontRenderer {
         const float color_rgba[4],
         float tilt_deg = 0.0f,
         const std::array<float, 4>& container_rect =
-            {0.0f, 0.0f, 0.0f, 0.0f});
-
-    void DrawRapidFireEffect(
-        const std::array<float, 4>& pixel_rect,
-        const float base_color_rgba[4],
-        int64_t current_time_ms);
+            {0.0f, 0.0f, 0.0f, 0.0f},
+        bool rapid_fire_effect = false,
+        int64_t current_time_ms = 0);
 
     static std::string default_font_;
     static std::unordered_map<std::string, BakedGlyphFont> font_cache_;

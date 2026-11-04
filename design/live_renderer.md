@@ -69,10 +69,35 @@ file system.
 
 Images with alpha channels are supported.
 
+Parameters:
+
 *   **Opacity**: A float value from 0.0 (invisible) to 1.0
     (opaque).
 *   **Image file**: If set, points to a local file with the
     image data.
+*   **Fit**: How the image should be sized and positioned within
+    the boundaries of the element.
+    *    **Scale**: Scale to fit within boundaries, keeping aspect ratio.
+    *    **Crop**: Scale to fill boundaries, keeping aspect ratio.
+    *    **Stretch**: Stretch to fill boundaries, ignoring aspect ratio.
+
+### Movie
+
+A movie clip element that will be played repeatedly. Audio is
+ignored.
+
+Parameters:
+
+*   **Opacity**: A float value from 0.0 (invisible) to 1.0
+    (opaque).
+*   **Movie file**: If set, points to a local file with the
+    movie data.
+*   **Fit**: How the movie should be sized and positioned within
+    the boundaries of the element.
+    *    **Scale**: Scale to fit within boundaries, keeping aspect ratio.
+    *    **Crop**: Scale to fill boundaries, keeping aspect ratio.
+    *    **Stretch**: Stretch to fill boundaries, ignoring aspect ratio.
+*   **Playback speed**: Multiplier for the playback speed, defaults to 1.0.
 
 ### Lists
 
@@ -280,8 +305,9 @@ If the given player is out of lives, it is rendered in gray.
 If the give player is down ("down" or "resettable"), it is rendered
 in a darker tone.
 
-If the given player has rapid fire, the text is rendered with vertical
-lines inside the text in a slightly brighter color, moving right.
+If the given player has rapid fire, the text is rendered with a repeated
+gradient moving right that brightens the text itself (without affecting
+surrounding pixels).
 
 ### Scorecard header row
 

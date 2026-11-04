@@ -503,6 +503,37 @@ float FontRenderer::MeasureTextWidth(
     return MeasureText(text, font_name, font_size_px);
 }
 
+void FontRenderer::ComputeBrightenedColor(
+    const float base_color[4],
+    float px,
+    int64_t current_time_ms,
+    float out_color[4]) {
+    constexpr float kSpeedPxPerMs = 0.15f;
+    constexpr float kPeriodPx = 180.0f;
+    constexpr float kBandWidthPx = 70.0f;
+    constexpr float kPi = 3.14159265358979323846f;
+
+    const float wave_pos =
+        static_cast<float>(current_time_ms) * kSpeedPxPerMs;
+    float rel_x = std::fmod(px - wave_pos, kPeriodPx);
+    if (rel_x < 0.0f) {
+        rel_x += kPeriodPx;
+    }
+
+    float factor = 0.0f;
+    if (rel_x < kBandWidthPx) {
+        factor = 0.5f * (1.0f - std::cos((rel_x / kBandWidthPx) * 2.0f * kPi));
+    }
+
+    const float bright_mult = 1.0f + 0.60f * factor;
+    const float bright_add  = 0.35f * factor;
+
+    out_color[0] = std::min(1.0f, base_color[0] * bright_mult + bright_add);
+    out_color[1] = std::min(1.0f, base_color[1] * bright_mult + bright_add);
+    out_color[2] = std::min(1.0f, base_color[2] * bright_mult + bright_add);
+    out_color[3] = base_color[3];
+}
+
 void FontRenderer::DrawStringQuadsTTF(
     const BakedGlyphFont& font,
     const std::string& text,
@@ -511,11 +542,14 @@ void FontRenderer::DrawStringQuadsTTF(
     float font_size_px,
     const float color_rgba[4],
     float tilt_deg,
-    const std::array<float, 4>& container_rect) {
+    const std::array<float, 4>& container_rect,
+    bool rapid_fire_effect,
+    int64_t current_time_ms) {
     EnsureTextureUploaded(const_cast<BakedGlyphFont&>(font));
     if (font.texture_id == 0) {
         DrawStringQuadsFallback(
-            text, x, y, font_size_px, color_rgba, tilt_deg, container_rect);
+            text, x, y, font_size_px, color_rgba, tilt_deg, container_rect,
+            rapid_fire_effect, current_time_ms);
         return;
     }
 
@@ -590,15 +624,47 @@ void FontRenderer::DrawStringQuadsTTF(
         auto [x2, y2] = TransformVertex(qx1, qy1);
         auto [x3, y3] = TransformVertex(qx0, qy1);
 
-        const float alpha_top = color_rgba[3] * GetAlphaScale(qy0);
-        const float alpha_bot = color_rgba[3] * GetAlphaScale(qy1);
+        float eff_color_left[4]{};
+        float eff_color_right[4]{};
+        if (rapid_fire_effect) {
+            ComputeBrightenedColor(
+                color_rgba, qx0, current_time_ms, eff_color_left);
+            ComputeBrightenedColor(
+                color_rgba, qx1, current_time_ms, eff_color_right);
+        } else {
+            for (int i = 0; i < 4; ++i) {
+                eff_color_left[i] = color_rgba[i];
+                eff_color_right[i] = color_rgba[i];
+            }
+        }
 
-        glColor4f(color_rgba[0], color_rgba[1], color_rgba[2], alpha_top);
+        const float alpha_top_left = eff_color_left[3] * GetAlphaScale(qy0);
+        const float alpha_bot_left = eff_color_left[3] * GetAlphaScale(qy1);
+        const float alpha_top_right = eff_color_right[3] * GetAlphaScale(qy0);
+        const float alpha_bot_right = eff_color_right[3] * GetAlphaScale(qy1);
+
+        // Vertex 0: top-left
+        glColor4f(
+            eff_color_left[0], eff_color_left[1], eff_color_left[2],
+            alpha_top_left);
         glTexCoord2f(u0, v0); glVertex2f(x0, y0);
+
+        // Vertex 1: top-right
+        glColor4f(
+            eff_color_right[0], eff_color_right[1], eff_color_right[2],
+            alpha_top_right);
         glTexCoord2f(u1, v0); glVertex2f(x1, y1);
 
-        glColor4f(color_rgba[0], color_rgba[1], color_rgba[2], alpha_bot);
+        // Vertex 2: bottom-right
+        glColor4f(
+            eff_color_right[0], eff_color_right[1], eff_color_right[2],
+            alpha_bot_right);
         glTexCoord2f(u1, v1); glVertex2f(x2, y2);
+
+        // Vertex 3: bottom-left
+        glColor4f(
+            eff_color_left[0], eff_color_left[1], eff_color_left[2],
+            alpha_bot_left);
         glTexCoord2f(u0, v1); glVertex2f(x3, y3);
 
         cur_x += b.xadvance * scale;
@@ -616,7 +682,9 @@ void FontRenderer::DrawStringQuadsFallback(
     float font_size_px,
     const float color_rgba[4],
     float tilt_deg,
-    const std::array<float, 4>& container_rect) {
+    const std::array<float, 4>& container_rect,
+    bool rapid_fire_effect,
+    int64_t current_time_ms) {
     EnsureFallbackTextureInitialized();
 
     glEnable(GL_TEXTURE_2D);
@@ -662,9 +730,6 @@ void FontRenderer::DrawStringQuadsFallback(
         return 1.0f;
     };
 
-    const float alpha_top = color_rgba[3] * GetAlphaScale(y);
-    const float alpha_bot = color_rgba[3] * GetAlphaScale(y + char_h);
-
     glBegin(GL_QUADS);
     float cur_x = x;
     for (char c : text) {
@@ -683,12 +748,49 @@ void FontRenderer::DrawStringQuadsFallback(
         auto [x2, y2] = TransformVertex(cur_x + char_w, y + char_h);
         auto [x3, y3] = TransformVertex(cur_x, y + char_h);
 
-        glColor4f(color_rgba[0], color_rgba[1], color_rgba[2], alpha_top);
+        float eff_color_left[4]{};
+        float eff_color_right[4]{};
+        if (rapid_fire_effect) {
+            ComputeBrightenedColor(
+                color_rgba, cur_x, current_time_ms, eff_color_left);
+            ComputeBrightenedColor(
+                color_rgba, cur_x + char_w, current_time_ms, eff_color_right);
+        } else {
+            for (int i = 0; i < 4; ++i) {
+                eff_color_left[i] = color_rgba[i];
+                eff_color_right[i] = color_rgba[i];
+            }
+        }
+
+        const float alpha_top_left = eff_color_left[3] * GetAlphaScale(y);
+        const float alpha_bot_left =
+            eff_color_left[3] * GetAlphaScale(y + char_h);
+        const float alpha_top_right = eff_color_right[3] * GetAlphaScale(y);
+        const float alpha_bot_right =
+            eff_color_right[3] * GetAlphaScale(y + char_h);
+
+        // Vertex 0: top-left
+        glColor4f(
+            eff_color_left[0], eff_color_left[1], eff_color_left[2],
+            alpha_top_left);
         glTexCoord2f(u0, v0); glVertex2f(x0, y0);
+
+        // Vertex 1: top-right
+        glColor4f(
+            eff_color_right[0], eff_color_right[1], eff_color_right[2],
+            alpha_top_right);
         glTexCoord2f(u1, v0); glVertex2f(x1, y1);
 
-        glColor4f(color_rgba[0], color_rgba[1], color_rgba[2], alpha_bot);
+        // Vertex 2: bottom-right
+        glColor4f(
+            eff_color_right[0], eff_color_right[1], eff_color_right[2],
+            alpha_bot_right);
         glTexCoord2f(u1, v1); glVertex2f(x2, y2);
+
+        // Vertex 3: bottom-left
+        glColor4f(
+            eff_color_left[0], eff_color_left[1], eff_color_left[2],
+            alpha_bot_left);
         glTexCoord2f(u0, v1); glVertex2f(x3, y3);
 
         cur_x += char_w;
@@ -697,37 +799,6 @@ void FontRenderer::DrawStringQuadsFallback(
 
     glBindTexture(GL_TEXTURE_2D, 0);
     glDisable(GL_TEXTURE_2D);
-}
-
-void FontRenderer::DrawRapidFireEffect(
-    const std::array<float, 4>& pixel_rect,
-    const float base_color_rgba[4],
-    int64_t current_time_ms) {
-    float bright_rgba[4] = {
-        std::min(1.0f, base_color_rgba[0] * 1.4f + 0.3f),
-        std::min(1.0f, base_color_rgba[1] * 1.4f + 0.3f),
-        std::min(1.0f, base_color_rgba[2] * 1.4f + 0.3f),
-        0.55f
-    };
-    glColor4f(bright_rgba[0], bright_rgba[1], bright_rgba[2], bright_rgba[3]);
-
-    constexpr float kStripePeriod = 16.0f;
-    constexpr float kStripeWidth = 2.5f;
-    const float offset = std::fmod(
-        static_cast<float>(current_time_ms) * 0.08f, kStripePeriod);
-
-    glBegin(GL_QUADS);
-    for (float sx = pixel_rect[0] + offset;
-         sx < pixel_rect[0] + pixel_rect[2];
-         sx += kStripePeriod) {
-        float x1 = sx;
-        float x2 = std::min(sx + kStripeWidth, pixel_rect[0] + pixel_rect[2]);
-        glVertex2f(x1, pixel_rect[1]);
-        glVertex2f(x2, pixel_rect[1]);
-        glVertex2f(x2, pixel_rect[1] + pixel_rect[3]);
-        glVertex2f(x1, pixel_rect[1] + pixel_rect[3]);
-    }
-    glEnd();
 }
 
 void FontRenderer::RenderText(
@@ -761,15 +832,18 @@ void FontRenderer::RenderText(
         std::max(0.0f, (cmd.pixel_rect[3] - cmd.font_size_px) * 0.5f);
 
     auto DrawTextVariant = [&](float dx_offset, float dy_offset,
-                               const float color[4]) {
+                               const float color[4],
+                               bool rapid_fire = false) {
         if (font != nullptr && font->is_valid) {
             DrawStringQuadsTTF(
                 *font, cmd.text, x + dx_offset, y + dy_offset, cmd.font_size_px,
-                color, cmd.tilt_deg, cmd.container_rect);
+                color, cmd.tilt_deg, cmd.container_rect, rapid_fire,
+                current_time_ms);
         } else {
             DrawStringQuadsFallback(
                 cmd.text, x + dx_offset, y + dy_offset, cmd.font_size_px,
-                color, cmd.tilt_deg, cmd.container_rect);
+                color, cmd.tilt_deg, cmd.container_rect, rapid_fire,
+                current_time_ms);
         }
     };
 
@@ -777,20 +851,14 @@ void FontRenderer::RenderText(
     if (cmd.black_outline) {
         constexpr float kOutlineBlack[4] = {0.0f, 0.0f, 0.0f, 1.0f};
         constexpr float kD = 1.5f;
-        DrawTextVariant(-kD, 0.0f, kOutlineBlack);
-        DrawTextVariant(+kD, 0.0f, kOutlineBlack);
-        DrawTextVariant(0.0f, -kD, kOutlineBlack);
-        DrawTextVariant(0.0f, +kD, kOutlineBlack);
+        DrawTextVariant(-kD, 0.0f, kOutlineBlack, false);
+        DrawTextVariant(+kD, 0.0f, kOutlineBlack, false);
+        DrawTextVariant(0.0f, -kD, kOutlineBlack, false);
+        DrawTextVariant(0.0f, +kD, kOutlineBlack, false);
     }
 
-    // 2. Main text
-    DrawTextVariant(0.0f, 0.0f, text_rgba);
-
-    // 3. Rapid fire effect
-    if (cmd.rapid_fire_effect) {
-        DrawRapidFireEffect(
-            {x, y, total_w, cmd.font_size_px}, text_rgba, current_time_ms);
-    }
+    // 2. Main text (with rapid fire gradient brightening on text pixels)
+    DrawTextVariant(0.0f, 0.0f, text_rgba, cmd.rapid_fire_effect);
 }
 
 }  // namespace live_renderer
