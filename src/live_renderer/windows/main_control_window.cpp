@@ -5,11 +5,7 @@
 #include "live_renderer/config/config_serializer.hpp"
 #include "live_renderer/version.hpp"
 
-#if defined(_WIN32)
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#include <commdlg.h>
-#endif
+#include "live_renderer/widgets/file_dialog.hpp"
 
 namespace live_renderer {
 
@@ -251,30 +247,11 @@ void MainControlWindow::CloseAboutDialog() {
 }
 
 std::string MainControlWindow::BrowseYamlFileDialog(const char* dialog_title) {
-#if defined(_WIN32)
-    char file_buf[MAX_PATH] = {0};
-    char current_dir[MAX_PATH] = {0};
-    GetCurrentDirectoryA(MAX_PATH, current_dir);
-
-    OPENFILENAMEA ofn{};
-    ofn.lStructSize = sizeof(ofn);
-    ofn.hwndOwner = nullptr;
-    ofn.lpstrFile = file_buf;
-    ofn.nMaxFile = sizeof(file_buf);
-    ofn.lpstrFilter = "YAML Configuration (*.yaml;*.yml)\0*.yaml;*.yml\0All Files (*.*)\0*.*\0";
-    ofn.nFilterIndex = 1;
-    ofn.lpstrTitle = dialog_title;
-    ofn.Flags = OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
-
-    const BOOL ok = GetOpenFileNameA(&ofn);
-    SetCurrentDirectoryA(current_dir);
-    if (ok) {
-        return std::string(file_buf);
-    }
-#else
-    (void)dialog_title;
-#endif
-    return "";
+    static const char kFilter[] =
+        "YAML Configuration (*.yaml;*.yml)\0"
+        "*.yaml;*.yml\0"
+        "All Files (*.*)\0*.*\0";
+    return FileDialog::ShowOpenFileDialog(dialog_title, kFilter);
 }
 
 void MainControlWindow::RenderImGui() {
@@ -395,13 +372,41 @@ void MainControlWindow::RenderModals() {
     }
     if (ImGui::BeginPopupModal("Open Configuration", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
         ImGui::TextUnformatted("Global Configuration YAML File:");
+        const bool open_valid =
+            FileDialog::IsValidPath(open_config_path_buf_);
+        if (!open_valid) {
+            ImGui::PushStyleColor(
+                ImGuiCol_Text, ImVec4(1.0f, 0.35f, 0.35f, 1.0f));
+            ImGui::PushStyleColor(
+                ImGuiCol_Border, ImVec4(0.9f, 0.25f, 0.25f, 1.0f));
+        }
         ImGui::SetNextItemWidth(280.0f);
-        ImGui::InputText("##open_config_path", open_config_path_buf_, sizeof(open_config_path_buf_));
+        ImGui::InputText(
+            "##open_config_path",
+            open_config_path_buf_,
+            sizeof(open_config_path_buf_));
+        if (ImGui::IsItemDeactivated()) {
+            std::string norm =
+                FileDialog::NormalizePath(open_config_path_buf_);
+            std::snprintf(
+                open_config_path_buf_,
+                sizeof(open_config_path_buf_),
+                "%s",
+                norm.c_str());
+        }
+        if (!open_valid) {
+            ImGui::PopStyleColor(2);
+        }
         ImGui::SameLine();
         if (ImGui::Button("Browse...")) {
-            std::string picked = BrowseYamlFileDialog("Open Global Configuration File");
+            std::string picked =
+                BrowseYamlFileDialog("Open Global Configuration File");
             if (!picked.empty()) {
-                std::snprintf(open_config_path_buf_, sizeof(open_config_path_buf_), "%s", picked.c_str());
+                std::snprintf(
+                    open_config_path_buf_,
+                    sizeof(open_config_path_buf_),
+                    "%s",
+                    picked.c_str());
             }
         }
 
@@ -439,13 +444,41 @@ void MainControlWindow::RenderModals() {
         ImGui::SetNextItemWidth(260.0f);
         ImGui::InputInt("Consumer Port", &settings_port_);
 
+        const bool ui_valid =
+            FileDialog::IsValidPath(settings_ui_file_buf_);
+        if (!ui_valid) {
+            ImGui::PushStyleColor(
+                ImGuiCol_Text, ImVec4(1.0f, 0.35f, 0.35f, 1.0f));
+            ImGui::PushStyleColor(
+                ImGuiCol_Border, ImVec4(0.9f, 0.25f, 0.25f, 1.0f));
+        }
         ImGui::SetNextItemWidth(260.0f);
-        ImGui::InputText("UI Configuration File", settings_ui_file_buf_, sizeof(settings_ui_file_buf_));
+        ImGui::InputText(
+            "UI Configuration File",
+            settings_ui_file_buf_,
+            sizeof(settings_ui_file_buf_));
+        if (ImGui::IsItemDeactivated()) {
+            std::string norm =
+                FileDialog::NormalizePath(settings_ui_file_buf_);
+            std::snprintf(
+                settings_ui_file_buf_,
+                sizeof(settings_ui_file_buf_),
+                "%s",
+                norm.c_str());
+        }
+        if (!ui_valid) {
+            ImGui::PopStyleColor(2);
+        }
         ImGui::SameLine();
         if (ImGui::Button("Browse...##browse_ui")) {
-            std::string picked = BrowseYamlFileDialog("Select UI Configuration File");
+            std::string picked =
+                BrowseYamlFileDialog("Select UI Configuration File");
             if (!picked.empty()) {
-                std::snprintf(settings_ui_file_buf_, sizeof(settings_ui_file_buf_), "%s", picked.c_str());
+                std::snprintf(
+                    settings_ui_file_buf_,
+                    sizeof(settings_ui_file_buf_),
+                    "%s",
+                    picked.c_str());
             }
         }
 

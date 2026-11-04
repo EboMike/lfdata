@@ -112,6 +112,7 @@ set(CORE_SOURCES
     diagnostics/crash_handler.cpp
     widgets/slider_float_with_input.cpp
     widgets/font_dialog.cpp
+    widgets/file_dialog.cpp
     render/texture_fit.cpp
     render/render_geometry.cpp
     render/texture_manager.cpp
@@ -153,6 +154,7 @@ add_executable(live_renderer_tests
     tests/test_crash_handler.cpp
     tests/test_slider_float_with_input.cpp
     tests/test_font_dialog.cpp
+    tests/test_file_dialog.cpp
     tests/test_font_renderer.cpp
     tests/test_texture_fit.cpp
     tests/test_texture_manager.cpp

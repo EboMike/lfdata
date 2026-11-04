@@ -24,6 +24,9 @@ public:
     ElementPropertyInspector() = default;
     ~ElementPropertyInspector() = default;
 
+    void SetConfigDirectory(const std::string& dir) { config_dir_ = dir; }
+    const std::string& GetConfigDirectory() const { return config_dir_; }
+
     /**
      * @brief Renders the property inspector UI for the given element.
      * @param element Reference to the ElementConfig being inspected and edited.
@@ -44,10 +47,20 @@ private:
     void RenderTextControls(ElementConfig& element);
     void RenderImageControls(ElementConfig& element);
     void RenderMovieControls(ElementConfig& element);
-    void RenderScorecardControls(ElementConfig& element, const UIConfig& ui_config);
+    void RenderScorecardControls(
+        ElementConfig& element, const UIConfig& ui_config);
     void RenderBackgroundControls(ElementConfig& element);
     void RenderScrollerControls(ElementConfig& element);
     void RenderMessagesDisplayControls(ElementConfig& element);
+
+    void RenderPathInputWithPicker(
+        const char* label,
+        const char* input_id,
+        const char* browse_id,
+        std::string& path_value,
+        bool is_movie);
+
+    std::string config_dir_;
 };
 
 }  // namespace live_renderer

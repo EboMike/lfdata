@@ -1,6 +1,7 @@
 #include "live_renderer/windows/ui_editor_window.hpp"
 #include <algorithm>
 #include <cstdio>
+#include <filesystem>
 #include <string>
 #include <vector>
 #include <imgui.h>
@@ -138,6 +139,12 @@ void UIEditorWindow::RenderElementsListBox() {
 void UIEditorWindow::RenderSelectedElementInspector() {
     auto* el = GetSelectedElement();
     if (!el) return;
+
+    if (!ui_config_file_.empty()) {
+        std::filesystem::path p(ui_config_file_);
+        property_inspector_.SetConfigDirectory(
+            p.has_parent_path() ? p.parent_path().string() : ".");
+    }
 
     property_inspector_.Render(
         *el,

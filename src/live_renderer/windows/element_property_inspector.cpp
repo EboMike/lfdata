@@ -6,6 +6,7 @@
 #include <sstream>
 #include <vector>
 #include <imgui.h>
+#include "live_renderer/widgets/file_dialog.hpp"
 #include "live_renderer/widgets/font_dialog.hpp"
 #include "live_renderer/widgets/slider_float_with_input.hpp"
 
@@ -215,6 +216,55 @@ void ElementPropertyInspector::RenderTextControls(ElementConfig& element) {
     }
 }
 
+void ElementPropertyInspector::RenderPathInputWithPicker(
+    const char* label,
+    const char* input_id,
+    const char* browse_id,
+    std::string& path_value,
+    bool is_movie) {
+    char buf[512]{};
+    std::snprintf(buf, sizeof(buf), "%s", path_value.c_str());
+
+    const bool is_valid = FileDialog::IsValidPath(path_value, config_dir_);
+    if (!is_valid) {
+        ImGui::PushStyleColor(
+            ImGuiCol_Text, ImVec4(1.0f, 0.35f, 0.35f, 1.0f));
+        ImGui::PushStyleColor(
+            ImGuiCol_Border, ImVec4(0.9f, 0.25f, 0.25f, 1.0f));
+    }
+
+    if (FileDialog::IsSupported()) {
+        const float btn_w = 75.0f;
+        const float spacing = ImGui::GetStyle().ItemSpacing.x;
+        ImGui::SetNextItemWidth(
+            ImGui::GetContentRegionAvail().x - btn_w - spacing - 85.0f);
+    }
+    if (ImGui::InputText(input_id, buf, sizeof(buf))) {
+        path_value = buf;
+    }
+    if (ImGui::IsItemDeactivated()) {
+        path_value = FileDialog::NormalizePath(path_value, config_dir_);
+    }
+
+    if (!is_valid) {
+        ImGui::PopStyleColor(2);
+    }
+
+    if (FileDialog::IsSupported()) {
+        ImGui::SameLine();
+        if (ImGui::Button(browse_id, ImVec2(75.0f, 0.0f))) {
+            std::string picked = is_movie
+                ? FileDialog::ShowOpenMovieDialog(path_value)
+                : FileDialog::ShowOpenImageDialog(path_value);
+            if (!picked.empty()) {
+                path_value = FileDialog::NormalizePath(picked, config_dir_);
+            }
+        }
+    }
+    ImGui::SameLine();
+    ImGui::TextUnformatted(label);
+}
+
 void ElementPropertyInspector::RenderImageControls(ElementConfig& element) {
     const bool is_image = (
         element.type == "user_image" ||
@@ -227,12 +277,14 @@ void ElementPropertyInspector::RenderImageControls(ElementConfig& element) {
         return;
     }
 
-    if (ImGui::CollapsingHeader("Image Asset", ImGuiTreeNodeFlags_DefaultOpen)) {
-        char img_buf[512]{};
-        std::snprintf(img_buf, sizeof(img_buf), "%s", element.image_file.c_str());
-        if (ImGui::InputText("Image Path", img_buf, sizeof(img_buf))) {
-            element.image_file = img_buf;
-        }
+    if (ImGui::CollapsingHeader(
+            "Image Asset", ImGuiTreeNodeFlags_DefaultOpen)) {
+        RenderPathInputWithPicker(
+            "Image Path",
+            "##image_path",
+            "Browse...##img_btn",
+            element.image_file,
+            false);
 
         ImGui::SliderFloat("Opacity", &element.opacity, 0.0f, 1.0f, "%.2f");
 
@@ -259,12 +311,12 @@ void ElementPropertyInspector::RenderMovieControls(ElementConfig& element) {
     }
 
     if (ImGui::CollapsingHeader("Movie Clip", ImGuiTreeNodeFlags_DefaultOpen)) {
-        char movie_buf[512]{};
-        std::snprintf(
-            movie_buf, sizeof(movie_buf), "%s", element.movie_file.c_str());
-        if (ImGui::InputText("Movie Path", movie_buf, sizeof(movie_buf))) {
-            element.movie_file = movie_buf;
-        }
+        RenderPathInputWithPicker(
+            "Movie Path",
+            "##movie_path",
+            "Browse...##movie_btn",
+            element.movie_file,
+            true);
 
         ImGui::SliderFloat(
             "Opacity##movie", &element.opacity, 0.0f, 1.0f, "%.2f");
@@ -492,23 +544,19 @@ void ElementPropertyInspector::RenderBackgroundControls(
                 element.background.color = color_hex_buf;
             }
 
-            char img_buf[512]{};
-            std::snprintf(
-                img_buf, sizeof(img_buf), "%s",
-                element.background.image_file.c_str());
-            if (ImGui::InputText(
-                    "Image File##bg", img_buf, sizeof(img_buf))) {
-                element.background.image_file = img_buf;
-            }
+            RenderPathInputWithPicker(
+                "Image File",
+                "##bg_img",
+                "Browse...##bg_img_btn",
+                element.background.image_file,
+                false);
 
-            char mov_buf[512]{};
-            std::snprintf(
-                mov_buf, sizeof(mov_buf), "%s",
-                element.background.movie_file.c_str());
-            if (ImGui::InputText(
-                    "Video File##bg", mov_buf, sizeof(mov_buf))) {
-                element.background.movie_file = mov_buf;
-            }
+            RenderPathInputWithPicker(
+                "Video File",
+                "##bg_mov",
+                "Browse...##bg_mov_btn",
+                element.background.movie_file,
+                true);
 
             int fit_idx = 0;
             if (element.background.fit == "scale") fit_idx = 1;
