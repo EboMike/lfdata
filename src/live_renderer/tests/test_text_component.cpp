@@ -54,11 +54,11 @@ TEST(TextComponentTest, ResolvePlayerTextValues) {
     EXPECT_EQ(TextComponent::ResolvePlayerText("player_zaps", p), "9");
     EXPECT_EQ(TextComponent::ResolvePlayerText("player_role", p), "Scout");
 
-    // Dummy totals player returns "TOTALS"
+    // Dummy totals player does not show TOTALS
     PlayerSnapshot dummy;
     dummy.is_dummy = true;
     dummy.score = 25000;
-    EXPECT_EQ(TextComponent::ResolvePlayerText("player_name", dummy), "TOTALS");
+    EXPECT_EQ(TextComponent::ResolvePlayerText("player_name", dummy), "");
     EXPECT_EQ(TextComponent::ResolvePlayerText("player_score", dummy), "25000");
 
     // Custom text substitution
@@ -174,17 +174,45 @@ TEST(TextComponentTest, PlayerStateColorsAndRapidFire) {
     EXPECT_EQ(b2.commands[0].hex_color, "#808080");
     EXPECT_FALSE(b2.commands[0].rapid_fire_effect);
 
-    // 3. Down player (state 3) -> darkened color
+    // 3. Down player (state 3) -> darkened color, no rapid fire even if active
     PlayerSnapshot p_down;
     p_down.name = "Downed";
     p_down.state = 3;
     p_down.lives = 3;
+    p_down.has_rapid_fire = true;
 
     RenderBatch b3;
     TextComponent::GeneratePlayerElementCommands(
         el, p_down, "#ff0000", {0.0f, 0.0f, 200.0f, 30.0f}, 800.0f, b3);
     ASSERT_EQ(b3.commands.size(), 1u);
     EXPECT_EQ(b3.commands[0].hex_color, "#7f0000"); // Darkened #ff0000
+    EXPECT_FALSE(b3.commands[0].rapid_fire_effect);
+
+    // 4. Resettable player (state 2) -> no rapid fire even if active
+    PlayerSnapshot p_resettable;
+    p_resettable.name = "Reset";
+    p_resettable.state = 2;
+    p_resettable.lives = 2;
+    p_resettable.has_rapid_fire = true;
+
+    RenderBatch b4;
+    TextComponent::GeneratePlayerElementCommands(
+        el, p_resettable, "#ff0000", {0.0f, 0.0f, 200.0f, 30.0f}, 800.0f, b4);
+    ASSERT_EQ(b4.commands.size(), 1u);
+    EXPECT_FALSE(b4.commands[0].rapid_fire_effect);
+
+    // 5. Dead player (state 4) with rapid fire -> no rapid fire effect
+    PlayerSnapshot p_dead_rf;
+    p_dead_rf.name = "DeadRF";
+    p_dead_rf.state = 4;
+    p_dead_rf.lives = 0;
+    p_dead_rf.has_rapid_fire = true;
+
+    RenderBatch b5;
+    TextComponent::GeneratePlayerElementCommands(
+        el, p_dead_rf, "#ff0000", {0.0f, 0.0f, 200.0f, 30.0f}, 800.0f, b5);
+    ASSERT_EQ(b5.commands.size(), 1u);
+    EXPECT_FALSE(b5.commands[0].rapid_fire_effect);
 }
 
 TEST(TextComponentTest, RichTextMarkupMultiRunLayout) {

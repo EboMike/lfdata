@@ -23,7 +23,7 @@ std::string TextComponent::ResolvePlayerText(
     const PlayerSnapshot& player,
     std::string_view default_text) {
     if (element_type == "player_name") {
-        return player.is_dummy ? "TOTALS" : player.name;
+        return player.is_dummy ? "" : player.name;
     }
     if (element_type == "player_score") {
         return std::to_string(player.score);
@@ -110,8 +110,8 @@ std::string TextComponent::ResolvePlayerText(
 
     if (!default_text.empty()) {
         std::string res(default_text);
-        ReplaceAll(res, "{name}", player.is_dummy ? "TOTALS" : player.name);
-        ReplaceAll(res, "{player_name}", player.is_dummy ? "TOTALS" : player.name);
+        ReplaceAll(res, "{name}", player.is_dummy ? "" : player.name);
+        ReplaceAll(res, "{player_name}", player.is_dummy ? "" : player.name);
         ReplaceAll(res, "{score}", std::to_string(player.score));
         ReplaceAll(res, "{lives}", std::to_string(player.lives));
         ReplaceAll(res, "{ammo}", std::to_string(player.shots));
@@ -378,15 +378,20 @@ void TextComponent::GeneratePlayerElementCommands(
         }
     }
 
-    const std::string state_color = ScorecardHelper::GetRowTextColor(player, team_color);
-    const std::string text = ResolvePlayerText(element.type, player, element.text);
+    const std::string state_color =
+        ScorecardHelper::GetRowTextColor(player, team_color);
+    const std::string text =
+        ResolvePlayerText(element.type, player, element.text);
+
+    const bool is_up = (player.state == 0 && player.lives > 0);
+    const bool active_rapid_fire = player.has_rapid_fire && is_up;
 
     GenerateCommands(
         element,
         text,
         pixel_rect,
         state_color,
-        player.has_rapid_fire,
+        active_rapid_fire,
         window_height,
         batch);
 }

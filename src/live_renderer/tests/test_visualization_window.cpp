@@ -112,17 +112,17 @@ TEST(VisualizationWindowTest, GeneratesScorecardWithTemplateRows) {
     auto state = MockGameState::CreateMockSM5State();
     auto batch = win.GenerateBatch(state);
 
-    // 1 header element + 6 players (5 players + 1 dummy) * 2 elements per row = 1 + 12 = 13 commands
-    ASSERT_EQ(batch.commands.size(), 13u);
+    // 1 header element + 5 players * 2 elements + 1 totals row
+    // (score only, no "TOTALS" for name) = 12 commands
+    ASSERT_EQ(batch.commands.size(), 12u);
     EXPECT_EQ(batch.commands[0].text, "ROSTER");
 
     // First player name
     EXPECT_EQ(batch.commands[1].text, "AlphaCommander");
     EXPECT_EQ(batch.commands[2].text, "8200");
 
-    // Last player is dummy totals row
-    EXPECT_EQ(batch.commands[11].text, "TOTALS");
-    EXPECT_EQ(batch.commands[12].text, "24500");
+    // Last player is dummy totals row with score only, no TOTALS text
+    EXPECT_EQ(batch.commands[11].text, "24500");
 }
 
 TEST(VisualizationWindowTest, HighlightElementAppendsHighlightCommands) {
