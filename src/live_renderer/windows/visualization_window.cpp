@@ -196,11 +196,18 @@ void VisualizationWindow::GenerateElementCommands(
         }
     } else if (resolved_el.type == "team_scorecard") {
         int team_id = resolved_el.team_index;
-        if (team_id <= 0 && !state.teams.empty()) {
-            team_id = state.teams.begin()->first;
+        if (team_id <= 0) {
+            for (const auto& [id, t] : state.teams) {
+                if (!t.player_ids.empty()) {
+                    team_id = id;
+                    break;
+                }
+            }
         }
-        GenerateTeamScorecardCommands(
-            resolved_el, team_id, state, current_time_ms, batch);
+        if (team_id > 0) {
+            GenerateTeamScorecardCommands(
+                resolved_el, team_id, state, current_time_ms, batch);
+        }
     } else if (resolved_el.type == "game_scorecard") {
         GenerateGameScorecardCommands(
             resolved_el, state, current_time_ms, batch);

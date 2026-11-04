@@ -76,7 +76,11 @@ void LiveStateStore::SetBallCarrier(int player_id) {
     BumpVersionLocked();
 }
 
-void LiveStateStore::UpdateTeamDescription(int team_id, const std::string& name, const std::string& rgb, int dummy_player_id) {
+void LiveStateStore::UpdateTeamDescription(
+    int team_id,
+    const std::string& name,
+    const std::string& rgb,
+    int dummy_player_id) {
     std::lock_guard<std::mutex> lock(mutex_);
     auto& team = state_.teams[team_id];
     team.id = team_id;
@@ -87,6 +91,10 @@ void LiveStateStore::UpdateTeamDescription(int team_id, const std::string& name,
         state_.players[dummy_player_id].id = dummy_player_id;
         state_.players[dummy_player_id].team_id = team_id;
         state_.players[dummy_player_id].is_dummy = true;
+        auto& p_ids = team.player_ids;
+        p_ids.erase(
+            std::remove(p_ids.begin(), p_ids.end(), dummy_player_id),
+            p_ids.end());
     }
     BumpVersionLocked();
 }
@@ -103,7 +111,12 @@ void LiveStateStore::UpdateTeamRankings(const std::vector<int>& team_ids) {
     BumpVersionLocked();
 }
 
-void LiveStateStore::UpdatePlayerDescription(int player_id, const std::string& name, const std::string& entity_id, int team_id, const std::string& role) {
+void LiveStateStore::UpdatePlayerDescription(
+    int player_id,
+    const std::string& name,
+    const std::string& entity_id,
+    int team_id,
+    const std::string& role) {
     std::lock_guard<std::mutex> lock(mutex_);
     auto& player = state_.players[player_id];
     player.id = player_id;
@@ -111,6 +124,10 @@ void LiveStateStore::UpdatePlayerDescription(int player_id, const std::string& n
     player.entity_id = entity_id;
     player.team_id = team_id;
     player.role = role;
+
+    if (team_id > 0 && state_.teams[team_id].dummy_player_id == player_id) {
+        player.is_dummy = true;
+    }
 
     // Maintain player list in team if not dummy
     if (!player.is_dummy && team_id > 0) {

@@ -797,6 +797,57 @@ TEST(VisualizationWindowTest, RendersGameScorecardBackgroundOnceUnderneath) {
     EXPECT_FLOAT_EQ(batch.commands[0].corner_radius, 10.0f);
 }
 
+TEST(VisualizationWindowTest, OnlyOneTotalsRowPerActiveTeam) {
+    UIConfig ui;
+    WindowConfig wcfg;
+    wcfg.id = 3;
+    wcfg.rect = {0, 0, 1600, 800};
+
+    ElementConfig gsc;
+    gsc.type = "game_scorecard";
+    gsc.rect = {0.05f, 0.05f, 0.9f, 0.9f};
+    gsc.add_totals = true;
+    wcfg.elements.push_back(gsc);
+
+    VisualizationWindow win(wcfg, ui);
+    auto state = MockGameState::CreateMockSM5State();
+
+    // Add Neutral team with 0 players and a dummy player
+    TeamSnapshot t3;
+    t3.id = 3;
+    t3.name = "Neutral";
+    t3.rgb = "#808080";
+    t3.dummy_player_id = 103;
+    t3.player_ids = {};
+    state.teams[3] = t3;
+
+    PlayerSnapshot d3;
+    d3.id = 103;
+    d3.team_id = 3;
+    d3.is_dummy = true;
+    d3.score = 0;
+    state.players[103] = d3;
+
+    auto batch = win.GenerateBatch(state);
+
+    // Count how many score commands correspond to dummy player scores:
+    // Fire dummy (101) score is 24500, Earth dummy (102) score is 21800.
+    int fire_totals_count = 0;
+    int earth_totals_count = 0;
+    int neutral_totals_count = 0;
+    for (const auto& cmd : batch.commands) {
+        if (cmd.text == "24500") ++fire_totals_count;
+        if (cmd.text == "21800") ++earth_totals_count;
+        if (cmd.text == "0" && cmd.hex_color == "#808080") {
+            ++neutral_totals_count;
+        }
+    }
+
+    EXPECT_EQ(fire_totals_count, 1);
+    EXPECT_EQ(earth_totals_count, 1);
+    EXPECT_EQ(neutral_totals_count, 0);
+}
+
 
 
 

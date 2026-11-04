@@ -64,9 +64,48 @@ TEST(ScorecardHelperTest, SortsTeamsAndPlayers) {
     EXPECT_EQ(fire_ranked[5], 101); // dummy player at the end
 
     // Check Fire players sorted by index
-    auto fire_by_id = ScorecardHelper::GetSortedPlayerIds(state, 1, PlayerSortOrder::Index, false);
+    auto fire_by_id = ScorecardHelper::GetSortedPlayerIds(
+        state, 1, PlayerSortOrder::Index, false);
     ASSERT_EQ(fire_by_id.size(), 5);
     EXPECT_EQ(fire_by_id, (std::vector<int>{11, 12, 13, 14, 15}));
+
+    // Add Neutral team with 0 players and a dummy totals player
+    TeamSnapshot t3;
+    t3.id = 3;
+    t3.name = "Neutral";
+    t3.rgb = "#808080";
+    t3.dummy_player_id = 103;
+    t3.player_ids = {};
+    state.teams[3] = t3;
+
+    PlayerSnapshot d3;
+    d3.id = 103;
+    d3.team_id = 3;
+    d3.is_dummy = true;
+    state.players[103] = d3;
+
+    // Neutral team must NOT be in sorted teams since it has no players
+    auto teams_ranked_with_neutral = ScorecardHelper::GetSortedTeamIds(
+        state, TeamSortOrder::Ranking);
+    ASSERT_EQ(teams_ranked_with_neutral.size(), 2);
+    EXPECT_EQ(teams_ranked_with_neutral[0], 1);
+    EXPECT_EQ(teams_ranked_with_neutral[1], 2);
+
+    auto teams_index_with_neutral = ScorecardHelper::GetSortedTeamIds(
+        state, TeamSortOrder::Index);
+    ASSERT_EQ(teams_index_with_neutral.size(), 2);
+
+    // Neutral team scorecard must return NO player rows and NO totals row
+    auto neutral_players = ScorecardHelper::GetSortedPlayerIds(
+        state, 3, PlayerSortOrder::Ranking, true);
+    EXPECT_TRUE(neutral_players.empty());
+
+    // If dummy player is already in player_ids, it must not be duplicated
+    state.teams[1].player_ids.push_back(101);
+    auto fire_no_dup = ScorecardHelper::GetSortedPlayerIds(
+        state, 1, PlayerSortOrder::Ranking, true);
+    EXPECT_EQ(fire_no_dup.size(), 6);
+    EXPECT_EQ(fire_no_dup.back(), 101);
 }
 
 TEST(ScorecardHelperTest, RowColorStyling) {

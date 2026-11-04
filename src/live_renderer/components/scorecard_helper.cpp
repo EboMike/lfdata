@@ -30,14 +30,17 @@ std::vector<int> ScorecardHelper::GetSortedTeamIds(
     const GameStateSnapshot& state,
     TeamSortOrder sort_order) {
     std::vector<int> team_ids;
-    for (const auto& [id, _] : state.teams) {
-        team_ids.push_back(id);
+    for (const auto& [id, team] : state.teams) {
+        if (!team.player_ids.empty()) {
+            team_ids.push_back(id);
+        }
     }
 
     if (sort_order == TeamSortOrder::Ranking && !state.team_rankings.empty()) {
         std::vector<int> ranked;
         for (int id : state.team_rankings) {
-            if (state.teams.contains(id)) {
+            auto it = state.teams.find(id);
+            if (it != state.teams.end() && !it->second.player_ids.empty()) {
                 ranked.push_back(id);
             }
         }
@@ -65,17 +68,29 @@ std::vector<int> ScorecardHelper::GetSortedPlayerIds(
     const auto& team = it->second;
     players = team.player_ids;
 
+    // Filter out dummy players if they somehow exist in team.player_ids
+    players.erase(
+        std::remove_if(players.begin(), players.end(), [&](int id) {
+            auto pit = state.players.find(id);
+            return (pit != state.players.end() && pit->second.is_dummy) ||
+                   (id == team.dummy_player_id);
+        }),
+        players.end());
+
     if (sort_order == PlayerSortOrder::Ranking) {
         auto rank_it = state.player_rankings_by_team.find(team_id);
-        if (rank_it != state.player_rankings_by_team.end() && !rank_it->second.empty()) {
+        if (rank_it != state.player_rankings_by_team.end() &&
+            !rank_it->second.empty()) {
             std::vector<int> ranked;
             for (int id : rank_it->second) {
-                if (std::find(players.begin(), players.end(), id) != players.end()) {
+                if (std::find(players.begin(), players.end(), id) !=
+                    players.end()) {
                     ranked.push_back(id);
                 }
             }
             for (int id : players) {
-                if (std::find(ranked.begin(), ranked.end(), id) == ranked.end()) {
+                if (std::find(ranked.begin(), ranked.end(), id) ==
+                    ranked.end()) {
                     ranked.push_back(id);
                 }
             }
@@ -85,7 +100,8 @@ std::vector<int> ScorecardHelper::GetSortedPlayerIds(
         std::sort(players.begin(), players.end());
     }
 
-    if (add_totals && team.dummy_player_id > 0) {
+    // Only append totals if the team actually has active players
+    if (add_totals && !players.empty() && team.dummy_player_id > 0) {
         players.push_back(team.dummy_player_id);
     }
 
