@@ -68,6 +68,15 @@ if errorlevel 1 exit /b 1
 cmake -B "%REPO_ROOT%\build" -S "%REPO_ROOT%\src\live_renderer" -DYAML_MSVC_SHARED_RT=ON
 if errorlevel 1 exit /b 1
 
+set "TARGET_DIR=%REPO_ROOT%\build\%CONFIG%"
+set "LKG_DIR=%TARGET_DIR%\last_known_good"
+if exist "%TARGET_DIR%\*.exe" (
+    echo Backing up previous version to last_known_good...
+    if not exist "%LKG_DIR%" md "%LKG_DIR%"
+    copy /y "%TARGET_DIR%\*.exe" "%LKG_DIR%\" >nul
+    if exist "%TARGET_DIR%\*.pdb" copy /y "%TARGET_DIR%\*.pdb" "%LKG_DIR%\" >nul
+)
+
 if "%TARGET%"=="all" (
     cmake --build "%REPO_ROOT%\build" --config %CONFIG%
 ) else (

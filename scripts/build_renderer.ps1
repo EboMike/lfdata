@@ -49,6 +49,28 @@ if (-not $vcvars) {
     exit 1
 }
 
+# Backup previous version to last_known_good if executable exists in target dir
+$targetDir = "$repoRoot\build\$Config"
+$lastKnownGoodDir = "$targetDir\last_known_good"
+if (Test-Path $targetDir) {
+    $existingExes = Get-ChildItem -Path $targetDir -Filter *.exe -File
+    if ($existingExes.Count -gt 0) {
+        Write-Host "Backing up previous version to last_known_good..." `
+            -ForegroundColor Cyan
+        if (-not (Test-Path $lastKnownGoodDir)) {
+            New-Item -ItemType Directory -Path $lastKnownGoodDir -Force |
+                Out-Null
+        }
+        foreach ($exe in $existingExes) {
+            Copy-Item -Path $exe.FullName -Destination $lastKnownGoodDir -Force
+            $pdb = [System.IO.Path]::ChangeExtension($exe.FullName, ".pdb")
+            if (Test-Path $pdb) {
+                Copy-Item -Path $pdb -Destination $lastKnownGoodDir -Force
+            }
+        }
+    }
+}
+
 Write-Host "Configuring and building live_renderer ($Config)..." -ForegroundColor Green
 
 $cmd = "`"$vcvars`" && cmake -B build -S src/live_renderer -DYAML_MSVC_SHARED_RT=ON"
