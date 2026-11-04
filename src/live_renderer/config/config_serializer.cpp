@@ -132,6 +132,12 @@ bool ConfigSerializer::LoadUIConfig(const std::string& path, UIConfig& out_confi
         out_config.templates.clear();
         out_config.windows.clear();
 
+        if (doc["default_font"]) {
+            out_config.default_font = doc["default_font"].as<std::string>();
+        } else {
+            out_config.default_font = "default";
+        }
+
         if (doc["templates"] && doc["templates"].IsSequence()) {
             for (const auto& tmpl_node : doc["templates"]) {
                 TemplateConfig tmpl;
@@ -182,6 +188,11 @@ bool ConfigSerializer::SaveUIConfig(const std::string& path, const UIConfig& con
     try {
         YAML::Emitter out;
         out << YAML::BeginMap;
+
+        if (!config.default_font.empty() && config.default_font != "default") {
+            out << YAML::Key << "default_font"
+                << YAML::Value << config.default_font;
+        }
 
         // Templates
         out << YAML::Key << "templates" << YAML::Value << YAML::BeginSeq;

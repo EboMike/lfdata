@@ -87,6 +87,7 @@ public:
 
 private:
     void RenderTopControls();
+    void RenderGlobalProperties();
     void RenderTemplatesListBox();
     void RenderActiveDetails();
     void RenderElementsListBox();

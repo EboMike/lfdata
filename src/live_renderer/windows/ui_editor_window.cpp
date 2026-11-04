@@ -4,6 +4,7 @@
 #include <cstring>
 #include <imgui.h>
 #include "live_renderer/config/config_serializer.hpp"
+#include "live_renderer/widgets/font_dialog.hpp"
 #include "live_renderer/windows/ui_editor_constants.hpp"
 
 namespace live_renderer {
@@ -249,6 +250,10 @@ void UIEditorWindow::RenderImGui() {
         ImGui::Spacing();
         ImGui::Separator();
         ImGui::Spacing();
+        RenderGlobalProperties();
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::Spacing();
         RenderTemplatesListBox();
         ImGui::Spacing();
         ImGui::Separator();
@@ -257,6 +262,42 @@ void UIEditorWindow::RenderImGui() {
         RenderModals();
     }
     ImGui::End();
+}
+
+void UIEditorWindow::RenderGlobalProperties() {
+    if (ImGui::CollapsingHeader(
+            "Global Properties", ImGuiTreeNodeFlags_DefaultOpen)) {
+        char font_buf[128]{};
+        std::snprintf(
+            font_buf, sizeof(font_buf), "%s",
+            ui_config_.default_font.c_str());
+
+        if (FontDialog::IsSupported()) {
+            const float btn_w = 75.0f;
+            const float spacing = ImGui::GetStyle().ItemSpacing.x;
+            ImGui::SetNextItemWidth(
+                ImGui::GetContentRegionAvail().x - btn_w - spacing - 85.0f);
+        }
+        if (ImGui::InputText(
+                "##global_default_font", font_buf, sizeof(font_buf))) {
+            ui_config_.default_font = font_buf;
+        }
+
+        if (FontDialog::IsSupported()) {
+            ImGui::SameLine();
+            if (ImGui::Button(
+                    "Select...##global_font_btn", ImVec2(75.0f, 0.0f))) {
+                std::string current = ui_config_.default_font;
+                if (current == "default") current = "";
+                std::string picked = FontDialog::ShowFontDialog(current);
+                if (!picked.empty()) {
+                    ui_config_.default_font = picked;
+                }
+            }
+        }
+        ImGui::SameLine();
+        ImGui::TextUnformatted("Default Font");
+    }
 }
 
 void UIEditorWindow::RenderTopControls() {

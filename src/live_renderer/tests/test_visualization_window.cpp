@@ -316,6 +316,37 @@ TEST(VisualizationWindowTest, AnimatesListOrderChanges) {
     EXPECT_FLOAT_EQ(y12_final, y11_initial);
 }
 
+TEST(VisualizationWindowTest, DefaultFontInheritanceAndOverride) {
+    WindowConfig wcfg;
+    wcfg.id = 1;
+    wcfg.rect = {0, 0, 1280, 800};
+
+    ElementConfig text_default;
+    text_default.type = "user_text";
+    text_default.text = "Inherited Font Text";
+    text_default.font = "default";
+    text_default.rect = {0.1f, 0.1f, 0.8f, 0.1f};
+    wcfg.elements.push_back(text_default);
+
+    ElementConfig text_override;
+    text_override.type = "user_text";
+    text_override.text = "Overridden Font Text";
+    text_override.font = "Consolas";
+    text_override.rect = {0.1f, 0.3f, 0.8f, 0.1f};
+    wcfg.elements.push_back(text_override);
+
+    UIConfig ui;
+    ui.default_font = "Verdana";
+    VisualizationWindow win(wcfg, ui);
+
+    auto state = MockGameState::CreateMockSM5State();
+    auto batch = win.GenerateBatch(state, 1000);
+
+    ASSERT_EQ(batch.commands.size(), 2u);
+    EXPECT_EQ(batch.commands[0].font, "Verdana");
+    EXPECT_EQ(batch.commands[1].font, "Consolas");
+}
+
 
 
 

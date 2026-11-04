@@ -119,55 +119,67 @@ RenderBatch VisualizationWindow::GenerateBatch(
     return batch;
 }
 
+ElementConfig VisualizationWindow::ResolveElementFont(
+    const ElementConfig& element) const {
+    ElementConfig el = element;
+    if (el.font.empty() || el.font == "default") {
+        el.font = ui_config_.default_font;
+    }
+    return el;
+}
+
 void VisualizationWindow::GenerateElementCommands(
     const ElementConfig& element,
     const GameStateSnapshot& state,
     int64_t current_time_ms,
     RenderBatch& batch) const {
-    const auto px_rect = RelativeToPixelRect(element.rect);
+    const ElementConfig resolved_el = ResolveElementFont(element);
+    const auto px_rect = RelativeToPixelRect(resolved_el.rect);
     const float font_size_px = RichTextLayout::ComputePixelFontSize(
-        element.font_size, static_cast<float>(GetHeight()));
+        resolved_el.font_size, static_cast<float>(GetHeight()));
 
-    if (element.type == "user_text") {
+    if (resolved_el.type == "user_text") {
         TextComponent::GenerateUserTextCommands(
-            element, state, px_rect, static_cast<float>(GetHeight()), batch);
-    } else if (element.type == "game_timer") {
-        GenerateGameTimerCommands(element, state, current_time_ms, batch);
-    } else if (element.type == "user_image") {
-        if (!element.image_file.empty()) {
+            resolved_el, state, px_rect, static_cast<float>(GetHeight()), batch);
+    } else if (resolved_el.type == "game_timer") {
+        GenerateGameTimerCommands(resolved_el, state, current_time_ms, batch);
+    } else if (resolved_el.type == "user_image") {
+        if (!resolved_el.image_file.empty()) {
             RenderCommand cmd;
             cmd.type = RenderCommand::Type::TexturedQuad;
             cmd.pixel_rect = px_rect;
-            cmd.texture_asset = element.image_file;
-            cmd.opacity = element.opacity;
+            cmd.texture_asset = resolved_el.image_file;
+            cmd.opacity = resolved_el.opacity;
             batch.commands.push_back(cmd);
         }
-    } else if (element.type == "team_scorecard") {
-        int team_id = element.team_index;
+    } else if (resolved_el.type == "team_scorecard") {
+        int team_id = resolved_el.team_index;
         if (team_id <= 0 && !state.teams.empty()) {
             team_id = state.teams.begin()->first;
         }
         GenerateTeamScorecardCommands(
-            element, team_id, state, current_time_ms, batch);
-    } else if (element.type == "game_scorecard") {
-        GenerateGameScorecardCommands(element, state, current_time_ms, batch);
-    } else if (element.type == "event_scroller") {
-        GenerateEventScrollerCommands(element, state, current_time_ms, batch);
-    } else if (element.type == "player_profile_picture") {
+            resolved_el, team_id, state, current_time_ms, batch);
+    } else if (resolved_el.type == "game_scorecard") {
+        GenerateGameScorecardCommands(
+            resolved_el, state, current_time_ms, batch);
+    } else if (resolved_el.type == "event_scroller") {
+        GenerateEventScrollerCommands(
+            resolved_el, state, current_time_ms, batch);
+    } else if (resolved_el.type == "player_profile_picture") {
         RenderCommand cmd;
         cmd.type = RenderCommand::Type::TexturedQuad;
         cmd.pixel_rect = px_rect;
-        cmd.texture_asset = element.image_file.empty()
-            ? "assets/sm5/commander.png" : element.image_file;
-        cmd.opacity = element.opacity;
+        cmd.texture_asset = resolved_el.image_file.empty()
+            ? "assets/sm5/commander.png" : resolved_el.image_file;
+        cmd.opacity = resolved_el.opacity;
         batch.commands.push_back(cmd);
-    } else if (element.type == "team_logo") {
+    } else if (resolved_el.type == "team_logo") {
         RenderCommand cmd;
         cmd.type = RenderCommand::Type::TexturedQuad;
         cmd.pixel_rect = px_rect;
-        cmd.texture_asset = element.image_file.empty()
-            ? "assets/ball.png" : element.image_file;
-        cmd.opacity = element.opacity;
+        cmd.texture_asset = resolved_el.image_file.empty()
+            ? "assets/ball.png" : resolved_el.image_file;
+        cmd.opacity = resolved_el.opacity;
         batch.commands.push_back(cmd);
     } else {
         // Player elements: player_name, player_role, player_score, etc.
@@ -187,7 +199,7 @@ void VisualizationWindow::GenerateElementCommands(
             }
         }
         TextComponent::GeneratePlayerElementCommands(
-            element,
+            resolved_el,
             sample_player,
             team_color,
             px_rect,
@@ -209,6 +221,9 @@ void VisualizationWindow::GenerateGameTimerCommands(
     cmd.type = RenderCommand::Type::Text;
     cmd.pixel_rect = px_rect;
     cmd.text = GameTimerElement::FormatRemainingTime(state, current_time_ms);
+    cmd.font = (element.font.empty() || element.font == "default")
+        ? ui_config_.default_font
+        : element.font;
     cmd.hex_color = element.color.empty() ? "#ffffff" : element.color;
     cmd.font_size_px = font_size_px;
     cmd.alignment = element.alignment.empty() ? "center" : element.alignment;
@@ -242,7 +257,7 @@ void VisualizationWindow::GenerateTeamScorecardCommands(
                 hel.rect[3] * row_height_px
             };
             TextComponent::GenerateCommands(
-                hel,
+                ResolveElementFont(hel),
                 hel.text.empty() ? "PLAYER" : hel.text,
                 hp_rect,
                 team.rgb,
@@ -293,7 +308,7 @@ void VisualizationWindow::GenerateTeamScorecardCommands(
                     rel.rect[3] * row_height_px
                 };
                 TextComponent::GeneratePlayerElementCommands(
-                    rel,
+                    ResolveElementFont(rel),
                     player,
                     team.rgb,
                     rpx_rect,
@@ -304,6 +319,10 @@ void VisualizationWindow::GenerateTeamScorecardCommands(
             // Default row formatting if no template specified
             ElementConfig d_name_el;
             d_name_el.type = "player_name";
+            d_name_el.font =
+                (element.font.empty() || element.font == "default")
+                    ? ui_config_.default_font
+                    : element.font;
             d_name_el.font_size = 18.0f;
             d_name_el.alignment = "left";
             TextComponent::GeneratePlayerElementCommands(
@@ -314,6 +333,10 @@ void VisualizationWindow::GenerateTeamScorecardCommands(
 
             ElementConfig d_score_el;
             d_score_el.type = "player_score";
+            d_score_el.font =
+                (element.font.empty() || element.font == "default")
+                    ? ui_config_.default_font
+                    : element.font;
             d_score_el.font_size = 18.0f;
             d_score_el.alignment = "right";
             TextComponent::GeneratePlayerElementCommands(
@@ -404,7 +427,9 @@ void VisualizationWindow::GenerateEventScrollerCommands(
     }
 
     ElementConfig line_el = element;
-    line_el.font = element.font;
+    line_el.font = (element.font.empty() || element.font == "default")
+        ? ui_config_.default_font
+        : element.font;
     line_el.font_size = element.font_size > 0.0f ? element.font_size : 16.0f;
     line_el.alignment = element.alignment.empty() ? "left" : element.alignment;
     line_el.color = element.color.empty() ? "#ffffff" : element.color;

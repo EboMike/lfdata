@@ -24,6 +24,7 @@ TEST(ConfigSerializerTest, RoundTripGlobalConfig) {
 
 TEST(ConfigSerializerTest, RoundTripUIConfig) {
     UIConfig ui;
+    ui.default_font = "Verdana";
     TemplateConfig tmpl;
     tmpl.id = 1;
     tmpl.name = "RowTmpl";
@@ -64,6 +65,7 @@ TEST(ConfigSerializerTest, RoundTripUIConfig) {
 
     UIConfig loaded;
     EXPECT_TRUE(ConfigSerializer::LoadUIConfig(path, loaded));
+    EXPECT_EQ(loaded.default_font, "Verdana");
     ASSERT_EQ(loaded.templates.size(), 1);
     EXPECT_EQ(loaded.templates[0].name, "RowTmpl");
     ASSERT_EQ(loaded.templates[0].elements.size(), 1);

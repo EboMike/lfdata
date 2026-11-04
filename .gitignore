@@ -137,3 +137,4 @@ configs/audio/sm5_game_start_last_good.yaml
 live_renderer_config.yaml
 ui_layout.yaml
 preferences.yaml
+imgui.ini

@@ -1,7 +1,26 @@
+/**
+ * @file font_renderer.cpp
+ * @brief FontRenderer implementation with TrueType font baking and rendering.
+ */
+
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
+
+#define STB_TRUETYPE_IMPLEMENTATION
 #include "live_renderer/render/font_renderer.hpp"
+
 #include <SDL_opengl.h>
 #include <algorithm>
 #include <cmath>
+#include <filesystem>
+#include <fstream>
 #include <vector>
 
 namespace live_renderer {
@@ -9,7 +28,6 @@ namespace live_renderer {
 namespace {
 
 // Standard 8x8 monochrome bitmap font glyphs for ASCII 32 (' ') to 126 ('~')
-// Each character is 8 rows of 8 bits.
 const uint8_t kFont8x8[95][8] = {
     {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00}, // 32 ' '
     {0x18,0x3c,0x3c,0x18,0x18,0x00,0x18,0x00}, // 33 '!'
@@ -126,18 +144,265 @@ void ParseHex(const std::string& hex, float rgba[4]) {
     }
 }
 
+#if defined(_WIN32)
+std::vector<uint8_t> LoadFontDataViaGDI(const std::string& font_name) {
+    std::vector<uint8_t> buffer;
+    HDC hdc = CreateCompatibleDC(nullptr);
+    if (!hdc) return buffer;
+
+    HFONT hFont = CreateFontA(
+        0, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
+        font_name.c_str());
+    if (hFont) {
+        HGDIOBJ old = SelectObject(hdc, hFont);
+        DWORD size = GetFontData(hdc, 0, 0, nullptr, 0);
+        if (size != GDI_ERROR && size > 0) {
+            buffer.resize(size);
+            GetFontData(hdc, 0, 0, buffer.data(), size);
+        }
+        SelectObject(hdc, old);
+        DeleteObject(hFont);
+    }
+    DeleteDC(hdc);
+    return buffer;
+}
+#endif
+
 }  // namespace
 
 FontRenderer::~FontRenderer() {
-    if (font_texture_id_ != 0) {
-        glDeleteTextures(1, &font_texture_id_);
+    if (fallback_texture_id_ != 0) {
+        glDeleteTextures(1, &fallback_texture_id_);
+        fallback_texture_id_ = 0;
     }
+    for (auto& [name, font] : font_cache_) {
+        if (font.texture_id != 0) {
+            glDeleteTextures(1, &font.texture_id);
+            font.texture_id = 0;
+        }
+    }
+    font_cache_.clear();
 }
 
-void FontRenderer::EnsureTextureInitialized() {
-    if (texture_initialized_) return;
+void FontRenderer::SetDefaultFont(const std::string& font_name) {
+    default_font_ = font_name;
+}
 
-    // Build a 128x128 RGBA texture: 16 cols x 8 rows of 8x8 glyphs (128 chars)
+std::string FontRenderer::ResolveFontPath(const std::string& font_name) {
+    if (font_name.empty() || font_name == "default") {
+        return "";
+    }
+
+    namespace fs = std::filesystem;
+
+    if (fs::exists(font_name)) {
+        return font_name;
+    }
+
+    const std::vector<std::string> font_dirs = {
+        "fonts/",
+        "../fonts/",
+        "../../fonts/"
+    };
+
+    for (const auto& dir : font_dirs) {
+        if (fs::exists(dir + font_name)) {
+            return dir + font_name;
+        }
+        if (fs::exists(dir + font_name + ".ttf")) {
+            return dir + font_name + ".ttf";
+        }
+        if (fs::exists(dir + font_name + ".otf")) {
+            return dir + font_name + ".otf";
+        }
+    }
+
+#if defined(_WIN32)
+    char win_dir[MAX_PATH]{};
+    if (GetWindowsDirectoryA(win_dir, MAX_PATH) > 0) {
+        std::string win_fonts = std::string(win_dir) + "\\Fonts\\";
+        if (fs::exists(win_fonts + font_name)) {
+            return win_fonts + font_name;
+        }
+        if (fs::exists(win_fonts + font_name + ".ttf")) {
+            return win_fonts + font_name + ".ttf";
+        }
+        if (fs::exists(win_fonts + font_name + ".otf")) {
+            return win_fonts + font_name + ".otf";
+        }
+
+        HKEY h_key = nullptr;
+        if (RegOpenKeyExA(
+                HKEY_LOCAL_MACHINE,
+                "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts",
+                0, KEY_READ, &h_key) == ERROR_SUCCESS) {
+            char val_name[512]{};
+            BYTE val_data[512]{};
+            DWORD val_name_len = sizeof(val_name);
+            DWORD val_data_len = sizeof(val_data);
+            DWORD type = 0;
+            DWORD index = 0;
+
+            std::string target_name = font_name;
+            std::transform(
+                target_name.begin(), target_name.end(),
+                target_name.begin(), ::tolower);
+
+            std::string matched_file;
+            while (RegEnumValueA(
+                       h_key, index, val_name, &val_name_len,
+                       nullptr, &type, val_data,
+                       &val_data_len) == ERROR_SUCCESS) {
+                std::string entry_lower(val_name);
+                std::transform(
+                    entry_lower.begin(), entry_lower.end(),
+                    entry_lower.begin(), ::tolower);
+
+                if (entry_lower == target_name ||
+                    (entry_lower.rfind(target_name, 0) == 0 &&
+                     (entry_lower.size() == target_name.size() ||
+                      entry_lower[target_name.size()] == ' ' ||
+                      entry_lower[target_name.size()] == '(' ||
+                      entry_lower[target_name.size()] == '&'))) {
+                    matched_file = reinterpret_cast<char*>(val_data);
+                    break;
+                }
+
+                index++;
+                val_name_len = sizeof(val_name);
+                val_data_len = sizeof(val_data);
+            }
+            RegCloseKey(h_key);
+
+            if (!matched_file.empty()) {
+                if (fs::exists(matched_file)) {
+                    return matched_file;
+                }
+                std::string full_path = win_fonts + matched_file;
+                if (fs::exists(full_path)) {
+                    return full_path;
+                }
+            }
+        }
+    }
+#endif
+
+    return "";
+}
+
+BakedGlyphFont* FontRenderer::GetOrLoadFont(const std::string& font_name) {
+    std::string effective_name =
+        (font_name.empty() || font_name == "default")
+            ? default_font_
+            : font_name;
+
+    if (effective_name.empty() || effective_name == "default") {
+        return nullptr;
+    }
+
+    auto it = font_cache_.find(effective_name);
+    if (it != font_cache_.end()) {
+        return it->second.is_valid ? &it->second : nullptr;
+    }
+
+    std::vector<uint8_t> buffer;
+    std::string resolved_path = ResolveFontPath(effective_name);
+    if (!resolved_path.empty()) {
+        std::ifstream file(resolved_path, std::ios::binary | std::ios::ate);
+        if (file.is_open()) {
+            std::streamsize size = file.tellg();
+            if (size > 0) {
+                file.seekg(0, std::ios::beg);
+                buffer.resize(static_cast<size_t>(size));
+                file.read(
+                    reinterpret_cast<char*>(buffer.data()), size);
+            }
+        }
+    }
+
+#if defined(_WIN32)
+    if (buffer.empty()) {
+        buffer = LoadFontDataViaGDI(effective_name);
+    }
+#endif
+
+    if (buffer.empty()) {
+        BakedGlyphFont invalid_font;
+        invalid_font.is_valid = false;
+        font_cache_[effective_name] = invalid_font;
+        return nullptr;
+    }
+
+    stbtt_fontinfo info{};
+    int offset = stbtt_GetFontOffsetForIndex(buffer.data(), 0);
+    if (offset < 0) offset = 0;
+    if (!stbtt_InitFont(&info, buffer.data(), offset)) {
+        BakedGlyphFont invalid_font;
+        invalid_font.is_valid = false;
+        font_cache_[effective_name] = invalid_font;
+        return nullptr;
+    }
+
+    BakedGlyphFont font;
+    font.baked_size = 64.0f;
+    font.tex_width = 1024;
+    font.tex_height = 1024;
+    font.cdata.resize(96);
+
+    int ascent = 0;
+    int descent = 0;
+    int line_gap = 0;
+    stbtt_GetFontVMetrics(&info, &ascent, &descent, &line_gap);
+    float scale = stbtt_ScaleForPixelHeight(&info, font.baked_size);
+    font.ascent = static_cast<float>(ascent) * scale;
+    font.descent = static_cast<float>(descent) * scale;
+    font.line_gap = static_cast<float>(line_gap) * scale;
+
+    std::vector<uint8_t> mono_bitmap(font.tex_width * font.tex_height, 0);
+    int res = stbtt_BakeFontBitmap(
+        buffer.data(), offset, font.baked_size,
+        mono_bitmap.data(), font.tex_width, font.tex_height,
+        32, 96, font.cdata.data());
+
+    if (res <= 0) {
+        BakedGlyphFont invalid_font;
+        invalid_font.is_valid = false;
+        font_cache_[effective_name] = invalid_font;
+        return nullptr;
+    }
+
+    std::vector<uint8_t> rgba_pixels(
+        font.tex_width * font.tex_height * 4, 255);
+    for (size_t i = 0; i < mono_bitmap.size(); ++i) {
+        rgba_pixels[i * 4 + 0] = 255;
+        rgba_pixels[i * 4 + 1] = 255;
+        rgba_pixels[i * 4 + 2] = 255;
+        rgba_pixels[i * 4 + 3] = mono_bitmap[i];
+    }
+
+    glGenTextures(1, &font.texture_id);
+    glBindTexture(GL_TEXTURE_2D, font.texture_id);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    glTexImage2D(
+        GL_TEXTURE_2D, 0, GL_RGBA,
+        font.tex_width, font.tex_height, 0,
+        GL_RGBA, GL_UNSIGNED_BYTE, rgba_pixels.data());
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    font.is_valid = true;
+    font_cache_[effective_name] = std::move(font);
+    return &font_cache_[effective_name];
+}
+
+void FontRenderer::EnsureFallbackTextureInitialized() {
+    if (fallback_initialized_) return;
+
     constexpr int kTexWidth = 128;
     constexpr int kTexHeight = 128;
     std::vector<uint8_t> pixels(kTexWidth * kTexHeight * 4, 0);
@@ -162,8 +427,8 @@ void FontRenderer::EnsureTextureInitialized() {
         }
     }
 
-    glGenTextures(1, &font_texture_id_);
-    glBindTexture(GL_TEXTURE_2D, font_texture_id_);
+    glGenTextures(1, &fallback_texture_id_);
+    glBindTexture(GL_TEXTURE_2D, fallback_texture_id_);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -175,10 +440,39 @@ void FontRenderer::EnsureTextureInitialized() {
         GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
 
     glBindTexture(GL_TEXTURE_2D, 0);
-    texture_initialized_ = true;
+    fallback_initialized_ = true;
 }
 
-void FontRenderer::DrawStringQuads(
+float FontRenderer::MeasureTextWidth(
+    const std::string& text,
+    const std::string& font_name,
+    float font_size_px) {
+    if (text.empty()) return 0.0f;
+
+    std::string font_to_use =
+        (font_name.empty() || font_name == "default")
+            ? default_font_
+            : font_name;
+
+    BakedGlyphFont* font = GetOrLoadFont(font_to_use);
+    if (font != nullptr && font->is_valid) {
+        float scale = font_size_px / font->baked_size;
+        float total_w = 0.0f;
+        for (char c : text) {
+            if (c >= 32 && c <= 126) {
+                total_w += font->cdata[c - 32].xadvance * scale;
+            } else {
+                total_w += font->cdata[' ' - 32].xadvance * scale;
+            }
+        }
+        return total_w;
+    }
+
+    return static_cast<float>(text.size()) * (font_size_px * 0.60f);
+}
+
+void FontRenderer::DrawStringQuadsTTF(
+    const BakedGlyphFont& font,
     const std::string& text,
     float x,
     float y,
@@ -186,10 +480,108 @@ void FontRenderer::DrawStringQuads(
     const float color_rgba[4],
     float tilt_deg,
     const std::array<float, 4>& container_rect) {
-    EnsureTextureInitialized();
+    glEnable(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, font.texture_id);
+    glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+
+    const float scale = font_size_px / font.baked_size;
+    const float baseline_y = y + (font.ascent * scale);
+
+    const bool has_tilt = (
+        tilt_deg != 0.0f &&
+        container_rect[2] > 0.0f &&
+        container_rect[3] > 0.0f);
+
+    const float cx0 = container_rect[0];
+    const float cy0 = container_rect[1];
+    const float cw  = container_rect[2];
+    const float ch  = container_rect[3];
+    const float cx_center = cx0 + cw * 0.5f;
+
+    constexpr float kDegToRad = 3.14159265358979323846f / 180.0f;
+    float dx = 0.0f;
+    if (has_tilt) {
+        dx = ch * std::tan(tilt_deg * kDegToRad);
+        dx = std::clamp(dx, -cw * 0.45f, cw * 0.45f);
+    }
+
+    auto TransformVertex = [&](float vx, float vy) -> std::pair<float, float> {
+        if (!has_tilt) return {vx, vy};
+        float t = std::clamp((vy - cy0) / ch, 0.0f, 1.0f);
+        float s = 1.0f - (1.0f - t) * (2.0f * dx / cw);
+        float nx = cx_center + (vx - cx_center) * s;
+        float ny = (cy0 + ch) - ((cy0 + ch) - vy) * s;
+        return {nx, ny};
+    };
+
+    auto GetAlphaScale = [&](float vy) -> float {
+        if (!has_tilt) return 1.0f;
+        float t = (vy - cy0) / ch;
+        if (t < 0.25f) {
+            return std::clamp(t / 0.25f, 0.0f, 1.0f);
+        }
+        return 1.0f;
+    };
+
+    glBegin(GL_QUADS);
+    float cur_x = x;
+    const float ipw = 1.0f / font.tex_width;
+    const float iph = 1.0f / font.tex_height;
+
+    for (char c : text) {
+        if (c < 32 || c > 126) c = ' ';
+        int char_idx = c - 32;
+        const auto& b = font.cdata[char_idx];
+
+        float glyph_w = static_cast<float>(b.x1 - b.x0) * scale;
+        float glyph_h = static_cast<float>(b.y1 - b.y0) * scale;
+
+        float qx0 = cur_x + b.xoff * scale;
+        float qy0 = baseline_y + b.yoff * scale;
+        float qx1 = qx0 + glyph_w;
+        float qy1 = qy0 + glyph_h;
+
+        float u0 = b.x0 * ipw;
+        float v0 = b.y0 * iph;
+        float u1 = b.x1 * ipw;
+        float v1 = b.y1 * iph;
+
+        auto [x0, y0] = TransformVertex(qx0, qy0);
+        auto [x1, y1] = TransformVertex(qx1, qy0);
+        auto [x2, y2] = TransformVertex(qx1, qy1);
+        auto [x3, y3] = TransformVertex(qx0, qy1);
+
+        const float alpha_top = color_rgba[3] * GetAlphaScale(qy0);
+        const float alpha_bot = color_rgba[3] * GetAlphaScale(qy1);
+
+        glColor4f(color_rgba[0], color_rgba[1], color_rgba[2], alpha_top);
+        glTexCoord2f(u0, v0); glVertex2f(x0, y0);
+        glTexCoord2f(u1, v0); glVertex2f(x1, y1);
+
+        glColor4f(color_rgba[0], color_rgba[1], color_rgba[2], alpha_bot);
+        glTexCoord2f(u1, v1); glVertex2f(x2, y2);
+        glTexCoord2f(u0, v1); glVertex2f(x3, y3);
+
+        cur_x += b.xadvance * scale;
+    }
+    glEnd();
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glDisable(GL_TEXTURE_2D);
+}
+
+void FontRenderer::DrawStringQuadsFallback(
+    const std::string& text,
+    float x,
+    float y,
+    float font_size_px,
+    const float color_rgba[4],
+    float tilt_deg,
+    const std::array<float, 4>& container_rect) {
+    EnsureFallbackTextureInitialized();
 
     glEnable(GL_TEXTURE_2D);
-    glBindTexture(GL_TEXTURE_2D, font_texture_id_);
+    glBindTexture(GL_TEXTURE_2D, fallback_texture_id_);
     glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
     const float char_w = font_size_px * 0.60f;
@@ -272,7 +664,6 @@ void FontRenderer::DrawRapidFireEffect(
     const std::array<float, 4>& pixel_rect,
     const float base_color_rgba[4],
     int64_t current_time_ms) {
-    // Render slightly brighter vertical lines moving right
     float bright_rgba[4] = {
         std::min(1.0f, base_color_rgba[0] * 1.4f + 0.3f),
         std::min(1.0f, base_color_rgba[1] * 1.4f + 0.3f),
@@ -307,8 +698,14 @@ void FontRenderer::RenderText(
     float text_rgba[4]{};
     ParseHex(cmd.hex_color, text_rgba);
 
-    const float char_w = cmd.font_size_px * 0.60f;
-    const float total_w = static_cast<float>(cmd.text.size()) * char_w;
+    std::string font_to_use =
+        (cmd.font.empty() || cmd.font == "default")
+            ? default_font_
+            : cmd.font;
+
+    BakedGlyphFont* font = GetOrLoadFont(font_to_use);
+    const float total_w =
+        MeasureTextWidth(cmd.text, font_to_use, cmd.font_size_px);
 
     float x = cmd.pixel_rect[0];
     if (cmd.alignment == "center") {
@@ -320,34 +717,37 @@ void FontRenderer::RenderText(
     const float y = cmd.pixel_rect[1] +
         std::max(0.0f, (cmd.pixel_rect[3] - cmd.font_size_px) * 0.5f);
 
-    // 1. Draw black outline if enabled (offset in 4 directions)
+    auto DrawTextVariant = [&](float dx_offset, float dy_offset,
+                               const float color[4]) {
+        if (font != nullptr && font->is_valid && font->texture_id != 0) {
+            DrawStringQuadsTTF(
+                *font, cmd.text, x + dx_offset, y + dy_offset, cmd.font_size_px,
+                color, cmd.tilt_deg, cmd.container_rect);
+        } else {
+            DrawStringQuadsFallback(
+                cmd.text, x + dx_offset, y + dy_offset, cmd.font_size_px,
+                color, cmd.tilt_deg, cmd.container_rect);
+        }
+    };
+
+    // 1. Black outline if enabled
     if (cmd.black_outline) {
         constexpr float kOutlineBlack[4] = {0.0f, 0.0f, 0.0f, 1.0f};
         constexpr float kD = 1.5f;
-        DrawStringQuads(
-            cmd.text, x - kD, y, cmd.font_size_px, kOutlineBlack,
-            cmd.tilt_deg, cmd.container_rect);
-        DrawStringQuads(
-            cmd.text, x + kD, y, cmd.font_size_px, kOutlineBlack,
-            cmd.tilt_deg, cmd.container_rect);
-        DrawStringQuads(
-            cmd.text, x, y - kD, cmd.font_size_px, kOutlineBlack,
-            cmd.tilt_deg, cmd.container_rect);
-        DrawStringQuads(
-            cmd.text, x, y + kD, cmd.font_size_px, kOutlineBlack,
-            cmd.tilt_deg, cmd.container_rect);
+        DrawTextVariant(-kD, 0.0f, kOutlineBlack);
+        DrawTextVariant(+kD, 0.0f, kOutlineBlack);
+        DrawTextVariant(0.0f, -kD, kOutlineBlack);
+        DrawTextVariant(0.0f, +kD, kOutlineBlack);
     }
 
-    // 2. Draw main text
-    DrawStringQuads(
-        cmd.text, x, y, cmd.font_size_px, text_rgba,
-        cmd.tilt_deg, cmd.container_rect);
+    // 2. Main text
+    DrawTextVariant(0.0f, 0.0f, text_rgba);
 
-    // 3. Draw rapid fire vertical lines if enabled
+    // 3. Rapid fire effect
     if (cmd.rapid_fire_effect) {
-        DrawRapidFireEffect({x, y, total_w, cmd.font_size_px}, text_rgba, current_time_ms);
+        DrawRapidFireEffect(
+            {x, y, total_w, cmd.font_size_px}, text_rgba, current_time_ms);
     }
 }
 
 }  // namespace live_renderer
-

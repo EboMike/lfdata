@@ -127,7 +127,7 @@ target_link_libraries(live_renderer_core PUBLIC
 )
 
 if(WIN32)
-    target_link_libraries(live_renderer_core PUBLIC ws2_32 comdlg32 dbghelp)
+    target_link_libraries(live_renderer_core PUBLIC ws2_32 comdlg32 dbghelp gdi32 advapi32)
 endif()
 
 # Tests
@@ -148,6 +148,7 @@ add_executable(live_renderer_tests
     tests/test_crash_handler.cpp
     tests/test_slider_float_with_input.cpp
     tests/test_font_dialog.cpp
+    tests/test_font_renderer.cpp
     tests/test_texture_manager.cpp
     tests/test_list_animation_tracker.cpp
 )

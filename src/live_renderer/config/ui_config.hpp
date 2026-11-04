@@ -61,6 +61,7 @@ struct WindowConfig {
  * @brief Complete UI configuration containing all templates and visualization windows.
  */
 struct UIConfig {
+    std::string default_font = "default";         // Global default font
     std::vector<TemplateConfig> templates;
     std::vector<WindowConfig> windows;
 };

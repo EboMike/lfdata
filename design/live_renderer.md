@@ -139,6 +139,27 @@ Parameters:
 
 In addition, it has all parameters of a text element.
 
+### Messages display
+
+A fixed number of text fields, one underneath each other, that can
+display messages, for example important game messages.
+
+When a message is issued, it will be shown in the first line from the
+top that is not currently showing a line. Once a message is shown, it
+will be displayed for a fixed amount of the and then fade out.
+
+Messages have numerical IDs. If a message with the same ID is issued
+again, it will replace the existing message, if it is still displayed,
+and its fade-out timer reset.
+
+Parameters:
+
+*   **Number of lines**: Number of lines to allocate for showing messages
+*   **Display time**: The number of seconds a message is shown before it
+    fades out. Defaults to 4.0.
+*   **Fadeout time**: The number of seconds it takes for a message to fade
+    out. Defaults to 1.0.
+
 ## Render elements
 
 Every render elements has a position and a size. These are given
@@ -224,6 +245,10 @@ An image component with an image of the player, loaded from the lfstats page.
 ### Team Logo
 
 An image component with a team logo, loaded from the lfstats page.
+
+## Important game messages
+
+A "messages display" component that shows all important game messages.
 
 ## Tmeplates
 
