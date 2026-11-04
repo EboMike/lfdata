@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include <filesystem>
 #include "live_renderer/config/config_serializer.hpp"
+#include <imgui.h>
 #include "live_renderer/windows/ui_editor_window.hpp"
 
 using namespace live_renderer;
@@ -271,5 +272,43 @@ TEST(UIEditorWindowTest, TemplateModeActiveElementsAndResetSelection) {
     ASSERT_EQ(editor.GetActiveElements().size(), 1u);
     EXPECT_EQ(editor.GetActiveElements()[0].type, "user_text");
 }
+TEST(UIEditorWindowTest, RenderImGuiAfterCreatingTemplate) {
+    IMGUI_CHECKVERSION();
+    ImGuiContext* ctx = ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.DisplaySize = ImVec2(800.0f, 600.0f);
 
+    unsigned char* pixels;
+    int width, height;
+    io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
 
+    UIConfig ui;
+    WindowConfig w1{1, "Window 1", {0, 0, 800, 600}};
+    ui.windows = {w1};
+
+    UIEditorWindow editor(ui);
+
+    // Frame 1: Normal editor
+    ImGui::NewFrame();
+    editor.RenderImGui();
+    ImGui::Render();
+
+    // Frame 2: Click new template
+    editor.ClickNewTemplate();
+    ImGui::NewFrame();
+    editor.RenderImGui();
+    ImGui::Render();
+
+    // Frame 3: Confirm new template
+    EXPECT_TRUE(editor.ConfirmNewTemplate("Template 1", "scorecard_row"));
+    ImGui::NewFrame();
+    editor.RenderImGui();
+    ImGui::Render();
+
+    // Frame 4: Next frame in template mode
+    ImGui::NewFrame();
+    editor.RenderImGui();
+    ImGui::Render();
+
+    ImGui::DestroyContext(ctx);
+}

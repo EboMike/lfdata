@@ -22,6 +22,7 @@
 #include "live_renderer/state/mock_game_state.hpp"
 #include "live_renderer/windows/main_control_window.hpp"
 #include "live_renderer/windows/ui_editor_window.hpp"
+#include "live_renderer/diagnostics/crash_handler.hpp"
 #include "live_renderer/version.hpp"
 #include "live_renderer/windows/window_manager.hpp"
 
@@ -34,6 +35,7 @@ void SignalHandler(int) {
 }  // namespace
 
 int main(int argc, char* argv[]) {
+    live_renderer::CrashHandler::Install("crash.log");
     std::signal(SIGINT, SignalHandler);
     std::signal(SIGTERM, SignalHandler);
 
@@ -97,7 +99,8 @@ int main(int argc, char* argv[]) {
     // OpenGL 3.3 Core context attributes
     const char* glsl_version = "#version 330";
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_GL_SetAttribute(
+        SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);

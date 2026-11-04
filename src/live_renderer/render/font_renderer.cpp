@@ -188,6 +188,7 @@ void FontRenderer::DrawStringQuads(
 
     glEnable(GL_TEXTURE_2D);
     glBindTexture(GL_TEXTURE_2D, font_texture_id_);
+    glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
     glColor4f(color_rgba[0], color_rgba[1], color_rgba[2], color_rgba[3]);
 
     const float char_w = font_size_px * 0.60f;

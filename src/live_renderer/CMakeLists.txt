@@ -101,6 +101,7 @@ set(CORE_SOURCES
     windows/ui_editor_interaction.cpp
     windows/visualization_window.cpp
     windows/window_manager.cpp
+    diagnostics/crash_handler.cpp
 )
 
 add_library(live_renderer_core STATIC ${CORE_SOURCES})
@@ -113,7 +114,7 @@ target_link_libraries(live_renderer_core PUBLIC
 )
 
 if(WIN32)
-    target_link_libraries(live_renderer_core PUBLIC ws2_32 comdlg32)
+    target_link_libraries(live_renderer_core PUBLIC ws2_32 comdlg32 dbghelp)
 endif()
 
 # Tests
@@ -131,6 +132,7 @@ add_executable(live_renderer_tests
     tests/test_window_manager.cpp
     tests/test_preferences_manager.cpp
     tests/test_ui_editor_interaction.cpp
+    tests/test_crash_handler.cpp
 )
 target_link_libraries(live_renderer_tests PRIVATE
     live_renderer_core

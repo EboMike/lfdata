@@ -420,6 +420,11 @@ void UIEditorWindow::RenderModals() {
         ImGui::Separator();
         ImGui::Spacing();
 
+        if (new_template_type_index_ < 0 ||
+            new_template_type_index_ >= static_cast<int>(IM_ARRAYSIZE(kTemplateTypes))) {
+            new_template_type_index_ = 0;
+        }
+
         if (ImGui::Button("Create", ImVec2(120.0f, 0.0f))) {
             if (ConfirmNewTemplate(new_template_name_buf_, kTemplateTypes[new_template_type_index_])) {
                 ImGui::CloseCurrentPopup();

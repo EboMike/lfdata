@@ -316,6 +316,10 @@ void WindowManager::RenderWindowBatch(
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_CULL_FACE);
+    glDisable(GL_TEXTURE_2D);
+
     for (const auto& cmd : batch.commands) {
         if (cmd.type == RenderCommand::Type::SolidQuad) {
             glColor4f(cmd.color_rgba[0], cmd.color_rgba[1], cmd.color_rgba[2], cmd.color_rgba[3]);
