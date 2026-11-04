@@ -43,6 +43,7 @@ private:
     void RenderGeometryControls(ElementConfig& element);
     void RenderTextControls(ElementConfig& element);
     void RenderImageControls(ElementConfig& element);
+    void RenderMovieControls(ElementConfig& element);
     void RenderScorecardControls(ElementConfig& element, const UIConfig& ui_config);
     void RenderScrollerControls(ElementConfig& element);
     void RenderMessagesDisplayControls(ElementConfig& element);

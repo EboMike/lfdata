@@ -13,6 +13,7 @@
 #include "live_renderer/config/preferences_manager.hpp"
 #include "live_renderer/config/ui_config.hpp"
 #include "live_renderer/render/font_renderer.hpp"
+#include "live_renderer/render/movie_manager.hpp"
 #include "live_renderer/render/texture_manager.hpp"
 #include "live_renderer/state/game_state_snapshot.hpp"
 #include "live_renderer/windows/ui_editor_interaction.hpp"
@@ -239,6 +240,7 @@ private:
     std::vector<std::unique_ptr<VisualizationWindow>> windows_;
     std::unique_ptr<FontRenderer> font_renderer_;
     std::unique_ptr<TextureManager> texture_manager_;
+    std::unique_ptr<MovieManager> movie_manager_;
     UIEditorInteraction editor_interaction_;
 };
 

@@ -36,10 +36,14 @@ struct RenderCommand {
     std::array<float, 4> container_rect{0.0f, 0.0f, 0.0f, 0.0f};
     bool clip_to_container = false;
 
-    // Image / Texture properties
+    // Image / Texture / Movie properties
     std::string texture_asset;
     float opacity = 1.0f;
     std::array<float, 4> color_rgba{1.0f, 1.0f, 1.0f, 1.0f};
+    std::string fit = "stretch"; // "stretch", "scale", "crop"
+    std::array<float, 4> uv_rect{0.0f, 0.0f, 1.0f, 1.0f};
+    bool is_movie = false;
+    float playback_speed = 1.0f;
 };
 
 /**

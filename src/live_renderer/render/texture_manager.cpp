@@ -4,6 +4,7 @@
  */
 
 #include "live_renderer/render/texture_manager.hpp"
+#include "live_renderer/render/texture_fit.hpp"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -125,10 +126,27 @@ bool TextureManager::GetTextureDimensions(
 
 void TextureManager::RenderTexturedQuad(const RenderCommand& cmd) {
     GLuint tex = GetTexture(cmd.texture_asset);
-    const float x = cmd.pixel_rect[0];
-    const float y = cmd.pixel_rect[1];
-    const float w = cmd.pixel_rect[2];
-    const float h = cmd.pixel_rect[3];
+    int tex_w = 0;
+    int tex_h = 0;
+    if (tex != 0) {
+        auto it = cache_.find(cmd.texture_asset);
+        if (it != cache_.end()) {
+            tex_w = it->second.width;
+            tex_h = it->second.height;
+        }
+    }
+
+    TextureFitResult fit_res = TextureFit::Compute(
+        cmd.pixel_rect, tex_w, tex_h, cmd.fit);
+
+    const float x = fit_res.pixel_rect[0];
+    const float y = fit_res.pixel_rect[1];
+    const float w = fit_res.pixel_rect[2];
+    const float h = fit_res.pixel_rect[3];
+    const float u0 = fit_res.uv_rect[0];
+    const float v0 = fit_res.uv_rect[1];
+    const float u1 = fit_res.uv_rect[2];
+    const float v1 = fit_res.uv_rect[3];
     const float alpha = cmd.opacity;
 
     const bool has_tilt = std::abs(cmd.tilt_deg) > 0.01f;
@@ -144,10 +162,10 @@ void TextureManager::RenderTexturedQuad(const RenderCommand& cmd) {
         glBindTexture(GL_TEXTURE_2D, tex);
         glColor4f(1.0f, 1.0f, 1.0f, alpha);
         glBegin(GL_QUADS);
-        glTexCoord2f(0.0f, 0.0f); glVertex2f(x, y);
-        glTexCoord2f(1.0f, 0.0f); glVertex2f(x + w, y);
-        glTexCoord2f(1.0f, 1.0f); glVertex2f(x + w, y + h);
-        glTexCoord2f(0.0f, 1.0f); glVertex2f(x, y + h);
+        glTexCoord2f(u0, v0); glVertex2f(x, y);
+        glTexCoord2f(u1, v0); glVertex2f(x + w, y);
+        glTexCoord2f(u1, v1); glVertex2f(x + w, y + h);
+        glTexCoord2f(u0, v1); glVertex2f(x, y + h);
         glEnd();
         glBindTexture(GL_TEXTURE_2D, 0);
         glDisable(GL_TEXTURE_2D);

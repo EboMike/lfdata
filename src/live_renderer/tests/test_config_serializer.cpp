@@ -68,6 +68,19 @@ TEST(ConfigSerializerTest, RoundTripUIConfig) {
     msgs.fadeout_time = 1.5f;
     win.elements.push_back(msgs);
 
+    ElementConfig img;
+    img.type = "user_image";
+    img.image_file = "assets/logo.png";
+    img.fit = "crop";
+    win.elements.push_back(img);
+
+    ElementConfig movie;
+    movie.type = "movie";
+    movie.movie_file = "assets/clip.mp4";
+    movie.fit = "scale";
+    movie.playback_speed = 1.5f;
+    win.elements.push_back(movie);
+
     ui.windows.push_back(win);
 
     std::string path = "test_ui_config.yaml";
@@ -85,7 +98,7 @@ TEST(ConfigSerializerTest, RoundTripUIConfig) {
     ASSERT_EQ(loaded.windows.size(), 1);
     EXPECT_EQ(loaded.windows[0].title, "Arena 1");
     EXPECT_EQ(loaded.windows[0].rect[2], 1920);
-    ASSERT_EQ(loaded.windows[0].elements.size(), 3);
+    ASSERT_EQ(loaded.windows[0].elements.size(), 5);
     EXPECT_EQ(loaded.windows[0].elements[0].type, "game_timer");
     EXPECT_EQ(loaded.windows[0].elements[1].type, "team_scorecard");
     EXPECT_EQ(
@@ -104,6 +117,15 @@ TEST(ConfigSerializerTest, RoundTripUIConfig) {
     EXPECT_EQ(loaded.windows[0].elements[2].lines, 5);
     EXPECT_FLOAT_EQ(loaded.windows[0].elements[2].display_time, 6.0f);
     EXPECT_FLOAT_EQ(loaded.windows[0].elements[2].fadeout_time, 1.5f);
+
+    EXPECT_EQ(loaded.windows[0].elements[3].type, "user_image");
+    EXPECT_EQ(loaded.windows[0].elements[3].image_file, "assets/logo.png");
+    EXPECT_EQ(loaded.windows[0].elements[3].fit, "crop");
+
+    EXPECT_EQ(loaded.windows[0].elements[4].type, "movie");
+    EXPECT_EQ(loaded.windows[0].elements[4].movie_file, "assets/clip.mp4");
+    EXPECT_EQ(loaded.windows[0].elements[4].fit, "scale");
+    EXPECT_FLOAT_EQ(loaded.windows[0].elements[4].playback_speed, 1.5f);
 
     std::filesystem::remove(path);
 }

@@ -144,13 +144,28 @@ void VisualizationWindow::GenerateElementCommands(
             resolved_el, state, px_rect, static_cast<float>(GetHeight()), batch);
     } else if (resolved_el.type == "game_timer") {
         GenerateGameTimerCommands(resolved_el, state, current_time_ms, batch);
-    } else if (resolved_el.type == "user_image") {
+    } else if (resolved_el.type == "user_image" ||
+               resolved_el.type == "image") {
         if (!resolved_el.image_file.empty()) {
             RenderCommand cmd;
             cmd.type = RenderCommand::Type::TexturedQuad;
             cmd.pixel_rect = px_rect;
             cmd.texture_asset = resolved_el.image_file;
             cmd.opacity = resolved_el.opacity;
+            cmd.fit = resolved_el.fit.empty() ? "stretch" : resolved_el.fit;
+            batch.commands.push_back(cmd);
+        }
+    } else if (resolved_el.type == "movie" ||
+               resolved_el.type == "user_movie") {
+        if (!resolved_el.movie_file.empty()) {
+            RenderCommand cmd;
+            cmd.type = RenderCommand::Type::TexturedQuad;
+            cmd.pixel_rect = px_rect;
+            cmd.texture_asset = resolved_el.movie_file;
+            cmd.opacity = resolved_el.opacity;
+            cmd.fit = resolved_el.fit.empty() ? "stretch" : resolved_el.fit;
+            cmd.is_movie = true;
+            cmd.playback_speed = resolved_el.playback_speed;
             batch.commands.push_back(cmd);
         }
     } else if (resolved_el.type == "team_scorecard") {
@@ -177,6 +192,7 @@ void VisualizationWindow::GenerateElementCommands(
         cmd.texture_asset = resolved_el.image_file.empty()
             ? "assets/sm5/commander.png" : resolved_el.image_file;
         cmd.opacity = resolved_el.opacity;
+        cmd.fit = resolved_el.fit.empty() ? "stretch" : resolved_el.fit;
         batch.commands.push_back(cmd);
     } else if (resolved_el.type == "team_logo") {
         RenderCommand cmd;
@@ -185,6 +201,7 @@ void VisualizationWindow::GenerateElementCommands(
         cmd.texture_asset = resolved_el.image_file.empty()
             ? "assets/ball.png" : resolved_el.image_file;
         cmd.opacity = resolved_el.opacity;
+        cmd.fit = resolved_el.fit.empty() ? "stretch" : resolved_el.fit;
         batch.commands.push_back(cmd);
     } else {
         // Player elements: player_name, player_role, player_score, etc.

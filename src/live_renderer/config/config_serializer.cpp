@@ -68,6 +68,11 @@ static ElementConfig ParseElementNode(const YAML::Node& node) {
     if (node["font_size"]) el.font_size = node["font_size"].as<float>();
     if (node["alignment"]) el.alignment = node["alignment"].as<std::string>();
     if (node["image_file"]) el.image_file = node["image_file"].as<std::string>();
+    if (node["movie_file"]) el.movie_file = node["movie_file"].as<std::string>();
+    if (node["fit"]) el.fit = node["fit"].as<std::string>();
+    if (node["playback_speed"]) {
+        el.playback_speed = node["playback_speed"].as<float>();
+    }
     if (node["opacity"]) el.opacity = node["opacity"].as<float>();
     if (node["tilt"]) el.tilt = node["tilt"].as<float>();
     if (node["orientation"]) el.orientation = node["orientation"].as<std::string>();
@@ -134,6 +139,13 @@ static void EmitElementNode(YAML::Emitter& out, const ElementConfig& el) {
     out << YAML::Key << "font_size" << YAML::Value << el.font_size;
     out << YAML::Key << "alignment" << YAML::Value << el.alignment;
     if (!el.image_file.empty()) out << YAML::Key << "image_file" << YAML::Value << el.image_file;
+    if (!el.movie_file.empty()) out << YAML::Key << "movie_file" << YAML::Value << el.movie_file;
+    if (!el.fit.empty() && el.fit != "stretch") {
+        out << YAML::Key << "fit" << YAML::Value << el.fit;
+    }
+    if (el.playback_speed != 1.0f) {
+        out << YAML::Key << "playback_speed" << YAML::Value << el.playback_speed;
+    }
     if (el.opacity < 1.0f) out << YAML::Key << "opacity" << YAML::Value << el.opacity;
     if (el.tilt != 10.0f) out << YAML::Key << "tilt" << YAML::Value << el.tilt;
     if (el.type == "game_scorecard" || el.type == "team_scorecard" || el.type == "team_roster") {

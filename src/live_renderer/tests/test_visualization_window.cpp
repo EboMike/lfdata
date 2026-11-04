@@ -482,6 +482,65 @@ TEST(VisualizationWindowTest, SeparateTeamAndPlayerRankingsAnimation) {
     EXPECT_LT(y12_p2, y11_p2);
 }
 
+TEST(VisualizationWindowTest, UserImageWithFitModeAndOpacity) {
+    WindowConfig wcfg;
+    wcfg.id = 8;
+    wcfg.title = "Image Window";
+    wcfg.rect = {0, 0, 1600, 900};
+
+    ElementConfig img;
+    img.type = "user_image";
+    img.rect = {0.1f, 0.2f, 0.4f, 0.3f};
+    img.image_file = "assets/ball.png";
+    img.opacity = 0.75f;
+    img.fit = "crop";
+    wcfg.elements.push_back(img);
+
+    UIConfig ui;
+    VisualizationWindow win(wcfg, ui);
+
+    auto state = MockGameState::CreateMockSM5State();
+    auto batch = win.GenerateBatch(state, 0, -1);
+
+    ASSERT_EQ(batch.commands.size(), 1u);
+    EXPECT_EQ(batch.commands[0].type, RenderCommand::Type::TexturedQuad);
+    EXPECT_EQ(batch.commands[0].texture_asset, "assets/ball.png");
+    EXPECT_FLOAT_EQ(batch.commands[0].opacity, 0.75f);
+    EXPECT_EQ(batch.commands[0].fit, "crop");
+    EXPECT_FALSE(batch.commands[0].is_movie);
+}
+
+TEST(VisualizationWindowTest, MovieComponentGeneratesMovieCommand) {
+    WindowConfig wcfg;
+    wcfg.id = 9;
+    wcfg.title = "Movie Window";
+    wcfg.rect = {0, 0, 1600, 900};
+
+    ElementConfig movie;
+    movie.type = "movie";
+    movie.rect = {0.2f, 0.2f, 0.5f, 0.5f};
+    movie.movie_file = "assets/intro.gif";
+    movie.opacity = 0.9f;
+    movie.fit = "scale";
+    movie.playback_speed = 1.25f;
+    wcfg.elements.push_back(movie);
+
+    UIConfig ui;
+    VisualizationWindow win(wcfg, ui);
+
+    auto state = MockGameState::CreateMockSM5State();
+    auto batch = win.GenerateBatch(state, 0, -1);
+
+    ASSERT_EQ(batch.commands.size(), 1u);
+    EXPECT_EQ(batch.commands[0].type, RenderCommand::Type::TexturedQuad);
+    EXPECT_EQ(batch.commands[0].texture_asset, "assets/intro.gif");
+    EXPECT_FLOAT_EQ(batch.commands[0].opacity, 0.9f);
+    EXPECT_EQ(batch.commands[0].fit, "scale");
+    EXPECT_TRUE(batch.commands[0].is_movie);
+    EXPECT_FLOAT_EQ(batch.commands[0].playback_speed, 1.25f);
+}
+
+
 
 
 

@@ -122,6 +122,8 @@ void UIEditorWindow::RenderElementsListBox() {
                 extra_info = " \"" + el.text.substr(0, 18) + (el.text.size() > 18 ? "..." : "") + "\"";
             } else if (!el.image_file.empty()) {
                 extra_info = " [" + el.image_file + "]";
+            } else if (!el.movie_file.empty()) {
+                extra_info = " [" + el.movie_file + "]";
             }
             std::snprintf(label, sizeof(label), "#%d: %s (%.2f, %.2f, %.2f, %.2f)%s",
                           i + 1, el.type.c_str(), el.rect[0], el.rect[1], el.rect[2], el.rect[3], extra_info.c_str());

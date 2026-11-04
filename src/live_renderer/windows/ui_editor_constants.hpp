@@ -7,6 +7,7 @@ inline constexpr const char* const kTopLevelElementTypes[] = {
     "user_text",
     "game_timer",
     "user_image",
+    "movie",
     "team_scorecard",
     "game_scorecard",
     "team_roster",
@@ -31,7 +32,8 @@ inline constexpr const char* const kScorecardRowElementTypes[] = {
 
 inline constexpr const char* const kScorecardHeaderElementTypes[] = {
     "user_text",
-    "user_image"
+    "user_image",
+    "movie"
 };
 
 inline constexpr const char* const kPlayerProfileElementTypes[] = {

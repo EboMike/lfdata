@@ -21,6 +21,9 @@ struct ElementConfig {
     float font_size = 20.0f;                      // Relative font size (20 = 1/40th of 800px)
     std::string alignment = "left";               // "left", "center", "right"
     std::string image_file;                       // Path to image asset
+    std::string movie_file;                       // Path to movie asset
+    std::string fit = "stretch";                  // "stretch", "scale", "crop"
+    float playback_speed = 1.0f;                  // Playback speed multiplier
     float opacity = 1.0f;                         // 0.0 to 1.0
     float tilt = 10.0f;                           // Event scroller tilt degrees
     std::string orientation = "vertical";         // For lists: "horizontal" or "vertical"

@@ -20,7 +20,8 @@ WindowManager::WindowManager(
       shared_gl_context_(shared_gl_context),
       preferences_manager_(preferences_manager),
       font_renderer_(std::make_unique<FontRenderer>()),
-      texture_manager_(std::make_unique<TextureManager>()) {
+      texture_manager_(std::make_unique<TextureManager>()),
+      movie_manager_(std::make_unique<MovieManager>()) {
     SyncWithConfig(ui_config_);
 }
 
@@ -516,7 +517,9 @@ void WindowManager::RenderWindowBatch(
                 font_renderer_->RenderText(cmd, current_time_ms);
             }
         } else if (cmd.type == RenderCommand::Type::TexturedQuad) {
-            if (texture_manager_) {
+            if (cmd.is_movie && movie_manager_) {
+                movie_manager_->RenderMovieQuad(cmd, current_time_ms);
+            } else if (texture_manager_) {
                 texture_manager_->RenderTexturedQuad(cmd);
             }
         }

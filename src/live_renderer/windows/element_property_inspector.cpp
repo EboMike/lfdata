@@ -46,6 +46,7 @@ std::string RgbaToHex(const float rgba[4]) {
 const char* const kAlignments[] = {"left", "center", "right"};
 const char* const kOrientations[] = {"vertical", "horizontal"};
 const char* const kSortOrders[] = {"ranking", "index"};
+const char* const kFitModes[] = {"stretch", "scale", "crop"};
 
 }  // namespace
 
@@ -60,6 +61,8 @@ void ElementPropertyInspector::Render(
     RenderTextControls(element);
     ImGui::Spacing();
     RenderImageControls(element);
+    ImGui::Spacing();
+    RenderMovieControls(element);
     ImGui::Spacing();
     RenderScorecardControls(element, ui_config);
     ImGui::Spacing();
@@ -211,6 +214,7 @@ void ElementPropertyInspector::RenderTextControls(ElementConfig& element) {
 void ElementPropertyInspector::RenderImageControls(ElementConfig& element) {
     const bool is_image = (
         element.type == "user_image" ||
+        element.type == "image" ||
         element.type == "player_role" ||
         element.type == "player_profile_picture" ||
         element.type == "team_logo");
@@ -227,6 +231,50 @@ void ElementPropertyInspector::RenderImageControls(ElementConfig& element) {
         }
 
         ImGui::SliderFloat("Opacity", &element.opacity, 0.0f, 1.0f, "%.2f");
+
+        int current_fit = 0;
+        if (element.fit == "scale") current_fit = 1;
+        else if (element.fit == "crop") current_fit = 2;
+        if (ImGui::Combo(
+                "Fit Mode", &current_fit, kFitModes, IM_ARRAYSIZE(kFitModes))) {
+            element.fit = kFitModes[current_fit];
+        }
+    }
+}
+
+void ElementPropertyInspector::RenderMovieControls(ElementConfig& element) {
+    const bool is_movie = (
+        element.type == "movie" ||
+        element.type == "user_movie");
+
+    if (!is_movie && element.movie_file.empty()) {
+        return;
+    }
+
+    if (ImGui::CollapsingHeader("Movie Clip", ImGuiTreeNodeFlags_DefaultOpen)) {
+        char movie_buf[512]{};
+        std::snprintf(
+            movie_buf, sizeof(movie_buf), "%s", element.movie_file.c_str());
+        if (ImGui::InputText("Movie Path", movie_buf, sizeof(movie_buf))) {
+            element.movie_file = movie_buf;
+        }
+
+        ImGui::SliderFloat(
+            "Opacity##movie", &element.opacity, 0.0f, 1.0f, "%.2f");
+
+        int current_fit = 0;
+        if (element.fit == "scale") current_fit = 1;
+        else if (element.fit == "crop") current_fit = 2;
+        if (ImGui::Combo(
+                "Fit Mode##movie",
+                &current_fit,
+                kFitModes,
+                IM_ARRAYSIZE(kFitModes))) {
+            element.fit = kFitModes[current_fit];
+        }
+
+        ImGui::SliderFloat(
+            "Playback Speed", &element.playback_speed, 0.1f, 5.0f, "%.2fx");
     }
 }
 

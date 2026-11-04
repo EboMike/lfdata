@@ -39,6 +39,33 @@ TEST(TextureManagerTest, RenderCommandWithoutContextHandlesFallback) {
 
     // Should handle missing texture without throwing
     EXPECT_NO_THROW(tm.RenderTexturedQuad(cmd));
+
+    cmd.fit = "scale";
+    EXPECT_NO_THROW(tm.RenderTexturedQuad(cmd));
+
+    cmd.fit = "crop";
+    EXPECT_NO_THROW(tm.RenderTexturedQuad(cmd));
+}
+
+TEST(TextureManagerTest, LoadsExistingAssetDimensions) {
+    TextureManager tm;
+    int w = -1;
+    int h = -1;
+    bool ok = tm.GetTextureDimensions("assets/ball.png", w, h);
+    if (ok) {
+        EXPECT_GT(w, 0);
+        EXPECT_GT(h, 0);
+
+        RenderCommand cmd;
+        cmd.type = RenderCommand::Type::TexturedQuad;
+        cmd.pixel_rect = {0.0f, 0.0f, 200.0f, 100.0f};
+        cmd.texture_asset = "assets/ball.png";
+        cmd.fit = "scale";
+        EXPECT_NO_THROW(tm.RenderTexturedQuad(cmd));
+
+        cmd.fit = "crop";
+        EXPECT_NO_THROW(tm.RenderTexturedQuad(cmd));
+    }
 }
 
 }  // namespace live_renderer
