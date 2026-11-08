@@ -126,6 +126,42 @@ void ElementPropertyInspector::RenderGeometryControls(
         }
 
         ImGui::InputInt("Z Position (Order)", &element.z_position);
+
+        ImGui::SeparatorText("Padding (Relative)");
+        ImGui::DragFloat(
+            "Pad Left##pad_l",
+            &element.padding.left, 0.002f, 0.0f, 1.0f, "%.3f");
+        ImGui::DragFloat(
+            "Pad Right##pad_r",
+            &element.padding.right, 0.002f, 0.0f, 1.0f, "%.3f");
+        ImGui::DragFloat(
+            "Pad Up##pad_u",
+            &element.padding.up, 0.002f, 0.0f, 1.0f, "%.3f");
+        ImGui::DragFloat(
+            "Pad Down##pad_d",
+            &element.padding.down, 0.002f, 0.0f, 1.0f, "%.3f");
+        element.padding.left = std::max(0.0f, element.padding.left);
+        element.padding.right = std::max(0.0f, element.padding.right);
+        element.padding.up = std::max(0.0f, element.padding.up);
+        element.padding.down = std::max(0.0f, element.padding.down);
+
+        ImGui::SeparatorText("Margin (Relative)");
+        ImGui::DragFloat(
+            "Margin Left##mar_l",
+            &element.margin.left, 0.002f, 0.0f, 1.0f, "%.3f");
+        ImGui::DragFloat(
+            "Margin Right##mar_r",
+            &element.margin.right, 0.002f, 0.0f, 1.0f, "%.3f");
+        ImGui::DragFloat(
+            "Margin Up##mar_u",
+            &element.margin.up, 0.002f, 0.0f, 1.0f, "%.3f");
+        ImGui::DragFloat(
+            "Margin Down##mar_d",
+            &element.margin.down, 0.002f, 0.0f, 1.0f, "%.3f");
+        element.margin.left = std::max(0.0f, element.margin.left);
+        element.margin.right = std::max(0.0f, element.margin.right);
+        element.margin.up = std::max(0.0f, element.margin.up);
+        element.margin.down = std::max(0.0f, element.margin.down);
     }
 }
 

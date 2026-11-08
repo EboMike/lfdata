@@ -152,6 +152,17 @@ Parameters:
     (opaque).
 *   **Corner radius**: The corner radius of the background. Defaults to 0.0.
 
+### Padding and Margin
+
+Every element has padding and margin. Each one of these has a value for left,
+right, up, down:
+
+*   **Padding**: Insets around the element's content. Expands the extents of
+    the element when rendered. The element's background covers the padding area.
+*   **Margin**: Insets outside the padding area. Expands the extents of the
+    element when rendered. The element's background is not rendered in the
+    margin area.
+
 ### Lists
 
 A list of elements. This could be a list of players, or a list

@@ -82,10 +82,39 @@ static void ParseBackgroundConfigNode(
     }
 }
 
+static void ParseInsetsNode(
+    const YAML::Node& insets_node, InsetsConfig& insets) {
+    if (!insets_node) return;
+    if (insets_node.IsSequence() && insets_node.size() == 4) {
+        insets.left = insets_node[0].as<float>();
+        insets.right = insets_node[1].as<float>();
+        insets.up = insets_node[2].as<float>();
+        insets.down = insets_node[3].as<float>();
+    } else if (insets_node.IsMap()) {
+        if (insets_node["left"]) {
+            insets.left = insets_node["left"].as<float>();
+        }
+        if (insets_node["right"]) {
+            insets.right = insets_node["right"].as<float>();
+        }
+        if (insets_node["up"]) {
+            insets.up = insets_node["up"].as<float>();
+        } else if (insets_node["top"]) {
+            insets.up = insets_node["top"].as<float>();
+        }
+        if (insets_node["down"]) {
+            insets.down = insets_node["down"].as<float>();
+        } else if (insets_node["bottom"]) {
+            insets.down = insets_node["bottom"].as<float>();
+        }
+    }
+}
+
 static ElementConfig ParseElementNode(const YAML::Node& node) {
     ElementConfig el;
     if (node["type"]) el.type = node["type"].as<std::string>();
-    if (node["rect"] && node["rect"].IsSequence() && node["rect"].size() == 4) {
+    if (node["rect"] && node["rect"].IsSequence() &&
+        node["rect"].size() == 4) {
         el.rect = {
             node["rect"][0].as<float>(),
             node["rect"][1].as<float>(),
@@ -93,6 +122,8 @@ static ElementConfig ParseElementNode(const YAML::Node& node) {
             node["rect"][3].as<float>()
         };
     }
+    ParseInsetsNode(node["padding"], el.padding);
+    ParseInsetsNode(node["margin"], el.margin);
     if (node["z_position"]) el.z_position = node["z_position"].as<int>();
     if (node["text"]) el.text = node["text"].as<std::string>();
     if (node["font"]) el.font = node["font"].as<std::string>();
@@ -206,11 +237,32 @@ static void EmitBackgroundConfigNode(
     out << YAML::EndMap;
 }
 
+static void EmitInsetsNode(
+    YAML::Emitter& out, const char* name, const InsetsConfig& insets) {
+    if (insets.IsZero()) return;
+    out << YAML::Key << name << YAML::Value << YAML::BeginMap;
+    if (insets.left != 0.0f) {
+        out << YAML::Key << "left" << YAML::Value << insets.left;
+    }
+    if (insets.right != 0.0f) {
+        out << YAML::Key << "right" << YAML::Value << insets.right;
+    }
+    if (insets.up != 0.0f) {
+        out << YAML::Key << "up" << YAML::Value << insets.up;
+    }
+    if (insets.down != 0.0f) {
+        out << YAML::Key << "down" << YAML::Value << insets.down;
+    }
+    out << YAML::EndMap;
+}
+
 static void EmitElementNode(YAML::Emitter& out, const ElementConfig& el) {
     out << YAML::BeginMap;
     out << YAML::Key << "type" << YAML::Value << el.type;
     out << YAML::Key << "rect" << YAML::Value << YAML::Flow << YAML::BeginSeq
         << el.rect[0] << el.rect[1] << el.rect[2] << el.rect[3] << YAML::EndSeq;
+    EmitInsetsNode(out, "padding", el.padding);
+    EmitInsetsNode(out, "margin", el.margin);
     if (el.z_position != 0) out << YAML::Key << "z_position" << YAML::Value << el.z_position;
     if (!el.text.empty()) out << YAML::Key << "text" << YAML::Value << el.text;
     if (!el.font.empty() && el.font != "default") {

@@ -24,11 +24,27 @@ struct BackgroundConfig {
 };
 
 /**
+ * @brief Insets specifying margins or paddings for an element.
+ */
+struct InsetsConfig {
+    float left = 0.0f;
+    float right = 0.0f;
+    float up = 0.0f;
+    float down = 0.0f;
+
+    bool IsZero() const {
+        return left == 0.0f && right == 0.0f && up == 0.0f && down == 0.0f;
+    }
+};
+
+/**
  * @brief Representation of an individual render element inside a template or window.
  */
 struct ElementConfig {
     std::string type;                             // "user_text", "game_timer", "player_name", etc.
     std::array<float, 4> rect{0.0f, 0.0f, 1.0f, 1.0f}; // [x, y, width, height] relative (0.0 to 1.0)
+    InsetsConfig padding;                         // Padding: left/right/up/down
+    InsetsConfig margin;                          // Margin: left/right/up/down
     int z_position = 0;                           // Z-order: higher renders on top
     std::string text;                             // For user_text or placeholder strings
     std::string font = "default";                 // Font family or asset path

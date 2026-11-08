@@ -61,6 +61,39 @@ public:
     std::array<float, 4> RelativeToPixelRect(
         const std::array<float, 4>& rel_rect) const;
 
+    /**
+     * @brief Computes padding rect enclosing content rect plus padding.
+     */
+    static std::array<float, 4> ComputePaddingRect(
+        const std::array<float, 4>& content_px,
+        const InsetsConfig& padding,
+        float ref_w,
+        float ref_h);
+
+    /**
+     * @brief Computes extents rect enclosing content rect + padding + margin.
+     */
+    static std::array<float, 4> ComputeExtentsRect(
+        const std::array<float, 4>& content_px,
+        const InsetsConfig& padding,
+        const InsetsConfig& margin,
+        float ref_w,
+        float ref_h);
+
+    /**
+     * @brief Computes padding pixel rect for an element in this window.
+     */
+    std::array<float, 4> ComputePaddingPixelRect(
+        const ElementConfig& element,
+        const std::array<float, 4>& content_px_rect) const;
+
+    /**
+     * @brief Computes extents pixel rect for an element in this window.
+     */
+    std::array<float, 4> ComputeExtentsPixelRect(
+        const ElementConfig& element,
+        const std::array<float, 4>& content_px_rect) const;
+
 private:
     void GenerateElementCommands(
         const ElementConfig& element,

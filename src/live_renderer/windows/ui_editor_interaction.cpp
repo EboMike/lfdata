@@ -5,6 +5,7 @@
 
 #include "live_renderer/windows/ui_editor_interaction.hpp"
 #include <algorithm>
+#include "live_renderer/windows/visualization_window.hpp"
 
 namespace live_renderer {
 
@@ -65,17 +66,20 @@ int UIEditorInteraction::FindHitElementIndex(
     const float unit_h = (ref_h > 0.0f)
         ? ref_h
         : static_cast<float>(win_h);
-    for (auto it = ordered_indices.rbegin(); it != ordered_indices.rend(); ++it) {
+    for (auto it = ordered_indices.rbegin();
+         it != ordered_indices.rend(); ++it) {
         const size_t idx = *it;
         const auto& el = elements[idx];
-        const std::array<float, 4> rect_px{
+        const std::array<float, 4> content_px{
             el.rect[0] * unit_w,
             el.rect[1] * unit_h,
             el.rect[2] * unit_w,
             el.rect[3] * unit_h
         };
+        const auto ext_px = VisualizationWindow::ComputeExtentsRect(
+            content_px, el.padding, el.margin, unit_w, unit_h);
 
-        if (IsPointInRect(px, py, rect_px)) {
+        if (IsPointInRect(px, py, ext_px)) {
             return static_cast<int>(idx);
         }
     }
@@ -106,26 +110,28 @@ bool UIEditorInteraction::HandleMouseDown(
         ? ref_h
         : static_cast<float>(win_h);
 
-    // 1. If an element is already selected and covers mouse, keep selection and drag it
+    // 1. If an element is already selected, check handle or element bounds
     if (in_out_selected_index >= 0 &&
         in_out_selected_index < static_cast<int>(elements.size())) {
         const auto& sel_el = elements[in_out_selected_index];
-        const std::array<float, 4> sel_px{
+        const std::array<float, 4> sel_content_px{
             sel_el.rect[0] * unit_w,
             sel_el.rect[1] * unit_h,
             sel_el.rect[2] * unit_w,
             sel_el.rect[3] * unit_h
         };
+        const auto sel_ext_px = VisualizationWindow::ComputeExtentsRect(
+            sel_content_px, sel_el.padding, sel_el.margin, unit_w, unit_h);
 
-        if (IsPointInResizeHandle(mx, my, sel_px)) {
+        if (IsPointInResizeHandle(mx, my, sel_ext_px)) {
             drag_mode_ = DragMode::Resize;
             return true;
         }
 
-        if (IsPointInRect(mx, my, sel_px)) {
+        if (IsPointInRect(mx, my, sel_ext_px)) {
             drag_mode_ = DragMode::Move;
-            drag_offset_x_ = mx - sel_px[0];
-            drag_offset_y_ = my - sel_px[1];
+            drag_offset_x_ = mx - sel_el.rect[0] * unit_w;
+            drag_offset_y_ = my - sel_el.rect[1] * unit_h;
             return true;
         }
     }
@@ -198,8 +204,13 @@ bool UIEditorInteraction::HandleMouseMove(
         float el_px_x = el.rect[0] * unit_w;
         float el_px_y = el.rect[1] * unit_h;
 
-        float new_px_w = mx - el_px_x;
-        float new_px_h = my - el_px_y;
+        const float extra_w =
+            (el.padding.right + el.margin.right) * unit_w;
+        const float extra_h =
+            (el.padding.down + el.margin.down) * unit_h;
+
+        float new_px_w = (mx - el_px_x) - extra_w;
+        float new_px_h = (my - el_px_y) - extra_h;
 
         constexpr float kMinPx = 10.0f;
         new_px_w = std::max(kMinPx, new_px_w);

@@ -175,3 +175,40 @@ TEST(ConfigSerializerTest, RoundTripUIConfig) {
     std::filesystem::remove(path);
 }
 
+TEST(ConfigSerializerTest, RoundTripPaddingAndMargin) {
+    UIConfig ui;
+    WindowConfig win;
+    win.id = 1;
+    win.title = "Test Insets";
+    win.rect = {0, 0, 1280, 720};
+
+    ElementConfig el;
+    el.type = "user_text";
+    el.text = "Hello World";
+    el.rect = {0.1f, 0.2f, 0.3f, 0.4f};
+    el.padding = {0.01f, 0.02f, 0.03f, 0.04f};
+    el.margin = {0.05f, 0.06f, 0.07f, 0.08f};
+    win.elements.push_back(el);
+    ui.windows.push_back(win);
+
+    std::string path = "test_insets_config.yaml";
+    EXPECT_TRUE(ConfigSerializer::SaveUIConfig(path, ui));
+
+    UIConfig loaded;
+    EXPECT_TRUE(ConfigSerializer::LoadUIConfig(path, loaded));
+    ASSERT_EQ(loaded.windows.size(), 1);
+    ASSERT_EQ(loaded.windows[0].elements.size(), 1);
+    const auto& loaded_el = loaded.windows[0].elements[0];
+    EXPECT_FLOAT_EQ(loaded_el.padding.left, 0.01f);
+    EXPECT_FLOAT_EQ(loaded_el.padding.right, 0.02f);
+    EXPECT_FLOAT_EQ(loaded_el.padding.up, 0.03f);
+    EXPECT_FLOAT_EQ(loaded_el.padding.down, 0.04f);
+    EXPECT_FLOAT_EQ(loaded_el.margin.left, 0.05f);
+    EXPECT_FLOAT_EQ(loaded_el.margin.right, 0.06f);
+    EXPECT_FLOAT_EQ(loaded_el.margin.up, 0.07f);
+    EXPECT_FLOAT_EQ(loaded_el.margin.down, 0.08f);
+
+    std::filesystem::remove(path);
+}
+
+

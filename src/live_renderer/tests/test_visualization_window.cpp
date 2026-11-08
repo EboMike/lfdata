@@ -1148,6 +1148,115 @@ TEST(VisualizationWindowTest, ScorecardRowsUseTemplateExtents) {
     EXPECT_GE(dy, expected_row_h);
 }
 
+TEST(VisualizationWindowTest, ComputesPaddingAndExtentsRects) {
+    WindowConfig wcfg;
+    wcfg.id = 10;
+    wcfg.rect = {0, 0, 1600, 900};
+    UIConfig ui;
+
+    ElementConfig el;
+    el.type = "user_text";
+    el.rect = {0.1f, 0.2f, 0.3f, 0.4f};
+    el.padding = {0.01f, 0.02f, 0.03f, 0.04f};
+    el.margin = {0.05f, 0.06f, 0.07f, 0.08f};
+    wcfg.elements.push_back(el);
+
+    VisualizationWindow win(wcfg, ui);
+    const float win_h = 900.0f;
+    const float unit_w = win_h * 16.0f / 9.0f;  // 1600.0f
+
+    const auto content_px = win.RelativeToPixelRect(el.rect);
+    EXPECT_NEAR(content_px[0], 0.1f * unit_w, 0.01f);
+    EXPECT_NEAR(content_px[1], 0.2f * win_h, 0.01f);
+    EXPECT_NEAR(content_px[2], 0.3f * unit_w, 0.01f);
+    EXPECT_NEAR(content_px[3], 0.4f * win_h, 0.01f);
+
+    const auto pad_px = win.ComputePaddingPixelRect(el, content_px);
+    EXPECT_NEAR(pad_px[0], (0.1f - 0.01f) * unit_w, 0.01f);
+    EXPECT_NEAR(pad_px[1], (0.2f - 0.03f) * win_h, 0.01f);
+    EXPECT_NEAR(pad_px[2], (0.3f + 0.01f + 0.02f) * unit_w, 0.01f);
+    EXPECT_NEAR(pad_px[3], (0.4f + 0.03f + 0.04f) * win_h, 0.01f);
+
+    const auto ext_px = win.ComputeExtentsPixelRect(el, content_px);
+    EXPECT_NEAR(ext_px[0], (0.1f - 0.01f - 0.05f) * unit_w, 0.01f);
+    EXPECT_NEAR(ext_px[1], (0.2f - 0.03f - 0.07f) * win_h, 0.01f);
+    EXPECT_NEAR(ext_px[2], (0.3f + 0.03f + 0.11f) * unit_w, 0.01f);
+    EXPECT_NEAR(ext_px[3], (0.4f + 0.07f + 0.15f) * win_h, 0.01f);
+}
+
+TEST(VisualizationWindowTest, BackgroundRendersInPaddingAreaNotMarginArea) {
+    WindowConfig wcfg;
+    wcfg.id = 11;
+    wcfg.rect = {0, 0, 1600, 900};
+    UIConfig ui;
+
+    ElementConfig el;
+    el.type = "user_text";
+    el.text = "Padded Element";
+    el.rect = {0.2f, 0.2f, 0.4f, 0.2f};
+    el.padding = {0.02f, 0.02f, 0.01f, 0.01f};
+    el.margin = {0.05f, 0.05f, 0.03f, 0.03f};
+    el.background.enabled = true;
+    el.background.color = "#334455";
+    wcfg.elements.push_back(el);
+
+    VisualizationWindow win(wcfg, ui);
+    auto state = MockGameState::CreateMockSM5State();
+    auto batch = win.GenerateBatch(state);
+
+    const auto content_px = win.RelativeToPixelRect(el.rect);
+    const auto pad_px = win.ComputePaddingPixelRect(el, content_px);
+    const auto ext_px = win.ComputeExtentsPixelRect(el, content_px);
+
+    ASSERT_GE(batch.commands.size(), 2u);
+    EXPECT_EQ(batch.commands[0].type, RenderCommand::Type::SolidQuad);
+    // Background matches padding area exactly
+    EXPECT_NEAR(batch.commands[0].pixel_rect[0], pad_px[0], 0.1f);
+    EXPECT_NEAR(batch.commands[0].pixel_rect[1], pad_px[1], 0.1f);
+    EXPECT_NEAR(batch.commands[0].pixel_rect[2], pad_px[2], 0.1f);
+    EXPECT_NEAR(batch.commands[0].pixel_rect[3], pad_px[3], 0.1f);
+
+    // Background does NOT match margin area
+    EXPECT_NE(batch.commands[0].pixel_rect[0], ext_px[0]);
+    EXPECT_NE(batch.commands[0].pixel_rect[2], ext_px[2]);
+
+    // Content text matches content rect
+    EXPECT_EQ(batch.commands[1].type, RenderCommand::Type::Text);
+    EXPECT_NEAR(batch.commands[1].pixel_rect[0], content_px[0], 0.1f);
+    EXPECT_NEAR(batch.commands[1].pixel_rect[1], content_px[1], 0.1f);
+    EXPECT_NEAR(batch.commands[1].pixel_rect[2], content_px[2], 0.1f);
+    EXPECT_NEAR(batch.commands[1].pixel_rect[3], content_px[3], 0.1f);
+}
+
+TEST(VisualizationWindowTest, SelectionHighlightOutlinesTotalExtents) {
+    WindowConfig wcfg;
+    wcfg.id = 12;
+    wcfg.rect = {0, 0, 1600, 900};
+    UIConfig ui;
+
+    ElementConfig el;
+    el.type = "user_text";
+    el.text = "Selected Element";
+    el.rect = {0.2f, 0.2f, 0.4f, 0.2f};
+    el.padding = {0.02f, 0.02f, 0.01f, 0.01f};
+    el.margin = {0.05f, 0.05f, 0.03f, 0.03f};
+    wcfg.elements.push_back(el);
+
+    VisualizationWindow win(wcfg, ui);
+    auto state = MockGameState::CreateMockSM5State();
+    auto batch = win.GenerateBatch(state, 0, 0);
+
+    const auto content_px = win.RelativeToPixelRect(el.rect);
+    const auto ext_px = win.ComputeExtentsPixelRect(el, content_px);
+
+    ASSERT_GE(batch.commands.size(), 5u);
+    const auto& top_border = batch.commands[batch.commands.size() - 5];
+    EXPECT_NEAR(top_border.pixel_rect[0], ext_px[0] - 2.0f, 0.1f);
+    EXPECT_NEAR(top_border.pixel_rect[1], ext_px[1] - 2.0f, 0.1f);
+    EXPECT_NEAR(top_border.pixel_rect[2], ext_px[2] + 4.0f, 0.1f);
+}
+
+
 
 
 

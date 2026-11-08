@@ -38,6 +38,81 @@ std::array<float, 4> VisualizationWindow::RelativeToPixelRect(
     };
 }
 
+std::array<float, 4> VisualizationWindow::ComputePaddingRect(
+    const std::array<float, 4>& content_px,
+    const InsetsConfig& padding,
+    float ref_w,
+    float ref_h) {
+    const float pad_l = padding.left * ref_w;
+    const float pad_r = padding.right * ref_w;
+    const float pad_u = padding.up * ref_h;
+    const float pad_d = padding.down * ref_h;
+    return {
+        content_px[0] - pad_l,
+        content_px[1] - pad_u,
+        content_px[2] + pad_l + pad_r,
+        content_px[3] + pad_u + pad_d
+    };
+}
+
+std::array<float, 4> VisualizationWindow::ComputeExtentsRect(
+    const std::array<float, 4>& content_px,
+    const InsetsConfig& padding,
+    const InsetsConfig& margin,
+    float ref_w,
+    float ref_h) {
+    const float pad_l = padding.left * ref_w;
+    const float pad_r = padding.right * ref_w;
+    const float pad_u = padding.up * ref_h;
+    const float pad_d = padding.down * ref_h;
+
+    const float mar_l = margin.left * ref_w;
+    const float mar_r = margin.right * ref_w;
+    const float mar_u = margin.up * ref_h;
+    const float mar_d = margin.down * ref_h;
+
+    return {
+        content_px[0] - pad_l - mar_l,
+        content_px[1] - pad_u - mar_u,
+        content_px[2] + pad_l + pad_r + mar_l + mar_r,
+        content_px[3] + pad_u + pad_d + mar_u + mar_d
+    };
+}
+
+std::array<float, 4> VisualizationWindow::ComputePaddingPixelRect(
+    const ElementConfig& element,
+    const std::array<float, 4>& content_px_rect) const {
+    const float win_h = static_cast<float>(GetHeight());
+    const float unit_w = win_h * 16.0f / 9.0f;
+    const float ref_w = (template_extents_[0] > 0.0f &&
+                         template_extents_[1] > 0.0f)
+        ? (template_extents_[0] * unit_w)
+        : unit_w;
+    const float ref_h = (template_extents_[0] > 0.0f &&
+                         template_extents_[1] > 0.0f)
+        ? (template_extents_[1] * win_h)
+        : win_h;
+    return ComputePaddingRect(
+        content_px_rect, element.padding, ref_w, ref_h);
+}
+
+std::array<float, 4> VisualizationWindow::ComputeExtentsPixelRect(
+    const ElementConfig& element,
+    const std::array<float, 4>& content_px_rect) const {
+    const float win_h = static_cast<float>(GetHeight());
+    const float unit_w = win_h * 16.0f / 9.0f;
+    const float ref_w = (template_extents_[0] > 0.0f &&
+                         template_extents_[1] > 0.0f)
+        ? (template_extents_[0] * unit_w)
+        : unit_w;
+    const float ref_h = (template_extents_[0] > 0.0f &&
+                         template_extents_[1] > 0.0f)
+        ? (template_extents_[1] * win_h)
+        : win_h;
+    return ComputeExtentsRect(
+        content_px_rect, element.padding, element.margin, ref_w, ref_h);
+}
+
 const TemplateConfig* VisualizationWindow::FindTemplate(int template_id) const {
     if (template_id <= 0) return nullptr;
     for (const auto& tmpl : ui_config_.templates) {
@@ -78,7 +153,8 @@ RenderBatch VisualizationWindow::GenerateBatch(
     if (highlight_element_index >= 0 &&
         highlight_element_index < static_cast<int>(config_.elements.size())) {
         const auto& el = config_.elements[highlight_element_index];
-        const auto px = RelativeToPixelRect(el.rect);
+        const auto content_px = RelativeToPixelRect(el.rect);
+        const auto px = ComputeExtentsPixelRect(el, content_px);
 
         // 2px wide orange border outline around bounds
         constexpr float kBorder = 2.0f;
@@ -182,7 +258,9 @@ void VisualizationWindow::GenerateElementCommands(
     int64_t current_time_ms,
     RenderBatch& batch) const {
     const ElementConfig resolved_el = ResolveElementFont(element);
-    const auto px_rect = RelativeToPixelRect(resolved_el.rect);
+    const auto content_px_rect = RelativeToPixelRect(resolved_el.rect);
+    const auto pad_px_rect = ComputePaddingPixelRect(
+        resolved_el, content_px_rect);
     const float font_size_px = RichTextLayout::ComputePixelFontSize(
         resolved_el.font_size, static_cast<float>(GetHeight()));
 
@@ -191,7 +269,7 @@ void VisualizationWindow::GenerateElementCommands(
         resolved_el.type != "team_roster") {
         GenerateBackgroundCommands(
             resolved_el.background,
-            px_rect,
+            pad_px_rect,
             resolved_el.team_index,
             state,
             batch);
@@ -199,7 +277,11 @@ void VisualizationWindow::GenerateElementCommands(
 
     if (resolved_el.type == "user_text") {
         TextComponent::GenerateUserTextCommands(
-            resolved_el, state, px_rect, static_cast<float>(GetHeight()), batch);
+            resolved_el,
+            state,
+            content_px_rect,
+            static_cast<float>(GetHeight()),
+            batch);
     } else if (resolved_el.type == "game_timer") {
         GenerateGameTimerCommands(resolved_el, state, current_time_ms, batch);
     } else if (resolved_el.type == "user_image" ||
@@ -207,7 +289,7 @@ void VisualizationWindow::GenerateElementCommands(
         if (!resolved_el.image_file.empty()) {
             RenderCommand cmd;
             cmd.type = RenderCommand::Type::TexturedQuad;
-            cmd.pixel_rect = px_rect;
+            cmd.pixel_rect = content_px_rect;
             cmd.texture_asset = resolved_el.image_file;
             cmd.opacity = resolved_el.opacity;
             cmd.fit = resolved_el.fit.empty() ? "stretch" : resolved_el.fit;
@@ -226,7 +308,7 @@ void VisualizationWindow::GenerateElementCommands(
         if (!resolved_el.movie_file.empty()) {
             RenderCommand cmd;
             cmd.type = RenderCommand::Type::TexturedQuad;
-            cmd.pixel_rect = px_rect;
+            cmd.pixel_rect = content_px_rect;
             cmd.texture_asset = resolved_el.movie_file;
             cmd.opacity = resolved_el.opacity;
             cmd.fit = resolved_el.fit.empty() ? "stretch" : resolved_el.fit;
@@ -283,7 +365,7 @@ void VisualizationWindow::GenerateElementCommands(
     } else if (resolved_el.type == "player_profile_picture") {
         RenderCommand cmd;
         cmd.type = RenderCommand::Type::TexturedQuad;
-        cmd.pixel_rect = px_rect;
+        cmd.pixel_rect = content_px_rect;
         cmd.texture_asset = resolved_el.image_file.empty()
             ? "assets/sm5/commander.png" : resolved_el.image_file;
         cmd.opacity = resolved_el.opacity;
@@ -300,7 +382,7 @@ void VisualizationWindow::GenerateElementCommands(
     } else if (resolved_el.type == "team_logo") {
         RenderCommand cmd;
         cmd.type = RenderCommand::Type::TexturedQuad;
-        cmd.pixel_rect = px_rect;
+        cmd.pixel_rect = content_px_rect;
         cmd.texture_asset = resolved_el.image_file.empty()
             ? "assets/ball.png" : resolved_el.image_file;
         cmd.opacity = resolved_el.opacity;
@@ -335,7 +417,7 @@ void VisualizationWindow::GenerateElementCommands(
             resolved_el,
             sample_player,
             team_color,
-            px_rect,
+            content_px_rect,
             static_cast<float>(GetHeight()),
             batch);
     }
@@ -486,8 +568,9 @@ void VisualizationWindow::GenerateTeamScorecardCommands(
     const auto& team = it->second;
 
     const auto base_px_rect = RelativeToPixelRect(element.rect);
+    const auto pad_px_rect = ComputePaddingPixelRect(element, base_px_rect);
     GenerateBackgroundCommands(
-        element.background, base_px_rect, team_id, state, batch);
+        element.background, pad_px_rect, team_id, state, batch);
 
     const float win_h = static_cast<float>(GetHeight());
     const float unit_w = win_h * 16.0f / 9.0f;
@@ -721,8 +804,9 @@ void VisualizationWindow::GenerateGameScorecardCommands(
     if (team_ids.empty()) return;
 
     const auto base_px_rect = RelativeToPixelRect(element.rect);
+    const auto pad_px_rect = ComputePaddingPixelRect(element, base_px_rect);
     GenerateBackgroundCommands(
-        element.background, base_px_rect, -1, state, batch);
+        element.background, pad_px_rect, -1, state, batch);
 
     const float win_h = static_cast<float>(GetHeight());
     const std::string team_list_key =
@@ -837,6 +921,15 @@ void VisualizationWindow::RenderPlayerProfileCard(
             pel.rect[3] * card_px_rect[3]
         };
 
+        if (pel.background.enabled) {
+            const auto pel_pad = ComputePaddingRect(
+                pel_rect, pel.padding, card_px_rect[2], card_px_rect[3]);
+            GameStateSnapshot dummy_state;
+            dummy_state.teams[player.team_id].rgb = team_rgb;
+            GenerateBackgroundCommands(
+                pel.background, pel_pad, player.team_id, dummy_state, batch);
+        }
+
         if (pel.type == "user_image" || pel.type == "image") {
             if (!pel.image_file.empty()) {
                 RenderCommand cmd;
@@ -903,8 +996,9 @@ void VisualizationWindow::GenerateTeamRosterCommands(
     const auto& team = it->second;
 
     const auto base_px_rect = RelativeToPixelRect(element.rect);
+    const auto pad_px_rect = ComputePaddingPixelRect(element, base_px_rect);
     GenerateBackgroundCommands(
-        element.background, base_px_rect, team_id, state, batch);
+        element.background, pad_px_rect, team_id, state, batch);
 
     const PlayerSortOrder sort_order = (element.sort_order == "index")
         ? PlayerSortOrder::Index

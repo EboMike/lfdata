@@ -197,3 +197,22 @@ TEST_F(UIEditorInteractionTest, HandleSdlEventDispatchesCorrectly) {
     EXPECT_EQ(interaction.GetDragMode(), DragMode::None);
 }
 
+TEST_F(UIEditorInteractionTest, SelectsElementInMarginArea) {
+    UIEditorInteraction interaction;
+    int selected_index = -1;
+
+    // Base rect [0.10, 0.10, 0.20, 0.20] -> [160, 90, 320, 180]
+    // Margin left 0.05 * 1600 = 80px -> extents start at x=80
+    // Margin up 0.05 * 900 = 45px -> extents start at y=45
+    elements_[0].margin.left = 0.05f;
+    elements_[0].margin.up = 0.05f;
+
+    // Click at (100, 60): outside content rect [160, 90], but inside margin
+    bool handled = interaction.HandleMouseDown(
+        100, 60, win_w_, win_h_, elements_, selected_index);
+
+    EXPECT_TRUE(handled);
+    EXPECT_EQ(selected_index, 0);
+}
+
+
