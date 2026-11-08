@@ -49,6 +49,34 @@ Strings also support placeholders. These are:
 *   **{game_type}**: The current game type (SM5, Laserball)
 *   **{center}**: Name of the center (Loveland, Syracuse, etc.)
 
+Some placeholders exist in the context of a template that involves
+one player (player profile, player score row):
+
+* **{player_name}**: The name of the player
+* **{player_score}**: The score of the player
+* **{player_lives}**: The player's number of lives
+* **{player_ammo}**: The player's current number of shots left
+* **{player_missiles}**: The player's number of missiles
+* **{player_special_points}**: The player's number of special points
+* **{player_goals}**: The player's number of goals
+* **{player_assists}**: The player's number of assists
+* **{player_clears}**: The player's number of clears
+* **{player_steals}**: The player's number of steals
+* **{player_zaps}**: The player's number of zaps
+* **{player_medic_hits}**: The player's number of medic hits
+* **{player_shots_fired}**: The player's number of shots fired
+* **{player_shots_landed}**: The player's number of shots landed
+* **{player_accuracy}**: The player's accuracy
+* **{player_missiles_fired}**: The player's number of missiles fired
+* **{player_missiles_landed}**: The player's number of missiles landed
+* **{player_total_games}**: The player's total number of games played
+  across all formats, empty string if unknown
+* **{player_total_games_this_format}**: The player's total number of
+  games played in this format (SM5/Laserball/etc), empty string if unknown
+* **{player_total_games_this_format_center}**: The player's total number
+  of games played in this format (SM5/Laserball/etc) at this center,
+  empty string if unknown
+
 Text elements by default have a black outline around them.
 
 Parameters:
