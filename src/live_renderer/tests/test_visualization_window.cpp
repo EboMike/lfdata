@@ -978,6 +978,176 @@ TEST(VisualizationWindowTest, TeamRosterRendersPlayerProfileTemplate) {
     EXPECT_GE(profile_pic_count, 5);
 }
 
+TEST(VisualizationWindowTest, VisualizesTemplateExtentsRectangle) {
+    WindowConfig wcfg;
+    wcfg.id = -1000;
+    wcfg.rect = {0, 0, 1600, 900};
+    UIConfig ui;
+
+    VisualizationWindow win(wcfg, ui);
+    win.SetTemplateExtents({0.25f, 0.40f});
+    auto state = MockGameState::CreateMockSM5State();
+    auto batch = win.GenerateBatch(state);
+
+    const float win_h = 900.0f;
+    const float unit_w = win_h * 16.0f / 9.0f; // 1600.0f
+    const float ext_w = 0.25f * unit_w;        // 400.0f
+    const float ext_h = 0.40f * win_h;         // 360.0f
+
+    // Verify 4 cyan border commands are appended
+    ASSERT_GE(batch.commands.size(), 4u);
+    size_t cyan_count = 0;
+    for (const auto& cmd : batch.commands) {
+        if (cmd.type == RenderCommand::Type::SolidQuad &&
+            cmd.color_rgba[0] == 0.0f &&
+            cmd.color_rgba[1] == 0.85f &&
+            cmd.color_rgba[2] == 1.0f) {
+            ++cyan_count;
+        }
+    }
+    EXPECT_EQ(cyan_count, 4u);
+}
+
+TEST(VisualizationWindowTest, RosterUsesTemplateExtentsInHorizontalList) {
+    UIConfig ui;
+    TemplateConfig tmpl;
+    tmpl.id = 10;
+    tmpl.name = "Profile Extent Test";
+    tmpl.type = "player_profile";
+    tmpl.size = {0.10f, 0.20f};
+
+    ElementConfig p_name;
+    p_name.type = "player_name";
+    p_name.rect = {0.0f, 0.0f, 1.0f, 0.5f};
+    tmpl.elements.push_back(p_name);
+    ui.templates.push_back(tmpl);
+
+    WindowConfig wcfg;
+    wcfg.id = 5;
+    wcfg.rect = {0, 0, 1600, 900};
+
+    ElementConfig roster;
+    roster.type = "team_roster";
+    roster.orientation = "horizontal";
+    roster.rect = {0.0f, 0.0f, 1.0f, 1.0f};
+    roster.team_index = 1;
+    roster.player_profile_template_id = 10;
+    wcfg.elements.push_back(roster);
+
+    VisualizationWindow win(wcfg, ui);
+    auto state = MockGameState::CreateMockSM5State();
+    auto batch = win.GenerateBatch(state);
+
+    const float win_h = 900.0f;
+    const float unit_w = win_h * 16.0f / 9.0f;
+    const float expected_card_w = 0.10f * unit_w;
+    const float expected_card_h = 0.20f * win_h;
+
+    // Collect all player name text commands
+    std::vector<RenderCommand> names;
+    for (const auto& cmd : batch.commands) {
+        if (cmd.type == RenderCommand::Type::Text &&
+            !cmd.text.empty() && cmd.text != "ROSTER") {
+            names.push_back(cmd);
+        }
+    }
+
+    ASSERT_GE(names.size(), 2u);
+    // In horizontal list, distance between element 0 and 1 is card_w
+    const float dx = names[1].pixel_rect[0] - names[0].pixel_rect[0];
+    EXPECT_NEAR(dx, expected_card_w, 0.5f);
+    EXPECT_NEAR(names[0].pixel_rect[2], expected_card_w, 0.5f);
+}
+
+TEST(VisualizationWindowTest, RosterAppliesAlignmentInHorizontalList) {
+    UIConfig ui;
+    TemplateConfig tmpl;
+    tmpl.id = 10;
+    tmpl.type = "player_profile";
+    tmpl.size = {0.10f, 0.20f};
+
+    ElementConfig p_name;
+    p_name.type = "player_name";
+    p_name.rect = {0.0f, 0.0f, 1.0f, 1.0f};
+    tmpl.elements.push_back(p_name);
+    ui.templates.push_back(tmpl);
+
+    WindowConfig wcfg;
+    wcfg.id = 6;
+    wcfg.rect = {0, 0, 1600, 900};
+
+    ElementConfig roster_left;
+    roster_left.type = "team_roster";
+    roster_left.orientation = "horizontal";
+    roster_left.alignment = "left";
+    roster_left.rect = {0.0f, 0.0f, 1.0f, 1.0f};
+    roster_left.team_index = 1;
+    roster_left.player_profile_template_id = 10;
+    wcfg.elements = {roster_left};
+
+    VisualizationWindow win_left(wcfg, ui);
+    auto state = MockGameState::CreateMockSM5State();
+    auto batch_left = win_left.GenerateBatch(state);
+
+    ElementConfig roster_center = roster_left;
+    roster_center.alignment = "center";
+    wcfg.elements = {roster_center};
+    VisualizationWindow win_center(wcfg, ui);
+    auto batch_center = win_center.GenerateBatch(state);
+
+    ASSERT_FALSE(batch_left.commands.empty());
+    ASSERT_FALSE(batch_center.commands.empty());
+    // Center aligned starts further right than left aligned
+    EXPECT_GT(
+        batch_center.commands[0].pixel_rect[0],
+        batch_left.commands[0].pixel_rect[0]);
+}
+
+TEST(VisualizationWindowTest, ScorecardRowsUseTemplateExtents) {
+    UIConfig ui;
+
+    TemplateConfig row_tmpl;
+    row_tmpl.id = 2;
+    row_tmpl.type = "scorecard_row";
+    row_tmpl.size = {0.8f, 0.06f};
+
+    ElementConfig p_name;
+    p_name.type = "player_name";
+    p_name.rect = {0.0f, 0.0f, 0.5f, 1.0f};
+    row_tmpl.elements.push_back(p_name);
+    ui.templates.push_back(row_tmpl);
+
+    WindowConfig wcfg;
+    wcfg.id = 7;
+    wcfg.rect = {0, 0, 1600, 900};
+
+    ElementConfig sc;
+    sc.type = "team_scorecard";
+    sc.team_index = 1;
+    sc.row_template_id = 2;
+    sc.rect = {0.0f, 0.0f, 1.0f, 1.0f};
+    wcfg.elements.push_back(sc);
+
+    VisualizationWindow win(wcfg, ui);
+    auto state = MockGameState::CreateMockSM5State();
+    auto batch = win.GenerateBatch(state);
+
+    const float win_h = 900.0f;
+    const float unit_w = win_h * 16.0f / 9.0f;
+    const float expected_row_w = 0.8f * unit_w;
+    const float expected_row_h = 0.06f * win_h;
+
+    ASSERT_GE(batch.commands.size(), 2u);
+    // Verify row element dimensions reflect template extents
+    EXPECT_NEAR(
+        batch.commands[0].pixel_rect[2], expected_row_w * 0.5f, 0.5f);
+    EXPECT_NEAR(
+        batch.commands[0].pixel_rect[3], expected_row_h, 0.5f);
+    const float dy =
+        batch.commands[1].pixel_rect[1] - batch.commands[0].pixel_rect[1];
+    EXPECT_GE(dy, expected_row_h);
+}
+
 
 
 

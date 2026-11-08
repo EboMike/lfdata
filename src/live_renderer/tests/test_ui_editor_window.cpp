@@ -163,6 +163,59 @@ TEST(UIEditorWindowTest, SaveAndBackPersistsConfigFile) {
     std::filesystem::remove(test_ui_path);
 }
 
+TEST(UIEditorWindowTest, SaveAndExitPersistsConfigFile) {
+    std::string test_ui_path = "test_ui_editor_save_exit.yaml";
+    UIConfig ui;
+    WindowConfig w{1, "Exit Saved Window", {0, 0, 1920, 1080}};
+    ui.windows.push_back(w);
+
+    bool callback_called = false;
+    UIEditorWindow editor(ui, test_ui_path);
+    UIEditorWindow::Callbacks cbs;
+    cbs.on_save_and_back = [&]() { callback_called = true; };
+    editor.SetCallbacks(cbs);
+
+    EXPECT_TRUE(editor.ClickSaveAndExit());
+    EXPECT_TRUE(callback_called);
+
+    UIConfig loaded;
+    EXPECT_TRUE(ConfigSerializer::LoadUIConfig(test_ui_path, loaded));
+    ASSERT_FALSE(loaded.windows.empty());
+    EXPECT_EQ(loaded.windows[0].title, "Exit Saved Window");
+
+    std::filesystem::remove(test_ui_path);
+}
+
+TEST(UIEditorWindowTest, SaveAndExitFromTemplateModeExitsTemplateAndPersists) {
+    std::string test_ui_path = "test_ui_editor_template_exit.yaml";
+    UIConfig ui;
+    TemplateConfig t;
+    t.id = 5;
+    t.name = "MyTmpl";
+    t.type = "player_profile";
+    ui.templates.push_back(t);
+
+    bool callback_called = false;
+    UIEditorWindow editor(ui, test_ui_path);
+    UIEditorWindow::Callbacks cbs;
+    cbs.on_save_and_back = [&]() { callback_called = true; };
+    editor.SetCallbacks(cbs);
+
+    editor.SelectTemplateForEditing(5);
+    EXPECT_TRUE(editor.IsEditingTemplate());
+
+    EXPECT_TRUE(editor.SaveAndExit());
+    EXPECT_FALSE(editor.IsEditingTemplate());
+    EXPECT_TRUE(callback_called);
+
+    UIConfig loaded;
+    EXPECT_TRUE(ConfigSerializer::LoadUIConfig(test_ui_path, loaded));
+    ASSERT_FALSE(loaded.templates.empty());
+    EXPECT_EQ(loaded.templates[0].name, "MyTmpl");
+
+    std::filesystem::remove(test_ui_path);
+}
+
 TEST(UIEditorWindowTest, SelectElementAndInspectProperties) {
     UIConfig ui;
     UIEditorWindow editor(ui);
@@ -311,4 +364,39 @@ TEST(UIEditorWindowTest, RenderImGuiAfterCreatingTemplate) {
     ImGui::Render();
 
     ImGui::DestroyContext(ctx);
+}
+
+TEST(UIEditorWindowTest, EditTemplateWidthAndHeight) {
+    UIConfig ui;
+    TemplateConfig tmpl;
+    tmpl.id = 1;
+    tmpl.name = "Profile Template";
+    tmpl.type = "player_profile";
+    tmpl.size = {0.25f, 0.40f};
+    ui.templates.push_back(tmpl);
+
+    UIEditorWindow editor(ui);
+    EXPECT_EQ(editor.GetActiveTemplate(), nullptr);
+    EXPECT_FLOAT_EQ(editor.GetActiveTemplateSize()[0], 0.0f);
+
+    editor.SelectTemplateForEditing(1);
+    EXPECT_TRUE(editor.IsEditingTemplate());
+    ASSERT_NE(editor.GetActiveTemplate(), nullptr);
+    EXPECT_FLOAT_EQ(editor.GetActiveTemplateSize()[0], 0.25f);
+    EXPECT_FLOAT_EQ(editor.GetActiveTemplateSize()[1], 0.40f);
+
+    editor.SetActiveTemplateSize(0.30f, 0.50f);
+    EXPECT_FLOAT_EQ(editor.GetActiveTemplateSize()[0], 0.30f);
+    EXPECT_FLOAT_EQ(editor.GetActiveTemplateSize()[1], 0.50f);
+    EXPECT_FLOAT_EQ(editor.GetActiveTemplate()->size[0], 0.30f);
+    EXPECT_FLOAT_EQ(editor.GetActiveTemplate()->size[1], 0.50f);
+
+    // Clamping to positive minimum
+    editor.SetActiveTemplateSize(-1.0f, 0.0f);
+    EXPECT_GE(editor.GetActiveTemplateSize()[0], 0.001f);
+    EXPECT_GE(editor.GetActiveTemplateSize()[1], 0.001f);
+
+    editor.DoneWithTemplate();
+    EXPECT_FALSE(editor.IsEditingTemplate());
+    EXPECT_EQ(editor.GetActiveTemplate(), nullptr);
 }

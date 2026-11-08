@@ -272,6 +272,7 @@ void WindowManager::SyncTemplateWindow(
         template_instance_->gl_context = gl_ctx;
         template_instance_->vis_window =
             std::make_unique<VisualizationWindow>(cfg, ui_config_);
+        template_instance_->vis_window->SetTemplateExtents(tmpl->size);
         template_instance_->is_minimized = false;
     } else {
         std::string title = "LF Live Renderer - Template: " + tmpl->name;
@@ -287,6 +288,7 @@ void WindowManager::SyncTemplateWindow(
         }
         cfg.elements = tmpl->elements;
         template_instance_->vis_window->SetConfig(cfg);
+        template_instance_->vis_window->SetTemplateExtents(tmpl->size);
         SDL_ShowWindow(template_instance_->sdl_window);
     }
 }
@@ -319,9 +321,18 @@ bool WindowManager::HandleEvent(
                     win_h = template_instance_->vis_window->GetHeight();
                 }
                 auto& elements = editor_window->GetActiveElements();
+                const auto* tmpl = editor_window->GetActiveTemplate();
+                float ref_w = 0.0f;
+                float ref_h = 0.0f;
+                if (tmpl && tmpl->size[0] > 0.0f && tmpl->size[1] > 0.0f) {
+                    const float unit_w =
+                        static_cast<float>(win_h) * 16.0f / 9.0f;
+                    ref_w = tmpl->size[0] * unit_w;
+                    ref_h = tmpl->size[1] * static_cast<float>(win_h);
+                }
 
                 bool handled = editor_interaction_.HandleSdlEvent(
-                    event, win_w, win_h, elements, sel_idx);
+                    event, win_w, win_h, elements, sel_idx, ref_w, ref_h);
                 if (handled) {
                     editor_window->SetSelectedElementIndex(sel_idx);
                     WindowConfig cfg =
@@ -562,6 +573,7 @@ void WindowManager::RenderAllWindows(
                     template_instance_->vis_window->GetConfig();
                 cfg.elements = tmpl->elements;
                 template_instance_->vis_window->SetConfig(cfg);
+                template_instance_->vis_window->SetTemplateExtents(tmpl->size);
 
                 SDL_GLContext ctx = template_instance_->gl_context
                                         ? template_instance_->gl_context

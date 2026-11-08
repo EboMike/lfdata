@@ -20,6 +20,16 @@ std::array<float, 4> VisualizationWindow::RelativeToPixelRect(
     const std::array<float, 4>& rel_rect) const {
     const float win_h = static_cast<float>(GetHeight());
     const float unit_w = win_h * 16.0f / 9.0f;
+    if (template_extents_[0] > 0.0f && template_extents_[1] > 0.0f) {
+        const float ext_w = template_extents_[0] * unit_w;
+        const float ext_h = template_extents_[1] * win_h;
+        return {
+            rel_rect[0] * ext_w,
+            rel_rect[1] * ext_h,
+            rel_rect[2] * ext_w,
+            rel_rect[3] * ext_h
+        };
+    }
     return {
         rel_rect[0] * unit_w,
         rel_rect[1] * win_h,
@@ -119,6 +129,39 @@ RenderBatch VisualizationWindow::GenerateBatch(
         };
         handle.color_rgba = {1.0f, 0.55f, 0.0f, 1.0f};
         batch.commands.push_back(handle);
+    }
+
+    // Visualize template extents in template preview window
+    if (template_extents_[0] > 0.0f && template_extents_[1] > 0.0f) {
+        const float win_h = static_cast<float>(GetHeight());
+        const float unit_w = win_h * 16.0f / 9.0f;
+        const float ext_w = template_extents_[0] * unit_w;
+        const float ext_h = template_extents_[1] * win_h;
+        constexpr float kExtBorder = 2.0f;
+
+        RenderCommand ext_top;
+        ext_top.type = RenderCommand::Type::SolidQuad;
+        ext_top.pixel_rect = {0.0f, 0.0f, ext_w, kExtBorder};
+        ext_top.color_rgba = {0.0f, 0.85f, 1.0f, 0.9f};
+        batch.commands.push_back(ext_top);
+
+        RenderCommand ext_bot;
+        ext_bot.type = RenderCommand::Type::SolidQuad;
+        ext_bot.pixel_rect = {0.0f, ext_h - kExtBorder, ext_w, kExtBorder};
+        ext_bot.color_rgba = {0.0f, 0.85f, 1.0f, 0.9f};
+        batch.commands.push_back(ext_bot);
+
+        RenderCommand ext_left;
+        ext_left.type = RenderCommand::Type::SolidQuad;
+        ext_left.pixel_rect = {0.0f, 0.0f, kExtBorder, ext_h};
+        ext_left.color_rgba = {0.0f, 0.85f, 1.0f, 0.9f};
+        batch.commands.push_back(ext_left);
+
+        RenderCommand ext_right;
+        ext_right.type = RenderCommand::Type::SolidQuad;
+        ext_right.pixel_rect = {ext_w - kExtBorder, 0.0f, kExtBorder, ext_h};
+        ext_right.color_rgba = {0.0f, 0.85f, 1.0f, 0.9f};
+        batch.commands.push_back(ext_right);
     }
 
     return batch;
@@ -396,7 +439,12 @@ float VisualizationWindow::ComputeTeamScorecardHeightPx(
     int team_id,
     const GameStateSnapshot& state) const {
     const float win_h = static_cast<float>(GetHeight());
-    const float row_height_px = 32.0f;
+    float row_height_px = 32.0f;
+    const TemplateConfig* row_tmpl = FindTemplate(element.row_template_id);
+    if (row_tmpl && row_tmpl->size[1] > 0.0f) {
+        row_height_px = row_tmpl->size[1] * win_h;
+    }
+
     const float scaled_spacing =
         RichTextLayout::ComputePixelVerticalSpacing(
             element.vertical_spacing, win_h);
@@ -405,7 +453,11 @@ float VisualizationWindow::ComputeTeamScorecardHeightPx(
     const TemplateConfig* header_tmpl =
         FindTemplate(element.header_template_id);
     if (header_tmpl != nullptr && !header_tmpl->elements.empty()) {
-        height += row_height_px + 4.0f + scaled_spacing;
+        float header_height_px = row_height_px;
+        if (header_tmpl->size[1] > 0.0f) {
+            header_height_px = header_tmpl->size[1] * win_h;
+        }
+        height += header_height_px + 4.0f + scaled_spacing;
     }
 
     const PlayerSortOrder sort_order = (element.sort_order == "index")
@@ -439,22 +491,54 @@ void VisualizationWindow::GenerateTeamScorecardCommands(
 
     const float win_h = static_cast<float>(GetHeight());
     const float unit_w = win_h * 16.0f / 9.0f;
-    const float row_height_px = 32.0f;
+
+    const TemplateConfig* header_tmpl =
+        FindTemplate(element.header_template_id);
+    const TemplateConfig* row_tmpl =
+        FindTemplate(element.row_template_id);
+
+    float row_height_px = 32.0f;
+    float row_width_px = base_px_rect[2];
+    if (row_tmpl && row_tmpl->size[1] > 0.0f) {
+        row_height_px = row_tmpl->size[1] * win_h;
+    }
+    if (row_tmpl && row_tmpl->size[0] > 0.0f) {
+        row_width_px = row_tmpl->size[0] * unit_w;
+    }
+
+    float header_height_px = row_height_px;
+    float header_width_px = row_width_px;
+    if (header_tmpl && header_tmpl->size[1] > 0.0f) {
+        header_height_px = header_tmpl->size[1] * win_h;
+    }
+    if (header_tmpl && header_tmpl->size[0] > 0.0f) {
+        header_width_px = header_tmpl->size[0] * unit_w;
+    }
+
+    float header_offset_x = 0.0f;
+    float row_offset_x = 0.0f;
+    if (element.alignment == "center") {
+        header_offset_x = (base_px_rect[2] - header_width_px) / 2.0f;
+        row_offset_x = (base_px_rect[2] - row_width_px) / 2.0f;
+    } else if (element.alignment == "right") {
+        header_offset_x = base_px_rect[2] - header_width_px;
+        row_offset_x = base_px_rect[2] - row_width_px;
+    }
+
     const float scaled_spacing =
         RichTextLayout::ComputePixelVerticalSpacing(
             element.vertical_spacing, win_h);
     float current_y = base_px_rect[1];
 
     // Optional header template
-    const TemplateConfig* header_tmpl =
-        FindTemplate(element.header_template_id);
     if (header_tmpl != nullptr && !header_tmpl->elements.empty()) {
         for (const auto& hel : header_tmpl->elements) {
             std::array<float, 4> hp_rect{
-                base_px_rect[0] + (hel.rect[0] * unit_w),
-                current_y + (hel.rect[1] * row_height_px),
-                hel.rect[2] * unit_w,
-                hel.rect[3] * row_height_px
+                base_px_rect[0] + header_offset_x +
+                    (hel.rect[0] * header_width_px),
+                current_y + (hel.rect[1] * header_height_px),
+                hel.rect[2] * header_width_px,
+                hel.rect[3] * header_height_px
             };
             if (hel.type == "user_image" || hel.type == "image") {
                 if (!hel.image_file.empty()) {
@@ -497,7 +581,7 @@ void VisualizationWindow::GenerateTeamScorecardCommands(
                     batch);
             }
         }
-        current_y += row_height_px + 4.0f + scaled_spacing;
+        current_y += header_height_px + 4.0f + scaled_spacing;
     }
 
     const float start_players_y = current_y;
@@ -508,8 +592,6 @@ void VisualizationWindow::GenerateTeamScorecardCommands(
         : PlayerSortOrder::Ranking;
     const auto player_ids = ScorecardHelper::GetSortedPlayerIds(
         state, team_id, sort_order, element.add_totals);
-
-    const TemplateConfig* row_tmpl = FindTemplate(element.row_template_id);
 
     const std::string list_key =
         std::to_string(config_.id) + "_team_" + std::to_string(team_id);
@@ -548,9 +630,10 @@ void VisualizationWindow::GenerateTeamScorecardCommands(
         if (row_tmpl != nullptr && !row_tmpl->elements.empty()) {
             for (const auto& rel : row_tmpl->elements) {
                 std::array<float, 4> rpx_rect{
-                    base_px_rect[0] + (rel.rect[0] * unit_w),
+                    base_px_rect[0] + row_offset_x +
+                        (rel.rect[0] * row_width_px),
                     row_y + (rel.rect[1] * row_height_px),
-                    rel.rect[2] * unit_w,
+                    rel.rect[2] * row_width_px,
                     rel.rect[3] * row_height_px
                 };
                 if (rel.type == "user_image" || rel.type == "image") {
@@ -842,10 +925,19 @@ void VisualizationWindow::GenerateTeamRosterCommands(
     }
 
     const float win_h = static_cast<float>(GetHeight());
+    const float unit_w = win_h * 16.0f / 9.0f;
     const float scaled_spacing =
         RichTextLayout::ComputePixelVerticalSpacing(
             element.vertical_spacing, win_h);
-    const float item_spacing = 8.0f + scaled_spacing;
+    const float item_spacing = scaled_spacing;
+
+    float card_w = base_px_rect[2];
+    float card_h = base_px_rect[3];
+    if (profile_tmpl && profile_tmpl->size[0] > 0.0f &&
+        profile_tmpl->size[1] > 0.0f) {
+        card_w = profile_tmpl->size[0] * unit_w;
+        card_h = profile_tmpl->size[1] * win_h;
+    }
 
     const std::string anim_type =
         !element.player_change_animation.empty()
@@ -862,22 +954,18 @@ void VisualizationWindow::GenerateTeamRosterCommands(
     const std::string list_key =
         std::to_string(config_.id) + "_roster_" + std::to_string(team_id);
 
-    float aspect = 1.0f;
-    if (profile_tmpl && profile_tmpl->size[0] > 0.0f &&
-        profile_tmpl->size[1] > 0.0f) {
-        aspect = profile_tmpl->size[1] / profile_tmpl->size[0];
-    }
-
     const size_t num_players = player_ids.size();
     if (element.orientation == "horizontal") {
-        float card_h = base_px_rect[3];
-        float card_w = card_h / aspect;
-        const float total_space = base_px_rect[2] -
-            item_spacing * static_cast<float>(num_players - 1);
-        const float max_w = total_space / static_cast<float>(num_players);
-        if (max_w > 0.0f && card_w > max_w) {
-            card_w = max_w;
-            card_h = card_w * aspect;
+        const float total_w = static_cast<float>(num_players) * card_w +
+            (num_players > 1
+                 ? static_cast<float>(num_players - 1) * item_spacing
+                 : 0.0f);
+
+        float offset_x = 0.0f;
+        if (element.alignment == "center") {
+            offset_x = (base_px_rect[2] - total_w) / 2.0f;
+        } else if (element.alignment == "right") {
+            offset_x = base_px_rect[2] - total_w;
         }
 
         for (size_t i = 0; i < num_players; ++i) {
@@ -885,7 +973,7 @@ void VisualizationWindow::GenerateTeamRosterCommands(
             const auto pit = state.players.find(pid);
             if (pit == state.players.end()) continue;
 
-            const float target_x = base_px_rect[0] +
+            const float target_x = base_px_rect[0] + offset_x +
                 static_cast<float>(i) * (card_w + item_spacing);
             const float anim_x = list_animation_tracker_.GetAnimatedPosition(
                 list_key, pid, target_x, current_time_ms, anim_type, anim_dur);
@@ -895,14 +983,16 @@ void VisualizationWindow::GenerateTeamRosterCommands(
                 profile_tmpl, pit->second, team.rgb, card_rect, win_h, batch);
         }
     } else {
-        float card_w = base_px_rect[2];
-        float card_h = card_w * aspect;
-        const float total_space = base_px_rect[3] -
-            item_spacing * static_cast<float>(num_players - 1);
-        const float max_h = total_space / static_cast<float>(num_players);
-        if (max_h > 0.0f && card_h > max_h) {
-            card_h = max_h;
-            card_w = card_h / aspect;
+        const float total_h = static_cast<float>(num_players) * card_h +
+            (num_players > 1
+                 ? static_cast<float>(num_players - 1) * item_spacing
+                 : 0.0f);
+
+        float offset_x = 0.0f;
+        if (element.alignment == "center") {
+            offset_x = (base_px_rect[2] - card_w) / 2.0f;
+        } else if (element.alignment == "right") {
+            offset_x = base_px_rect[2] - card_w;
         }
 
         for (size_t i = 0; i < num_players; ++i) {
@@ -915,7 +1005,7 @@ void VisualizationWindow::GenerateTeamRosterCommands(
             const float anim_y = list_animation_tracker_.GetAnimatedPosition(
                 list_key, pid, target_y, current_time_ms, anim_type, anim_dur);
             const std::array<float, 4> card_rect{
-                base_px_rect[0], anim_y, card_w, card_h};
+                base_px_rect[0] + offset_x, anim_y, card_w, card_h};
             RenderPlayerProfileCard(
                 profile_tmpl, pit->second, team.rgb, card_rect, win_h, batch);
         }

@@ -56,6 +56,8 @@ public:
     void DoneWithTemplate();
 
     bool ClickSaveAndBack();
+    bool ClickSaveAndExit();
+    bool SaveAndExit();
 
     // Element selection and manipulation
     int GetSelectedElementIndex() const { return selected_element_index_; }
@@ -77,6 +79,11 @@ public:
 
     int GetSelectedTemplateId() const { return selected_template_id_; }
     bool IsEditingTemplate() const { return selected_template_id_ >= 0; }
+
+    TemplateConfig* GetActiveTemplate();
+    const TemplateConfig* GetActiveTemplate() const;
+    void SetActiveTemplateSize(float width, float height);
+    std::array<float, 2> GetActiveTemplateSize() const;
 
     bool IsNewWindowModalOpen() const { return show_new_window_modal_; }
     bool IsNewTemplateModalOpen() const { return show_new_template_modal_; }

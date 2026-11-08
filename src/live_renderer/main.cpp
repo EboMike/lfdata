@@ -153,7 +153,9 @@ int main(int argc, char* argv[]) {
 
     control_window.SetCallbacks({
         .on_reconnect = []() {},
-        .on_enter_ui_editor = []() {},
+        .on_enter_ui_editor = [&]() {
+            SDL_SetWindowTitle(main_window, "LF Live Renderer - UI Editor");
+        },
         .on_open_configuration = [&](const std::string&) {
             editor_window.SetUIConfigFile(global_cfg.ui_config_file);
             window_manager.SyncWithConfig(ui_cfg);
@@ -168,6 +170,7 @@ int main(int argc, char* argv[]) {
     editor_window.SetCallbacks({
         .on_save_and_back = [&]() {
             control_window.SetUIEditorMode(false);
+            SDL_SetWindowTitle(main_window, "LF Live Renderer - Control");
             window_manager.SyncWithConfig(ui_cfg);
         },
         .on_active_window_changed = [](int) {},
@@ -188,12 +191,20 @@ int main(int argc, char* argv[]) {
                 control_window.IsInUIEditorMode(),
                 control_window.IsInUIEditorMode() ? &editor_window : nullptr);
             if (event.type == SDL_QUIT) {
-                control_window.ClickQuit();
+                if (control_window.IsInUIEditorMode()) {
+                    editor_window.SaveAndExit();
+                } else {
+                    control_window.ClickQuit();
+                }
             } else if (
                 event.type == SDL_WINDOWEVENT &&
                 event.window.event == SDL_WINDOWEVENT_CLOSE &&
                 event.window.windowID == SDL_GetWindowID(main_window)) {
-                control_window.ClickQuit();
+                if (control_window.IsInUIEditorMode()) {
+                    editor_window.SaveAndExit();
+                } else {
+                    control_window.ClickQuit();
+                }
             } else if (
                 event.type == SDL_WINDOWEVENT &&
                 event.window.windowID == SDL_GetWindowID(main_window)) {

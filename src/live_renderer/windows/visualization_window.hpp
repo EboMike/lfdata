@@ -34,6 +34,13 @@ public:
 
     void SetDimensions(int width, int height);
 
+    void SetTemplateExtents(const std::array<float, 2>& extents) {
+        template_extents_ = extents;
+    }
+    const std::array<float, 2>& GetTemplateExtents() const {
+        return template_extents_;
+    }
+
     /**
      * @brief Generates all 2D draw commands for the window given the active game state snapshot.
      * @param state Active GameStateSnapshot (or mock state if previewing in editor).
@@ -123,6 +130,7 @@ private:
 
     WindowConfig config_;
     const UIConfig& ui_config_;
+    std::array<float, 2> template_extents_{0.0f, 0.0f};
     mutable ListAnimationTracker list_animation_tracker_;
     mutable MessagesDisplayTracker messages_display_tracker_;
     mutable EventScrollerTracker event_scroller_tracker_;

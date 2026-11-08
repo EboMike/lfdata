@@ -489,12 +489,13 @@ It has the following buttons:
 *   **New template**: Creates a new template. Opens a modal dialog to
     ask for the template name, and a dropbox with possible template
     types.
-*   **Save & Back**: Saves all changes and goes back to the main view.
+*   **Save & Exit**: Saves all changes and goes back to the main view.
+    Closing the UI editor window is equivalent to clicking "Save & Exit".
 
 There is also a list box with all templates. Clicking on one will hide
 all windows and only show that template so it can be edited. While
 editing templates, the following buttons are disabled: "New window",
-"next", "previous", "new template". "Save & Back" will change to
+"next", "previous", "new template". "Save & Exit" will change to
 "Done with template".
 
 There is also a list box with all elements in the current window. Selecting

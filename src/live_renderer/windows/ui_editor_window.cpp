@@ -210,6 +210,48 @@ void UIEditorWindow::SelectTemplateForEditing(int template_id) {
     }
 }
 
+TemplateConfig* UIEditorWindow::GetActiveTemplate() {
+    if (selected_template_id_ < 0) {
+        return nullptr;
+    }
+    auto it = std::find_if(
+        ui_config_.templates.begin(),
+        ui_config_.templates.end(),
+        [this](const TemplateConfig& t) {
+            return t.id == selected_template_id_;
+        });
+    return (it != ui_config_.templates.end()) ? &(*it) : nullptr;
+}
+
+const TemplateConfig* UIEditorWindow::GetActiveTemplate() const {
+    if (selected_template_id_ < 0) {
+        return nullptr;
+    }
+    auto it = std::find_if(
+        ui_config_.templates.begin(),
+        ui_config_.templates.end(),
+        [this](const TemplateConfig& t) {
+            return t.id == selected_template_id_;
+        });
+    return (it != ui_config_.templates.end()) ? &(*it) : nullptr;
+}
+
+void UIEditorWindow::SetActiveTemplateSize(float width, float height) {
+    auto* tmpl = GetActiveTemplate();
+    if (tmpl) {
+        tmpl->size[0] = std::max(0.001f, width);
+        tmpl->size[1] = std::max(0.001f, height);
+    }
+}
+
+std::array<float, 2> UIEditorWindow::GetActiveTemplateSize() const {
+    const auto* tmpl = GetActiveTemplate();
+    if (tmpl) {
+        return tmpl->size;
+    }
+    return {0.0f, 0.0f};
+}
+
 void UIEditorWindow::DoneWithTemplate() {
     selected_template_id_ = -1;
     selected_element_index_ = -1;
@@ -218,10 +260,9 @@ void UIEditorWindow::DoneWithTemplate() {
     }
 }
 
-bool UIEditorWindow::ClickSaveAndBack() {
+bool UIEditorWindow::SaveAndExit() {
     if (IsEditingTemplate()) {
         DoneWithTemplate();
-        return true;
     }
 
     if (!ui_config_file_.empty()) {
@@ -232,6 +273,18 @@ bool UIEditorWindow::ClickSaveAndBack() {
         callbacks_.on_save_and_back();
     }
     return true;
+}
+
+bool UIEditorWindow::ClickSaveAndExit() {
+    return SaveAndExit();
+}
+
+bool UIEditorWindow::ClickSaveAndBack() {
+    if (IsEditingTemplate()) {
+        DoneWithTemplate();
+        return true;
+    }
+    return SaveAndExit();
 }
 
 void UIEditorWindow::RenderImGui() {
@@ -342,7 +395,8 @@ void UIEditorWindow::RenderTopControls() {
     }
     ImGui::SameLine();
 
-    const char* save_btn_text = template_mode ? "Done with template" : "Save & Back";
+    const char* save_btn_text =
+        template_mode ? "Done with template" : "Save & Exit";
     if (ImGui::Button(save_btn_text, btn_size)) {
         ClickSaveAndBack();
     }
@@ -378,9 +432,34 @@ void UIEditorWindow::RenderActiveDetails() {
             ui_config_.templates.end(),
             [this](const TemplateConfig& t) { return t.id == selected_template_id_; });
         if (it != ui_config_.templates.end()) {
-            ImGui::Text("Active Template: #%d - %s", it->id, it->name.c_str());
-            ImGui::Text("Type: %s | Size: [%.2f, %.2f] | Elements: %zu",
-                        it->type.c_str(), it->size[0], it->size[1], it->elements.size());
+            ImGui::Text(
+                "Active Template: #%d - %s", it->id, it->name.c_str());
+            ImGui::Text(
+                "Type: %s | Elements: %zu",
+                it->type.c_str(), it->elements.size());
+            ImGui::Spacing();
+            ImGui::TextUnformatted("Template Extents (Width, Height):");
+            ImGui::SetNextItemWidth(120.0f);
+            if (ImGui::DragFloat(
+                    "Width##tmpl_w",
+                    &it->size[0],
+                    0.005f,
+                    0.01f,
+                    10.0f,
+                    "%.3f")) {
+                if (it->size[0] < 0.001f) it->size[0] = 0.001f;
+            }
+            ImGui::SameLine();
+            ImGui::SetNextItemWidth(120.0f);
+            if (ImGui::DragFloat(
+                    "Height##tmpl_h",
+                    &it->size[1],
+                    0.005f,
+                    0.01f,
+                    10.0f,
+                    "%.3f")) {
+                if (it->size[1] < 0.001f) it->size[1] = 0.001f;
+            }
         }
     } else {
         if (active_window_index_ >= 0 && active_window_index_ < static_cast<int>(ui_config_.windows.size())) {

@@ -76,7 +76,9 @@ public:
         int win_w,
         int win_h,
         std::vector<ElementConfig>& elements,
-        int& in_out_selected_index);
+        int& in_out_selected_index,
+        float ref_w = 0.0f,
+        float ref_h = 0.0f);
 
     /**
      * @brief Handles mouse motion during an active drag operation.
@@ -98,7 +100,9 @@ public:
         int win_w,
         int win_h,
         std::vector<ElementConfig>& elements,
-        int selected_index);
+        int selected_index,
+        float ref_w = 0.0f,
+        float ref_h = 0.0f);
 
     /**
      * @brief Handles mouse button release.
@@ -128,7 +132,9 @@ public:
         int win_w,
         int win_h,
         std::vector<ElementConfig>& elements,
-        int& in_out_selected_index);
+        int& in_out_selected_index,
+        float ref_w = 0.0f,
+        float ref_h = 0.0f);
 
     /**
      * @brief Tests if a point lies within a pixel bounding box.
@@ -175,7 +181,9 @@ public:
         float py,
         const std::vector<ElementConfig>& elements,
         int win_w,
-        int win_h);
+        int win_h,
+        float ref_w = 0.0f,
+        float ref_h = 0.0f);
 
 private:
     DragMode drag_mode_ = DragMode::None;
