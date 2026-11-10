@@ -16,6 +16,12 @@ storage instead of interacting with the actual website.
 
 ## Functionality
 
+### Competitions
+
+Competitions are defined in `design/competitions.md`.
+
+### Competition schedule
+
+API call: `/api/competitions/{competition_slug/schedule`
+
 ### Lookup a player by entity ID
-
-

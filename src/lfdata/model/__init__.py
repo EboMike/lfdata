@@ -1,7 +1,7 @@
 """Data models representing LF game concepts using SQLAlchemy.
 
-Provides database ORM models (LFGame, GameEntity, GameEvent, GameTeam, Player) and
-game constant enumerations (LFRole, LFTeamColor, LFTeamType, LFCentre).
+Provides database ORM models (LFGame, GameEntity, GameEvent, GameTeam,
+Competition, Player) and game constant enumerations.
 
 Usage example:
     from lfdata.model import LFGame, LFRole, LFTeamColor
@@ -13,6 +13,7 @@ Usage example:
 from lfdata.model.base import Base
 from lfdata.model.constants.centre import LFCentre
 from lfdata.model.constants.color import LFTeamColor
+from lfdata.model.constants.competition import StageType
 from lfdata.model.constants.role import LFRole
 from lfdata.model.constants.team_type import LFTeamType
 from lfdata.model.gametypes.laserball_events import LaserballEvent
@@ -29,6 +30,8 @@ from lfdata.model.gametypes.sm5_notability import (
     Sm5NotabilityResult,
 )
 from lfdata.model.gametypes.sm5_stats import Sm5Stats
+from lfdata.model.objects.competition import Competition
+from lfdata.model.objects.competition_team import CompetitionTeam
 from lfdata.model.objects.entity import GameEntity
 from lfdata.model.objects.event import GameEvent
 from lfdata.model.objects.game import LFGame
@@ -36,12 +39,15 @@ from lfdata.model.objects.player import Player
 from lfdata.model.objects.player_ammo_history import PlayerAmmoHistory
 from lfdata.model.objects.player_lives_history import PlayerLivesHistory
 from lfdata.model.objects.player_missiles_history import PlayerMissilesHistory
+from lfdata.model.objects.scheduled_game import ScheduledGame, format_game_name
 from lfdata.model.objects.score_history import ScoreHistory
 from lfdata.model.objects.state_history import PlayerStateHistory
 from lfdata.model.objects.team import GameTeam
 
 __all__ = [
     'Base',
+    'Competition',
+    'CompetitionTeam',
     'GameEntity',
     'GameEvent',
     'GameTeam',
@@ -61,9 +67,12 @@ __all__ = [
     'PlayerMissilesHistory',
     'PlayerStateHistory',
     'SM5Event',
+    'ScheduledGame',
     'ScoreHistory',
     'Sm5NotabilityCondition',
     'Sm5NotabilityEvaluator',
     'Sm5NotabilityResult',
     'Sm5Stats',
+    'StageType',
+    'format_game_name',
 ]

@@ -213,3 +213,16 @@ If none apply, the fallback is: `{blocks}/{blocked_by_others} blocks`.
 
 * Every update to the live renderer must increment the version number in
   src/live_renderer/version.hpp to verify that a new executable was built.
+
+## Competition and Schedule Data Models
+
+* `Competition` represents an event at a site in a given timeframe with
+  `teams` and `schedule` relationships.
+* `CompetitionTeam` uses its slug ID as the primary key string (`slug`),
+  storing `name`, `short_name`, `logo_url`, and links to `Player` objects via
+  the `competition_team_players` association table.
+* `ScheduledGame` stores `team_names` and `team_logos` as lists (which may
+  comprise composite teams without a 1:1 `CompetitionTeam` entry), scheduled
+  timestamps, `game_name` (e.g. `R1 M3 G2`, `R2 M3 H1`, `R2 M3 OT1`), optional
+  round/match/game numbers, `team_scores`, and computed `score_differential`.
+
