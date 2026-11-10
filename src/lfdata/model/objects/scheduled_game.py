@@ -26,6 +26,7 @@ Usage example:
 from __future__ import annotations
 
 from datetime import datetime
+import re
 from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, Integer, JSON, String
@@ -73,6 +74,43 @@ def format_game_name(
     if game_number is not None:
         parts.append(f'{stage_indicator}{game_number}')
     return ' '.join(parts)
+
+
+def parse_game_name(
+    game_name: str,
+) -> tuple[int | None, int | None, int | None, str]:
+    """Parses a game name into round, match, game numbers, and stage indicator.
+
+    Extracts optional round number from 'R{n}', match number from 'M{n}',
+    game number, and stage indicator (e.g. 'G', 'H', 'OT') from game name
+    strings such as 'R1 M3 G2', 'R2 M3 H1', or 'R2 M3 OT1'.
+
+    Args:
+        game_name: Formatted game name string to parse.
+
+    Returns:
+        tuple[int | None, int | None, int | None, str]: A tuple of
+            (round_number, match_number, game_number, stage_indicator).
+
+    Usage example:
+        round_num, match_num, game_num, stage = parse_game_name('R1 M3 G2')
+    """
+    round_match = re.search(r'\bR(\d+)\b', game_name)
+    round_number = int(round_match.group(1)) if round_match else None
+
+    match_match = re.search(r'\bM(\d+)\b', game_name)
+    match_number = int(match_match.group(1)) if match_match else None
+
+    game_number: int | None = None
+    stage_indicator = DEFAULT_STAGE_INDICATOR
+    for candidate in re.finditer(r'\b([A-Za-z]+)(\d+)\b', game_name):
+        prefix = candidate.group(1)
+        if prefix not in ('R', 'M'):
+            stage_indicator = prefix
+            game_number = int(candidate.group(2))
+            break
+
+    return (round_number, match_number, game_number, stage_indicator)
 
 
 class ScheduledGame(Base):

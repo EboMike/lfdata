@@ -8,6 +8,7 @@ from lfdata.model import (
     ScheduledGame,
     StageType,
     format_game_name,
+    parse_game_name,
 )
 
 
@@ -43,6 +44,16 @@ def test_format_game_name() -> None:
     assert format_game_name(match_number=5, game_number=1) == 'M5 G1'
     assert format_game_name(game_number=3) == 'G3'
     assert format_game_name() == ''
+
+
+def test_parse_game_name() -> None:
+    assert parse_game_name('R1 M3 G2') == (1, 3, 2, 'G')
+    assert parse_game_name('R2 M3 H1') == (2, 3, 1, 'H')
+    assert parse_game_name('R2 M3 OT1') == (2, 3, 1, 'OT')
+    assert parse_game_name('R1 G4') == (1, None, 4, 'G')
+    assert parse_game_name('M5 G1') == (None, 5, 1, 'G')
+    assert parse_game_name('G3') == (None, None, 3, 'G')
+    assert parse_game_name('Grand Final') == (None, None, None, 'G')
 
 
 def test_scheduled_game_initialization() -> None:

@@ -22,6 +22,14 @@ Competitions are defined in `design/competitions.md`.
 
 ### Competition schedule
 
-API call: `/api/competitions/{competition_slug/schedule`
+API call: `/api/competitions/{competition_slug}/schedule`
+
+Fetched by `LFStatsFetcher.fetch_competition_schedule(competition_slug)`.
+Returns a list of `ScheduledGame` instances with parsed round numbers, match
+numbers, game numbers, stage indicators, start/end timestamps, team names,
+team logos, scores, and differentials.
+
+In test mode (`test_mode=True`), reads from local JSON fixtures located
+under `tests/fixtures/lfstats/` (or custom `test_data_dir`).
 
 ### Lookup a player by entity ID

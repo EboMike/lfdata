@@ -39,7 +39,11 @@ from lfdata.model.objects.player import Player
 from lfdata.model.objects.player_ammo_history import PlayerAmmoHistory
 from lfdata.model.objects.player_lives_history import PlayerLivesHistory
 from lfdata.model.objects.player_missiles_history import PlayerMissilesHistory
-from lfdata.model.objects.scheduled_game import ScheduledGame, format_game_name
+from lfdata.model.objects.scheduled_game import (
+    ScheduledGame,
+    format_game_name,
+    parse_game_name,
+)
 from lfdata.model.objects.score_history import ScoreHistory
 from lfdata.model.objects.state_history import PlayerStateHistory
 from lfdata.model.objects.team import GameTeam
@@ -75,4 +79,5 @@ __all__ = [
     'Sm5Stats',
     'StageType',
     'format_game_name',
+    'parse_game_name',
 ]
