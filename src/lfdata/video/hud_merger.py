@@ -1,8 +1,9 @@
 """HUD video merging module for lfdata.
 
-This module provides functionality to combine a base video (e.g. GoPro footage)
-with HUD color and alpha mask overlay videos, handling resolution scaling,
-duration synchronization, and audio/video fade-out.
+This module provides functionality to combine base video (such as single or
+dual sequential GoPro footage) with HUD color and alpha mask overlay videos,
+handling concatenation, resolution scaling, duration synchronization, and
+audio/video fade-out.
 
 Usage example:
     from pathlib import Path
@@ -13,6 +14,7 @@ Usage example:
         hud_path=Path('hud.mp4'),
         hud_alpha_path=Path('hud_alpha.mp4'),
         output_path=Path('merged.mp4'),
+        gopro_2_path=Path('gopro2.mp4'),
     )
     merger = HudMerger()
     merger.merge(options)
@@ -54,7 +56,7 @@ class HudMergeOptions:
     """Configuration options for merging HUD and base videos.
 
     Public attributes:
-        gopro_path: Path to the base video file.
+        gopro_path: Path to the base video file, or list of paths.
         hud_path: Path to the color HUD video file.
         hud_alpha_path: Path to the alpha mask HUD video file.
         output_path: Path to the output video file.
@@ -65,9 +67,11 @@ class HudMergeOptions:
         lut_path: Path to a 3D LUT (.cube) file to apply to the GoPro video.
         start_ms: Start offset in milliseconds for the base GoPro video.
         ffmpeg_parameters: Additional parameters to pass to FFmpeg.
+        gopro_2_path: Optional path to a second base GoPro video file.
+        gopro_paths: List of all base GoPro video paths to concatenate.
     """
 
-    gopro_path: Path
+    gopro_path: Path | list[Path]
     hud_path: Path
     hud_alpha_path: Path
     output_path: Path
@@ -78,13 +82,31 @@ class HudMergeOptions:
     lut_path: Path | None = None
     start_ms: int = 0
     ffmpeg_parameters: str | list[str] | None = None
+    gopro_2_path: Path | None = None
+
+    @property
+    def gopro_paths(self) -> list[Path]:
+        """Returns the list of base GoPro video paths to concatenate.
+
+        Returns:
+            List of Path objects for all configured base video files.
+        """
+        paths: list[Path] = []
+        if isinstance(self.gopro_path, list):
+            paths.extend(self.gopro_path)
+        else:
+            paths.append(self.gopro_path)
+        if self.gopro_2_path and self.gopro_2_path not in paths:
+            paths.append(self.gopro_2_path)
+        return paths
 
 
 class HudMerger:
     """Merges a base video with color and alpha HUD overlays using FFmpeg.
 
     Probes video metadata, calculates synchronized durations, generates
-    composite filtergraphs with scaling and fade-outs, and executes FFmpeg.
+    composite filtergraphs with scaling, concatenation, and fade-outs, and
+    executes FFmpeg.
 
     Public attributes:
         ffprobe_bin: Name or path of the ffprobe executable.
@@ -272,9 +294,169 @@ class HudMerger:
         escaped = escaped.replace("'", r'\'')
         return escaped
 
+    def _build_concat_filter(
+        self,
+        metas: list[VideoMetadata],
+    ) -> tuple[list[str], str, str, bool]:
+        """Build concat filter expressions if multiple base videos exist.
+
+        Args:
+            metas: List of VideoMetadata for base videos.
+
+        Returns:
+            Tuple of (filter_lines, base_video_stream, base_audio_stream,
+            has_audio).
+        """
+        num_videos = len(metas)
+        if num_videos == 1:
+            return [], '[0:v]', '[0:a]', metas[0].has_audio
+
+        all_have_audio = all(m.has_audio for m in metas)
+        filters: list[str] = []
+        if all_have_audio:
+            inputs = ''.join(f'[{i}:v][{i}:a]' for i in range(num_videos))
+            concat_line = (
+                f'{inputs}concat=n={num_videos}:v=1:a=1'
+                '[gopro_raw_v][gopro_raw_a]'
+            )
+            filters.append(concat_line)
+            return filters, '[gopro_raw_v]', '[gopro_raw_a]', True
+
+        inputs = ''.join(f'[{i}:v]' for i in range(num_videos))
+        filters.append(f'{inputs}concat=n={num_videos}:v=1:a=0[gopro_raw_v]')
+        return filters, '[gopro_raw_v]', '[0:a]', metas[0].has_audio
+
+    def _build_gopro_filters(
+        self,
+        start_ms: int,
+        fade_start_ms: int,
+        fade_duration_ms: int,
+        effective_duration_ms: int,
+        final_duration_ms: int,
+        lut_path: Path | None = None,
+    ) -> list[str]:
+        """Build filter operations to apply to the base GoPro video stream.
+
+        Args:
+            start_ms: Start offset in milliseconds.
+            fade_start_ms: Time in milliseconds when fade out begins.
+            fade_duration_ms: Duration in milliseconds for fade out.
+            effective_duration_ms: Duration of active base video in ms.
+            final_duration_ms: Total duration of final output in ms.
+            lut_path: Optional path to a 3D LUT (.cube) file.
+
+        Returns:
+            List of filter strings to apply to the video stream.
+        """
+        filters: list[str] = []
+        if lut_path:
+            escaped_lut = self._escape_filter_path(path=lut_path)
+            filters.append(f"lut3d=file='{escaped_lut}'")
+
+        fade_dur_s = fade_duration_ms / MS_PER_SECOND
+        fade_st_s = fade_start_ms / MS_PER_SECOND
+        gopro_active_s = (fade_start_ms + fade_duration_ms) / MS_PER_SECOND
+        start_s = start_ms / MS_PER_SECOND
+
+        if start_ms > 0:
+            filters.append(
+                f'trim=start={start_s:.3f}:duration={gopro_active_s:.3f},'
+                'setpts=PTS-STARTPTS'
+            )
+        else:
+            filters.append(f'trim=duration={gopro_active_s:.3f}')
+
+        filters.append(f'fade=t=out:st={fade_st_s:.3f}:d={fade_dur_s:.3f}')
+
+        if effective_duration_ms < final_duration_ms:
+            pad_dur_s = (final_duration_ms - effective_duration_ms) / 1000.0
+            filters.append(
+                f'tpad=stop_mode=add:color=black:stop_duration={pad_dur_s:.3f}'
+            )
+        return filters
+
+    def _build_hud_overlay_filters(
+        self,
+        primary_meta: VideoMetadata,
+        hud_meta: VideoMetadata,
+        hud_idx: int,
+        alpha_idx: int,
+        final_duration_ms: int,
+    ) -> list[str]:
+        """Build scaling and alphamerge overlay filters for HUD streams.
+
+        Args:
+            primary_meta: Metadata of the primary base video.
+            hud_meta: Metadata of the HUD color video.
+            hud_idx: Stream index for the HUD color video input.
+            alpha_idx: Stream index for the HUD alpha mask video input.
+            final_duration_ms: Final total video duration in milliseconds.
+
+        Returns:
+            List of filter strings for HUD overlay and final video trimming.
+        """
+        filters: list[str] = []
+        diff_res = (
+            hud_meta.width != primary_meta.width
+            or hud_meta.height != primary_meta.height
+        )
+
+        if diff_res:
+            filters.append(
+                f'[{hud_idx}:v]scale={primary_meta.width}:'
+                f'{primary_meta.height}[hud_sc]'
+            )
+            filters.append(
+                f'[{alpha_idx}:v]scale={primary_meta.width}:'
+                f'{primary_meta.height}[alpha_sc]'
+            )
+            filters.append('[hud_sc][alpha_sc]alphamerge[ovr]')
+        else:
+            filters.append(f'[{hud_idx}:v][{alpha_idx}:v]alphamerge[ovr]')
+
+        filters.append('[gopro_v][ovr]overlay=shortest=0[merged_v]')
+        final_s = final_duration_ms / MS_PER_SECOND
+        filters.append(f'[merged_v]trim=duration={final_s:.3f}[outv]')
+        return filters
+
+    def _build_audio_filter(
+        self,
+        base_a: str,
+        start_ms: int,
+        fade_start_ms: int,
+        fade_duration_ms: int,
+    ) -> str:
+        """Build audio trim, PTS reset, and fade-out filter expressions.
+
+        Args:
+            base_a: Stream label for the input audio stream.
+            start_ms: Start offset in milliseconds.
+            fade_start_ms: Time in milliseconds when audio fade out begins.
+            fade_duration_ms: Duration in milliseconds for fade out.
+
+        Returns:
+            Formatted audio filter string.
+        """
+        fade_dur_s = fade_duration_ms / MS_PER_SECOND
+        fade_st_s = fade_start_ms / MS_PER_SECOND
+        gopro_active_s = (fade_start_ms + fade_duration_ms) / MS_PER_SECOND
+        start_s = start_ms / MS_PER_SECOND
+
+        if start_ms > 0:
+            return (
+                f'{base_a}atrim=start={start_s:.3f}:'
+                f'duration={gopro_active_s:.3f},'
+                'asetpts=PTS-STARTPTS,'
+                f'afade=t=out:st={fade_st_s:.3f}:d={fade_dur_s:.3f}[outa]'
+            )
+        return (
+            f'{base_a}atrim=duration={gopro_active_s:.3f},'
+            f'afade=t=out:st={fade_st_s:.3f}:d={fade_dur_s:.3f}[outa]'
+        )
+
     def build_filter_complex(
         self,
-        gopro_meta: VideoMetadata,
+        gopro_meta: VideoMetadata | list[VideoMetadata],
         hud_meta: VideoMetadata,
         final_duration_ms: int,
         fade_duration_ms: int,
@@ -285,7 +467,7 @@ class HudMerger:
         """Build the FFmpeg filter_complex graph string.
 
         Args:
-            gopro_meta: Probed GoPro video metadata.
+            gopro_meta: Probed GoPro metadata or list of metadata objects.
             hud_meta: Probed HUD video metadata.
             final_duration_ms: Total duration of final output in ms.
             fade_duration_ms: Duration of fade out in ms.
@@ -296,93 +478,74 @@ class HudMerger:
         Returns:
             FFmpeg filter complex string.
         """
-        effective_gopro_duration_ms = max(0, gopro_meta.duration_ms - start_ms)
+        metas = gopro_meta if isinstance(gopro_meta, list) else [gopro_meta]
+        total_gopro_ms = sum(m.duration_ms for m in metas)
+        effective_gopro_ms = max(0, total_gopro_ms - start_ms)
+
         filters: list[str] = []
-        final_s = final_duration_ms / MS_PER_SECOND
-        fade_dur_s = fade_duration_ms / MS_PER_SECOND
-        fade_st_s = fade_start_ms / MS_PER_SECOND
-        gopro_active_s = (fade_start_ms + fade_duration_ms) / MS_PER_SECOND
-        start_s = start_ms / MS_PER_SECOND
-
-        gopro_filters: list[str] = []
-        if lut_path:
-            escaped_lut = self._escape_filter_path(path=lut_path)
-            gopro_filters.append(f"lut3d=file='{escaped_lut}'")
-
-        if start_ms > 0:
-            gopro_filters.append(
-                f'trim=start={start_s:.3f}:duration={gopro_active_s:.3f},setpts=PTS-STARTPTS'
-            )
-        else:
-            gopro_filters.append(f'trim=duration={gopro_active_s:.3f}')
-
-        gopro_filters.append(
-            f'fade=t=out:st={fade_st_s:.3f}:d={fade_dur_s:.3f}'
+        concat_lines, base_v, base_a, has_audio = self._build_concat_filter(
+            metas=metas
         )
+        filters.extend(concat_lines)
 
-        if effective_gopro_duration_ms < final_duration_ms:
-            pad_dur_s = (
-                final_duration_ms - effective_gopro_duration_ms
-            ) / 1000.0
-            gopro_filters.append(
-                f'tpad=stop_mode=add:color=black:stop_duration={pad_dur_s:.3f}'
-            )
-
-        filters.append(f'[0:v]{",".join(gopro_filters)}[gopro_v]')
-
-        diff_res = (
-            hud_meta.width != gopro_meta.width
-            or hud_meta.height != gopro_meta.height
+        gopro_ops = self._build_gopro_filters(
+            start_ms=start_ms,
+            fade_start_ms=fade_start_ms,
+            fade_duration_ms=fade_duration_ms,
+            effective_duration_ms=effective_gopro_ms,
+            final_duration_ms=final_duration_ms,
+            lut_path=lut_path,
         )
+        filters.append(f'{base_v}{",".join(gopro_ops)}[gopro_v]')
 
-        if diff_res:
-            filters.append(
-                f'[1:v]scale={gopro_meta.width}:{gopro_meta.height}[hud_sc]'
+        hud_idx = len(metas)
+        alpha_idx = len(metas) + 1
+        hud_ops = self._build_hud_overlay_filters(
+            primary_meta=metas[0],
+            hud_meta=hud_meta,
+            hud_idx=hud_idx,
+            alpha_idx=alpha_idx,
+            final_duration_ms=final_duration_ms,
+        )
+        filters.extend(hud_ops)
+
+        if has_audio:
+            afilt = self._build_audio_filter(
+                base_a=base_a,
+                start_ms=start_ms,
+                fade_start_ms=fade_start_ms,
+                fade_duration_ms=fade_duration_ms,
             )
-            filters.append(
-                f'[2:v]scale={gopro_meta.width}:{gopro_meta.height}[alpha_sc]'
-            )
-            filters.append('[hud_sc][alpha_sc]alphamerge[ovr]')
-        else:
-            filters.append('[1:v][2:v]alphamerge[ovr]')
-
-        filters.append('[gopro_v][ovr]overlay=shortest=0[merged_v]')
-        filters.append(f'[merged_v]trim=duration={final_s:.3f}[outv]')
-
-        if gopro_meta.has_audio:
-            if start_ms > 0:
-                afade_filter = (
-                    f'[0:a]atrim=start={start_s:.3f}:duration={gopro_active_s:.3f},'
-                    f'asetpts=PTS-STARTPTS,'
-                    f'afade=t=out:st={fade_st_s:.3f}:d={fade_dur_s:.3f}[outa]'
-                )
-            else:
-                afade_filter = (
-                    f'[0:a]atrim=duration={gopro_active_s:.3f},'
-                    f'afade=t=out:st={fade_st_s:.3f}:d={fade_dur_s:.3f}[outa]'
-                )
-            filters.append(afade_filter)
+            filters.append(afilt)
 
         return ';'.join(filters)
 
     def build_ffmpeg_command(
         self,
         options: HudMergeOptions,
-        gopro_meta: VideoMetadata,
+        gopro_meta: VideoMetadata | list[VideoMetadata],
         hud_meta: VideoMetadata,
     ) -> list[str]:
         """Construct the complete FFmpeg command line arguments list.
 
         Args:
             options: Merge options configuration.
-            gopro_meta: Probed GoPro metadata.
+            gopro_meta: Probed GoPro metadata or list of metadata objects.
             hud_meta: Probed HUD metadata.
 
         Returns:
             List of command line argument strings for FFmpeg.
         """
+        metas = gopro_meta if isinstance(gopro_meta, list) else [gopro_meta]
+        total_duration_ms = sum(m.duration_ms for m in metas)
+        all_have_audio = (
+            all(m.has_audio for m in metas)
+            if len(metas) > 1
+            else metas[0].has_audio
+        )
+
         final_ms, fade_dur_ms, fade_st_ms = self.calculate_sync_parameters(
-            gopro_duration_ms=gopro_meta.duration_ms,
+            gopro_duration_ms=total_duration_ms,
             hud_duration_ms=hud_meta.duration_ms,
             requested_fade_duration_ms=options.fade_duration_ms,
             start_ms=options.start_ms,
@@ -401,19 +564,23 @@ class HudMerger:
         cmd: list[str] = [
             self.ffmpeg_bin,
             '-y' if options.overwrite else '-n',
-            '-i',
-            str(options.gopro_path),
-            '-i',
-            str(options.hud_path),
-            '-i',
-            str(options.hud_alpha_path),
-            '-filter_complex',
-            filter_complex,
-            '-map',
-            '[outv]',
         ]
+        for path in options.gopro_paths:
+            cmd.extend(['-i', str(path)])
+        cmd.extend(
+            [
+                '-i',
+                str(options.hud_path),
+                '-i',
+                str(options.hud_alpha_path),
+                '-filter_complex',
+                filter_complex,
+                '-map',
+                '[outv]',
+            ]
+        )
 
-        if gopro_meta.has_audio:
+        if all_have_audio:
             cmd.extend(['-map', '[outa]', '-c:a', 'aac'])
 
         cmd.extend(
@@ -455,12 +622,14 @@ class HudMerger:
         if options.lut_path and not options.lut_path.is_file():
             raise FileNotFoundError(f'LUT file not found: {options.lut_path}')
 
-        gopro_meta = self.probe_video(file_path=options.gopro_path)
+        gopro_metas = [
+            self.probe_video(file_path=p) for p in options.gopro_paths
+        ]
         hud_meta = self.probe_video(file_path=options.hud_path)
 
         cmd = self.build_ffmpeg_command(
             options=options,
-            gopro_meta=gopro_meta,
+            gopro_meta=gopro_metas if len(gopro_metas) > 1 else gopro_metas[0],
             hud_meta=hud_meta,
         )
 

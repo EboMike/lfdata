@@ -151,6 +151,18 @@ If none apply, the fallback is: `{blocks}/{blocked_by_others} blocks`.
 * This allows overriding default encoder settings (e.g. `-c:v libx265`, `-crf`,
   etc.) or specifying additional options (such as `-threads` or bitrate).
 
+## HUD Video Merger Multi-GoPro Support
+
+* `hudmerge` and `HudMergeOptions` support multiple sequential base GoPro videos
+  via `--gopro_2` (or `--gopro-2`), by passing a list of `Path` objects in
+  `gopro_path`, or by setting `gopro_2_path`.
+* When multiple GoPro videos are provided, `HudMerger` probes all inputs,
+  computes total duration, and concatenates them directly inside the FFmpeg
+  filtergraph in a single pass (`concat=n=N:v=1:a=1`).
+* This eliminates separate prior concatenation on disk, prevents timestamp
+  discontinuities from MP4 stream copying, and avoids double re-encoding.
+
+
 ## Authoritative Player Lives from TDF (Type 11 Records)
 
 * If a TDF file contains rows where the first column is 11, it provides

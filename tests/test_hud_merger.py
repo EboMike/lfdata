@@ -729,3 +729,155 @@ def test_merge_with_ffmpeg_parameters():
         assert '-preset' in called_cmd
         assert 'fast' in called_cmd
         assert called_cmd[-1] == 'merged.mp4'
+
+
+def test_hud_merge_options_gopro_paths_property():
+    single = HudMergeOptions(
+        gopro_path=Path('single.mp4'),
+        hud_path=Path('hud.mp4'),
+        hud_alpha_path=Path('alpha.mp4'),
+        output_path=Path('merged.mp4'),
+    )
+    assert single.gopro_paths == [Path('single.mp4')]
+
+    dual = HudMergeOptions(
+        gopro_path=Path('part1.mp4'),
+        hud_path=Path('hud.mp4'),
+        hud_alpha_path=Path('alpha.mp4'),
+        output_path=Path('merged.mp4'),
+        gopro_2_path=Path('part2.mp4'),
+    )
+    assert dual.gopro_paths == [Path('part1.mp4'), Path('part2.mp4')]
+
+    multi_list = HudMergeOptions(
+        gopro_path=[Path('a.mp4'), Path('b.mp4')],
+        hud_path=Path('hud.mp4'),
+        hud_alpha_path=Path('alpha.mp4'),
+        output_path=Path('merged.mp4'),
+    )
+    assert multi_list.gopro_paths == [Path('a.mp4'), Path('b.mp4')]
+
+
+def test_build_concat_filter_single_and_multi():
+    merger = HudMerger()
+    meta1 = VideoMetadata(
+        width=1920, height=1080, duration_ms=10000, has_audio=True
+    )
+    meta2 = VideoMetadata(
+        width=1920, height=1080, duration_ms=12000, has_audio=True
+    )
+    meta_no_audio = VideoMetadata(
+        width=1920, height=1080, duration_ms=8000, has_audio=False
+    )
+
+    lines_single, v_single, a_single, has_a = merger._build_concat_filter(
+        metas=[meta1]
+    )
+    assert lines_single == []
+    assert v_single == '[0:v]'
+    assert a_single == '[0:a]'
+    assert has_a is True
+
+    lines_dual, v_dual, a_dual, has_a2 = merger._build_concat_filter(
+        metas=[meta1, meta2]
+    )
+    assert len(lines_dual) == 1
+    assert 'concat=n=2:v=1:a=1' in lines_dual[0]
+    assert v_dual == '[gopro_raw_v]'
+    assert a_dual == '[gopro_raw_a]'
+    assert has_a2 is True
+
+    lines_na, v_na, a_na, has_na = merger._build_concat_filter(
+        metas=[meta1, meta_no_audio]
+    )
+    assert len(lines_na) == 1
+    assert 'concat=n=2:v=1:a=0' in lines_na[0]
+    assert v_na == '[gopro_raw_v]'
+
+
+def test_build_filter_complex_multi_gopro_with_start_ms():
+    merger = HudMerger()
+    meta1 = VideoMetadata(
+        width=1920, height=1080, duration_ms=20000, has_audio=True
+    )
+    meta2 = VideoMetadata(
+        width=1920, height=1080, duration_ms=25000, has_audio=True
+    )
+    hud_meta = VideoMetadata(
+        width=1920, height=1080, duration_ms=40000, has_audio=False
+    )
+
+    filter_str = merger.build_filter_complex(
+        gopro_meta=[meta1, meta2],
+        hud_meta=hud_meta,
+        final_duration_ms=40000,
+        fade_duration_ms=5000,
+        fade_start_ms=35000,
+        start_ms=3000,
+    )
+
+    assert '[0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1' in filter_str
+    assert '[gopro_raw_v]trim=start=3.000:duration=40.000' in filter_str
+    assert '[2:v][3:v]alphamerge[ovr]' in filter_str
+    assert '[gopro_v][ovr]overlay=shortest=0[merged_v]' in filter_str
+    assert '[merged_v]trim=duration=40.000[outv]' in filter_str
+    assert '[gopro_raw_a]atrim=start=3.000:duration=40.000' in filter_str
+
+
+def test_build_ffmpeg_command_multiple_gopros():
+    merger = HudMerger()
+    options = HudMergeOptions(
+        gopro_path=Path('part1.mp4'),
+        hud_path=Path('hud.mp4'),
+        hud_alpha_path=Path('alpha.mp4'),
+        output_path=Path('out.mp4'),
+        gopro_2_path=Path('part2.mp4'),
+    )
+    meta1 = VideoMetadata(
+        width=1920, height=1080, duration_ms=30000, has_audio=True
+    )
+    meta2 = VideoMetadata(
+        width=1920, height=1080, duration_ms=30000, has_audio=True
+    )
+    hud_meta = VideoMetadata(
+        width=1920, height=1080, duration_ms=55000, has_audio=False
+    )
+
+    cmd = merger.build_ffmpeg_command(
+        options=options,
+        gopro_meta=[meta1, meta2],
+        hud_meta=hud_meta,
+    )
+
+    input_indices = [idx for idx, arg in enumerate(cmd) if arg == '-i']
+    inputs = [cmd[idx + 1] for idx in input_indices]
+    assert inputs == ['part1.mp4', 'part2.mp4', 'hud.mp4', 'alpha.mp4']
+    assert '-map' in cmd
+    assert '[outv]' in cmd
+    assert '[outa]' in cmd
+
+
+def test_merge_multiple_gopros_executes():
+    merger = HudMerger()
+    options = HudMergeOptions(
+        gopro_path=Path('first.mp4'),
+        hud_path=Path('hud.mp4'),
+        hud_alpha_path=Path('alpha.mp4'),
+        output_path=Path('final_out.mp4'),
+        gopro_2_path=Path('second.mp4'),
+    )
+    dummy_meta = VideoMetadata(
+        width=1920, height=1080, duration_ms=25000, has_audio=True
+    )
+
+    with (
+        patch.object(merger, 'probe_video', return_value=dummy_meta) as mock_p,
+        patch('pathlib.Path.mkdir'),
+        patch('subprocess.run') as mock_run,
+    ):
+        merger.merge(options=options)
+        assert mock_p.call_count == 3  # first, second, hud
+        mock_run.assert_called_once()
+        cmd = mock_run.call_args[0][0]
+        assert 'first.mp4' in cmd
+        assert 'second.mp4' in cmd

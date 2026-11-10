@@ -224,3 +224,76 @@ def test_parse_options_ffmpeg_parameters_default_none():
     args = parser.parse_args(['gopro.mp4', 'hud.mp4', 'alpha.mp4'])
     options = parse_options(args=args)
     assert options.ffmpeg_parameters is None
+
+
+def test_build_argument_parser_gopro_2():
+    parser = build_argument_parser()
+    args = parser.parse_args(
+        ['gopro.mp4', 'hud.mp4', 'alpha.mp4', '--gopro_2', 'gopro2.mp4']
+    )
+    assert args.gopro_2 == 'gopro2.mp4'
+
+
+def test_build_argument_parser_gopro_2_kebab_case():
+    parser = build_argument_parser()
+    args = parser.parse_args(
+        ['gopro.mp4', 'hud.mp4', 'alpha.mp4', '--gopro-2', 'second.mp4']
+    )
+    assert args.gopro_2 == 'second.mp4'
+
+
+def test_parse_options_with_gopro_2():
+    parser = build_argument_parser()
+    args = parser.parse_args(
+        ['gopro.mp4', 'hud.mp4', 'alpha.mp4', '--gopro_2', 'gopro2.mp4']
+    )
+    options = parse_options(args=args)
+    assert options.gopro_2_path == Path('gopro2.mp4')
+    assert options.gopro_paths == [Path('gopro.mp4'), Path('gopro2.mp4')]
+
+
+def test_run_merge_dry_run_multiple_gopros(capsys):
+    options = HudMergeOptions(
+        gopro_path=Path('gopro1.mp4'),
+        hud_path=Path('hud.mp4'),
+        hud_alpha_path=Path('alpha.mp4'),
+        output_path=Path('merged.mp4'),
+        gopro_2_path=Path('gopro2.mp4'),
+    )
+    dummy_meta = VideoMetadata(
+        width=1920,
+        height=1080,
+        duration_ms=45000,
+        has_audio=True,
+    )
+
+    with patch(
+        'lfdata.video.hud_merger.HudMerger.probe_video',
+        return_value=dummy_meta,
+    ):
+        code = run_merge(options=options, dry_run=True)
+        assert code == 0
+        captured = capsys.readouterr()
+        assert 'Dry run FFmpeg command:' in captured.out
+        assert 'concat=n=2:v=1:a=1' in captured.out
+        assert '-i gopro1.mp4' in captured.out
+        assert '-i gopro2.mp4' in captured.out
+
+
+def test_main_with_gopro_2():
+    with patch(
+        'lfdata.video.hudmerge.run_merge', return_value=0
+    ) as mock_run_merge:
+        exit_code = main(
+            [
+                'gopro.mp4',
+                'hud.mp4',
+                'alpha.mp4',
+                '--gopro_2',
+                'gopro2.mp4',
+            ]
+        )
+        assert exit_code == 0
+        mock_run_merge.assert_called_once()
+        opts = mock_run_merge.call_args[1]['options']
+        assert opts.gopro_2_path == Path('gopro2.mp4')
