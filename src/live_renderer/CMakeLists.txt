@@ -124,6 +124,8 @@ set(CORE_SOURCES
     model/competition_team.cpp
     model/scheduled_game.cpp
     model/competition.cpp
+    lfstats/competition_info.cpp
+    lfstats/lfstats_fetcher.cpp
 )
 
 add_library(live_renderer_core STATIC ${CORE_SOURCES})
@@ -139,7 +141,7 @@ target_link_libraries(live_renderer_core PUBLIC
 if(WIN32)
     target_link_libraries(live_renderer_core PUBLIC
         ws2_32 comdlg32 dbghelp gdi32 advapi32
-        mfplat mfreadwrite mfuuid propsys)
+        mfplat mfreadwrite mfuuid propsys winhttp)
 endif()
 
 # Tests
@@ -171,6 +173,7 @@ add_executable(live_renderer_tests
     tests/test_event_scroller_tracker.cpp
     tests/test_render_geometry.cpp
     tests/test_competition.cpp
+    tests/test_lfstats_fetcher.cpp
 )
 target_link_libraries(live_renderer_tests PRIVATE
     live_renderer_core

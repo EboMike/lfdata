@@ -1,0 +1,674 @@
+/**
+ * Implementation of LFStatsFetcher client in LF Live Renderer.
+ *
+ * Provides thread-safe HTTP querying, local fixture loading for tests,
+ * JSON conversion to competition and scheduled game models, and background
+ * task execution to prevent blocking render threads.
+ *
+ * Usage example:
+ *   live_renderer::LFStatsFetcher fetcher(true, "tests/fixtures/lfstats");
+ *   auto games = fetcher.FetchCompetitionSchedule("syracuse_trios_2026");
+ */
+
+#include "live_renderer/lfstats/lfstats_fetcher.hpp"
+
+#include <algorithm>
+#include <cctype>
+#include <chrono>
+#include <cstdio>
+#include <ctime>
+#include <filesystem>
+#include <fstream>
+#include <iostream>
+#include <regex>
+#include <sstream>
+#include <stdexcept>
+#include <yaml-cpp/yaml.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#include <winhttp.h>
+#endif
+
+namespace live_renderer {
+namespace {
+
+constexpr int64_t kDefaultGameDurationMs = 15 * 60 * 1000;  // 15 minutes
+
+std::string TrimWhitespace(const std::string& s) {
+    auto start = s.begin();
+    while (start != s.end() &&
+           std::isspace(static_cast<unsigned char>(*start))) {
+        ++start;
+    }
+    auto end = s.end();
+    do {
+        --end;
+    } while (std::distance(start, end) > 0 &&
+             std::isspace(static_cast<unsigned char>(*end)));
+    return std::string(start, end + 1);
+}
+
+std::optional<int64_t> ParseIsoDatetimeToMs(const std::string& iso_str) {
+    if (iso_str.empty()) {
+        return std::nullopt;
+    }
+
+    int year = 0, month = 0, day = 0, hour = 0, min = 0, sec = 0;
+    int consumed = 0;
+    if (std::sscanf(iso_str.c_str(), "%d-%d-%dT%d:%d:%d%n",
+                    &year, &month, &day, &hour, &min, &sec,
+                    &consumed) < 6) {
+        return std::nullopt;
+    }
+
+    int frac_ms = 0;
+    const char* ptr = iso_str.c_str() + consumed;
+    if (*ptr == '.') {
+        ++ptr;
+        int divisor = 1000;
+        int val = 0;
+        while (std::isdigit(static_cast<unsigned char>(*ptr))) {
+            val = val * 10 + (*ptr - '0');
+            divisor /= 10;
+            ++ptr;
+        }
+        frac_ms = (divisor > 0) ? (val * divisor) : (val / 10);
+    }
+
+    int tz_offset_ms = 0;
+    if (*ptr == '+' || *ptr == '-') {
+        char sign = *ptr++;
+        int tz_h = 0, tz_m = 0;
+        if (std::sscanf(ptr, "%d:%d", &tz_h, &tz_m) >= 1) {
+            int total_mins = tz_h * 60 + tz_m;
+            int offset = total_mins * 60 * 1000;
+            tz_offset_ms = (sign == '+') ? offset : -offset;
+        }
+    }
+
+    std::tm tm_utc{};
+    tm_utc.tm_year = year - 1900;
+    tm_utc.tm_mon = month - 1;
+    tm_utc.tm_mday = day;
+    tm_utc.tm_hour = hour;
+    tm_utc.tm_min = min;
+    tm_utc.tm_sec = sec;
+    tm_utc.tm_isdst = 0;
+
+#ifdef _WIN32
+    time_t epoch_sec = _mkgmtime(&tm_utc);
+#else
+    time_t epoch_sec = timegm(&tm_utc);
+#endif
+    if (epoch_sec == static_cast<time_t>(-1)) {
+        return std::nullopt;
+    }
+
+    int64_t total_ms = static_cast<int64_t>(epoch_sec) * 1000 +
+                       frac_ms - tz_offset_ms;
+    return total_ms;
+}
+
+#ifdef _WIN32
+std::wstring Utf8ToWide(const std::string& str) {
+    if (str.empty()) return L"";
+    int size_needed = MultiByteToWideChar(
+        CP_UTF8, 0, str.c_str(), static_cast<int>(str.size()), nullptr, 0);
+    std::wstring result(size_needed, 0);
+    MultiByteToWideChar(
+        CP_UTF8, 0, str.c_str(), static_cast<int>(str.size()),
+        &result[0], size_needed);
+    return result;
+}
+
+std::string WideToUtf8(const std::wstring& wstr) {
+    if (wstr.empty()) return "";
+    int size_needed = WideCharToMultiByte(
+        CP_UTF8, 0, wstr.c_str(), static_cast<int>(wstr.size()),
+        nullptr, 0, nullptr, nullptr);
+    std::string result(size_needed, 0);
+    WideCharToMultiByte(
+        CP_UTF8, 0, wstr.c_str(), static_cast<int>(wstr.size()),
+        &result[0], size_needed, nullptr, nullptr);
+    return result;
+}
+
+std::string DefaultWinHttpTransport(
+    const std::string& url_str,
+    const std::string& user_agent,
+    int64_t timeout_ms) {
+    std::wstring wide_url = Utf8ToWide(url_str);
+    std::wstring wide_ua = Utf8ToWide(user_agent);
+
+    URL_COMPONENTS urlComp{};
+    urlComp.dwStructSize = sizeof(urlComp);
+    urlComp.dwSchemeLength = static_cast<DWORD>(-1);
+    urlComp.dwHostNameLength = static_cast<DWORD>(-1);
+    urlComp.dwUrlPathLength = static_cast<DWORD>(-1);
+    urlComp.dwExtraInfoLength = static_cast<DWORD>(-1);
+
+    if (!WinHttpCrackUrl(wide_url.c_str(), 0, 0, &urlComp)) {
+        throw std::runtime_error("Invalid URL: " + url_str);
+    }
+
+    std::wstring host(urlComp.lpszHostName, urlComp.dwHostNameLength);
+    std::wstring path(urlComp.lpszUrlPath, urlComp.dwUrlPathLength);
+    if (urlComp.dwExtraInfoLength > 0) {
+        path.append(urlComp.lpszExtraInfo, urlComp.dwExtraInfoLength);
+    }
+
+    HINTERNET hSession = WinHttpOpen(
+        wide_ua.c_str(), WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+        WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+    if (!hSession) {
+        throw std::runtime_error("WinHttpOpen failed");
+    }
+
+    DWORD dw_timeout = static_cast<DWORD>(timeout_ms);
+    WinHttpSetTimeouts(hSession, dw_timeout, dw_timeout,
+                       dw_timeout, dw_timeout);
+
+    HINTERNET hConnect = WinHttpConnect(
+        hSession, host.c_str(), urlComp.nPort, 0);
+    if (!hConnect) {
+        WinHttpCloseHandle(hSession);
+        throw std::runtime_error("WinHttpConnect failed: " + url_str);
+    }
+
+    DWORD open_flags = (urlComp.nScheme == INTERNET_SCHEME_HTTPS)
+                           ? WINHTTP_FLAG_SECURE
+                           : 0;
+    HINTERNET hRequest = WinHttpOpenRequest(
+        hConnect, L"GET", path.c_str(), nullptr,
+        WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, open_flags);
+    if (!hRequest) {
+        WinHttpCloseHandle(hConnect);
+        WinHttpCloseHandle(hSession);
+        throw std::runtime_error("WinHttpOpenRequest failed: " + url_str);
+    }
+
+    LPCWSTR accept_header = L"Accept: application/json\r\n";
+    BOOL sent = WinHttpSendRequest(
+        hRequest, accept_header, static_cast<DWORD>(-1),
+        nullptr, 0, 0, 0);
+    if (!sent || !WinHttpReceiveResponse(hRequest, nullptr)) {
+        WinHttpCloseHandle(hRequest);
+        WinHttpCloseHandle(hConnect);
+        WinHttpCloseHandle(hSession);
+        throw std::runtime_error("WinHttp request failed: " + url_str);
+    }
+
+    DWORD status_code = 0;
+    DWORD status_size = sizeof(status_code);
+    WinHttpQueryHeaders(
+        hRequest,
+        WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+        WINHTTP_HEADER_NAME_BY_INDEX, &status_code, &status_size,
+        WINHTTP_NO_HEADER_INDEX);
+
+    if (status_code != 200) {
+        WinHttpCloseHandle(hRequest);
+        WinHttpCloseHandle(hConnect);
+        WinHttpCloseHandle(hSession);
+        throw std::runtime_error(
+            "HTTP " + std::to_string(status_code) + " from " + url_str);
+    }
+
+    std::string response;
+    DWORD bytes_available = 0;
+    while (WinHttpQueryDataAvailable(hRequest, &bytes_available) &&
+           bytes_available > 0) {
+        std::vector<char> buffer(bytes_available);
+        DWORD bytes_read = 0;
+        if (WinHttpReadData(hRequest, buffer.data(), bytes_available,
+                            &bytes_read) && bytes_read > 0) {
+            response.append(buffer.data(), bytes_read);
+        }
+    }
+
+    WinHttpCloseHandle(hRequest);
+    WinHttpCloseHandle(hConnect);
+    WinHttpCloseHandle(hSession);
+    return response;
+}
+#endif
+
+ScheduledGame ConvertNodeToScheduledGame(const YAML::Node& item) {
+    std::string game_name;
+    if (item["gameName"] && !item["gameName"].IsNull()) {
+        game_name = item["gameName"].as<std::string>();
+    }
+
+    std::optional<int> round_num;
+    std::optional<int> match_num;
+    std::optional<int> game_num;
+    std::string stage = "G";
+    ScheduledGame::ParseGameName(
+        game_name, round_num, match_num, game_num, stage);
+
+    std::optional<int64_t> start_ms;
+    if (item["scheduledStartTime"] && !item["scheduledStartTime"].IsNull()) {
+        start_ms = ParseIsoDatetimeToMs(
+            item["scheduledStartTime"].as<std::string>());
+    }
+    if (!start_ms.has_value() && item["actualStartTime"] &&
+        !item["actualStartTime"].IsNull()) {
+        start_ms = ParseIsoDatetimeToMs(
+            item["actualStartTime"].as<std::string>());
+    }
+    if (!start_ms.has_value()) {
+        throw std::runtime_error(
+            "Cannot determine start_time for game '" + game_name + "'.");
+    }
+
+    std::optional<int64_t> end_ms;
+    if (item["scheduledEndTime"] && !item["scheduledEndTime"].IsNull()) {
+        end_ms = ParseIsoDatetimeToMs(
+            item["scheduledEndTime"].as<std::string>());
+    }
+    if (!end_ms.has_value()) {
+        end_ms = *start_ms + kDefaultGameDurationMs;
+    }
+
+    std::string team1_name =
+        (item["team1Name"] && !item["team1Name"].IsNull())
+            ? item["team1Name"].as<std::string>()
+            : "";
+    std::string team2_name =
+        (item["team2Name"] && !item["team2Name"].IsNull())
+            ? item["team2Name"].as<std::string>()
+            : "";
+    std::vector<std::string> team_names = {team1_name, team2_name};
+
+    std::string team1_logo =
+        (item["team1LogoUrl"] && !item["team1LogoUrl"].IsNull())
+            ? item["team1LogoUrl"].as<std::string>()
+            : "";
+    std::string team2_logo =
+        (item["team2LogoUrl"] && !item["team2LogoUrl"].IsNull())
+            ? item["team2LogoUrl"].as<std::string>()
+            : "";
+    std::vector<std::string> team_logos = {team1_logo, team2_logo};
+
+    std::optional<std::vector<int>> team_scores;
+    if (item["team1Score"] && !item["team1Score"].IsNull() &&
+        item["team2Score"] && !item["team2Score"].IsNull()) {
+        team_scores = std::vector<int>{
+            item["team1Score"].as<int>(),
+            item["team2Score"].as<int>()
+        };
+    }
+
+    return ScheduledGame(
+        game_name, team_names, team_logos,
+        start_ms, end_ms, round_num, match_num, game_num, stage,
+        team_scores);
+}
+
+}  // namespace
+
+LFStatsFetcher::LFStatsFetcher()
+    : LFStatsFetcher(LFStatsFetcherOptions()) {}
+
+LFStatsFetcher::LFStatsFetcher(const LFStatsFetcherOptions& options)
+    : options_(options) {
+    size_t num_threads = std::max<size_t>(1, options_.worker_threads);
+    for (size_t i = 0; i < num_threads; ++i) {
+        workers_.emplace_back([this]() {
+            while (true) {
+                std::function<void()> task;
+                {
+                    std::unique_lock<std::mutex> lock(queue_mutex_);
+                    cv_.wait(lock, [this]() {
+                        return stop_workers_ || !task_queue_.empty();
+                    });
+                    if (stop_workers_ && task_queue_.empty()) {
+                        return;
+                    }
+                    task = std::move(task_queue_.front());
+                    task_queue_.pop();
+                    ++active_tasks_;
+                }
+                try {
+                    task();
+                } catch (...) {
+                    // Task packaged_task stores exceptions
+                }
+                --active_tasks_;
+            }
+        });
+    }
+}
+
+LFStatsFetcher::LFStatsFetcher(
+    bool test_mode,
+    const std::string& test_data_dir)
+    : LFStatsFetcher([&]() {
+          LFStatsFetcherOptions opts;
+          opts.test_mode = test_mode;
+          opts.test_data_dir = test_data_dir;
+          return opts;
+      }()) {}
+
+LFStatsFetcher::~LFStatsFetcher() {
+    {
+        std::unique_lock<std::mutex> lock(queue_mutex_);
+        stop_workers_ = true;
+    }
+    cv_.notify_all();
+    for (auto& worker : workers_) {
+        if (worker.joinable()) {
+            worker.join();
+        }
+    }
+}
+
+void LFStatsFetcher::SetHttpTransport(HttpTransport transport) {
+    std::lock_guard<std::mutex> lock(options_mutex_);
+    http_transport_ = std::move(transport);
+}
+
+bool LFStatsFetcher::IsTestMode() const {
+    std::lock_guard<std::mutex> lock(options_mutex_);
+    return options_.test_mode;
+}
+
+void LFStatsFetcher::SetTestMode(bool test_mode) {
+    std::lock_guard<std::mutex> lock(options_mutex_);
+    options_.test_mode = test_mode;
+}
+
+const std::string& LFStatsFetcher::GetTestDataDir() const {
+    std::lock_guard<std::mutex> lock(options_mutex_);
+    return options_.test_data_dir;
+}
+
+void LFStatsFetcher::SetTestDataDir(const std::string& dir) {
+    std::lock_guard<std::mutex> lock(options_mutex_);
+    options_.test_data_dir = dir;
+}
+
+const std::string& LFStatsFetcher::GetBaseUrl() const {
+    std::lock_guard<std::mutex> lock(options_mutex_);
+    return options_.base_url;
+}
+
+void LFStatsFetcher::SetBaseUrl(const std::string& url) {
+    std::lock_guard<std::mutex> lock(options_mutex_);
+    options_.base_url = url;
+}
+
+int64_t LFStatsFetcher::GetTimeoutMs() const {
+    std::lock_guard<std::mutex> lock(options_mutex_);
+    return options_.timeout_ms;
+}
+
+void LFStatsFetcher::SetTimeoutMs(int64_t timeout_ms) {
+    std::lock_guard<std::mutex> lock(options_mutex_);
+    options_.timeout_ms = timeout_ms;
+}
+
+const std::string& LFStatsFetcher::GetUserAgent() const {
+    std::lock_guard<std::mutex> lock(options_mutex_);
+    return options_.user_agent;
+}
+
+void LFStatsFetcher::SetUserAgent(const std::string& user_agent) {
+    std::lock_guard<std::mutex> lock(options_mutex_);
+    options_.user_agent = user_agent;
+}
+
+size_t LFStatsFetcher::GetActiveTaskCount() const {
+    return active_tasks_.load();
+}
+
+template <typename F>
+auto LFStatsFetcher::EnqueueTask(F&& f)
+    -> std::future<std::invoke_result_t<F>> {
+    using ReturnType = std::invoke_result_t<F>;
+    auto task_ptr = std::make_shared<std::packaged_task<ReturnType()>>(
+        std::forward<F>(f));
+    std::future<ReturnType> fut = task_ptr->get_future();
+    {
+        std::unique_lock<std::mutex> lock(queue_mutex_);
+        if (stop_workers_) {
+            throw std::runtime_error("LFStatsFetcher worker pool is stopped.");
+        }
+        task_queue_.emplace([task_ptr]() { (*task_ptr)(); });
+    }
+    cv_.notify_one();
+    return fut;
+}
+
+std::string LFStatsFetcher::FetchRemoteJson(const std::string& endpoint_path) {
+    std::string base_url;
+    std::string user_agent;
+    int64_t timeout_ms = 0;
+    HttpTransport custom_transport;
+    {
+        std::lock_guard<std::mutex> lock(options_mutex_);
+        base_url = options_.base_url;
+        user_agent = options_.user_agent;
+        timeout_ms = options_.timeout_ms;
+        custom_transport = http_transport_;
+    }
+
+    while (!base_url.empty() && base_url.back() == '/') {
+        base_url.pop_back();
+    }
+    std::string norm_path = (endpoint_path.empty() || endpoint_path[0] != '/')
+                                ? ("/" + endpoint_path)
+                                : endpoint_path;
+    std::string full_url = base_url + norm_path;
+
+    if (custom_transport) {
+        return custom_transport(full_url, user_agent, timeout_ms);
+    }
+
+#ifdef _WIN32
+    return DefaultWinHttpTransport(full_url, user_agent, timeout_ms);
+#else
+    throw std::runtime_error(
+        "Direct HTTP transport not implemented on non-Windows platforms.");
+#endif
+}
+
+std::string LFStatsFetcher::LoadLocalFixture(
+    const std::vector<std::string>& candidate_paths,
+    const std::string& item_description) {
+    for (const auto& path_str : candidate_paths) {
+        std::filesystem::path p(path_str);
+        std::vector<std::filesystem::path> attempts = {
+            p,
+            std::filesystem::path("..") / p,
+            std::filesystem::path("../..") / p
+        };
+        for (const auto& attempt : attempts) {
+            if (std::filesystem::exists(attempt) &&
+                std::filesystem::is_regular_file(attempt)) {
+                std::ifstream file(attempt, std::ios::in | std::ios::binary);
+                if (file.is_open()) {
+                    std::ostringstream ss;
+                    ss << file.rdbuf();
+                    return ss.str();
+                }
+            }
+        }
+    }
+
+    std::ostringstream searched;
+    for (size_t i = 0; i < candidate_paths.size(); ++i) {
+        if (i > 0) searched << ", ";
+        searched << candidate_paths[i];
+    }
+    throw std::runtime_error(
+        "No local fixture found for " + item_description +
+        ". Checked: " + searched.str());
+}
+
+std::string LFStatsFetcher::FetchData(
+    const std::string& endpoint_path,
+    const std::vector<std::string>& candidate_paths,
+    const std::string& item_description) {
+    bool test_mode = false;
+    {
+        std::lock_guard<std::mutex> lock(options_mutex_);
+        test_mode = options_.test_mode;
+    }
+    if (test_mode) {
+        return LoadLocalFixture(candidate_paths, item_description);
+    }
+    return FetchRemoteJson(endpoint_path);
+}
+
+std::vector<CompetitionInfo> LFStatsFetcher::FetchCompetitions() {
+    std::string test_dir;
+    {
+        std::lock_guard<std::mutex> lock(options_mutex_);
+        test_dir = options_.test_data_dir;
+    }
+
+    std::filesystem::path base(test_dir);
+    std::vector<std::string> candidates = {
+        (base / "competitions.json").string(),
+        (base / "competitions" / "competitions.json").string(),
+        (base / "competitions" / "index.json").string()
+    };
+
+    std::string raw_json = FetchData(
+        "/competitions", candidates, "competitions list");
+
+    YAML::Node doc = YAML::Load(raw_json);
+    YAML::Node items;
+    if (doc.IsMap()) {
+        if (!doc["data"] || !doc["data"].IsSequence()) {
+            throw std::runtime_error("Expected 'data' field to be a list.");
+        }
+        items = doc["data"];
+    } else if (doc.IsSequence()) {
+        items = doc;
+    } else {
+        throw std::runtime_error(
+            "Expected competitions response to be a map or sequence.");
+    }
+
+    std::vector<CompetitionInfo> results;
+    for (size_t i = 0; i < items.size(); ++i) {
+        const auto& item = items[i];
+        if (!item.IsMap()) continue;
+        std::string name =
+            (item["name"] && !item["name"].IsNull())
+                ? item["name"].as<std::string>()
+                : "";
+        std::string slug =
+            (item["slug"] && !item["slug"].IsNull())
+                ? item["slug"].as<std::string>()
+                : "";
+        if (!name.empty() || !slug.empty()) {
+            results.emplace_back(name, slug);
+        }
+    }
+    return results;
+}
+
+std::vector<CompetitionInfo> LFStatsFetcher::FetchAllCompetitions() {
+    return FetchCompetitions();
+}
+
+std::vector<ScheduledGame> LFStatsFetcher::FetchCompetitionSchedule(
+    const std::string& competition_slug) {
+    std::string slug = TrimWhitespace(competition_slug);
+    if (slug.empty()) {
+        throw std::invalid_argument("competition_slug cannot be empty.");
+    }
+
+    std::string test_dir;
+    {
+        std::lock_guard<std::mutex> lock(options_mutex_);
+        test_dir = options_.test_data_dir;
+    }
+
+    std::filesystem::path base(test_dir);
+    std::vector<std::string> candidates = {
+        (base / "competitions" / slug / "schedule.json").string(),
+        (base / slug / "schedule.json").string(),
+        (base / (slug + "_schedule.json")).string(),
+        (base / (slug + ".json")).string()
+    };
+
+    std::string raw_json = FetchData(
+        "/competitions/" + slug + "/schedule",
+        candidates,
+        "schedule for '" + slug + "'");
+
+    YAML::Node doc = YAML::Load(raw_json);
+    if (!doc.IsSequence()) {
+        throw std::runtime_error("Expected schedule data to be a list.");
+    }
+
+    std::vector<ScheduledGame> schedule;
+    schedule.reserve(doc.size());
+    for (size_t i = 0; i < doc.size(); ++i) {
+        schedule.push_back(ConvertNodeToScheduledGame(doc[i]));
+    }
+    return schedule;
+}
+
+std::vector<ScheduledGame> LFStatsFetcher::FetchSchedule(
+    const std::string& competition_slug) {
+    return FetchCompetitionSchedule(competition_slug);
+}
+
+std::future<std::vector<CompetitionInfo>>
+LFStatsFetcher::FetchCompetitionsAsync() {
+    return EnqueueTask([this]() { return FetchCompetitions(); });
+}
+
+std::future<std::vector<CompetitionInfo>>
+LFStatsFetcher::FetchAllCompetitionsAsync() {
+    return FetchCompetitionsAsync();
+}
+
+std::future<std::vector<ScheduledGame>>
+LFStatsFetcher::FetchCompetitionScheduleAsync(
+    const std::string& competition_slug) {
+    return EnqueueTask([this, competition_slug]() {
+        return FetchCompetitionSchedule(competition_slug);
+    });
+}
+
+std::future<std::vector<ScheduledGame>>
+LFStatsFetcher::FetchScheduleAsync(const std::string& competition_slug) {
+    return FetchCompetitionScheduleAsync(competition_slug);
+}
+
+void LFStatsFetcher::FetchCompetitionsAsync(CompetitionsCallback callback) {
+    EnqueueTask([this, callback = std::move(callback)]() {
+        try {
+            auto result = FetchCompetitions();
+            callback(result, "");
+        } catch (const std::exception& e) {
+            callback({}, e.what());
+        } catch (...) {
+            callback({}, "Unknown error occurred while fetching competitions.");
+        }
+    });
+}
+
+void LFStatsFetcher::FetchCompetitionScheduleAsync(
+    const std::string& competition_slug,
+    ScheduleCallback callback) {
+    EnqueueTask([this, competition_slug, callback = std::move(callback)]() {
+        try {
+            auto result = FetchCompetitionSchedule(competition_slug);
+            callback(result, "");
+        } catch (const std::exception& e) {
+            callback({}, e.what());
+        } catch (...) {
+            callback({}, "Unknown error occurred while fetching schedule.");
+        }
+    });
+}
+
+}  // namespace live_renderer

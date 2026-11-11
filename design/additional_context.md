@@ -240,4 +240,8 @@ If none apply, the fallback is: `{blocks}/{blocked_by_others} blocks`.
 * In `live_renderer`, `Competition`, `CompetitionTeam`, and `ScheduledGame` are
   implemented under `src/live_renderer/model/` with millisecond timestamps
   (`_ms` suffix) and name formatting/parsing helpers.
+* In `live_renderer`, `LFStatsFetcher` under `src/live_renderer/lfstats/`
+  provides thread-safe multithreaded fetching of competition metadata and
+  schedules (synchronous, `std::future` async, and callback async) without
+  blocking continuous UI rendering, supporting multiple concurrent requests.
 
