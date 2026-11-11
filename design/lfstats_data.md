@@ -1,7 +1,7 @@
 # LFstats Data
 
-The live renderer and some other parts of ldata interact with the lfstats server
-to fetch data from the global stats database.
+The live renderer and some other parts of lfdata interact with the lfstats
+server to fetch data from the global stats database.
 
 All interactions are performed in code in the `lfstats/` subdirectory, with one
 class acting as the main interface.
@@ -19,6 +19,15 @@ storage instead of interacting with the actual website.
 ### Competitions
 
 Competitions are defined in `design/competitions.md`.
+
+API call: `/api/competitions`
+
+Fetched by `LFStatsFetcher.fetch_competitions()`.
+Returns a list of `CompetitionInfo` instances containing the `name` and `slug`
+of each competition.
+
+In test mode (`test_mode=True`), reads from `competitions.json` under
+`tests/fixtures/lfstats/` (or custom `test_data_dir`).
 
 ### Competition schedule
 

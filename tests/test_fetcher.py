@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 import pytest
 
+from lfdata.lfstats.competition_info import CompetitionInfo
 from lfdata.lfstats.fetcher import (
     DEFAULT_BASE_URL,
     DEFAULT_GAME_DURATION_MINUTES,
@@ -60,7 +61,7 @@ def test_fetch_competition_schedule_missing_fixture_raises(
     tmp_path: Path,
 ) -> None:
     fetcher = LFStatsFetcher(test_mode=True, test_data_dir=tmp_path)
-    with pytest.raises(FileNotFoundError, match='No local schedule fixture'):
+    with pytest.raises(FileNotFoundError, match='No local fixture found'):
         fetcher.fetch_competition_schedule('non_existent_competition')
 
 
@@ -156,7 +157,10 @@ def test_fetch_remote_schedule_mocked() -> None:
     mock_resp.read.return_value = fake_json
     mock_resp.__enter__.return_value = mock_resp
 
-    with patch('urllib.request.urlopen', return_value=mock_resp) as mock_urlopen:
+    with (
+        patch('urllib.request.urlopen', return_value=mock_resp)
+        as mock_urlopen
+    ):
         games = fetcher.fetch_competition_schedule('my_event')
         assert len(games) == 1
         assert games[0].game_name == 'R1 M1 G1'
@@ -175,3 +179,99 @@ def test_fetch_remote_schedule_live() -> None:
     except Exception as e:
         pytest.skip(f'Live LFstats API unreachable: {e}')
 
+
+def test_fetch_competitions_test_mode() -> None:
+    fetcher = LFStatsFetcher(test_mode=True)
+    comps = fetcher.fetch_competitions()
+
+    assert len(comps) == 2
+    assert comps[0] == CompetitionInfo(
+        name='Syracuse Trios 2026',
+        slug='syracuse_trios_2026',
+    )
+    assert comps[1] == CompetitionInfo(
+        name='Internationals 2026',
+        slug='internationals_2026',
+    )
+    assert comps[0].name == 'Syracuse Trios 2026'
+    assert comps[0].slug == 'syracuse_trios_2026'
+
+    alias_comps = fetcher.fetch_all_competitions()
+    assert alias_comps == comps
+
+
+def test_fetch_competitions_missing_fixture_raises(tmp_path: Path) -> None:
+    fetcher = LFStatsFetcher(test_mode=True, test_data_dir=tmp_path)
+    with pytest.raises(FileNotFoundError, match='No local fixture found'):
+        fetcher.fetch_competitions()
+
+
+def test_fetch_competitions_invalid_structure_raises(tmp_path: Path) -> None:
+    bad_file = tmp_path / 'competitions.json'
+    with open(bad_file, 'w', encoding='utf-8') as f:
+        json.dump({'data': 'not-a-list'}, f)
+
+    fetcher = LFStatsFetcher(test_mode=True, test_data_dir=tmp_path)
+    with pytest.raises(ValueError, match="Expected 'data' field to be a list"):
+        fetcher.fetch_competitions()
+
+    with open(bad_file, 'w', encoding='utf-8') as f:
+        json.dump(12345, f)
+
+    with pytest.raises(
+        ValueError, match='Expected competitions response to be a dict or list'
+    ):
+        fetcher.fetch_competitions()
+
+
+def test_fetch_competitions_raw_list(tmp_path: Path) -> None:
+    raw_list_file = tmp_path / 'competitions.json'
+    with open(raw_list_file, 'w', encoding='utf-8') as f:
+        json.dump([
+            {'name': 'Direct Cup', 'slug': 'direct_cup'},
+            'skip_non_dict',
+            {'name': '', 'slug': ''},
+        ], f)
+
+    fetcher = LFStatsFetcher(test_mode=True, test_data_dir=tmp_path)
+    comps = fetcher.fetch_competitions()
+    assert len(comps) == 1
+    assert comps[0].name == 'Direct Cup'
+    assert comps[0].slug == 'direct_cup'
+
+
+def test_fetch_competitions_mocked_remote() -> None:
+    fetcher = LFStatsFetcher(test_mode=False)
+    fake_json = json.dumps({
+        'data': [
+            {'name': 'National League', 'slug': 'nat_league'},
+        ],
+        'truncated': False,
+    }).encode('utf-8')
+
+    mock_resp = MagicMock()
+    mock_resp.read.return_value = fake_json
+    mock_resp.__enter__.return_value = mock_resp
+
+    with (
+        patch('urllib.request.urlopen', return_value=mock_resp)
+        as mock_urlopen
+    ):
+        comps = fetcher.fetch_competitions()
+        assert len(comps) == 1
+        assert comps[0].name == 'National League'
+        assert comps[0].slug == 'nat_league'
+        req = mock_urlopen.call_args[0][0]
+        assert req.full_url.endswith('/competitions')
+        assert req.headers['Accept'] == 'application/json'
+
+
+def test_fetch_competitions_live() -> None:
+    fetcher = LFStatsFetcher(test_mode=False)
+    try:
+        comps = fetcher.fetch_competitions()
+        assert len(comps) > 0
+        assert all(isinstance(c, CompetitionInfo) for c in comps)
+        assert any('syracuse' in c.slug.lower() for c in comps)
+    except Exception as e:
+        pytest.skip(f'Live LFstats API unreachable: {e}')

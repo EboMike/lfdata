@@ -1,14 +1,18 @@
 """LFstats API data fetcher module.
 
 This module provides the LFStatsFetcher class to interact with the LFstats API
-(https://lfstats.com/api), fetching competition schedules, teams, rosters, and
-player statistics. It supports a test mode where data is loaded from local
-storage fixtures instead of making live network requests.
+(https://lfstats.com/api), fetching competition lists, schedules, teams,
+rosters, and player statistics. It supports a test mode where data is loaded
+from local storage fixtures instead of making live network requests.
 
 Usage example:
     from lfdata.lfstats import LFStatsFetcher
 
     fetcher = LFStatsFetcher(test_mode=True)
+    competitions = fetcher.fetch_competitions()
+    for comp in competitions:
+        print(comp.name, comp.slug)
+
     schedule = fetcher.fetch_competition_schedule('syracuse_trios_2026')
     for game in schedule:
         print(game.game_name, game.team_names, game.start_time)
@@ -24,6 +28,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from lfdata.lfstats.competition_info import CompetitionInfo
 from lfdata.model.objects.scheduled_game import (
     ScheduledGame,
     parse_game_name,
@@ -160,6 +165,156 @@ class LFStatsFetcher:
         else:
             self.test_data_dir = DEFAULT_TEST_DATA_DIR
 
+    def _fetch_remote_json(self, endpoint_path: str) -> Any:
+        """Performs HTTP GET to retrieve remote JSON from an API endpoint.
+
+        Args:
+            endpoint_path: Relative URL path (e.g. '/competitions').
+
+        Returns:
+            Any: Parsed JSON response (dict or list).
+
+        Raises:
+            urllib.error.HTTPError: If the server returns an HTTP error status.
+            urllib.error.URLError: If the network connection fails.
+        """
+        normalized_path = (
+            endpoint_path
+            if endpoint_path.startswith('/')
+            else f'/{endpoint_path}'
+        )
+        url = f'{self.base_url}{normalized_path}'
+        req = urllib.request.Request(
+            url,
+            headers={
+                'User-Agent': self.user_agent,
+                'Accept': 'application/json',
+            },
+        )
+        with urllib.request.urlopen(req, timeout=self.timeout_seconds) as resp:
+            content = resp.read().decode('utf-8')
+            return json.loads(content)
+
+    def _load_local_fixture(
+        self,
+        candidate_paths: list[Path],
+        item_description: str,
+    ) -> Any:
+        """Loads data from the first matching local JSON fixture file.
+
+        Args:
+            candidate_paths: List of relative candidate file paths to check.
+            item_description: Human-readable description for error messages.
+
+        Returns:
+            Any: Parsed JSON data from the first existing fixture file.
+
+        Raises:
+            FileNotFoundError: If none of the candidate files exist.
+        """
+        for path in candidate_paths:
+            if path.is_file():
+                with open(path, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+
+        searched = ', '.join(str(p) for p in candidate_paths)
+        raise FileNotFoundError(
+            f'No local fixture found for {item_description}. '
+            f'Checked: {searched}'
+        )
+
+    def _fetch_data(
+        self,
+        endpoint_path: str,
+        candidate_fixture_paths: list[Path],
+        item_description: str,
+    ) -> Any:
+        """Fetches data from local fixture in test mode or HTTP in live mode.
+
+        Args:
+            endpoint_path: Relative API endpoint path.
+            candidate_fixture_paths: Candidate paths for local fixture loading.
+            item_description: Human-readable description for error reporting.
+
+        Returns:
+            Any: Parsed JSON data.
+        """
+        if self.test_mode:
+            return self._load_local_fixture(
+                candidate_paths=candidate_fixture_paths,
+                item_description=item_description,
+            )
+        return self._fetch_remote_json(endpoint_path=endpoint_path)
+
+    def fetch_competitions(self) -> list[CompetitionInfo]:
+        """Fetches all competitions, returning their names and slugs.
+
+        Queries the LFstats API at /api/competitions or loads the competitions
+        fixture from local storage if in test mode.
+
+        Returns:
+            list[CompetitionInfo]: List of CompetitionInfo objects.
+
+        Raises:
+            ValueError: If the API response format is invalid.
+            FileNotFoundError: If test_mode is enabled but no local competitions
+                fixture exists.
+            urllib.error.HTTPError: If the remote API returns an HTTP error.
+            urllib.error.URLError: If connection to the remote API fails.
+
+        Usage example:
+            fetcher = LFStatsFetcher()
+            competitions = fetcher.fetch_competitions()
+            for comp in competitions:
+                print(comp.name, comp.slug)
+        """
+        candidate_paths = [
+            self.test_data_dir / 'competitions.json',
+            self.test_data_dir / 'competitions' / 'competitions.json',
+            self.test_data_dir / 'competitions' / 'index.json',
+        ]
+        raw_data = self._fetch_data(
+            endpoint_path='/competitions',
+            candidate_fixture_paths=candidate_paths,
+            item_description='competitions list',
+        )
+
+        if isinstance(raw_data, dict):
+            items = raw_data.get('data')
+            if not isinstance(items, list):
+                raise ValueError(
+                    f"Expected 'data' field to be a list, got {type(items)}."
+                )
+        elif isinstance(raw_data, list):
+            items = raw_data
+        else:
+            raise ValueError(
+                'Expected competitions response to be a dict or list, got '
+                f'{type(raw_data)}.'
+            )
+
+        results: list[CompetitionInfo] = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get('name', ''))
+            slug = str(item.get('slug', ''))
+            if name or slug:
+                results.append(CompetitionInfo(name=name, slug=slug))
+        return results
+
+    def fetch_all_competitions(self) -> list[CompetitionInfo]:
+        """Convenience alias for fetch_competitions.
+
+        Returns:
+            list[CompetitionInfo]: List of CompetitionInfo objects.
+
+        Usage example:
+            fetcher = LFStatsFetcher()
+            competitions = fetcher.fetch_all_competitions()
+        """
+        return self.fetch_competitions()
+
     def fetch_competition_schedule(
         self,
         competition_slug: str,
@@ -192,14 +347,27 @@ class LFStatsFetcher:
         if not slug:
             raise ValueError('competition_slug cannot be empty.')
 
-        if self.test_mode:
-            raw_data = self._load_local_schedule_fixture(competition_slug=slug)
-        else:
-            raw_data = self._fetch_remote_schedule(competition_slug=slug)
+        encoded_slug = urllib.parse.quote(slug)
+        candidate_paths = [
+            (
+                self.test_data_dir
+                / 'competitions'
+                / slug
+                / 'schedule.json'
+            ),
+            self.test_data_dir / slug / 'schedule.json',
+            self.test_data_dir / f'{slug}_schedule.json',
+            self.test_data_dir / f'{slug}.json',
+        ]
+        raw_data = self._fetch_data(
+            endpoint_path=f'/competitions/{encoded_slug}/schedule',
+            candidate_fixture_paths=candidate_paths,
+            item_description=f"schedule of '{slug}'",
+        )
 
         if not isinstance(raw_data, list):
             raise ValueError(
-                f"Expected schedule data to be a list, got {type(raw_data)}."
+                f'Expected schedule data to be a list, got {type(raw_data)}.'
             )
 
         return [_convert_game_dict_to_scheduled_game(item) for item in raw_data]
@@ -218,6 +386,10 @@ class LFStatsFetcher:
 
         Raises:
             ValueError: If competition_slug is empty.
+
+        Usage example:
+            fetcher = LFStatsFetcher()
+            games = fetcher.fetch_schedule('syracuse_trios_2026')
         """
         return self.fetch_competition_schedule(
             competition_slug=competition_slug
@@ -228,8 +400,6 @@ class LFStatsFetcher:
         competition_slug: str,
     ) -> list[dict[str, Any]]:
         """Loads schedule data from a local JSON fixture file.
-
-        Searches common relative paths under self.test_data_dir.
 
         Args:
             competition_slug: Unique competition slug to find.
@@ -251,15 +421,9 @@ class LFStatsFetcher:
             self.test_data_dir / f'{competition_slug}_schedule.json',
             self.test_data_dir / f'{competition_slug}.json',
         ]
-        for path in candidate_paths:
-            if path.is_file():
-                with open(path, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-
-        searched = ', '.join(str(p) for p in candidate_paths)
-        raise FileNotFoundError(
-            f"No local schedule fixture found for '{competition_slug}'. "
-            f'Checked: {searched}'
+        return self._load_local_fixture(
+            candidate_paths=candidate_paths,
+            item_description=f"schedule for '{competition_slug}'",
         )
 
     def _fetch_remote_schedule(
@@ -279,14 +443,6 @@ class LFStatsFetcher:
             urllib.error.URLError: If connection fails.
         """
         encoded_slug = urllib.parse.quote(competition_slug)
-        url = f'{self.base_url}/competitions/{encoded_slug}/schedule'
-        req = urllib.request.Request(
-            url,
-            headers={
-                'User-Agent': self.user_agent,
-                'Accept': 'application/json',
-            },
+        return self._fetch_remote_json(
+            endpoint_path=f'/competitions/{encoded_slug}/schedule'
         )
-        with urllib.request.urlopen(req, timeout=self.timeout_seconds) as resp:
-            content = resp.read().decode('utf-8')
-            return json.loads(content)
