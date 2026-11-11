@@ -237,4 +237,7 @@ If none apply, the fallback is: `{blocks}/{blocked_by_others} blocks`.
   comprise composite teams without a 1:1 `CompetitionTeam` entry), scheduled
   timestamps, `game_name` (e.g. `R1 M3 G2`, `R2 M3 H1`, `R2 M3 OT1`), optional
   round/match/game numbers, `team_scores`, and computed `score_differential`.
+* In `live_renderer`, `Competition`, `CompetitionTeam`, and `ScheduledGame` are
+  implemented under `src/live_renderer/model/` with millisecond timestamps
+  (`_ms` suffix) and name formatting/parsing helpers.
 

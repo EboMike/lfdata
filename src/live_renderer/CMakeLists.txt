@@ -121,6 +121,9 @@ set(CORE_SOURCES
     components/list_animation_tracker.cpp
     components/messages_display_tracker.cpp
     components/event_scroller_tracker.cpp
+    model/competition_team.cpp
+    model/scheduled_game.cpp
+    model/competition.cpp
 )
 
 add_library(live_renderer_core STATIC ${CORE_SOURCES})
@@ -167,6 +170,7 @@ add_executable(live_renderer_tests
     tests/test_messages_display_tracker.cpp
     tests/test_event_scroller_tracker.cpp
     tests/test_render_geometry.cpp
+    tests/test_competition.cpp
 )
 target_link_libraries(live_renderer_tests PRIVATE
     live_renderer_core
