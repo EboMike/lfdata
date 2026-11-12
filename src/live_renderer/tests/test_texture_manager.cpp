@@ -4,6 +4,9 @@
  */
 
 #include <gtest/gtest.h>
+#include <filesystem>
+#include "live_renderer/config/global_config.hpp"
+#include "live_renderer/render/texture_downloader.hpp"
 #include "live_renderer/render/texture_manager.hpp"
 
 namespace live_renderer {
@@ -68,5 +71,36 @@ TEST(TextureManagerTest, LoadsExistingAssetDimensions) {
     }
 }
 
-}  // namespace live_renderer
+TEST(TextureManagerTest, LoadsDefaultPlayerAssetDimensions) {
+    TextureManager tm;
+    int w = -1;
+    int h = -1;
+    bool ok = tm.GetTextureDimensions(kDefaultProfilePictureAsset, w, h);
+    if (ok) {
+        EXPECT_EQ(w, 256);
+        EXPECT_EQ(h, 256);
+    }
+}
 
+TEST(TextureManagerTest, HttpUrlUsesFallbackWhenOfflineOrFailed) {
+    namespace fs = std::filesystem;
+    std::string test_cache = ".cache/test_tm_cache";
+    fs::remove_all(test_cache);
+
+    auto fail_fetcher = [](const std::string& url) -> std::vector<uint8_t> {
+        return {};
+    };
+
+    auto downloader =
+        std::make_unique<TextureDownloader>(test_cache, fail_fetcher);
+    TextureManager tm(std::move(downloader));
+
+    // When URL download fails, GetTexture returns fallback texture (or 0 if no GL)
+    GLuint fallback_id = tm.GetFallbackTexture();
+    GLuint tex_id = tm.GetTexture("https://example.com/player_avatar.png");
+    EXPECT_EQ(tex_id, fallback_id);
+
+    fs::remove_all(test_cache);
+}
+
+}  // namespace live_renderer

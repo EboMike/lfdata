@@ -10,6 +10,8 @@
 
 namespace live_renderer {
 
+constexpr const char* kDefaultProfilePictureAsset = "assets/default_player.png";
+
 constexpr const char* kDefaultProfilePictureUrl =
     "https://lfstats-modern-images.s3.us-west-1.amazonaws.com/8c3b3ffc-85f7-49aa-a6a0-78ce8b0f658f";
 

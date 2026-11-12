@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include "live_renderer/config/global_config.hpp"
 #include "live_renderer/state/mock_game_state.hpp"
 #include "live_renderer/windows/visualization_window.hpp"
 
@@ -968,7 +969,7 @@ TEST(VisualizationWindowTest, TeamRosterRendersPlayerProfileTemplate) {
             has_fire_heavy = true;
         }
         if (cmd.type == RenderCommand::Type::TexturedQuad &&
-            cmd.texture_asset == "assets/sm5/commander.png") {
+            cmd.texture_asset == kDefaultProfilePictureAsset) {
             ++profile_pic_count;
         }
     }

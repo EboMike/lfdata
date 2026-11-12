@@ -3,6 +3,7 @@
 #include "live_renderer/components/game_timer_element.hpp"
 #include "live_renderer/components/scorecard_helper.hpp"
 #include "live_renderer/components/text_component.hpp"
+#include "live_renderer/config/global_config.hpp"
 #include "live_renderer/render/rich_text_layout.hpp"
 
 namespace live_renderer {
@@ -379,7 +380,7 @@ void VisualizationWindow::GenerateElementCommands(
             }
         }
         if (pic.empty()) {
-            pic = "assets/sm5/commander.png";
+            pic = kDefaultProfilePictureAsset;
         }
         cmd.texture_asset = pic;
         cmd.opacity = resolved_el.opacity;
@@ -980,7 +981,7 @@ void VisualizationWindow::RenderPlayerProfileCard(
             cmd.pixel_rect = pel_rect;
             std::string pic = !player.picture_url.empty()
                 ? player.picture_url
-                : (!pel.image_file.empty() ? pel.image_file : "assets/sm5/commander.png");
+                : (!pel.image_file.empty() ? pel.image_file : kDefaultProfilePictureAsset);
             cmd.texture_asset = pic;
             cmd.opacity = pel.opacity;
             cmd.fit = pel.fit.empty() ? "stretch" : pel.fit;

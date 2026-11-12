@@ -116,6 +116,7 @@ set(CORE_SOURCES
     widgets/file_dialog.cpp
     render/texture_fit.cpp
     render/render_geometry.cpp
+    render/texture_downloader.cpp
     render/texture_manager.cpp
     render/movie_manager.cpp
     render/mf_video_reader.cpp
@@ -167,6 +168,7 @@ add_executable(live_renderer_tests
     tests/test_file_dialog.cpp
     tests/test_font_renderer.cpp
     tests/test_texture_fit.cpp
+    tests/test_texture_downloader.cpp
     tests/test_texture_manager.cpp
     tests/test_movie_manager.cpp
     tests/test_mf_video_reader.cpp

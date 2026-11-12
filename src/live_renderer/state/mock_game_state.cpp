@@ -1,5 +1,6 @@
 #include "live_renderer/state/mock_game_state.hpp"
 #include <chrono>
+#include "live_renderer/config/global_config.hpp"
 
 namespace live_renderer {
 
@@ -96,6 +97,12 @@ GameStateSnapshot MockGameState::CreateMockSM5State() {
         {1, 245000,
          "<font color=\"#FF5000\">AlphaCommander</font> detonates nuke"}
     };
+
+    for (auto& [pid, p] : s.players) {
+        if (!p.is_dummy) {
+            p.picture_url = kDefaultProfilePictureAsset;
+        }
+    }
 
     return s;
 }

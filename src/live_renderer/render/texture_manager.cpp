@@ -4,6 +4,7 @@
  */
 
 #include "live_renderer/render/texture_manager.hpp"
+#include "live_renderer/config/global_config.hpp"
 #include "live_renderer/render/render_geometry.hpp"
 #include "live_renderer/render/texture_fit.hpp"
 
@@ -16,8 +17,21 @@
 
 namespace live_renderer {
 
+TextureManager::TextureManager(
+    std::unique_ptr<TextureDownloader> downloader)
+    : downloader_(std::move(downloader)) {
+    if (!downloader_) {
+        downloader_ = std::make_unique<TextureDownloader>();
+    }
+}
+
 TextureManager::~TextureManager() {
     UnloadAll();
+}
+
+void TextureManager::SetTextureDownloader(
+    std::unique_ptr<TextureDownloader> downloader) {
+    downloader_ = std::move(downloader);
 }
 
 void TextureManager::UnloadAll() {
@@ -90,12 +104,62 @@ bool TextureManager::LoadTextureFromFile(
     return true;
 }
 
+GLuint TextureManager::GetFallbackTexture() {
+    auto it = cache_.find(kDefaultProfilePictureAsset);
+    if (it != cache_.end() && it->second.texture_id != 0) {
+        return it->second.texture_id;
+    }
+
+    std::string resolved = ResolveAssetPath(kDefaultProfilePictureAsset);
+    TextureInfo info;
+    if (LoadTextureFromFile(resolved, info)) {
+        cache_[kDefaultProfilePictureAsset] = info;
+        return info.texture_id;
+    }
+    return 0;
+}
+
 GLuint TextureManager::GetTexture(const std::string& asset_path) {
     if (asset_path.empty()) return 0;
 
+    if (downloader_) {
+        downloader_->PollCompletedDownloads(
+            [this](const std::string& url, const std::string& cached_path) {
+                TextureInfo info;
+                if (LoadTextureFromFile(cached_path, info)) {
+                    auto it = cache_.find(url);
+                    if (it != cache_.end() && it->second.texture_id != 0) {
+                        glDeleteTextures(1, &it->second.texture_id);
+                    }
+                    cache_[url] = info;
+                }
+            });
+    }
+
     auto it = cache_.find(asset_path);
-    if (it != cache_.end()) {
+    if (it != cache_.end() && it->second.texture_id != 0) {
         return it->second.texture_id;
+    }
+
+    if (TextureDownloader::IsHttpUrl(asset_path)) {
+        if (!downloader_) {
+            downloader_ = std::make_unique<TextureDownloader>();
+        }
+
+        std::string cached = downloader_->GetCachedFilePath(asset_path);
+        if (!cached.empty()) {
+            TextureInfo info;
+            if (LoadTextureFromFile(cached, info)) {
+                cache_[asset_path] = info;
+                return info.texture_id;
+            }
+        }
+
+        if (!downloader_->HasFailed(asset_path)) {
+            downloader_->RequestDownloadAsync(asset_path);
+        }
+
+        return GetFallbackTexture();
     }
 
     std::string resolved = ResolveAssetPath(asset_path);
@@ -115,25 +179,43 @@ bool TextureManager::GetTextureDimensions(
     const std::string& asset_path, int& out_width, int& out_height) {
     if (asset_path.empty()) return false;
 
-    GetTexture(asset_path);
-    auto it = cache_.find(asset_path);
-    if (it != cache_.end() && it->second.texture_id != 0) {
-        out_width = it->second.width;
-        out_height = it->second.height;
-        return true;
+    GLuint tex = GetTexture(asset_path);
+    if (tex != 0) {
+        auto it = cache_.find(asset_path);
+        if (it != cache_.end() && it->second.texture_id != 0) {
+            out_width = it->second.width;
+            out_height = it->second.height;
+            return true;
+        }
+        it = cache_.find(kDefaultProfilePictureAsset);
+        if (it != cache_.end() && it->second.texture_id != 0) {
+            out_width = it->second.width;
+            out_height = it->second.height;
+            return true;
+        }
     }
     return false;
 }
 
 void TextureManager::RenderTexturedQuad(const RenderCommand& cmd) {
     GLuint tex = GetTexture(cmd.texture_asset);
+    if (tex == 0) {
+        tex = GetFallbackTexture();
+    }
+
     int tex_w = 0;
     int tex_h = 0;
     if (tex != 0) {
         auto it = cache_.find(cmd.texture_asset);
-        if (it != cache_.end()) {
+        if (it != cache_.end() && it->second.texture_id != 0) {
             tex_w = it->second.width;
             tex_h = it->second.height;
+        } else {
+            it = cache_.find(kDefaultProfilePictureAsset);
+            if (it != cache_.end() && it->second.texture_id != 0) {
+                tex_w = it->second.width;
+                tex_h = it->second.height;
+            }
         }
     }
 
@@ -193,4 +275,3 @@ void TextureManager::RenderTexturedQuad(const RenderCommand& cmd) {
 }
 
 }  // namespace live_renderer
-
