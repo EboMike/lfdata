@@ -347,7 +347,7 @@ LFStatsFetcher::LFStatsFetcher(
     : LFStatsFetcher([&]() {
           LFStatsFetcherOptions opts;
           opts.test_mode = test_mode;
-          opts.test_data_dir = test_data_dir;
+          opts.test_data_dir = ResolveDefaultTestDataDir(test_data_dir);
           return opts;
       }()) {}
 
@@ -387,6 +387,43 @@ const std::string& LFStatsFetcher::GetTestDataDir() const {
 void LFStatsFetcher::SetTestDataDir(const std::string& dir) {
     std::lock_guard<std::mutex> lock(options_mutex_);
     options_.test_data_dir = dir;
+}
+
+const std::vector<std::string>& LFStatsFetcher::GetDefaultTestDataPaths() {
+    static const std::vector<std::string> kDefaultPaths = {
+        "tests/fixtures/lfstats",
+        "tests/fixtures",
+        "../tests/fixtures/lfstats",
+        "../tests/fixtures",
+        "../../tests/fixtures/lfstats",
+        "../../tests/fixtures",
+        "../../../tests/fixtures/lfstats",
+        "../../../tests/fixtures"
+    };
+    return kDefaultPaths;
+}
+
+std::string LFStatsFetcher::ResolveDefaultTestDataDir(
+    const std::string& preferred) {
+    if (!preferred.empty()) {
+        std::filesystem::path pref_path(preferred);
+        if (std::filesystem::exists(pref_path) &&
+            std::filesystem::is_directory(pref_path)) {
+            return preferred;
+        }
+    }
+
+    for (const auto& path_str : GetDefaultTestDataPaths()) {
+        std::filesystem::path p(path_str);
+        if (std::filesystem::exists(p) && std::filesystem::is_directory(p)) {
+            if (std::filesystem::exists(p / "competitions.json") ||
+                std::filesystem::exists(p / "competitions")) {
+                return path_str;
+            }
+        }
+    }
+
+    return "tests/fixtures/lfstats";
 }
 
 const std::string& LFStatsFetcher::GetBaseUrl() const {
@@ -482,7 +519,8 @@ std::string LFStatsFetcher::LoadLocalFixture(
         std::vector<std::filesystem::path> attempts = {
             p,
             std::filesystem::path("..") / p,
-            std::filesystem::path("../..") / p
+            std::filesystem::path("../..") / p,
+            std::filesystem::path("../../..") / p
         };
         for (const auto& attempt : attempts) {
             if (std::filesystem::exists(attempt) &&
@@ -492,6 +530,31 @@ std::string LFStatsFetcher::LoadLocalFixture(
                     std::ostringstream ss;
                     ss << file.rdbuf();
                     return ss.str();
+                }
+            }
+        }
+    }
+
+    for (const auto& def_dir : GetDefaultTestDataPaths()) {
+        std::filesystem::path base(def_dir);
+        for (const auto& path_str : candidate_paths) {
+            std::filesystem::path p(path_str);
+            std::filesystem::path filename = p.filename();
+            std::vector<std::filesystem::path> attempts = {
+                base / filename
+            };
+            if (p.has_parent_path()) {
+                attempts.push_back(base / p.parent_path().filename() / filename);
+            }
+            for (const auto& attempt : attempts) {
+                if (std::filesystem::exists(attempt) &&
+                    std::filesystem::is_regular_file(attempt)) {
+                    std::ifstream file(attempt, std::ios::in | std::ios::binary);
+                    if (file.is_open()) {
+                        std::ostringstream ss;
+                        ss << file.rdbuf();
+                        return ss.str();
+                    }
                 }
             }
         }

@@ -184,12 +184,12 @@ def test_fetch_competitions_test_mode() -> None:
     fetcher = LFStatsFetcher(test_mode=True)
     comps = fetcher.fetch_competitions()
 
-    assert len(comps) == 2
+    assert len(comps) == 68
     assert comps[0] == CompetitionInfo(
         name='Syracuse Trios 2026',
         slug='syracuse_trios_2026',
     )
-    assert comps[1] == CompetitionInfo(
+    assert comps[3] == CompetitionInfo(
         name='Internationals 2026',
         slug='internationals_2026',
     )

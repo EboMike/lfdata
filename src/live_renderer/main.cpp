@@ -42,7 +42,8 @@ int main(int argc, char* argv[]) {
 
     std::string config_path = "live_renderer_config.yaml";
     int max_frames = -1;
-    bool lfstats_test = false;
+    bool lfstats_test_mode = false;
+    std::string lfstats_test_data_dir;
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -50,8 +51,17 @@ int main(int argc, char* argv[]) {
             config_path = argv[++i];
         } else if (arg == "--max-frames" && i + 1 < argc) {
             max_frames = std::stoi(argv[++i]);
-        } else if (arg == "--lfstats-test") {
-            lfstats_test = true;
+        } else if (
+            arg == "--lfstats-test-mode" || arg == "--lfstats-test_mode" ||
+            arg == "--lfstats-test") {
+            lfstats_test_mode = true;
+        } else if (
+            (arg == "--lfstats-test-data-dir" ||
+             arg == "--lfstats-test_data_dir" ||
+             arg == "--test-data-dir" ||
+             arg == "--test_data_dir") &&
+            i + 1 < argc) {
+            lfstats_test_data_dir = argv[++i];
         }
     }
 
@@ -90,7 +100,15 @@ int main(int argc, char* argv[]) {
     live_renderer::LiveStateStore state_store;
     live_renderer::ProtocolParser parser(state_store);
     live_renderer::TcpConsumerClient client(parser, global_cfg.host, global_cfg.port);
-    auto stats_fetcher = std::make_shared<live_renderer::LFStatsFetcher>(lfstats_test);
+    std::string resolved_test_dir =
+        live_renderer::LFStatsFetcher::ResolveDefaultTestDataDir(
+            lfstats_test_data_dir);
+    if (lfstats_test_mode) {
+        std::cout << "[live_renderer] Running in LFstats test mode with test data directory: "
+                  << resolved_test_dir << "\n";
+    }
+    auto stats_fetcher = std::make_shared<live_renderer::LFStatsFetcher>(
+        lfstats_test_mode, resolved_test_dir);
     live_renderer::MainControlWindow control_window(
         config_path, global_cfg, ui_cfg, state_store, client, stats_fetcher);
     live_renderer::UIEditorWindow editor_window(ui_cfg, global_cfg.ui_config_file);

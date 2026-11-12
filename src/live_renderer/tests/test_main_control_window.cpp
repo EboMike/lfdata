@@ -211,7 +211,7 @@ TEST(MainControlWindowTest, AboutModalAndMetadata) {
     EXPECT_STREQ(
         MainControlWindow::GetApplicationVersion(), kLiveRendererVersion);
     EXPECT_STREQ(
-        MainControlWindow::GetApplicationVersion(), "0.1.37");
+        MainControlWindow::GetApplicationVersion(), "0.1.39");
     EXPECT_STREQ(
         MainControlWindow::GetApplicationAuthor(), "EboMike");
 
@@ -251,11 +251,11 @@ TEST(MainControlWindowTest, CompetitionFetchStartupInTestMode) {
     EXPECT_EQ(win.GetCompetitionLoadingState(), CompetitionLoadingState::kLoaded);
 
     const auto competitions = win.GetCompetitions();
-    ASSERT_EQ(competitions.size(), 2u);
+    ASSERT_EQ(competitions.size(), 68u);
     EXPECT_EQ(competitions[0].GetName(), "Syracuse Trios 2026");
     EXPECT_EQ(competitions[0].GetSlug(), "syracuse_trios_2026");
-    EXPECT_EQ(competitions[1].GetName(), "Internationals 2026");
-    EXPECT_EQ(competitions[1].GetSlug(), "internationals_2026");
+    EXPECT_EQ(competitions[3].GetName(), "Internationals 2026");
+    EXPECT_EQ(competitions[3].GetSlug(), "internationals_2026");
 
     // Initially none selected
     EXPECT_EQ(win.GetSelectedCompetitionIndex(), -1);
@@ -270,9 +270,9 @@ TEST(MainControlWindowTest, CompetitionFetchStartupInTestMode) {
     EXPECT_EQ(win.GetSelectedCompetitionSlug(), "syracuse_trios_2026");
     EXPECT_EQ(win.GetCompetitionDropdownText(), "Syracuse Trios 2026");
 
-    // Select second competition by slug
+    // Select fourth competition by slug
     EXPECT_TRUE(win.SelectCompetitionBySlug("internationals_2026"));
-    EXPECT_EQ(win.GetSelectedCompetitionIndex(), 1);
+    EXPECT_EQ(win.GetSelectedCompetitionIndex(), 3);
     ASSERT_NE(win.GetSelectedCompetition(), nullptr);
     EXPECT_EQ(win.GetSelectedCompetition()->GetName(), "Internationals 2026");
     EXPECT_EQ(win.GetSelectedCompetitionSlug(), "internationals_2026");
@@ -280,7 +280,7 @@ TEST(MainControlWindowTest, CompetitionFetchStartupInTestMode) {
 
     // Select invalid slug fails and leaves current selection
     EXPECT_FALSE(win.SelectCompetitionBySlug("non_existent_comp"));
-    EXPECT_EQ(win.GetSelectedCompetitionIndex(), 1);
+    EXPECT_EQ(win.GetSelectedCompetitionIndex(), 3);
 
     // Deselect with index -1
     win.SelectCompetition(-1);

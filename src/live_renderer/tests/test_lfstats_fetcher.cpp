@@ -49,15 +49,28 @@ TEST(LFStatsFetcherTest, DefaultOptionsAndSetters) {
     EXPECT_EQ(fetcher.GetUserAgent(), "custom/2.0");
 }
 
+TEST(LFStatsFetcherTest, DefaultTestDataPathsAndResolver) {
+    const auto& default_paths = LFStatsFetcher::GetDefaultTestDataPaths();
+    EXPECT_FALSE(default_paths.empty());
+
+    // Resolve without preferred path should find an existing default path with competitions
+    std::string resolved = LFStatsFetcher::ResolveDefaultTestDataDir();
+    EXPECT_FALSE(resolved.empty());
+
+    // Preferred path that exists is preserved
+    std::string custom_resolved = LFStatsFetcher::ResolveDefaultTestDataDir("tests/fixtures/lfstats");
+    EXPECT_EQ(custom_resolved, "tests/fixtures/lfstats");
+}
+
 TEST(LFStatsFetcherTest, FetchCompetitionsTestMode) {
     LFStatsFetcher fetcher(true, "tests/fixtures/lfstats");
     auto competitions = fetcher.FetchCompetitions();
 
-    ASSERT_EQ(competitions.size(), 2u);
+    ASSERT_EQ(competitions.size(), 68u);
     EXPECT_EQ(competitions[0].GetSlug(), "syracuse_trios_2026");
     EXPECT_EQ(competitions[0].GetName(), "Syracuse Trios 2026");
-    EXPECT_EQ(competitions[1].GetSlug(), "internationals_2026");
-    EXPECT_EQ(competitions[1].GetName(), "Internationals 2026");
+    EXPECT_EQ(competitions[3].GetSlug(), "internationals_2026");
+    EXPECT_EQ(competitions[3].GetName(), "Internationals 2026");
 
     auto alias = fetcher.FetchAllCompetitions();
     EXPECT_EQ(competitions, alias);
@@ -156,7 +169,7 @@ TEST(LFStatsFetcherTest, AsyncFuturesNonBlocking) {
     ASSERT_TRUE(fut_sched.valid());
 
     auto comps = fut_comps.get();
-    EXPECT_EQ(comps.size(), 2u);
+    EXPECT_EQ(comps.size(), 68u);
 
     auto sched = fut_sched.get();
     EXPECT_EQ(sched.size(), 54u);
@@ -187,7 +200,7 @@ TEST(LFStatsFetcherTest, AsyncCallbacksNonBlocking) {
         });
 
     auto comps = future_comps.get();
-    EXPECT_EQ(comps.size(), 2u);
+    EXPECT_EQ(comps.size(), 68u);
 
     auto sched = future_sched.get();
     EXPECT_EQ(sched.size(), 54u);

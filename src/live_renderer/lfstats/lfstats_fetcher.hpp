@@ -138,6 +138,20 @@ public:
     void SetTestDataDir(const std::string& dir);
 
     /**
+     * Gets the default candidate search paths for test data.
+     * @return Vector of search path strings.
+     */
+    static const std::vector<std::string>& GetDefaultTestDataPaths();
+
+    /**
+     * Resolves the default test data directory, verifying fixture existence.
+     * @param preferred An optional preferred path to test first.
+     * @return Resolved existing directory path, or default fallback.
+     */
+    static std::string ResolveDefaultTestDataDir(
+        const std::string& preferred = "");
+
+    /**
      * Gets the base URL for the API endpoint.
      * @return Base URL string.
      */

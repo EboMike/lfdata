@@ -458,6 +458,16 @@ The global configuration YAML file has these settings:
 *   IP address and port to connect as a consumer of live LF data
 *   The UI configuration file to use
 
+## Command line options
+
+*   **--config**: Path to global configuration YAML file.
+*   **--preferences**: Path to local preferences YAML file.
+*   **--lfstats-test-mode** (or **--lfstats-test**): Run in LFstats test
+    mode, using local fixture data instead of live network services.
+*   **--lfstats-test-data-dir**: Directory path containing LFstats test
+    fixtures.
+*   **--max-frames**: Maximum number of frames to render before exiting.
+
 ## Main control window
 
 The main control window has a connection status indicator on top.
