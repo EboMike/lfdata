@@ -23,6 +23,10 @@ bool ConfigSerializer::LoadGlobalConfig(const std::string& path, GlobalConfig& o
         if (doc["preferences_file"]) {
             out_config.preferences_file = doc["preferences_file"].as<std::string>();
         }
+        if (doc["default_profile_picture_url"]) {
+            out_config.default_profile_picture_url =
+                doc["default_profile_picture_url"].as<std::string>();
+        }
         return true;
     } catch (...) {
         return false;
@@ -39,6 +43,8 @@ bool ConfigSerializer::SaveGlobalConfig(const std::string& path, const GlobalCon
         out << YAML::EndMap;
         out << YAML::Key << "ui_config_file" << YAML::Value << config.ui_config_file;
         out << YAML::Key << "preferences_file" << YAML::Value << config.preferences_file;
+        out << YAML::Key << "default_profile_picture_url" << YAML::Value
+            << config.default_profile_picture_url;
         out << YAML::EndMap;
 
         std::ofstream fout(path);

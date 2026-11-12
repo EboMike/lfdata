@@ -457,11 +457,15 @@ The global configuration YAML file has these settings:
 
 *   IP address and port to connect as a consumer of live LF data
 *   The UI configuration file to use
+*   Default profile picture fallback URL to use if a player has no picture
 
 ## Command line options
 
 *   **--config**: Path to global configuration YAML file.
 *   **--preferences**: Path to local preferences YAML file.
+*   **--default-profile-picture-url**: Default fallback URL for player profile
+    pictures. Can also be set via `DEFAULT_PROFILE_PICTURE_URL` in a local `.env`
+    file.
 *   **--lfstats-api-key**: API key to authenticate requests against LFstats. Can
     also be configured via the `LFSTATS_API_KEY` setting in a local `.env` file.
 *   **--lfstats-test-mode** (or **--lfstats-test**): Run in LFstats test
@@ -500,6 +504,12 @@ dynamically loaded. While data is being populated for a control element,
 the element should be disabled, and if it has text, it should display
 "Loading...". If data could not be loaded (for example, the server is
 unreachable), the element should remain disabled and say "ERROR".
+
+Selecting a competition from the dropdown automatically loads the competition
+details and updates player metadata (such as profile picture URLs matched by
+player entity ID) in the live state store. If a player does not have a picture
+URL in the competition data, the configured default profile picture URL is
+used.
 
 ## UI Editor Mode
 

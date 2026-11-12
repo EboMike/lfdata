@@ -446,6 +446,51 @@ std::vector<CompetitionTeam> ConvertNodeToCompetitionTeams(
     return result;
 }
 
+std::vector<CompetitionPlayerInfo> ConvertNodeToCompetitionPlayers(
+    const YAML::Node& root, const std::string& competition_slug) {
+    YAML::Node entries;
+    if (root.IsMap()) {
+        if (root[competition_slug] && root[competition_slug].IsSequence()) {
+            entries = root[competition_slug];
+        } else if (root.size() == 1 && root.begin()->second.IsSequence()) {
+            entries = root.begin()->second;
+        } else {
+            throw std::runtime_error("Expected competition stats key or list.");
+        }
+    } else if (root.IsSequence()) {
+        entries = root;
+    } else {
+        throw std::runtime_error("Expected list or map for competition stats.");
+    }
+
+    std::vector<CompetitionPlayerInfo> result;
+    for (size_t i = 0; i < entries.size(); ++i) {
+        const auto& item = entries[i];
+        if (!item.IsMap()) continue;
+
+        CompetitionPlayerInfo p;
+        if (item["ipl_id"] && !item["ipl_id"].IsNull()) {
+            p.entity_id = TrimWhitespace(item["ipl_id"].as<std::string>());
+        }
+        if (item["player_name"] && !item["player_name"].IsNull()) {
+            p.player_name = TrimWhitespace(item["player_name"].as<std::string>());
+        }
+        if (item["player_picture_url"] && !item["player_picture_url"].IsNull()) {
+            p.picture_url = TrimWhitespace(item["player_picture_url"].as<std::string>());
+        }
+        if (item["team_name"] && !item["team_name"].IsNull()) {
+            p.team_name = TrimWhitespace(item["team_name"].as<std::string>());
+        }
+        if (item["team_logo_url"] && !item["team_logo_url"].IsNull()) {
+            p.team_logo_url = TrimWhitespace(item["team_logo_url"].as<std::string>());
+        }
+        if (!p.entity_id.empty() || !p.player_name.empty()) {
+            result.push_back(std::move(p));
+        }
+    }
+    return result;
+}
+
 }  // namespace
 
 LFStatsFetcher::LFStatsFetcher()
@@ -957,6 +1002,61 @@ void LFStatsFetcher::FetchCompetitionTeamsAsync(
             callback({}, e.what());
         } catch (...) {
             callback({}, "Unknown error occurred while fetching team details.");
+        }
+    });
+}
+
+std::vector<CompetitionPlayerInfo> LFStatsFetcher::FetchCompetitionPlayerDetails(
+    const std::string& competition_slug) {
+    std::string slug = TrimWhitespace(competition_slug);
+    if (slug.empty()) {
+        throw std::invalid_argument("competition_slug cannot be empty.");
+    }
+
+    std::string test_dir;
+    {
+        std::lock_guard<std::mutex> lock(options_mutex_);
+        test_dir = options_.test_data_dir;
+    }
+
+    std::filesystem::path base(test_dir);
+    std::vector<std::string> candidates = {
+        (base / "competitions" / slug / "stats.json").string(),
+        (base / "competitions" / slug / "teams.json").string(),
+        (base / slug / "stats.json").string(),
+        (base / slug / "teams.json").string(),
+        (base / (slug + "_stats.json")).string(),
+        (base / (slug + "_teams.json")).string()
+    };
+
+    std::string raw_json = FetchData(
+        "/competitions/" + slug + "/stats",
+        candidates,
+        "player details for '" + slug + "'");
+
+    YAML::Node doc = YAML::Load(raw_json);
+    return ConvertNodeToCompetitionPlayers(doc, slug);
+}
+
+std::future<std::vector<CompetitionPlayerInfo>>
+LFStatsFetcher::FetchCompetitionPlayerDetailsAsync(
+    const std::string& competition_slug) {
+    return EnqueueTask([this, competition_slug]() {
+        return FetchCompetitionPlayerDetails(competition_slug);
+    });
+}
+
+void LFStatsFetcher::FetchCompetitionPlayerDetailsAsync(
+    const std::string& competition_slug,
+    PlayersCallback callback) {
+    EnqueueTask([this, competition_slug, callback = std::move(callback)]() {
+        try {
+            auto result = FetchCompetitionPlayerDetails(competition_slug);
+            callback(result, "");
+        } catch (const std::exception& e) {
+            callback({}, e.what());
+        } catch (...) {
+            callback({}, "Unknown error occurred while fetching player details.");
         }
     });
 }

@@ -82,6 +82,8 @@ public:
 
     void SelectCompetition(int index);
     bool SelectCompetitionBySlug(const std::string& slug);
+    void LoadCompetitionDetails(const std::string& slug);
+    bool WaitForCompetitionDetails(int timeout_ms = 2000);
 
     // Mock/Testing helpers
     void SetCompetitionsForTesting(const std::vector<CompetitionInfo>& competitions);
@@ -123,7 +125,11 @@ public:
     static const char* GetApplicationAuthor();
 
     // Draft settings accessors for Settings dialog & tests
-    void SetDraftSettings(const std::string& host, int port, const std::string& ui_config_file);
+    void SetDraftSettings(
+        const std::string& host,
+        int port,
+        const std::string& ui_config_file,
+        const std::string& default_profile_picture_url = "");
     const GlobalConfig& GetDraftSettings() const { return draft_settings_; }
     const std::string& GetGlobalConfigPath() const { return global_config_path_; }
 
@@ -168,6 +174,8 @@ private:
     char settings_host_buf_[256]{};
     int settings_port_ = 8001;
     char settings_ui_file_buf_[512]{};
+    char settings_default_picture_url_buf_[512]{};
+    std::atomic<bool> details_loading_{false};
 
     bool show_about_modal_ = false;
     bool pending_open_about_modal_ = false;

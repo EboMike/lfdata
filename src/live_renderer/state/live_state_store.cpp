@@ -1,5 +1,6 @@
 #include "live_renderer/state/live_state_store.hpp"
 #include <chrono>
+#include "live_renderer/config/global_config.hpp"
 
 namespace live_renderer {
 
@@ -8,7 +9,18 @@ static int64_t GetCurrentSteadyMillis() {
     return std::chrono::duration_cast<std::chrono::milliseconds>(now).count();
 }
 
-LiveStateStore::LiveStateStore() {
+static std::string NormalizeEntityId(const std::string& id) {
+    if (id.empty()) return "";
+    size_t start = 0;
+    while (start < id.size() &&
+           (id[start] == '#' || id[start] == '@' || id[start] == ' ')) {
+        start++;
+    }
+    return id.substr(start);
+}
+
+LiveStateStore::LiveStateStore()
+    : default_profile_picture_url_(kDefaultProfilePictureUrl) {
     state_.version = 1;
     state_.in_session = false;
     state_.game_over = false;
@@ -124,6 +136,28 @@ void LiveStateStore::UpdatePlayerDescription(
     player.entity_id = entity_id;
     player.team_id = team_id;
     player.role = role;
+
+    // Check if competition details provide picture or team metadata
+    auto it = competition_player_details_.find(entity_id);
+    if (it == competition_player_details_.end()) {
+        std::string norm = NormalizeEntityId(entity_id);
+        if (!norm.empty()) {
+            it = competition_player_details_.find(norm);
+        }
+    }
+    if (it != competition_player_details_.end()) {
+        player.picture_url = it->second.picture_url.empty()
+            ? default_profile_picture_url_
+            : it->second.picture_url;
+        if (!it->second.team_name.empty()) {
+            player.team_name = it->second.team_name;
+        }
+        if (!it->second.team_logo_url.empty()) {
+            player.team_logo_url = it->second.team_logo_url;
+        }
+    } else if (player.picture_url.empty()) {
+        player.picture_url = default_profile_picture_url_;
+    }
 
     if (team_id > 0 && state_.teams[team_id].dummy_player_id == player_id) {
         player.is_dummy = true;
@@ -315,6 +349,72 @@ void LiveStateStore::SetLatestEventTimeMs(int64_t time_ms) {
         state_.in_session = true;
         state_.game_start_time_local_ms = GetCurrentSteadyMillis() - time_ms;
     }
+    BumpVersionLocked();
+}
+
+void LiveStateStore::SetDefaultProfilePictureUrl(const std::string& url) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::string old_default = default_profile_picture_url_;
+    default_profile_picture_url_ = url;
+    for (auto& [pid, player] : state_.players) {
+        if (player.picture_url.empty() || player.picture_url == old_default) {
+            player.picture_url = default_profile_picture_url_;
+        }
+    }
+    BumpVersionLocked();
+}
+
+std::string LiveStateStore::GetDefaultProfilePictureUrl() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return default_profile_picture_url_;
+}
+
+void LiveStateStore::UpdateCompetitionPlayerDetails(
+    const std::vector<PlayerDetailsUpdate>& details) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    for (const auto& d : details) {
+        if (!d.entity_id.empty()) {
+            competition_player_details_[d.entity_id] = d;
+            std::string norm = NormalizeEntityId(d.entity_id);
+            if (!norm.empty()) {
+                competition_player_details_[norm] = d;
+            }
+        }
+    }
+
+    // Apply updates to existing active players
+    for (auto& [pid, player] : state_.players) {
+        if (player.is_dummy) continue;
+        auto it = competition_player_details_.find(player.entity_id);
+        if (it == competition_player_details_.end()) {
+            std::string norm = NormalizeEntityId(player.entity_id);
+            if (!norm.empty()) {
+                it = competition_player_details_.find(norm);
+            }
+        }
+        if (it != competition_player_details_.end()) {
+            player.picture_url = it->second.picture_url.empty()
+                ? default_profile_picture_url_
+                : it->second.picture_url;
+            if (!it->second.team_name.empty()) {
+                player.team_name = it->second.team_name;
+            }
+            if (!it->second.team_logo_url.empty()) {
+                player.team_logo_url = it->second.team_logo_url;
+            }
+        } else if (player.picture_url.empty()) {
+            player.picture_url = default_profile_picture_url_;
+        }
+    }
+    BumpVersionLocked();
+}
+
+void LiveStateStore::UpdatePlayerPicture(
+    int player_id, const std::string& picture_url) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    state_.players[player_id].picture_url = picture_url.empty()
+        ? default_profile_picture_url_
+        : picture_url;
     BumpVersionLocked();
 }
 

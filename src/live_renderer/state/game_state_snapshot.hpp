@@ -39,6 +39,9 @@ struct PlayerSnapshot {
     int nukes_detonated = 0;
     std::string medic_hits = "0";
     bool is_dummy = false;
+    std::string picture_url;
+    std::string team_name;
+    std::string team_logo_url;
 };
 
 /**

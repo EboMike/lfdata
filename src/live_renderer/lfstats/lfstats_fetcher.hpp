@@ -38,6 +38,17 @@
 namespace live_renderer {
 
 /**
+ * Detailed player profile and team mapping for a player in a competition.
+ */
+struct CompetitionPlayerInfo {
+    std::string entity_id;
+    std::string player_name;
+    std::string picture_url;
+    std::string team_name;
+    std::string team_logo_url;
+};
+
+/**
  * Configuration options for LFStatsFetcher.
  *
  * Attributes:
@@ -87,6 +98,10 @@ public:
 
     using TeamsCallback = std::function<void(
         const std::vector<CompetitionTeam>&,
+        const std::string& error)>;
+
+    using PlayersCallback = std::function<void(
+        const std::vector<CompetitionPlayerInfo>&,
         const std::string& error)>;
 
     /**
@@ -274,6 +289,16 @@ public:
     std::vector<CompetitionTeam> FetchTeams(
         const std::string& competition_slug);
 
+    /**
+     * Fetches competition player details synchronously.
+     * @param competition_slug Unique slug of the competition.
+     * @return Vector of CompetitionPlayerInfo instances.
+     * @throws std::invalid_argument If competition_slug is empty.
+     * @throws std::runtime_error On network failure or missing fixture.
+     */
+    std::vector<CompetitionPlayerInfo> FetchCompetitionPlayerDetails(
+        const std::string& competition_slug);
+
     // --- Asynchronous Future-based methods (Non-blocking) ---
 
     /**
@@ -320,6 +345,14 @@ public:
     std::future<std::vector<CompetitionTeam>> FetchTeamsAsync(
         const std::string& competition_slug);
 
+    /**
+     * Fetches competition player details asynchronously via background thread.
+     * @param competition_slug Unique slug of the competition.
+     * @return std::future holding vector of CompetitionPlayerInfo.
+     */
+    std::future<std::vector<CompetitionPlayerInfo>>
+    FetchCompetitionPlayerDetailsAsync(const std::string& competition_slug);
+
     // --- Asynchronous Callback-based methods (Non-blocking) ---
 
     /**
@@ -345,6 +378,15 @@ public:
     void FetchCompetitionTeamsAsync(
         const std::string& competition_slug,
         TeamsCallback callback);
+
+    /**
+     * Fetches competition player details asynchronously and invokes callback.
+     * @param competition_slug Unique slug of the competition.
+     * @param callback Function receiving vector of CompetitionPlayerInfo and error.
+     */
+    void FetchCompetitionPlayerDetailsAsync(
+        const std::string& competition_slug,
+        PlayersCallback callback);
 
 private:
     std::string FetchRemoteJson(const std::string& endpoint_path);

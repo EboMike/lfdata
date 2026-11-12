@@ -211,7 +211,7 @@ TEST(MainControlWindowTest, AboutModalAndMetadata) {
     EXPECT_STREQ(
         MainControlWindow::GetApplicationVersion(), kLiveRendererVersion);
     EXPECT_STREQ(
-        MainControlWindow::GetApplicationVersion(), "0.1.41");
+        MainControlWindow::GetApplicationVersion(), "0.1.42");
     EXPECT_STREQ(
         MainControlWindow::GetApplicationAuthor(), "EboMike");
 
@@ -396,4 +396,55 @@ TEST(MainControlWindowTest, RenderImGuiWithCompetitionDropdownStates) {
     EXPECT_EQ(win.GetCompetitionDropdownText(), "Loveland Nationals 2026");
 
     ImGui::DestroyContext(ctx);
+}
+
+TEST(MainControlWindowTest, SelectingCompetitionUpdatesPlayerDetailsInStateStore) {
+    GlobalConfig global_cfg;
+    UIConfig ui_cfg;
+    LiveStateStore store;
+    ProtocolParser parser(store);
+    TcpConsumerClient client(parser, global_cfg.host, global_cfg.port);
+
+    // Add player before competition is selected
+    parser.ParseLine("16\t100\t11\tBaden\t#4-1-101\t1\tcommander\r\n");
+    parser.ParseLine("16\t100\t12\tSunny\t#4-1-102\t1\theavy\r\n");
+
+    auto fetcher = std::make_shared<LFStatsFetcher>(true, "tests/fixtures/lfstats");
+    MainControlWindow win("test_ctrl_cfg.yaml", global_cfg, ui_cfg, store, client, fetcher);
+    ASSERT_TRUE(win.WaitForCompetitionFetch(3000));
+
+    EXPECT_TRUE(win.SelectCompetitionBySlug("syracuse_trios_2026"));
+    EXPECT_TRUE(win.WaitForCompetitionDetails(3000));
+
+    auto s = store.GetSnapshot();
+    ASSERT_TRUE(s.players.contains(11));
+    EXPECT_EQ(s.players[11].picture_url, "https://example.com/players/baden.png");
+    EXPECT_EQ(s.players[11].team_name, "Baden's Overly Optimistic Buddies");
+
+    ASSERT_TRUE(s.players.contains(12));
+    EXPECT_EQ(s.players[12].picture_url, global_cfg.default_profile_picture_url);
+    EXPECT_EQ(s.players[12].team_name, "Baden's Overly Optimistic Buddies");
+
+    std::filesystem::remove("test_ctrl_cfg.yaml");
+}
+
+TEST(MainControlWindowTest, SettingsDialogUpdatesDefaultProfilePictureUrl) {
+    GlobalConfig global_cfg;
+    UIConfig ui_cfg;
+    LiveStateStore store;
+    ProtocolParser parser(store);
+    TcpConsumerClient client(parser, global_cfg.host, global_cfg.port);
+
+    MainControlWindow win("test_settings_pic.yaml", global_cfg, ui_cfg, store, client);
+    win.OpenSettingsDialog();
+    win.SetDraftSettings(
+        "127.0.0.1", 8001, "ui_layout.yaml", "https://custom.example.com/fallback.png");
+    EXPECT_TRUE(win.SaveSettingsDialog());
+
+    EXPECT_EQ(
+        store.GetDefaultProfilePictureUrl(), "https://custom.example.com/fallback.png");
+    EXPECT_EQ(
+        global_cfg.default_profile_picture_url, "https://custom.example.com/fallback.png");
+
+    std::filesystem::remove("test_settings_pic.yaml");
 }

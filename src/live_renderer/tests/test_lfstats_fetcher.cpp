@@ -311,6 +311,44 @@ TEST(LFStatsFetcherTest, FetchCompetitionTeamsAsyncFuturesAndCallbacks) {
     EXPECT_EQ(cb_teams.size(), 4u);
 }
 
+TEST(LFStatsFetcherTest, FetchCompetitionPlayerDetailsTestMode) {
+    LFStatsFetcher fetcher(true, "tests/fixtures/lfstats");
+    auto players = fetcher.FetchCompetitionPlayerDetails("syracuse_trios_2026");
+
+    ASSERT_EQ(players.size(), 12u);
+    EXPECT_EQ(players[0].entity_id, "4-1-101");
+    EXPECT_EQ(players[0].player_name, "Baden");
+    EXPECT_EQ(players[0].picture_url, "https://example.com/players/baden.png");
+    EXPECT_EQ(players[0].team_name, "Baden's Overly Optimistic Buddies");
+    EXPECT_EQ(players[0].team_logo_url, "https://example.com/logos/boob.png");
+
+    EXPECT_EQ(players[1].entity_id, "4-1-102");
+    EXPECT_EQ(players[1].player_name, "Sunny");
+    EXPECT_TRUE(players[1].picture_url.empty());
+}
+
+TEST(LFStatsFetcherTest, FetchCompetitionPlayerDetailsAsyncFuturesAndCallbacks) {
+    LFStatsFetcher fetcher(true, "tests/fixtures/lfstats");
+
+    auto future = fetcher.FetchCompetitionPlayerDetailsAsync("syracuse_trios_2026");
+    auto players = future.get();
+    EXPECT_EQ(players.size(), 12u);
+
+    std::promise<std::vector<CompetitionPlayerInfo>> promise;
+    auto cb_future = promise.get_future();
+    fetcher.FetchCompetitionPlayerDetailsAsync(
+        "syracuse_trios_2026",
+        [&promise](
+            const std::vector<CompetitionPlayerInfo>& result,
+            const std::string& error) {
+            EXPECT_TRUE(error.empty());
+            promise.set_value(result);
+        });
+
+    auto cb_players = cb_future.get();
+    EXPECT_EQ(cb_players.size(), 12u);
+}
+
 }  // namespace
 }  // namespace live_renderer
 

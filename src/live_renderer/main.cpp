@@ -86,12 +86,22 @@ int main(int argc, char* argv[]) {
         live_renderer::ConfigSerializer::SaveGlobalConfig(config_path, global_cfg);
     }
 
-    // Allow CLI override of preferences file
+    // Allow CLI override of preferences file and default profile picture URL
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         if (arg == "--preferences" && i + 1 < argc) {
             global_cfg.preferences_file = argv[++i];
+        } else if (
+            (arg == "--default-profile-picture-url" ||
+             arg == "--default_profile_picture_url") &&
+            i + 1 < argc) {
+            global_cfg.default_profile_picture_url = argv[++i];
         }
+    }
+
+    const char* env_pic = std::getenv("DEFAULT_PROFILE_PICTURE_URL");
+    if (env_pic != nullptr && std::strlen(env_pic) > 0) {
+        global_cfg.default_profile_picture_url = env_pic;
     }
 
     live_renderer::PreferencesManager pref_manager(global_cfg.preferences_file);
@@ -108,6 +118,7 @@ int main(int argc, char* argv[]) {
     }
 
     live_renderer::LiveStateStore state_store;
+    state_store.SetDefaultProfilePictureUrl(global_cfg.default_profile_picture_url);
     live_renderer::ProtocolParser parser(state_store);
     live_renderer::TcpConsumerClient client(parser, global_cfg.host, global_cfg.port);
     std::string resolved_test_dir =

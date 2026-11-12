@@ -1,11 +1,25 @@
 #ifndef LIVE_RENDERER_STATE_LIVE_STATE_STORE_HPP_
 #define LIVE_RENDERER_STATE_LIVE_STATE_STORE_HPP_
 
-#include <mutex>
 #include <memory>
+#include <mutex>
+#include <string>
+#include <unordered_map>
+#include <vector>
 #include "live_renderer/state/game_state_snapshot.hpp"
 
 namespace live_renderer {
+
+/**
+ * @brief Player details provided by LFstats competition metadata.
+ */
+struct PlayerDetailsUpdate {
+    std::string entity_id;
+    std::string name;
+    std::string picture_url;
+    std::string team_name;
+    std::string team_logo_url;
+};
 
 /**
  * @brief Thread-safe repository holding the live game state.
@@ -76,11 +90,19 @@ public:
 
     void SetLatestEventTimeMs(int64_t time_ms);
 
+    // Profile picture and competition player details
+    void SetDefaultProfilePictureUrl(const std::string& url);
+    std::string GetDefaultProfilePictureUrl() const;
+    void UpdateCompetitionPlayerDetails(const std::vector<PlayerDetailsUpdate>& details);
+    void UpdatePlayerPicture(int player_id, const std::string& picture_url);
+
 private:
     void BumpVersionLocked();
 
     mutable std::mutex mutex_;
     GameStateSnapshot state_;
+    std::string default_profile_picture_url_;
+    std::unordered_map<std::string, PlayerDetailsUpdate> competition_player_details_;
 };
 
 }  // namespace live_renderer

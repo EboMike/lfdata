@@ -366,8 +366,22 @@ void VisualizationWindow::GenerateElementCommands(
         RenderCommand cmd;
         cmd.type = RenderCommand::Type::TexturedQuad;
         cmd.pixel_rect = content_px_rect;
-        cmd.texture_asset = resolved_el.image_file.empty()
-            ? "assets/sm5/commander.png" : resolved_el.image_file;
+        std::string pic = resolved_el.image_file;
+        if (pic.empty()) {
+            for (const auto& [pid, p] : state.players) {
+                if (!p.is_dummy && !p.picture_url.empty()) {
+                    if (resolved_el.team_index <= 0 ||
+                        p.team_id == resolved_el.team_index) {
+                        pic = p.picture_url;
+                        break;
+                    }
+                }
+            }
+        }
+        if (pic.empty()) {
+            pic = "assets/sm5/commander.png";
+        }
+        cmd.texture_asset = pic;
         cmd.opacity = resolved_el.opacity;
         cmd.fit = resolved_el.fit.empty() ? "stretch" : resolved_el.fit;
         if (resolved_el.tint_team_color > 0.0f &&
@@ -964,8 +978,10 @@ void VisualizationWindow::RenderPlayerProfileCard(
             RenderCommand cmd;
             cmd.type = RenderCommand::Type::TexturedQuad;
             cmd.pixel_rect = pel_rect;
-            cmd.texture_asset = pel.image_file.empty()
-                ? "assets/sm5/commander.png" : pel.image_file;
+            std::string pic = !player.picture_url.empty()
+                ? player.picture_url
+                : (!pel.image_file.empty() ? pel.image_file : "assets/sm5/commander.png");
+            cmd.texture_asset = pic;
             cmd.opacity = pel.opacity;
             cmd.fit = pel.fit.empty() ? "stretch" : pel.fit;
             if (pel.tint_team_color > 0.0f) {

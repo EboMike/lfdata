@@ -978,6 +978,47 @@ TEST(VisualizationWindowTest, TeamRosterRendersPlayerProfileTemplate) {
     EXPECT_GE(profile_pic_count, 5);
 }
 
+TEST(VisualizationWindowTest, PlayerProfilePictureUsesPictureUrl) {
+    UIConfig ui;
+    TemplateConfig tmpl;
+    tmpl.id = 11;
+    tmpl.type = "player_profile";
+    tmpl.size = {0.2f, 0.4f};
+
+    ElementConfig pic_el;
+    pic_el.type = "player_profile_picture";
+    pic_el.rect = {0.0f, 0.0f, 1.0f, 1.0f};
+    tmpl.elements.push_back(pic_el);
+    ui.templates.push_back(tmpl);
+
+    WindowConfig wcfg;
+    wcfg.id = 5;
+    wcfg.rect = {0, 0, 1600, 800};
+
+    ElementConfig roster;
+    roster.type = "team_roster";
+    roster.rect = {0.1f, 0.1f, 0.3f, 0.8f};
+    roster.team_index = 1;
+    roster.player_profile_template_id = 11;
+    wcfg.elements.push_back(roster);
+
+    VisualizationWindow win(wcfg, ui);
+    auto state = MockGameState::CreateMockSM5State();
+    ASSERT_TRUE(state.players.contains(11));
+    state.players[11].picture_url = "https://example.com/custom_avatar.png";
+
+    auto batch = win.GenerateBatch(state);
+    bool found_custom_pic = false;
+    for (const auto& cmd : batch.commands) {
+        if (cmd.type == RenderCommand::Type::TexturedQuad &&
+            cmd.texture_asset == "https://example.com/custom_avatar.png") {
+            found_custom_pic = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(found_custom_pic);
+}
+
 TEST(VisualizationWindowTest, VisualizesTemplateExtentsRectangle) {
     WindowConfig wcfg;
     wcfg.id = -1000;

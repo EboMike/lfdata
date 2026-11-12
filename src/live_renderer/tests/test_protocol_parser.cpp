@@ -169,3 +169,58 @@ TEST(ProtocolParserTest, ParsesNewStatsAndDataTypes) {
     EXPECT_EQ(p.medic_hits, "1/3/-1");
 }
 
+TEST(ProtocolParserTest, PlayerProfilePictureDefaultAndFallback) {
+    LiveStateStore store;
+    ProtocolParser parser(store);
+
+    EXPECT_TRUE(parser.ParseLine("16\t100\t11\tBaden\t#4-1-101\t1\tcommander\r\n"));
+    auto s = store.GetSnapshot();
+    ASSERT_TRUE(s.players.contains(11));
+    EXPECT_EQ(
+        s.players[11].picture_url,
+        "https://lfstats-modern-images.s3.us-west-1.amazonaws.com/8c3b3ffc-85f7-49aa-a6a0-78ce8b0f658f");
+
+    store.SetDefaultProfilePictureUrl("https://example.com/custom_fallback.png");
+    EXPECT_EQ(store.GetDefaultProfilePictureUrl(), "https://example.com/custom_fallback.png");
+    s = store.GetSnapshot();
+    EXPECT_EQ(s.players[11].picture_url, "https://example.com/custom_fallback.png");
+}
+
+TEST(ProtocolParserTest, PlayerProfilePictureFromCompetitionDetails) {
+    LiveStateStore store;
+    ProtocolParser parser(store);
+
+    std::vector<PlayerDetailsUpdate> details = {
+        {
+            "4-1-101",
+            "Baden",
+            "https://example.com/players/baden.png",
+            "Baden's Buddies",
+            "https://example.com/logos/buddies.png"
+        },
+        {
+            "4-1-102",
+            "Sunny",
+            "",  // empty picture URL -> should fallback to default
+            "Baden's Buddies",
+            "https://example.com/logos/buddies.png"
+        }
+    };
+    store.UpdateCompetitionPlayerDetails(details);
+
+    // Player 11 entity ID is "#4-1-101" (with hash)
+    EXPECT_TRUE(parser.ParseLine("16\t100\t11\tBaden\t#4-1-101\t1\tcommander\r\n"));
+    // Player 12 entity ID is "4-1-102" (without hash)
+    EXPECT_TRUE(parser.ParseLine("16\t100\t12\tSunny\t4-1-102\t1\theavy\r\n"));
+
+    auto s = store.GetSnapshot();
+    ASSERT_TRUE(s.players.contains(11));
+    EXPECT_EQ(s.players[11].picture_url, "https://example.com/players/baden.png");
+    EXPECT_EQ(s.players[11].team_name, "Baden's Buddies");
+    EXPECT_EQ(s.players[11].team_logo_url, "https://example.com/logos/buddies.png");
+
+    ASSERT_TRUE(s.players.contains(12));
+    EXPECT_EQ(s.players[12].picture_url, store.GetDefaultProfilePictureUrl());
+    EXPECT_EQ(s.players[12].team_name, "Baden's Buddies");
+}
+

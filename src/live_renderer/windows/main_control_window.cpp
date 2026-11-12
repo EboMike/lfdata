@@ -47,6 +47,11 @@ MainControlWindow::MainControlWindow(
     std::snprintf(settings_host_buf_, sizeof(settings_host_buf_), "%s", global_config_.host.c_str());
     settings_port_ = global_config_.port;
     std::snprintf(settings_ui_file_buf_, sizeof(settings_ui_file_buf_), "%s", global_config_.ui_config_file.c_str());
+    std::snprintf(
+        settings_default_picture_url_buf_,
+        sizeof(settings_default_picture_url_buf_),
+        "%s",
+        global_config_.default_profile_picture_url.c_str());
 
     if (stats_fetcher_) {
         StartFetchCompetitions();
@@ -193,8 +198,11 @@ void MainControlWindow::SelectCompetition(int index) {
             selected_competition_index_ = -1;
         }
     }
-    if (notify && callbacks_.on_competition_selected) {
-        callbacks_.on_competition_selected(comp_to_notify);
+    if (notify) {
+        LoadCompetitionDetails(comp_to_notify.GetSlug());
+        if (callbacks_.on_competition_selected) {
+            callbacks_.on_competition_selected(comp_to_notify);
+        }
     }
 }
 
@@ -213,12 +221,53 @@ bool MainControlWindow::SelectCompetitionBySlug(const std::string& slug) {
         }
     }
     if (notify) {
+        LoadCompetitionDetails(comp_to_notify.GetSlug());
         if (callbacks_.on_competition_selected) {
             callbacks_.on_competition_selected(comp_to_notify);
         }
         return true;
     }
     return false;
+}
+
+void MainControlWindow::LoadCompetitionDetails(const std::string& slug) {
+    if (slug.empty() || !stats_fetcher_) return;
+    details_loading_ = true;
+    auto alive = is_alive_;
+    stats_fetcher_->FetchCompetitionPlayerDetailsAsync(
+        slug,
+        [this, alive](const std::vector<CompetitionPlayerInfo>& players,
+                      const std::string& error) {
+            if (!alive || !*alive) return;
+            details_loading_ = false;
+            if (error.empty() && !players.empty()) {
+                std::vector<PlayerDetailsUpdate> updates;
+                updates.reserve(players.size());
+                for (const auto& p : players) {
+                    updates.push_back({
+                        p.entity_id,
+                        p.player_name,
+                        p.picture_url,
+                        p.team_name,
+                        p.team_logo_url
+                    });
+                }
+                state_store_.UpdateCompetitionPlayerDetails(updates);
+            }
+        });
+}
+
+bool MainControlWindow::WaitForCompetitionDetails(int timeout_ms) {
+    auto start = std::chrono::steady_clock::now();
+    while (details_loading_) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - start).count();
+        if (elapsed >= timeout_ms) {
+            return false;
+        }
+    }
+    return true;
 }
 
 void MainControlWindow::SetCompetitionsForTesting(const std::vector<CompetitionInfo>& competitions) {
@@ -361,23 +410,41 @@ void MainControlWindow::OpenSettingsDialog() {
     std::snprintf(settings_host_buf_, sizeof(settings_host_buf_), "%s", draft_settings_.host.c_str());
     settings_port_ = draft_settings_.port;
     std::snprintf(settings_ui_file_buf_, sizeof(settings_ui_file_buf_), "%s", draft_settings_.ui_config_file.c_str());
+    std::snprintf(
+        settings_default_picture_url_buf_,
+        sizeof(settings_default_picture_url_buf_),
+        "%s",
+        draft_settings_.default_profile_picture_url.c_str());
     show_settings_modal_ = true;
     pending_open_settings_modal_ = true;
 }
 
-void MainControlWindow::SetDraftSettings(const std::string& host, int port, const std::string& ui_config_file) {
+void MainControlWindow::SetDraftSettings(
+    const std::string& host,
+    int port,
+    const std::string& ui_config_file,
+    const std::string& default_profile_picture_url) {
     draft_settings_.host = host;
     draft_settings_.port = port;
     draft_settings_.ui_config_file = ui_config_file;
+    if (!default_profile_picture_url.empty()) {
+        draft_settings_.default_profile_picture_url = default_profile_picture_url;
+    }
     std::snprintf(settings_host_buf_, sizeof(settings_host_buf_), "%s", host.c_str());
     settings_port_ = port;
     std::snprintf(settings_ui_file_buf_, sizeof(settings_ui_file_buf_), "%s", ui_config_file.c_str());
+    std::snprintf(
+        settings_default_picture_url_buf_,
+        sizeof(settings_default_picture_url_buf_),
+        "%s",
+        draft_settings_.default_profile_picture_url.c_str());
 }
 
 bool MainControlWindow::SaveSettingsDialog() {
     draft_settings_.host = settings_host_buf_;
     draft_settings_.port = settings_port_;
     draft_settings_.ui_config_file = settings_ui_file_buf_;
+    draft_settings_.default_profile_picture_url = settings_default_picture_url_buf_;
 
     if (draft_settings_.host.empty()) {
         modal_error_message_ = "Server IP / Host cannot be empty.";
@@ -404,6 +471,7 @@ bool MainControlWindow::SaveSettingsDialog() {
         (global_config_.ui_config_file != draft_settings_.ui_config_file);
 
     global_config_ = draft_settings_;
+    state_store_.SetDefaultProfilePictureUrl(global_config_.default_profile_picture_url);
 
     if (ui_file_changed) {
         UIConfig loaded_ui;
@@ -570,8 +638,11 @@ void MainControlWindow::RenderCompetitionSection() {
         }
     }
 
-    if (notify && callbacks_.on_competition_selected) {
-        callbacks_.on_competition_selected(selected_to_notify);
+    if (notify) {
+        LoadCompetitionDetails(selected_to_notify.GetSlug());
+        if (callbacks_.on_competition_selected) {
+            callbacks_.on_competition_selected(selected_to_notify);
+        }
     }
 }
 
@@ -734,6 +805,12 @@ void MainControlWindow::RenderModals() {
                     picked.c_str());
             }
         }
+
+        ImGui::SetNextItemWidth(260.0f);
+        ImGui::InputText(
+            "Default Profile Picture URL",
+            settings_default_picture_url_buf_,
+            sizeof(settings_default_picture_url_buf_));
 
         if (!modal_error_message_.empty()) {
             ImGui::Spacing();
