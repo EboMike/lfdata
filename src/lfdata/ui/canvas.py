@@ -1,18 +1,25 @@
 """Interactive screen layout arrangement canvas for the LF data UI.
 
-This module provides a visual drag-and-drop canvas widget (`LayoutCanvas`) for positioning,
-resizing, aligning, and selecting HUD elements on a simulated video frame screen grid.
+This module provides a visual drag-and-drop canvas widget (`LayoutCanvas`)
+for positioning, resizing, aligning, and selecting HUD elements on a
+simulated video frame screen grid.
 
 Usage example:
     from lfdata.ui.canvas import LayoutCanvas
 
-    canvas = LayoutCanvas(parent=window, config_manager=cfg_mgr, on_select_callback=my_select_cb)
+    canvas = LayoutCanvas(
+        parent=window,
+        config_manager=cfg_mgr,
+        on_select_callback=my_select_cb,
+    )
     canvas.pack(fill='both', expand=True)
 """
 
 import tkinter as tk
 from typing import Callable
+
 from lfdata.ui.config_manager import UIConfigManager
+from lfdata.video.helpers import AnimatableValue
 
 
 class LayoutCanvas(tk.Canvas):
@@ -21,7 +28,8 @@ class LayoutCanvas(tk.Canvas):
     Attributes:
         config_manager: UIConfigManager instance managing layout state.
         on_select_callback: Callback triggered when element selection changes.
-        on_update_callback: Optional callback triggered when layout elements change.
+        on_update_callback: Optional callback triggered when layout
+            elements change.
         canvas_width: Width integer of canvas view area in pixels.
         canvas_height: Height integer of canvas view area in pixels.
     """
@@ -145,7 +153,7 @@ class LayoutCanvas(tk.Canvas):
                 )
 
     def _get_element_bounds(
-        self, name: str, el: dict[str, object]
+        self, name: str, el: dict[str, AnimatableValue]
     ) -> tuple[float, float, float, float]:
         """Calculates canvas coordinates for an element.
 
@@ -195,7 +203,8 @@ class LayoutCanvas(tk.Canvas):
         return x1, y1, x2, y2
 
     def _on_click(self, event: tk.Event) -> None:
-        """Handles canvas mouse click events to detect selection, drag or resize.
+        """Handles canvas mouse click events to detect selection, drag, or
+        resize.
 
         Args:
             event: The mouse event.

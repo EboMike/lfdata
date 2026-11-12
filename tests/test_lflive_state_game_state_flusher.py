@@ -1,3 +1,4 @@
+from pathlib import Path
 from sqlalchemy import select
 from lflive.db import LiveDatabase
 from lflive.models.game_session import LiveGameSession
@@ -5,7 +6,7 @@ from lflive.state.game_state import LiveGameState
 from lflive.state.game_state_flusher import GameStateFlusher
 
 
-def test_game_state_flusher(tmp_path: object) -> None:
+def test_game_state_flusher(tmp_path: Path) -> None:
     db_file = tmp_path / 'test_flusher.db'
     db = LiveDatabase(db_path=str(db_file))
     state = LiveGameState(game_type='SM5', duration_seconds=900)

@@ -1,3 +1,5 @@
+import pytest
+
 from lfdata.model import GameEntity, GameEvent, LFGame
 from lfdata.model.gametypes.sm5_events import (
     SM5_EVENT_AMMO_BOOST,
@@ -294,7 +296,9 @@ def test_get_events_for_player() -> None:
     assert len(p99_events) == 0
 
 
-def test_dump_unhandled_events(capsys: object) -> None:
+def test_dump_unhandled_events(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     game = LFGame(game_id='g1', game_type='SM5')
     analyzer = LFUnhandledEventsAnalyzer(game=game)
 

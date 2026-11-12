@@ -1,4 +1,5 @@
 from unittest.mock import MagicMock
+import pytest
 
 from lfdata.model import (
     GameEntity,
@@ -89,7 +90,7 @@ def test_build_mismatch_infos() -> None:
     assert infos[1].lives_discrepancy is None
 
 
-def test_dump_mismatches_empty(capsys: object) -> None:
+def test_dump_mismatches_empty(capsys: pytest.CaptureFixture[str]) -> None:
     game = LFGame(game_id='test_empty_game', game_type='SM5')
     replay = MagicMock()
     diagnostics = LFReplayDiagnostics(game=game, replay=replay)
@@ -98,7 +99,9 @@ def test_dump_mismatches_empty(capsys: object) -> None:
     assert captured.out == ''
 
 
-def test_dump_mismatches_lives_discrepancy(capsys: object) -> None:
+def test_dump_mismatches_lives_discrepancy(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     game = LFGame(game_id='diag_test_game', game_type='SM5')
     p1 = GameEntity(
         game_id='diag_test_game',
@@ -196,7 +199,9 @@ def test_dump_mismatches_lives_discrepancy(capsys: object) -> None:
     assert 'This boost may have been incorrectly skipped' in captured.out
 
 
-def test_dump_mismatches_ammo_discrepancy(capsys: object) -> None:
+def test_dump_mismatches_ammo_discrepancy(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     game = LFGame(game_id='ammo_test_game', game_type='SM5')
     p1 = GameEntity(
         game_id='ammo_test_game',
@@ -359,7 +364,9 @@ def test_analyze_game_termination_early() -> None:
     assert 'early termination' in info.reason.lower()
 
 
-def test_post_game_eligibility_lives(capsys: object) -> None:
+def test_post_game_eligibility_lives(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     game = LFGame(game_id='post_game_lives', game_type='SM5', duration=900000)
     p1_entity = GameEntity(
         game_id='post_game_lives',
@@ -402,7 +409,9 @@ def test_post_game_eligibility_lives(capsys: object) -> None:
     assert 'ELIGIBLE: A single medic resupply (+4 lives)' in captured.out
 
 
-def test_post_game_eligibility_ammo(capsys: object) -> None:
+def test_post_game_eligibility_ammo(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     game = LFGame(game_id='post_game_ammo', game_type='SM5', duration=900000)
     p1_entity = GameEntity(
         game_id='post_game_ammo',
@@ -541,7 +550,9 @@ def test_analyze_late_event_cutoff_not_preventable() -> None:
     assert res.can_be_prevented is False
 
 
-def test_dump_mismatches_late_event_output(capsys: object) -> None:
+def test_dump_mismatches_late_event_output(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     game = LFGame(game_id='dump_late', game_type='SM5', duration=600000)
     p1_entity = GameEntity(
         game_id='dump_late',
@@ -589,7 +600,9 @@ def test_dump_mismatches_late_event_output(capsys: object) -> None:
     assert 'Shooter misses (delta: -1 shots)' in captured.out
 
 
-def test_dump_mismatches_unhandled_events(capsys: object) -> None:
+def test_dump_mismatches_unhandled_events(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     game = LFGame(game_id='diag_unhandled_game', game_type='SM5')
     p1_entity = GameEntity(
         game_id='diag_unhandled_game',
@@ -648,7 +661,7 @@ def test_dump_mismatches_unhandled_events(capsys: object) -> None:
 
 
 def test_dump_mismatches_warbot_zaps_and_beacon_claims(
-    capsys: object,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     game = LFGame(game_id='diag_wb_beacon_game', game_type='SM5')
     wb1 = GameEntity(

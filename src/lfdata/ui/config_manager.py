@@ -1,7 +1,8 @@
 """Configuration manager for the LF data UI desktop application.
 
-This module provides state management (`UIConfigManager`) for loading, saving, and editing
-YAML layout configurations, managing active TDF game sessions, and tracking timeline position.
+This module provides state management (`UIConfigManager`) for loading,
+saving, and editing YAML layout configurations, managing active TDF game
+sessions, and tracking timeline position.
 
 Usage example:
     from lfdata.ui.config_manager import UIConfigManager
@@ -20,6 +21,7 @@ from lfdata.importer import TdfImporter
 from lfdata.model.objects.game import LFGame
 from lfdata.video.helpers import (
     DEFAULT_CONFIG,
+    AnimatableValue,
     _merge_configs,
     resolve_animated_value,
 )
@@ -98,7 +100,9 @@ class UIConfigManager:
         except Exception as e:
             raise RuntimeError(f'Failed to load TDF: {e}') from e
 
-    def get_element(self, element_name: str) -> dict[str, object] | None:
+    def get_element(
+        self, element_name: str
+    ) -> dict[str, AnimatableValue] | None:
         """Retrieves configuration dictionary for a specific UI element.
 
         Args:
@@ -112,14 +116,16 @@ class UIConfigManager:
             return None
         return elements.get(element_name)
 
-    def resolve_val(self, val: object) -> object:
+    def resolve_val(
+        self, val: AnimatableValue | None
+    ) -> AnimatableValue | None:
         """Resolves a value at the current preview time.
 
         Args:
             val: The configuration value (constant or keyframe dict).
 
         Returns:
-            object: The resolved value or coordinate pair.
+            AnimatableValue | None: The resolved value or coordinate pair.
         """
         pregame_delay_ms = self.config.get('pregame_delay_ms', 0)
         if (
@@ -236,7 +242,7 @@ class UIConfigManager:
         return new_state
 
     def update_element(
-        self, element_name: str, key: str, value: object
+        self, element_name: str, key: str, value: AnimatableValue | None
     ) -> None:
         """Updates a property of a specific UI element.
 
@@ -339,7 +345,9 @@ class UIConfigManager:
         """
         return self.players
 
-    def update_global_setting(self, key: str, value: object) -> None:
+    def update_global_setting(
+        self, key: str, value: AnimatableValue | None
+    ) -> None:
         """Updates a global configuration setting.
 
         Args:

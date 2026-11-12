@@ -1,7 +1,8 @@
 """Main application window for the LF data UI desktop application.
 
-This module integrates the top menu bar, element properties editor, layout arrangement canvas,
-preview rendering panel, and file I/O operations into the `LFDataUIApp` Tkinter window.
+This module integrates the top menu bar, element properties editor, layout
+arrangement canvas, preview rendering panel, and file I/O operations into
+the `LFDataUIApp` Tkinter window.
 
 Usage example:
     from lfdata.ui.app import LFDataUIApp
@@ -20,6 +21,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 from lfdata.ui.canvas import LayoutCanvas
 from lfdata.ui.config_manager import UIConfigManager
+from lfdata.ui.preferences import UIPreferences
 from lfdata.ui.preview import ImagePreview
 from lfdata.ui.properties import PropertiesPanel
 from lfdata.video.constants import (
@@ -544,31 +546,21 @@ class LFDataUIApp(tk.Tk):
             config_path: Optional path to the configuration file to remember.
         """
         pref_path = self._get_preferences_path()
-        data = {}
-        if pref_path.exists():
-            try:
-                with open(pref_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-            except Exception:
-                pass
+        prefs = UIPreferences.load(pref_path)
 
         if tdf_path is not None:
-            data['most_recent_tdf'] = tdf_path
+            prefs.most_recent_tdf = tdf_path
         if config_path is not None:
-            data['most_recent_config'] = config_path
+            prefs.most_recent_config = config_path
 
         try:
             geom = self.geometry()
             if isinstance(geom, str):
-                data['window_geometry'] = geom
+                prefs.window_geometry = geom
         except Exception:
             pass
 
-        try:
-            with open(pref_path, 'w', encoding='utf-8') as f:
-                json.dump(data, f, indent=2)
-        except Exception:
-            pass
+        prefs.save(pref_path)
 
     def _load_preferences_on_startup(self) -> None:
         """Loads and processes saved user preferences on startup."""
@@ -576,27 +568,22 @@ class LFDataUIApp(tk.Tk):
         if not pref_path.exists():
             return
 
-        try:
-            with open(pref_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-        except Exception:
-            return
+        prefs = UIPreferences.load(pref_path)
 
-        geom = data.get('window_geometry')
-        if geom:
+        if prefs.window_geometry:
             try:
-                self.geometry(geom)
+                self.geometry(prefs.window_geometry)
             except Exception:
                 pass
 
-        config_path = data.get('most_recent_config')
+        config_path = prefs.most_recent_config
         if config_path and os.path.exists(config_path):
             try:
                 self._load_config_path(config_path)
             except Exception:
                 pass
 
-        tdf_path = data.get('most_recent_tdf')
+        tdf_path = prefs.most_recent_tdf
         if tdf_path and os.path.exists(tdf_path):
             try:
                 self._load_tdf_path(tdf_path)
@@ -640,7 +627,7 @@ class LFDataUIApp(tk.Tk):
             self.title(title_base)
 
     def _generate_video(self) -> None:
-        """Triggers the video generation flow with path selection and background thread."""
+        """Triggers video generation with path selection and worker thread."""
         if not self.config_manager.tdf_path:
             messagebox.showwarning(
                 'Missing TDF', 'Please load a TDF replay file first.'

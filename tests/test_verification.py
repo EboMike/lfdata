@@ -1,4 +1,5 @@
 from unittest.mock import MagicMock, patch
+import pytest
 from lfdata.model import GameEntity, GameEvent, LFGame, Sm5Stats
 from lfdata.model.gametypes.sm5_events import (
     SM5_EVENT_LIFE_BOOST,
@@ -190,7 +191,9 @@ def test_check_grace_periods_working_and_failing() -> None:
         assert failing == [500]
 
 
-def test_verify_prints_grace_period_results(capsys: object) -> None:
+def test_verify_prints_grace_period_results(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     game = LFGame(game_id='test_gp_print', game_type='SM5')
     entity = GameEntity(
         game_id='test_gp_print',
@@ -249,7 +252,7 @@ def test_verify_prints_grace_period_results(capsys: object) -> None:
 
 
 def test_verify_reports_unhandled_events_without_discrepancies(
-    capsys: object,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     game = LFGame(game_id='test_unhandled_verify', game_type='SM5')
     entity = GameEntity(

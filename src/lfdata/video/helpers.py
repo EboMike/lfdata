@@ -1,7 +1,8 @@
 """Visual helpers and default configurations for LF video generation.
 
-This module provides default video layout configuration dictionaries, animation curve interpolation,
-color blending, score transitions, and element placement math for video rendering.
+This module provides default video layout configuration dictionaries,
+animation curve interpolation, color blending, score transitions, and
+element placement math for video rendering.
 
 Usage example:
     from lfdata.video.helpers import DEFAULT_CONFIG, get_fade_alpha
@@ -36,6 +37,33 @@ class LFTeamTransition:
     event_time_ms: int
     visual_rank: float
     ranking: int
+
+
+AnimatableValue = (
+    int
+    | float
+    | str
+    | bool
+    | list[float]
+    | list[int]
+    | tuple[float, ...]
+    | dict[str, object]
+)
+
+
+@dataclasses.dataclass
+class ResolvedKeyframe:
+    """Resolved keyframe point at an absolute timestamp.
+
+    Attributes:
+        abs_time_ms: Absolute timestamp in milliseconds from video start.
+        value: Resolved value at this keyframe.
+        interpolator: Easing interpolator name.
+    """
+
+    abs_time_ms: float
+    value: AnimatableValue | None
+    interpolator: str = 'linear'
 
 
 DEFAULT_CONFIG: dict[str, object] = {
@@ -522,8 +550,10 @@ def get_visual_rank(
 
 
 def _interpolate_values(
-    val_start: object, val_end: object, p_anim: float
-) -> object:
+    val_start: AnimatableValue | None,
+    val_end: AnimatableValue | None,
+    p_anim: float,
+) -> AnimatableValue | None:
     """Interpolates between two values or value pairs.
 
     Uses the animated progress fraction to calculate the intermediate value.
@@ -535,8 +565,11 @@ def _interpolate_values(
         p_anim: The animated progress fraction (0.0 to 1.0).
 
     Returns:
-        object: The interpolated value or value pair.
+        AnimatableValue | None: The interpolated value or value pair.
     """
+    if val_start is None or val_end is None:
+        return val_start
+
     if isinstance(val_start, (list, tuple)) and isinstance(
         val_end, (list, tuple)
     ):
@@ -549,17 +582,18 @@ def _interpolate_values(
             ]
 
     try:
-        return val_start + (val_end - val_start) * p_anim
+        diff = val_end - val_start  # type: ignore[operator]
+        return val_start + diff * p_anim  # type: ignore[operator]
     except (TypeError, ValueError):
         return val_start
 
 
 def resolve_animated_value(
-    config_val: object,
+    config_val: AnimatableValue | None,
     time_ms: int,
     pregame_delay_ms: int = 0,
     game_duration_ms: int = 0,
-) -> object:
+) -> AnimatableValue | None:
     """Resolves a configured value at a specific timestamp.
 
     If the value defines keyframes, interpolates the value based on the current
@@ -572,7 +606,7 @@ def resolve_animated_value(
         game_duration_ms: The duration of the game in milliseconds.
 
     Returns:
-        object: The resolved value or value pair at the specified timestamp.
+        AnimatableValue | None: The resolved value or value pair.
     """
     if not isinstance(config_val, dict) or 'keyframes' not in config_val:
         return config_val
@@ -582,7 +616,7 @@ def resolve_animated_value(
         return None
 
     # Resolve each keyframe's time to absolute video time in ms
-    resolved_keyframes = []
+    resolved_keyframes: list[ResolvedKeyframe] = []
     for kf in keyframes:
         if not isinstance(kf, dict):
             continue
@@ -605,40 +639,40 @@ def resolve_animated_value(
             abs_time_ms = kf_time_ms
 
         resolved_keyframes.append(
-            {
-                'abs_time_ms': abs_time_ms,
-                'value': kf.get('value'),
-                'interpolator': kf.get('interpolator', 'linear'),
-            }
+            ResolvedKeyframe(
+                abs_time_ms=abs_time_ms,
+                value=kf.get('value'),
+                interpolator=str(kf.get('interpolator', 'linear')),
+            )
         )
 
     # Sort keyframes by absolute video time
-    resolved_keyframes.sort(key=lambda k: k['abs_time_ms'])
+    resolved_keyframes.sort(key=lambda k: k.abs_time_ms)
 
     if not resolved_keyframes:
         return None
 
     # Return boundary values if time is outside keyframe range
-    if time_ms <= resolved_keyframes[0]['abs_time_ms']:
-        return resolved_keyframes[0]['value']
-    if time_ms >= resolved_keyframes[-1]['abs_time_ms']:
-        return resolved_keyframes[-1]['value']
+    if time_ms <= resolved_keyframes[0].abs_time_ms:
+        return resolved_keyframes[0].value
+    if time_ms >= resolved_keyframes[-1].abs_time_ms:
+        return resolved_keyframes[-1].value
 
     # Interpolate between matching keyframes
     for i in range(len(resolved_keyframes) - 1):
         kf_start = resolved_keyframes[i]
         kf_end = resolved_keyframes[i + 1]
-        t_start_ms = kf_start['abs_time_ms']
-        t_end_ms = kf_end['abs_time_ms']
+        t_start_ms = kf_start.abs_time_ms
+        t_end_ms = kf_end.abs_time_ms
 
         if t_start_ms <= time_ms <= t_end_ms:
             if t_end_ms == t_start_ms:
-                return kf_end['value']
+                return kf_end.value
 
             p = (time_ms - t_start_ms) / (t_end_ms - t_start_ms)
-            p_anim = apply_animation(p, kf_start['interpolator'])
+            p_anim = apply_animation(p, kf_start.interpolator)
             return _interpolate_values(
-                kf_start['value'], kf_end['value'], p_anim
+                kf_start.value, kf_end.value, p_anim
             )
 
     return None

@@ -23,7 +23,6 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 import json
 from pathlib import Path
-from typing import Any
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -57,7 +56,7 @@ def _parse_iso_datetime(value: str | None) -> datetime | None:
 
 
 def _convert_game_dict_to_scheduled_game(
-    item: dict[str, Any],
+    item: dict[str, object],
 ) -> ScheduledGame:
     """Converts a raw LFstats schedule JSON dictionary into a ScheduledGame.
 
@@ -165,14 +164,14 @@ class LFStatsFetcher:
         else:
             self.test_data_dir = DEFAULT_TEST_DATA_DIR
 
-    def _fetch_remote_json(self, endpoint_path: str) -> Any:
+    def _fetch_remote_json(self, endpoint_path: str) -> object:
         """Performs HTTP GET to retrieve remote JSON from an API endpoint.
 
         Args:
             endpoint_path: Relative URL path (e.g. '/competitions').
 
         Returns:
-            Any: Parsed JSON response (dict or list).
+            object: Parsed JSON response (dict or list).
 
         Raises:
             urllib.error.HTTPError: If the server returns an HTTP error status.
@@ -199,7 +198,7 @@ class LFStatsFetcher:
         self,
         candidate_paths: list[Path],
         item_description: str,
-    ) -> Any:
+    ) -> object:
         """Loads data from the first matching local JSON fixture file.
 
         Args:
@@ -207,7 +206,7 @@ class LFStatsFetcher:
             item_description: Human-readable description for error messages.
 
         Returns:
-            Any: Parsed JSON data from the first existing fixture file.
+            object: Parsed JSON data from the first existing fixture file.
 
         Raises:
             FileNotFoundError: If none of the candidate files exist.
@@ -228,7 +227,7 @@ class LFStatsFetcher:
         endpoint_path: str,
         candidate_fixture_paths: list[Path],
         item_description: str,
-    ) -> Any:
+    ) -> object:
         """Fetches data from local fixture in test mode or HTTP in live mode.
 
         Args:
@@ -237,7 +236,7 @@ class LFStatsFetcher:
             item_description: Human-readable description for error reporting.
 
         Returns:
-            Any: Parsed JSON data.
+            object: Parsed JSON data.
         """
         if self.test_mode:
             return self._load_local_fixture(
@@ -347,30 +346,9 @@ class LFStatsFetcher:
         if not slug:
             raise ValueError('competition_slug cannot be empty.')
 
-        encoded_slug = urllib.parse.quote(slug)
-        candidate_paths = [
-            (
-                self.test_data_dir
-                / 'competitions'
-                / slug
-                / 'schedule.json'
-            ),
-            self.test_data_dir / slug / 'schedule.json',
-            self.test_data_dir / f'{slug}_schedule.json',
-            self.test_data_dir / f'{slug}.json',
-        ]
-        raw_data = self._fetch_data(
-            endpoint_path=f'/competitions/{encoded_slug}/schedule',
-            candidate_fixture_paths=candidate_paths,
-            item_description=f"schedule of '{slug}'",
-        )
-
-        if not isinstance(raw_data, list):
-            raise ValueError(
-                f'Expected schedule data to be a list, got {type(raw_data)}.'
-            )
-
-        return [_convert_game_dict_to_scheduled_game(item) for item in raw_data]
+        if self.test_mode:
+            return self._load_local_schedule_fixture(competition_slug=slug)
+        return self._fetch_remote_schedule(competition_slug=slug)
 
     def fetch_schedule(
         self,
@@ -398,17 +376,18 @@ class LFStatsFetcher:
     def _load_local_schedule_fixture(
         self,
         competition_slug: str,
-    ) -> list[dict[str, Any]]:
+    ) -> list[ScheduledGame]:
         """Loads schedule data from a local JSON fixture file.
 
         Args:
             competition_slug: Unique competition slug to find.
 
         Returns:
-            list[dict[str, Any]]: Parsed JSON list.
+            list[ScheduledGame]: Parsed ScheduledGame list.
 
         Raises:
             FileNotFoundError: If no candidate fixture file exists.
+            ValueError: If fixture data is not a list.
         """
         candidate_paths = [
             (
@@ -421,28 +400,47 @@ class LFStatsFetcher:
             self.test_data_dir / f'{competition_slug}_schedule.json',
             self.test_data_dir / f'{competition_slug}.json',
         ]
-        return self._load_local_fixture(
+        raw_data = self._load_local_fixture(
             candidate_paths=candidate_paths,
             item_description=f"schedule for '{competition_slug}'",
         )
+        if not isinstance(raw_data, list):
+            raise ValueError(
+                f'Expected schedule data to be a list, got {type(raw_data)}.'
+            )
+        return [
+            _convert_game_dict_to_scheduled_game(item)
+            for item in raw_data
+            if isinstance(item, dict)
+        ]
 
     def _fetch_remote_schedule(
         self,
         competition_slug: str,
-    ) -> list[dict[str, Any]]:
+    ) -> list[ScheduledGame]:
         """Performs HTTP GET to retrieve remote competition schedule.
 
         Args:
             competition_slug: Unique competition slug.
 
         Returns:
-            list[dict[str, Any]]: Parsed JSON response.
+            list[ScheduledGame]: Parsed ScheduledGame list.
 
         Raises:
             urllib.error.HTTPError: If HTTP status is not 200.
             urllib.error.URLError: If connection fails.
+            ValueError: If remote response is not a list.
         """
         encoded_slug = urllib.parse.quote(competition_slug)
-        return self._fetch_remote_json(
+        raw_data = self._fetch_remote_json(
             endpoint_path=f'/competitions/{encoded_slug}/schedule'
         )
+        if not isinstance(raw_data, list):
+            raise ValueError(
+                f'Expected schedule data to be a list, got {type(raw_data)}.'
+            )
+        return [
+            _convert_game_dict_to_scheduled_game(item)
+            for item in raw_data
+            if isinstance(item, dict)
+        ]

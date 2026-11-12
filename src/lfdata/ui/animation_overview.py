@@ -1,7 +1,8 @@
 """Animation timeline graph and keyframe editor panel for the LF UI.
 
-This module provides a GUI panel widget (`AnimationOverviewPanel`) displaying keyframe timeline
-charts, interpolation curves, and property reference bindings for animating HUD layout elements.
+This module provides a GUI panel widget (`AnimationOverviewPanel`)
+displaying keyframe timeline charts, interpolation curves, and property
+reference bindings for animating HUD layout elements.
 
 Usage example:
     from lfdata.ui.animation_overview import AnimationOverviewPanel
@@ -19,7 +20,7 @@ from lfdata.video.constants import (
     DEFAULT_EXTRA_FOOTAGE_MS,
     DEFAULT_PREGAME_DELAY_MS,
 )
-from lfdata.video.helpers import resolve_animated_value
+from lfdata.video.helpers import AnimatableValue, resolve_animated_value
 
 
 class AnimationOverviewPanel(ttk.LabelFrame):
@@ -27,7 +28,8 @@ class AnimationOverviewPanel(ttk.LabelFrame):
 
     Attributes:
         config_manager: UIConfigManager instance for accessing layout state.
-        on_keyframe_changed: Optional callback function triggered on keyframe modifications.
+        on_keyframe_changed: Optional callback triggered on keyframe
+            modifications.
     """
 
     def __init__(
@@ -421,11 +423,11 @@ class AnimationOverviewPanel(ttk.LabelFrame):
         finally:
             self.config_manager.current_time_ms = old_time
 
-    def _get_keyframes_list(self) -> list[dict[str, object]] | None:
+    def _get_keyframes_list(self) -> list[dict[str, AnimatableValue]] | None:
         """Gets the list of keyframes for the active property.
 
         Returns:
-            list[dict[str, object]] | None: The active keyframes list.
+            list[dict[str, AnimatableValue]] | None: The keyframes list.
         """
         if not self.element_name:
             return None
