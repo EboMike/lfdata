@@ -320,6 +320,132 @@ ScheduledGame ConvertNodeToScheduledGame(const YAML::Node& item) {
         team_scores);
 }
 
+std::string SlugifyTeamName(const std::string& name) {
+    std::string result;
+    for (char c : name) {
+        if (std::isalnum(static_cast<unsigned char>(c))) {
+            result += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        } else if (!result.empty() && result.back() != '_') {
+            result += '_';
+        }
+    }
+    while (!result.empty() && result.back() == '_') {
+        result.pop_back();
+    }
+    return result.empty() ? "team" : result;
+}
+
+std::string DeriveTeamShortName(const std::string& name) {
+    std::vector<std::string> words;
+    std::string current;
+    for (char c : name) {
+        if (std::isalnum(static_cast<unsigned char>(c))) {
+            current += c;
+        } else if (!current.empty()) {
+            words.push_back(current);
+            current.clear();
+        }
+    }
+    if (!current.empty()) {
+        words.push_back(current);
+    }
+    if (words.size() >= 2) {
+        std::string initials;
+        for (const auto& w : words) {
+            initials += static_cast<char>(std::toupper(static_cast<unsigned char>(w[0])));
+            if (initials.size() == 4) break;
+        }
+        return initials;
+    }
+    std::string alpha;
+    for (char c : name) {
+        if (std::isalnum(static_cast<unsigned char>(c))) {
+            alpha += static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+            if (alpha.size() == 4) break;
+        }
+    }
+    return alpha.empty() ? "TEAM" : alpha;
+}
+
+std::vector<CompetitionTeam> ConvertNodeToCompetitionTeams(
+    const YAML::Node& root, const std::string& competition_slug) {
+    YAML::Node entries;
+    if (root.IsMap()) {
+        if (root[competition_slug] && root[competition_slug].IsSequence()) {
+            entries = root[competition_slug];
+        } else if (root.size() == 1 && root.begin()->second.IsSequence()) {
+            entries = root.begin()->second;
+        } else {
+            throw std::runtime_error("Expected competition team stats key or list.");
+        }
+    } else if (root.IsSequence()) {
+        entries = root;
+    } else {
+        throw std::runtime_error("Expected list or map for competition stats.");
+    }
+
+    struct TeamData {
+        std::string team_name;
+        std::string logo_url;
+        std::vector<std::string> players;
+    };
+    std::vector<std::string> team_order;
+    std::vector<TeamData> teams;
+
+    for (size_t i = 0; i < entries.size(); ++i) {
+        const auto& item = entries[i];
+        if (!item.IsMap()) continue;
+
+        std::string team_name;
+        if (item["team_name"] && !item["team_name"].IsNull()) {
+            team_name = TrimWhitespace(item["team_name"].as<std::string>());
+        }
+        if (team_name.empty()) continue;
+
+        std::string player_name;
+        if (item["player_name"] && !item["player_name"].IsNull()) {
+            player_name = TrimWhitespace(item["player_name"].as<std::string>());
+        }
+
+        std::string team_logo_url;
+        if (item["team_logo_url"] && !item["team_logo_url"].IsNull()) {
+            team_logo_url = TrimWhitespace(item["team_logo_url"].as<std::string>());
+        }
+
+        auto it = std::find(team_order.begin(), team_order.end(), team_name);
+        if (it == team_order.end()) {
+            team_order.push_back(team_name);
+            TeamData td;
+            td.team_name = team_name;
+            td.logo_url = team_logo_url;
+            if (!player_name.empty()) {
+                td.players.push_back(player_name);
+            }
+            teams.push_back(std::move(td));
+        } else {
+            size_t idx = std::distance(team_order.begin(), it);
+            if (teams[idx].logo_url.empty() && !team_logo_url.empty()) {
+                teams[idx].logo_url = team_logo_url;
+            }
+            if (!player_name.empty()) {
+                const auto& p_list = teams[idx].players;
+                if (std::find(p_list.begin(), p_list.end(), player_name) == p_list.end()) {
+                    teams[idx].players.push_back(player_name);
+                }
+            }
+        }
+    }
+
+    std::vector<CompetitionTeam> result;
+    result.reserve(teams.size());
+    for (const auto& td : teams) {
+        std::string slug = SlugifyTeamName(td.team_name);
+        std::string short_name = DeriveTeamShortName(td.team_name);
+        result.emplace_back(slug, td.team_name, short_name, td.logo_url, td.players);
+    }
+    return result;
+}
+
 }  // namespace
 
 LFStatsFetcher::LFStatsFetcher()
@@ -766,6 +892,71 @@ void LFStatsFetcher::FetchCompetitionScheduleAsync(
             callback({}, e.what());
         } catch (...) {
             callback({}, "Unknown error occurred while fetching schedule.");
+        }
+    });
+}
+
+std::vector<CompetitionTeam> LFStatsFetcher::FetchCompetitionTeams(
+    const std::string& competition_slug) {
+    std::string slug = TrimWhitespace(competition_slug);
+    if (slug.empty()) {
+        throw std::invalid_argument("competition_slug cannot be empty.");
+    }
+
+    std::string test_dir;
+    {
+        std::lock_guard<std::mutex> lock(options_mutex_);
+        test_dir = options_.test_data_dir;
+    }
+
+    std::filesystem::path base(test_dir);
+    std::vector<std::string> candidates = {
+        (base / "competitions" / slug / "stats.json").string(),
+        (base / "competitions" / slug / "teams.json").string(),
+        (base / slug / "stats.json").string(),
+        (base / slug / "teams.json").string(),
+        (base / (slug + "_stats.json")).string(),
+        (base / (slug + "_teams.json")).string()
+    };
+
+    std::string raw_json = FetchData(
+        "/competitions/" + slug + "/stats",
+        candidates,
+        "team details for '" + slug + "'");
+
+    YAML::Node doc = YAML::Load(raw_json);
+    return ConvertNodeToCompetitionTeams(doc, slug);
+}
+
+std::vector<CompetitionTeam> LFStatsFetcher::FetchTeams(
+    const std::string& competition_slug) {
+    return FetchCompetitionTeams(competition_slug);
+}
+
+std::future<std::vector<CompetitionTeam>>
+LFStatsFetcher::FetchCompetitionTeamsAsync(
+    const std::string& competition_slug) {
+    return EnqueueTask([this, competition_slug]() {
+        return FetchCompetitionTeams(competition_slug);
+    });
+}
+
+std::future<std::vector<CompetitionTeam>>
+LFStatsFetcher::FetchTeamsAsync(const std::string& competition_slug) {
+    return FetchCompetitionTeamsAsync(competition_slug);
+}
+
+void LFStatsFetcher::FetchCompetitionTeamsAsync(
+    const std::string& competition_slug,
+    TeamsCallback callback) {
+    EnqueueTask([this, competition_slug, callback = std::move(callback)]() {
+        try {
+            auto result = FetchCompetitionTeams(competition_slug);
+            callback(result, "");
+        } catch (const std::exception& e) {
+            callback({}, e.what());
+        } catch (...) {
+            callback({}, "Unknown error occurred while fetching team details.");
         }
     });
 }

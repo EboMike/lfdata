@@ -275,3 +275,81 @@ def test_fetch_competitions_live() -> None:
         assert any('syracuse' in c.slug.lower() for c in comps)
     except Exception as e:
         pytest.skip(f'Live LFstats API unreachable: {e}')
+
+
+def test_fetch_competition_teams_empty_slug_raises() -> None:
+    fetcher = LFStatsFetcher(test_mode=True)
+    with pytest.raises(ValueError, match='competition_slug cannot be empty'):
+        fetcher.fetch_competition_teams('')
+    with pytest.raises(ValueError, match='competition_slug cannot be empty'):
+        fetcher.fetch_competition_teams('   ')
+
+
+def test_fetch_competition_teams_missing_fixture_raises(
+    tmp_path: Path,
+) -> None:
+    fetcher = LFStatsFetcher(test_mode=True, test_data_dir=tmp_path)
+    with pytest.raises(FileNotFoundError, match='No local fixture found'):
+        fetcher.fetch_competition_teams('non_existent_competition')
+
+
+def test_fetch_competition_teams_test_mode_syracuse() -> None:
+    fetcher = LFStatsFetcher(test_mode=True)
+    teams = fetcher.fetch_competition_teams('syracuse_trios_2026')
+
+    assert len(teams) == 4
+    team_names = [t.name for t in teams]
+    assert "Baden's Overly Optimistic Buddies" in team_names
+    assert 'Fireball Friends' in team_names
+    assert 'Death By Budder Knife' in team_names
+    assert 'Still Expendable' in team_names
+
+    boob = next(
+        t for t in teams if t.name == "Baden's Overly Optimistic Buddies"
+    )
+    assert boob.slug == 'baden_s_overly_optimistic_buddies'
+    assert boob.logo_url == 'https://example.com/logos/boob.png'
+    assert boob.player_codenames == ['Baden', 'Sunny', 'Cheer']
+
+    knife = next(t for t in teams if t.name == 'Death By Budder Knife')
+    assert knife.logo_url is not None
+    assert '6478e510' in knife.logo_url
+    assert knife.player_codenames == ['Budder', 'Slick', 'Dagger']
+
+    alias1 = fetcher.fetch_teams('syracuse_trios_2026')
+    assert [t.name for t in alias1] == team_names
+
+    alias2 = fetcher.fetch_competition_team_details('syracuse_trios_2026')
+    assert [t.name for t in alias2] == team_names
+
+
+def test_fetch_competition_teams_mocked_remote_with_api_key() -> None:
+    fetcher = LFStatsFetcher(test_mode=False, api_key='secret_key_123')
+    fake_json = json.dumps({
+        'tournament_slug': [
+            {
+                'ipl_id': '10',
+                'player_name': 'Striker',
+                'team_name': 'Vipers',
+                'team_logo_url': 'https://example.com/viper.png',
+            }
+        ]
+    }).encode('utf-8')
+
+    mock_resp = MagicMock()
+    mock_resp.read.return_value = fake_json
+    mock_resp.__enter__.return_value = mock_resp
+
+    with (
+        patch('urllib.request.urlopen', return_value=mock_resp)
+        as mock_urlopen
+    ):
+        teams = fetcher.fetch_competition_teams('tournament_slug')
+        assert len(teams) == 1
+        assert teams[0].name == 'Vipers'
+        assert teams[0].player_codenames == ['Striker']
+        req = mock_urlopen.call_args[0][0]
+        assert 'tournament_slug/stats' in req.full_url
+        assert req.headers['Authorization'] == 'Bearer secret_key_123'
+        assert req.headers['X-api-key'] == 'secret_key_123'
+

@@ -1,0 +1,89 @@
+{
+  "syracuse_trios_2026": [
+    {
+      "ipl_id": "4-1-101",
+      "player_name": "Baden",
+      "player_picture_url": "https://example.com/players/baden.png",
+      "team_name": "Baden's Overly Optimistic Buddies",
+      "team_logo_url": "https://example.com/logos/boob.png"
+    },
+    {
+      "ipl_id": "4-1-102",
+      "player_name": "Sunny",
+      "player_picture_url": null,
+      "team_name": "Baden's Overly Optimistic Buddies",
+      "team_logo_url": "https://example.com/logos/boob.png"
+    },
+    {
+      "ipl_id": "4-1-103",
+      "player_name": "Cheer",
+      "player_picture_url": null,
+      "team_name": "Baden's Overly Optimistic Buddies",
+      "team_logo_url": "https://example.com/logos/boob.png"
+    },
+    {
+      "ipl_id": "4-2-201",
+      "player_name": "Blaze",
+      "player_picture_url": null,
+      "team_name": "Fireball Friends",
+      "team_logo_url": null
+    },
+    {
+      "ipl_id": "4-2-202",
+      "player_name": "Cinder",
+      "player_picture_url": null,
+      "team_name": "Fireball Friends",
+      "team_logo_url": null
+    },
+    {
+      "ipl_id": "4-2-203",
+      "player_name": "Ignis",
+      "player_picture_url": null,
+      "team_name": "Fireball Friends",
+      "team_logo_url": null
+    },
+    {
+      "ipl_id": "4-3-301",
+      "player_name": "Budder",
+      "player_picture_url": null,
+      "team_name": "Death By Budder Knife",
+      "team_logo_url": "https://lfstats-modern-images.s3.us-west-1.amazonaws.com/6478e510-e248-4b91-a4af-09aec196731f?v=1"
+    },
+    {
+      "ipl_id": "4-3-302",
+      "player_name": "Slick",
+      "player_picture_url": null,
+      "team_name": "Death By Budder Knife",
+      "team_logo_url": "https://lfstats-modern-images.s3.us-west-1.amazonaws.com/6478e510-e248-4b91-a4af-09aec196731f?v=1"
+    },
+    {
+      "ipl_id": "4-3-303",
+      "player_name": "Dagger",
+      "player_picture_url": null,
+      "team_name": "Death By Budder Knife",
+      "team_logo_url": "https://lfstats-modern-images.s3.us-west-1.amazonaws.com/6478e510-e248-4b91-a4af-09aec196731f?v=1"
+    },
+    {
+      "ipl_id": "4-4-401",
+      "player_name": "Barney",
+      "player_picture_url": null,
+      "team_name": "Still Expendable",
+      "team_logo_url": null
+    },
+    {
+      "ipl_id": "4-4-402",
+      "player_name": "Christmas",
+      "player_picture_url": null,
+      "team_name": "Still Expendable",
+      "team_logo_url": null
+    },
+    {
+      "ipl_id": "4-4-403",
+      "player_name": "Gunnar",
+      "player_picture_url": null,
+      "team_name": "Still Expendable",
+      "team_logo_url": null
+    }
+  ]
+}
+

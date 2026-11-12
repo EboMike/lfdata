@@ -262,6 +262,55 @@ TEST(LFStatsFetcherTest, HttpTransportWithKeyReceivesApiKey) {
     EXPECT_EQ(captured_timeout, 10000);
 }
 
+TEST(LFStatsFetcherTest, FetchCompetitionTeamsTestMode) {
+    LFStatsFetcher fetcher(true, "tests/fixtures/lfstats");
+    auto teams = fetcher.FetchCompetitionTeams("syracuse_trios_2026");
+
+    ASSERT_EQ(teams.size(), 4u);
+    EXPECT_EQ(teams[0].GetName(), "Baden's Overly Optimistic Buddies");
+    EXPECT_EQ(teams[0].GetSlug(), "baden_s_overly_optimistic_buddies");
+    EXPECT_EQ(teams[0].GetLogoUrl(), "https://example.com/logos/boob.png");
+    ASSERT_EQ(teams[0].GetPlayers().size(), 3u);
+    EXPECT_EQ(teams[0].GetPlayers()[0], "Baden");
+    EXPECT_EQ(teams[0].GetPlayers()[1], "Sunny");
+    EXPECT_EQ(teams[0].GetPlayers()[2], "Cheer");
+
+    EXPECT_EQ(teams[2].GetName(), "Death By Budder Knife");
+    EXPECT_FALSE(teams[2].GetLogoUrl().empty());
+    EXPECT_EQ(teams[2].GetPlayers().size(), 3u);
+
+    auto alias = fetcher.FetchTeams("syracuse_trios_2026");
+    EXPECT_EQ(teams.size(), alias.size());
+}
+
+TEST(LFStatsFetcherTest, FetchCompetitionTeamsEmptySlugThrows) {
+    LFStatsFetcher fetcher(true, "tests/fixtures/lfstats");
+    EXPECT_THROW(fetcher.FetchCompetitionTeams(""), std::invalid_argument);
+    EXPECT_THROW(fetcher.FetchCompetitionTeams("   "), std::invalid_argument);
+}
+
+TEST(LFStatsFetcherTest, FetchCompetitionTeamsAsyncFuturesAndCallbacks) {
+    LFStatsFetcher fetcher(true, "tests/fixtures/lfstats");
+
+    auto future = fetcher.FetchCompetitionTeamsAsync("syracuse_trios_2026");
+    auto teams = future.get();
+    EXPECT_EQ(teams.size(), 4u);
+
+    std::promise<std::vector<CompetitionTeam>> promise;
+    auto cb_future = promise.get_future();
+    fetcher.FetchCompetitionTeamsAsync(
+        "syracuse_trios_2026",
+        [&promise](
+            const std::vector<CompetitionTeam>& result,
+            const std::string& error) {
+            EXPECT_TRUE(error.empty());
+            promise.set_value(result);
+        });
+
+    auto cb_teams = cb_future.get();
+    EXPECT_EQ(cb_teams.size(), 4u);
+}
+
 }  // namespace
 }  // namespace live_renderer
 

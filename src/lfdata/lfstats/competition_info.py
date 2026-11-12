@@ -64,3 +64,43 @@ class CompetitionInfo:
             return self.slug
         raise KeyError(f"Invalid field: '{key}', expected 'name' or 'slug'.")
 
+
+def parse_competitions_list(raw_data: object) -> list[CompetitionInfo]:
+    """Parses raw competitions API response into a list of CompetitionInfo.
+
+    Args:
+        raw_data: Raw JSON response object (dict with 'data' key or list).
+
+    Returns:
+        list[CompetitionInfo]: List of parsed CompetitionInfo objects.
+
+    Raises:
+        ValueError: If raw_data format is invalid.
+
+    Usage example:
+        comps = parse_competitions_list(raw_json)
+    """
+    if isinstance(raw_data, dict):
+        items = raw_data.get('data')
+        if not isinstance(items, list):
+            raise ValueError(
+                f"Expected 'data' field to be a list, got {type(items)}."
+            )
+    elif isinstance(raw_data, list):
+        items = raw_data
+    else:
+        raise ValueError(
+            'Expected competitions response to be a dict or list, got '
+            f'{type(raw_data)}.'
+        )
+
+    results: list[CompetitionInfo] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get('name', ''))
+        slug = str(item.get('slug', ''))
+        if name or slug:
+            results.append(CompetitionInfo(name=name, slug=slug))
+    return results
+

@@ -15,5 +15,14 @@ Usage example:
 
 from lfdata.lfstats.competition_info import CompetitionInfo
 from lfdata.lfstats.fetcher import LFStatsFetcher
+from lfdata.lfstats.team_converter import (
+    CompetitionPlayerEntry,
+    parse_competition_teams,
+)
 
-__all__ = ['CompetitionInfo', 'LFStatsFetcher']
+__all__ = [
+    'CompetitionInfo',
+    'CompetitionPlayerEntry',
+    'LFStatsFetcher',
+    'parse_competition_teams',
+]

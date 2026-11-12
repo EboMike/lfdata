@@ -32,6 +32,7 @@
 #include <vector>
 
 #include "live_renderer/lfstats/competition_info.hpp"
+#include "live_renderer/model/competition_team.hpp"
 #include "live_renderer/model/scheduled_game.hpp"
 
 namespace live_renderer {
@@ -82,6 +83,10 @@ public:
 
     using ScheduleCallback = std::function<void(
         const std::vector<ScheduledGame>&,
+        const std::string& error)>;
+
+    using TeamsCallback = std::function<void(
+        const std::vector<CompetitionTeam>&,
         const std::string& error)>;
 
     /**
@@ -251,6 +256,24 @@ public:
     std::vector<ScheduledGame> FetchSchedule(
         const std::string& competition_slug);
 
+    /**
+     * Fetches competition team details synchronously.
+     * @param competition_slug Unique slug of the competition.
+     * @return Vector of CompetitionTeam instances.
+     * @throws std::invalid_argument If competition_slug is empty.
+     * @throws std::runtime_error On network failure or missing fixture.
+     */
+    std::vector<CompetitionTeam> FetchCompetitionTeams(
+        const std::string& competition_slug);
+
+    /**
+     * Convenience alias for FetchCompetitionTeams.
+     * @param competition_slug Unique slug of the competition.
+     * @return Vector of CompetitionTeam instances.
+     */
+    std::vector<CompetitionTeam> FetchTeams(
+        const std::string& competition_slug);
+
     // --- Asynchronous Future-based methods (Non-blocking) ---
 
     /**
@@ -281,6 +304,22 @@ public:
     std::future<std::vector<ScheduledGame>> FetchScheduleAsync(
         const std::string& competition_slug);
 
+    /**
+     * Fetches competition teams asynchronously via background thread.
+     * @param competition_slug Unique slug of the competition.
+     * @return std::future holding vector of CompetitionTeam.
+     */
+    std::future<std::vector<CompetitionTeam>> FetchCompetitionTeamsAsync(
+        const std::string& competition_slug);
+
+    /**
+     * Convenience alias for FetchCompetitionTeamsAsync.
+     * @param competition_slug Unique slug of the competition.
+     * @return std::future holding vector of CompetitionTeam.
+     */
+    std::future<std::vector<CompetitionTeam>> FetchTeamsAsync(
+        const std::string& competition_slug);
+
     // --- Asynchronous Callback-based methods (Non-blocking) ---
 
     /**
@@ -297,6 +336,15 @@ public:
     void FetchCompetitionScheduleAsync(
         const std::string& competition_slug,
         ScheduleCallback callback);
+
+    /**
+     * Fetches competition teams asynchronously and invokes callback.
+     * @param competition_slug Unique slug of the competition.
+     * @param callback Function receiving vector of CompetitionTeam and error.
+     */
+    void FetchCompetitionTeamsAsync(
+        const std::string& competition_slug,
+        TeamsCallback callback);
 
 private:
     std::string FetchRemoteJson(const std::string& endpoint_path);
