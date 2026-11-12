@@ -245,3 +245,18 @@ If none apply, the fallback is: `{blocks}/{blocked_by_others} blocks`.
   schedules (synchronous, `std::future` async, and callback async) without
   blocking continuous UI rendering, supporting multiple concurrent requests.
 
+## UI Preview Rendering and Replay Caching
+
+* In the `lfdata_ui` tool, frame rendering in `ImagePreview` uses
+  `PreviewRenderer` to cache `VisualElementGenerator` instances in memory for
+  the active game session, keyed by `(id(game), player_name, pregame_delay_ms)`.
+* When the user adjusts layout coordinates, styling, fonts, or navigates the
+  timeline slider, the precomputed replay simulation is reused directly,
+  avoiding redundant simulation overhead.
+* Preview updates are debounced and executed asynchronously on a background
+  daemon thread with a generation sequence counter so stale in-flight results
+  are safely discarded and the Tkinter GUI remains responsive at all times.
+* When no parsed `LFGame` instance is loaded in memory (e.g. CLI fallback),
+  rendering falls back to executing the `lfdata` executable in a subprocess.
+
+

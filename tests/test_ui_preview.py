@@ -20,7 +20,7 @@ class DummyDoubleVar:
 
 
 class DummyWidget:
-    """A universal mocked Tkinter widget to prevent library/display dependencies."""
+    """Mocked Tkinter widget to prevent library/display dependencies."""
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         self._state: str = 'normal'
@@ -85,8 +85,13 @@ class DummyWidget:
     def update(self) -> None:
         pass
 
-    def after(self, *args: Any, **kwargs: Any) -> None:
-        pass
+    def after(self, *args: Any, **kwargs: Any) -> str:
+        if len(args) > 1 and callable(args[1]):
+            self._scheduled = args[1]
+        return 'timer_1'
+
+    def after_cancel(self, *args: Any, **kwargs: Any) -> None:
+        self._scheduled = None
 
     def title(self, *args: Any, **kwargs: Any) -> None:
         pass
@@ -241,3 +246,65 @@ def test_preview_slider_callback(manager: UIConfigManager) -> None:
 
     assert preview.current_time_ms == 35000
     assert callback_val == 35000
+
+
+def test_preview_in_memory_render(manager: UIConfigManager) -> None:
+    from lfdata.model.objects.game import LFGame
+
+    parent = MagicMock()
+    manager.game = LFGame(game_id='in_mem_game', duration=600000)
+    preview = ImagePreview(parent, manager)
+    preview.renderer = MagicMock()
+    mock_img = MagicMock()
+    mock_img.size = (640, 360)
+    preview.renderer.render_frame.return_value = mock_img
+    preview._show_image = MagicMock()
+
+    preview.update_preview()
+
+    assert preview.renderer.render_frame.called is True
+    assert preview.last_rendered_image == mock_img
+    assert preview._show_image.called is True
+
+
+def test_preview_debounced_schedule(manager: UIConfigManager) -> None:
+    parent = MagicMock()
+    preview = ImagePreview(parent, manager)
+    preview.update_preview = MagicMock()
+
+    preview.schedule_preview(debounce_ms=100)
+    assert preview._debounce_timer_id is not None
+
+    preview._on_debounce_fired()
+    assert preview._debounce_timer_id is None
+    assert preview.update_preview.called is True
+
+
+def test_preview_stale_generation_discarded(manager: UIConfigManager) -> None:
+    parent = MagicMock()
+    preview = ImagePreview(parent, manager)
+    preview.last_rendered_image = None
+    preview._render_generation = 5
+
+    old_img = MagicMock()
+    preview._on_render_success(img=old_img, gen_id=4)
+    assert preview.last_rendered_image is None
+
+    current_img = MagicMock()
+    preview._show_image = MagicMock()
+    preview._on_render_success(img=current_img, gen_id=5)
+    assert preview.last_rendered_image == current_img
+    assert preview._show_image.called is True
+
+
+def test_preview_render_error_handling(manager: UIConfigManager) -> None:
+    parent = MagicMock()
+    preview = ImagePreview(parent, manager)
+    preview._render_generation = 3
+
+    preview._on_render_error(err_msg='Disk error', gen_id=2)
+    assert 'Failed' not in preview.lbl_image.text
+
+    preview._on_render_error(err_msg='Disk error', gen_id=3)
+    assert 'Failed to render: Disk error' in preview.lbl_image.text
+

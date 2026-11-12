@@ -136,6 +136,7 @@ class LFDataUIApp(tk.Tk):
             left_vertical_pane,
             self.config_manager,
             on_time_changed_callback=self._on_time_changed,
+            async_render=True,
         )
         left_vertical_pane.add(self.preview, weight=2)
 
@@ -362,7 +363,7 @@ class LFDataUIApp(tk.Tk):
         """Updates layout preview and properties panel when values change."""
         self.canvas.refresh_elements()
         self.properties.load_element(self.canvas.selected_element)
-        self.preview.update_preview()
+        self.preview.update_preview(debounce_ms=150)
         self._set_dirty(True)
 
     def _on_time_changed(self, time_ms: int) -> None:
