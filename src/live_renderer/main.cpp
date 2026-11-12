@@ -23,6 +23,7 @@
 #include "live_renderer/windows/main_control_window.hpp"
 #include "live_renderer/windows/ui_editor_window.hpp"
 #include "live_renderer/diagnostics/crash_handler.hpp"
+#include "live_renderer/lfstats/lfstats_fetcher.hpp"
 #include "live_renderer/version.hpp"
 #include "live_renderer/windows/window_manager.hpp"
 
@@ -41,6 +42,7 @@ int main(int argc, char* argv[]) {
 
     std::string config_path = "live_renderer_config.yaml";
     int max_frames = -1;
+    bool lfstats_test = false;
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -48,6 +50,8 @@ int main(int argc, char* argv[]) {
             config_path = argv[++i];
         } else if (arg == "--max-frames" && i + 1 < argc) {
             max_frames = std::stoi(argv[++i]);
+        } else if (arg == "--lfstats-test") {
+            lfstats_test = true;
         }
     }
 
@@ -86,8 +90,9 @@ int main(int argc, char* argv[]) {
     live_renderer::LiveStateStore state_store;
     live_renderer::ProtocolParser parser(state_store);
     live_renderer::TcpConsumerClient client(parser, global_cfg.host, global_cfg.port);
+    auto stats_fetcher = std::make_shared<live_renderer::LFStatsFetcher>(lfstats_test);
     live_renderer::MainControlWindow control_window(
-        config_path, global_cfg, ui_cfg, state_store, client);
+        config_path, global_cfg, ui_cfg, state_store, client, stats_fetcher);
     live_renderer::UIEditorWindow editor_window(ui_cfg, global_cfg.ui_config_file);
 
     SDL_SetMainReady();
@@ -114,7 +119,7 @@ int main(int argc, char* argv[]) {
         SDL_WINDOWPOS_CENTERED,
         SDL_WINDOWPOS_CENTERED,
         420,
-        280,
+        340,
         window_flags);
     if (!main_window) {
         std::cerr << "[live_renderer] SDL_CreateWindow Error: " << SDL_GetError() << "\n";
@@ -164,6 +169,10 @@ int main(int argc, char* argv[]) {
             editor_window.SetUIConfigFile(global_cfg.ui_config_file);
             pref_manager.SetPath(global_cfg.preferences_file);
             window_manager.SyncWithConfig(ui_cfg);
+        },
+        .on_competition_selected = [](const live_renderer::CompetitionInfo& comp) {
+            std::cout << "[live_renderer] Selected competition: " << comp.GetName()
+                      << " (" << comp.GetSlug() << ")\n";
         }
     });
 

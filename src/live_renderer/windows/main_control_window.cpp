@@ -1,6 +1,8 @@
 #include "live_renderer/windows/main_control_window.hpp"
+#include <chrono>
 #include <cstdio>
 #include <cstring>
+#include <thread>
 #include <imgui.h>
 #include "live_renderer/config/config_serializer.hpp"
 #include "live_renderer/version.hpp"
@@ -31,21 +33,216 @@ MainControlWindow::MainControlWindow(
     GlobalConfig& global_config,
     UIConfig& ui_config,
     LiveStateStore& state_store,
-    TcpConsumerClient& client)
+    TcpConsumerClient& client,
+    std::shared_ptr<LFStatsFetcher> stats_fetcher)
     : global_config_path_(global_config_path),
       global_config_(global_config),
       ui_config_(ui_config),
       state_store_(state_store),
       client_(client),
+      stats_fetcher_(std::move(stats_fetcher)),
+      is_alive_(std::make_shared<std::atomic<bool>>(true)),
       draft_settings_(global_config) {
     std::snprintf(open_config_path_buf_, sizeof(open_config_path_buf_), "%s", global_config_path_.c_str());
     std::snprintf(settings_host_buf_, sizeof(settings_host_buf_), "%s", global_config_.host.c_str());
     settings_port_ = global_config_.port;
     std::snprintf(settings_ui_file_buf_, sizeof(settings_ui_file_buf_), "%s", global_config_.ui_config_file.c_str());
+
+    if (stats_fetcher_) {
+        StartFetchCompetitions();
+    }
+}
+
+MainControlWindow::~MainControlWindow() {
+    if (is_alive_) {
+        *is_alive_ = false;
+    }
 }
 
 void MainControlWindow::SetCallbacks(Callbacks callbacks) {
     callbacks_ = std::move(callbacks);
+}
+
+void MainControlWindow::SetStatsFetcher(
+    std::shared_ptr<LFStatsFetcher> fetcher,
+    bool auto_fetch) {
+    stats_fetcher_ = std::move(fetcher);
+    if (auto_fetch && stats_fetcher_) {
+        StartFetchCompetitions();
+    }
+}
+
+void MainControlWindow::StartFetchCompetitions() {
+    {
+        std::lock_guard<std::mutex> lock(competitions_mutex_);
+        competition_state_ = CompetitionLoadingState::kLoading;
+        competition_error_message_.clear();
+    }
+
+    if (!stats_fetcher_) {
+        stats_fetcher_ = std::make_shared<LFStatsFetcher>();
+    }
+
+    auto alive = is_alive_;
+    stats_fetcher_->FetchCompetitionsAsync(
+        [this, alive](const std::vector<CompetitionInfo>& comps, const std::string& error) {
+            if (!*alive) {
+                return;
+            }
+            std::lock_guard<std::mutex> lock(competitions_mutex_);
+            if (!error.empty()) {
+                competition_state_ = CompetitionLoadingState::kError;
+                competition_error_message_ = error;
+                competitions_.clear();
+                selected_competition_index_ = -1;
+            } else {
+                competition_state_ = CompetitionLoadingState::kLoaded;
+                competitions_ = comps;
+                competition_error_message_.clear();
+                if (selected_competition_index_ >= static_cast<int>(competitions_.size())) {
+                    selected_competition_index_ = -1;
+                }
+            }
+        });
+}
+
+bool MainControlWindow::WaitForCompetitionFetch(int timeout_ms) {
+    const auto start = std::chrono::steady_clock::now();
+    while (std::chrono::duration_cast<std::chrono::milliseconds>(
+               std::chrono::steady_clock::now() - start).count() < timeout_ms) {
+        {
+            std::lock_guard<std::mutex> lock(competitions_mutex_);
+            if (competition_state_ != CompetitionLoadingState::kLoading) {
+                return true;
+            }
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+    return false;
+}
+
+CompetitionLoadingState MainControlWindow::GetCompetitionLoadingState() const {
+    std::lock_guard<std::mutex> lock(competitions_mutex_);
+    return competition_state_;
+}
+
+std::string MainControlWindow::GetCompetitionDropdownTextLocked() const {
+    switch (competition_state_) {
+        case CompetitionLoadingState::kLoading:
+            return "Loading...";
+        case CompetitionLoadingState::kError:
+            return "ERROR";
+        case CompetitionLoadingState::kLoaded:
+        default:
+            if (selected_competition_index_ >= 0 &&
+                selected_competition_index_ < static_cast<int>(competitions_.size())) {
+                return competitions_[selected_competition_index_].GetName();
+            }
+            return competitions_.empty() ? "-- No Competitions --" : "-- Select Competition --";
+    }
+}
+
+std::string MainControlWindow::GetCompetitionDropdownText() const {
+    std::lock_guard<std::mutex> lock(competitions_mutex_);
+    return GetCompetitionDropdownTextLocked();
+}
+
+std::vector<CompetitionInfo> MainControlWindow::GetCompetitions() const {
+    std::lock_guard<std::mutex> lock(competitions_mutex_);
+    return competitions_;
+}
+
+const CompetitionInfo* MainControlWindow::GetSelectedCompetition() const {
+    std::lock_guard<std::mutex> lock(competitions_mutex_);
+    if (selected_competition_index_ >= 0 &&
+        selected_competition_index_ < static_cast<int>(competitions_.size())) {
+        return &competitions_[selected_competition_index_];
+    }
+    return nullptr;
+}
+
+int MainControlWindow::GetSelectedCompetitionIndex() const {
+    std::lock_guard<std::mutex> lock(competitions_mutex_);
+    return selected_competition_index_;
+}
+
+std::string MainControlWindow::GetSelectedCompetitionSlug() const {
+    std::lock_guard<std::mutex> lock(competitions_mutex_);
+    if (selected_competition_index_ >= 0 &&
+        selected_competition_index_ < static_cast<int>(competitions_.size())) {
+        return competitions_[selected_competition_index_].GetSlug();
+    }
+    return "";
+}
+
+std::string MainControlWindow::GetCompetitionErrorMessage() const {
+    std::lock_guard<std::mutex> lock(competitions_mutex_);
+    return competition_error_message_;
+}
+
+void MainControlWindow::SelectCompetition(int index) {
+    CompetitionInfo comp_to_notify;
+    bool notify = false;
+    {
+        std::lock_guard<std::mutex> lock(competitions_mutex_);
+        if (index >= 0 && index < static_cast<int>(competitions_.size())) {
+            selected_competition_index_ = index;
+            comp_to_notify = competitions_[index];
+            notify = true;
+        } else if (index < 0) {
+            selected_competition_index_ = -1;
+        }
+    }
+    if (notify && callbacks_.on_competition_selected) {
+        callbacks_.on_competition_selected(comp_to_notify);
+    }
+}
+
+bool MainControlWindow::SelectCompetitionBySlug(const std::string& slug) {
+    CompetitionInfo comp_to_notify;
+    bool notify = false;
+    {
+        std::lock_guard<std::mutex> lock(competitions_mutex_);
+        for (size_t i = 0; i < competitions_.size(); ++i) {
+            if (competitions_[i].GetSlug() == slug) {
+                selected_competition_index_ = static_cast<int>(i);
+                comp_to_notify = competitions_[i];
+                notify = true;
+                break;
+            }
+        }
+    }
+    if (notify) {
+        if (callbacks_.on_competition_selected) {
+            callbacks_.on_competition_selected(comp_to_notify);
+        }
+        return true;
+    }
+    return false;
+}
+
+void MainControlWindow::SetCompetitionsForTesting(const std::vector<CompetitionInfo>& competitions) {
+    std::lock_guard<std::mutex> lock(competitions_mutex_);
+    competitions_ = competitions;
+    competition_state_ = CompetitionLoadingState::kLoaded;
+    competition_error_message_.clear();
+    if (selected_competition_index_ >= static_cast<int>(competitions_.size())) {
+        selected_competition_index_ = -1;
+    }
+}
+
+void MainControlWindow::SetCompetitionErrorForTesting(const std::string& error_message) {
+    std::lock_guard<std::mutex> lock(competitions_mutex_);
+    competition_state_ = CompetitionLoadingState::kError;
+    competition_error_message_ = error_message;
+    competitions_.clear();
+    selected_competition_index_ = -1;
+}
+
+void MainControlWindow::SetCompetitionLoadingForTesting() {
+    std::lock_guard<std::mutex> lock(competitions_mutex_);
+    competition_state_ = CompetitionLoadingState::kLoading;
+    competition_error_message_.clear();
 }
 
 ConnectionStatus MainControlWindow::GetConnectionStatus() const {
@@ -273,6 +470,10 @@ void MainControlWindow::RenderImGui() {
         ImGui::Spacing();
         ImGui::Separator();
         ImGui::Spacing();
+        RenderCompetitionSection();
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::Spacing();
         RenderMainButtons();
         RenderModals();
     }
@@ -320,6 +521,58 @@ void MainControlWindow::RenderStatusSection() {
     ImGui::SameLine();
 
     ImGui::TextColored(ImVec4(color[0], color[1], color[2], color[3]), "%s", status_text.c_str());
+}
+
+void MainControlWindow::RenderCompetitionSection() {
+    CompetitionInfo selected_to_notify;
+    bool notify = false;
+
+    {
+        std::lock_guard<std::mutex> lock(competitions_mutex_);
+
+        ImGui::TextUnformatted("Competition:");
+
+        const std::string preview = GetCompetitionDropdownTextLocked();
+        const bool is_disabled =
+            (competition_state_ != CompetitionLoadingState::kLoaded) ||
+            competitions_.empty();
+
+        if (is_disabled) {
+            ImGui::BeginDisabled(true);
+        }
+
+        ImGui::SetNextItemWidth(-1.0f);
+        if (ImGui::BeginCombo("##CompetitionDropdown", preview.c_str())) {
+            for (size_t i = 0; i < competitions_.size(); ++i) {
+                const bool is_selected =
+                    (selected_competition_index_ == static_cast<int>(i));
+                if (ImGui::Selectable(competitions_[i].GetName().c_str(), is_selected)) {
+                    selected_competition_index_ = static_cast<int>(i);
+                    selected_to_notify = competitions_[i];
+                    notify = true;
+                }
+                if (is_selected) {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+            ImGui::EndCombo();
+        }
+
+        if (is_disabled) {
+            ImGui::EndDisabled();
+        }
+
+        if (competition_state_ == CompetitionLoadingState::kError &&
+            !competition_error_message_.empty()) {
+            if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+                ImGui::SetTooltip("%s", competition_error_message_.c_str());
+            }
+        }
+    }
+
+    if (notify && callbacks_.on_competition_selected) {
+        callbacks_.on_competition_selected(selected_to_notify);
+    }
 }
 
 void MainControlWindow::RenderMainButtons() {

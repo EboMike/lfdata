@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 #include <filesystem>
+#include <imgui.h>
 #include "live_renderer/config/config_serializer.hpp"
+#include "live_renderer/lfstats/lfstats_fetcher.hpp"
 #include "live_renderer/network/protocol_parser.hpp"
 #include "live_renderer/network/tcp_consumer_client.hpp"
 #include "live_renderer/state/live_state_store.hpp"
@@ -209,10 +211,189 @@ TEST(MainControlWindowTest, AboutModalAndMetadata) {
     EXPECT_STREQ(
         MainControlWindow::GetApplicationVersion(), kLiveRendererVersion);
     EXPECT_STREQ(
-        MainControlWindow::GetApplicationVersion(), "0.1.36");
+        MainControlWindow::GetApplicationVersion(), "0.1.37");
     EXPECT_STREQ(
         MainControlWindow::GetApplicationAuthor(), "EboMike");
 
     win.CloseAboutDialog();
     EXPECT_FALSE(win.IsAboutDialogOpen());
+}
+
+TEST(MainControlWindowTest, InitialCompetitionLoadingState) {
+    GlobalConfig global_cfg;
+    UIConfig ui_cfg;
+    LiveStateStore store;
+    ProtocolParser parser(store);
+    TcpConsumerClient client(parser, global_cfg.host, global_cfg.port);
+
+    MainControlWindow win("test_ctrl_cfg.yaml", global_cfg, ui_cfg, store, client);
+
+    EXPECT_EQ(win.GetCompetitionLoadingState(), CompetitionLoadingState::kLoading);
+    EXPECT_EQ(win.GetCompetitionDropdownText(), "Loading...");
+    EXPECT_TRUE(win.GetCompetitions().empty());
+    EXPECT_EQ(win.GetSelectedCompetition(), nullptr);
+    EXPECT_EQ(win.GetSelectedCompetitionIndex(), -1);
+    EXPECT_EQ(win.GetSelectedCompetitionSlug(), "");
+    EXPECT_TRUE(win.GetCompetitionErrorMessage().empty());
+}
+
+TEST(MainControlWindowTest, CompetitionFetchStartupInTestMode) {
+    GlobalConfig global_cfg;
+    UIConfig ui_cfg;
+    LiveStateStore store;
+    ProtocolParser parser(store);
+    TcpConsumerClient client(parser, global_cfg.host, global_cfg.port);
+
+    auto fetcher = std::make_shared<LFStatsFetcher>(true, "tests/fixtures/lfstats");
+    MainControlWindow win("test_ctrl_cfg.yaml", global_cfg, ui_cfg, store, client, fetcher);
+
+    EXPECT_TRUE(win.WaitForCompetitionFetch());
+    EXPECT_EQ(win.GetCompetitionLoadingState(), CompetitionLoadingState::kLoaded);
+
+    const auto competitions = win.GetCompetitions();
+    ASSERT_EQ(competitions.size(), 2u);
+    EXPECT_EQ(competitions[0].GetName(), "Syracuse Trios 2026");
+    EXPECT_EQ(competitions[0].GetSlug(), "syracuse_trios_2026");
+    EXPECT_EQ(competitions[1].GetName(), "Internationals 2026");
+    EXPECT_EQ(competitions[1].GetSlug(), "internationals_2026");
+
+    // Initially none selected
+    EXPECT_EQ(win.GetSelectedCompetitionIndex(), -1);
+    EXPECT_EQ(win.GetCompetitionDropdownText(), "-- Select Competition --");
+    EXPECT_EQ(win.GetSelectedCompetition(), nullptr);
+
+    // Select first competition
+    win.SelectCompetition(0);
+    EXPECT_EQ(win.GetSelectedCompetitionIndex(), 0);
+    ASSERT_NE(win.GetSelectedCompetition(), nullptr);
+    EXPECT_EQ(win.GetSelectedCompetition()->GetName(), "Syracuse Trios 2026");
+    EXPECT_EQ(win.GetSelectedCompetitionSlug(), "syracuse_trios_2026");
+    EXPECT_EQ(win.GetCompetitionDropdownText(), "Syracuse Trios 2026");
+
+    // Select second competition by slug
+    EXPECT_TRUE(win.SelectCompetitionBySlug("internationals_2026"));
+    EXPECT_EQ(win.GetSelectedCompetitionIndex(), 1);
+    ASSERT_NE(win.GetSelectedCompetition(), nullptr);
+    EXPECT_EQ(win.GetSelectedCompetition()->GetName(), "Internationals 2026");
+    EXPECT_EQ(win.GetSelectedCompetitionSlug(), "internationals_2026");
+    EXPECT_EQ(win.GetCompetitionDropdownText(), "Internationals 2026");
+
+    // Select invalid slug fails and leaves current selection
+    EXPECT_FALSE(win.SelectCompetitionBySlug("non_existent_comp"));
+    EXPECT_EQ(win.GetSelectedCompetitionIndex(), 1);
+
+    // Deselect with index -1
+    win.SelectCompetition(-1);
+    EXPECT_EQ(win.GetSelectedCompetitionIndex(), -1);
+    EXPECT_EQ(win.GetCompetitionDropdownText(), "-- Select Competition --");
+}
+
+TEST(MainControlWindowTest, CompetitionSelectionInvokesCallback) {
+    GlobalConfig global_cfg;
+    UIConfig ui_cfg;
+    LiveStateStore store;
+    ProtocolParser parser(store);
+    TcpConsumerClient client(parser, global_cfg.host, global_cfg.port);
+
+    auto fetcher = std::make_shared<LFStatsFetcher>(true, "tests/fixtures/lfstats");
+    MainControlWindow win("test_ctrl_cfg.yaml", global_cfg, ui_cfg, store, client, fetcher);
+
+    EXPECT_TRUE(win.WaitForCompetitionFetch());
+
+    CompetitionInfo selected_comp;
+    bool callback_called = false;
+    MainControlWindow::Callbacks cbs;
+    cbs.on_competition_selected = [&](const CompetitionInfo& comp) {
+        selected_comp = comp;
+        callback_called = true;
+    };
+    win.SetCallbacks(cbs);
+
+    win.SelectCompetition(0);
+    EXPECT_TRUE(callback_called);
+    EXPECT_EQ(selected_comp.GetName(), "Syracuse Trios 2026");
+    EXPECT_EQ(selected_comp.GetSlug(), "syracuse_trios_2026");
+
+    callback_called = false;
+    win.SelectCompetitionBySlug("internationals_2026");
+    EXPECT_TRUE(callback_called);
+    EXPECT_EQ(selected_comp.GetName(), "Internationals 2026");
+    EXPECT_EQ(selected_comp.GetSlug(), "internationals_2026");
+}
+
+TEST(MainControlWindowTest, CompetitionFetchErrorState) {
+    GlobalConfig global_cfg;
+    UIConfig ui_cfg;
+    LiveStateStore store;
+    ProtocolParser parser(store);
+    TcpConsumerClient client(parser, global_cfg.host, global_cfg.port);
+
+    auto fetcher = std::make_shared<LFStatsFetcher>(false);
+    fetcher->SetHttpTransport(
+        [](const std::string&, const std::string&, int64_t) -> std::string {
+            throw std::runtime_error("Server unreachable: 503 Service Unavailable");
+        });
+
+    MainControlWindow win("test_ctrl_cfg.yaml", global_cfg, ui_cfg, store, client, fetcher);
+
+    EXPECT_TRUE(win.WaitForCompetitionFetch());
+    EXPECT_EQ(win.GetCompetitionLoadingState(), CompetitionLoadingState::kError);
+    EXPECT_EQ(win.GetCompetitionDropdownText(), "ERROR");
+    EXPECT_NE(win.GetCompetitionErrorMessage().find("Server unreachable"), std::string::npos);
+    EXPECT_TRUE(win.GetCompetitions().empty());
+}
+
+TEST(MainControlWindowTest, RenderImGuiWithCompetitionDropdownStates) {
+    IMGUI_CHECKVERSION();
+    ImGuiContext* ctx = ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.DisplaySize = ImVec2(420.0f, 340.0f);
+
+    unsigned char* pixels = nullptr;
+    int width = 0;
+    int height = 0;
+    io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
+
+    GlobalConfig global_cfg;
+    UIConfig ui_cfg;
+    LiveStateStore store;
+    ProtocolParser parser(store);
+    TcpConsumerClient client(parser, global_cfg.host, global_cfg.port);
+
+    MainControlWindow win("test_ctrl_cfg.yaml", global_cfg, ui_cfg, store, client);
+
+    // Frame 1: Loading state (element disabled, text "Loading...")
+    win.SetCompetitionLoadingForTesting();
+    ImGui::NewFrame();
+    win.RenderImGui();
+    ImGui::Render();
+    EXPECT_EQ(win.GetCompetitionDropdownText(), "Loading...");
+
+    // Frame 2: Error state (element disabled, text "ERROR")
+    win.SetCompetitionErrorForTesting("Network timeout connecting to server");
+    ImGui::NewFrame();
+    win.RenderImGui();
+    ImGui::Render();
+    EXPECT_EQ(win.GetCompetitionDropdownText(), "ERROR");
+    EXPECT_EQ(win.GetCompetitionErrorMessage(), "Network timeout connecting to server");
+
+    // Frame 3: Loaded state with competitions
+    std::vector<CompetitionInfo> test_comps = {
+        CompetitionInfo("Loveland Nationals 2026", "loveland_nationals_2026"),
+        CompetitionInfo("Brisbane League 2026", "brisbane_league_2026")
+    };
+    win.SetCompetitionsForTesting(test_comps);
+    ImGui::NewFrame();
+    win.RenderImGui();
+    ImGui::Render();
+    EXPECT_EQ(win.GetCompetitionDropdownText(), "-- Select Competition --");
+
+    // Frame 4: Select competition and render
+    win.SelectCompetition(0);
+    ImGui::NewFrame();
+    win.RenderImGui();
+    ImGui::Render();
+    EXPECT_EQ(win.GetCompetitionDropdownText(), "Loveland Nationals 2026");
+
+    ImGui::DestroyContext(ctx);
 }

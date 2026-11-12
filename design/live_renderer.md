@@ -483,6 +483,12 @@ The main window also has a menu:
     *   **About**: A modal dialog with the application name, version,
         and author.
 
+The main control window, and its dialogs, can show data that is
+dynamically loaded. While data is being populated for a control element,
+the element should be disabled, and if it has text, it should display
+"Loading...". If data could not be loaded (for example, the server is
+unreachable), the element should remain disabled and say "ERROR".
+
 ## UI Editor Mode
 
 While in UI editor mode, the main control window will be replaced by the
