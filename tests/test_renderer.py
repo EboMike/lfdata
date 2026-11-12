@@ -1,7 +1,7 @@
 import pytest
 from datetime import datetime
-from unittest.mock import MagicMock
-from PIL import Image
+from unittest.mock import MagicMock, patch
+from PIL import Image, ImageDraw, ImageFont
 from lfdata.model import LFGame
 from lfdata.model.gametypes.sm5_events import (
     SM5_EVENT_AMMO_BOOST,
@@ -363,7 +363,7 @@ def test_sm5_event_generation() -> None:
 
     hud_gen = VisualElementGenerator(game, 'PlayerOne')
 
-    # Verify that the nuke intervals were precomputed (empty since no nuke in events)
+    # Verify nuke intervals were precomputed (empty since no nuke in events)
     assert hasattr(hud_gen, 'nuke_intervals')
 
     # Verify that player_event_log contains the player events
@@ -1767,8 +1767,8 @@ def test_embedded_images_rendering_transparency_cropping(tmp_path) -> None:
 
         assert len(resize_calls) > 0
         target_w, target_h = resize_calls[0]
-        # Aspect ratio of the non-transparent bbox is 1.0 (10x10 square)
-        # So width should equal height, confirming transparent margins were cropped
+        # Aspect ratio of non-transparent bbox is 1.0 (10x10 square).
+        # So width should equal height, confirming margins were cropped.
         assert target_w == target_h
     finally:
         if dummy_asset.exists():
@@ -2768,4 +2768,34 @@ def test_scoreboard_drawing_with_additional_values() -> None:
     }
     vg._draw_scoreboard(image=img, el=el, config=cfg, time_ms=100000)
     assert img.getbbox() is not None
+
+
+def test_text_measurement_memoization() -> None:
+    game = LFGame()
+    vg = VideoGenerator(game)
+    img = Image.new('RGBA', (400, 200), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    font = ImageFont.load_default()
+
+    w1 = vg._measure_text_width_with_fallback(draw, 'TestMemo', font)
+    assert w1 > 0
+    assert (font, 'TestMemo') in vg._text_width_cache
+
+    with patch.object(draw, 'textlength') as mock_len:
+        w2 = vg._measure_text_width_with_fallback(draw, 'TestMemo', font)
+        assert w2 == w1
+        assert mock_len.call_count == 0
+
+    b1 = vg._measure_text_bbox_with_fallback(draw, 'TestMemo', font)
+    assert (font, 'TestMemo', 'la') in vg._text_bbox_cache
+
+    with patch.object(draw, 'textbbox') as mock_bbox:
+        b2 = vg._measure_text_bbox_with_fallback(draw, 'TestMemo', font)
+        assert b2 == b1
+        assert mock_bbox.call_count == 0
+
+    vg.clear_text_measurement_cache()
+    assert (font, 'TestMemo') not in vg._text_width_cache
+    assert (font, 'TestMemo', 'la') not in vg._text_bbox_cache
+
 

@@ -1,7 +1,8 @@
 """Video generation and visualization for LF games.
 
-This module provides frame rendering and video file synthesis (`VideoGenerator`) using Pillow
-drawing operations and parallel process pools to output H.264/MP4 files from game event HUD layouts.
+This module provides frame rendering and video file synthesis
+(`VideoGenerator`) using Pillow drawing operations and parallel process pools
+to output H.264/MP4 files from game event HUD layouts.
 
 Usage example:
     from lfdata.video.renderer import VideoGenerator
@@ -253,6 +254,20 @@ class VideoGenerator:
         ] = {}
         self._hit_border_img: Image.Image | None = None
         self._hit_border_lock = threading.Lock()
+        self._text_width_cache: dict[
+            tuple[ImageFont.ImageFont, str], float
+        ] = {}
+        self._text_width_cache_lock = threading.Lock()
+        self._text_bbox_cache: dict[
+            tuple[ImageFont.ImageFont, str, str],
+            tuple[float, float, float, float],
+        ] = {}
+        self._text_bbox_cache_lock = threading.Lock()
+        self._text_runs_cache: dict[
+            tuple[ImageFont.ImageFont, str],
+            list[tuple[str, ImageFont.ImageFont]],
+        ] = {}
+        self._text_runs_cache_lock = threading.Lock()
 
     def __getstate__(self) -> dict[str, object]:
         """Prepares the object state for serialization.
@@ -263,31 +278,25 @@ class VideoGenerator:
             dict[str, object]: The picklable object state.
         """
         state = self.__dict__.copy()
-        if '_text_cache_lock' in state:
-            del state['_text_cache_lock']
-        if '_text_cache' in state:
-            del state['_text_cache']
-        if '_icon_cache_lock' in state:
-            del state['_icon_cache_lock']
-        if '_icon_cache' in state:
-            del state['_icon_cache']
-        if '_penalty_card_cache_lock' in state:
-            del state['_penalty_card_cache_lock']
-        if '_penalty_card_cache' in state:
-            del state['_penalty_card_cache']
-        if '_font_cache_lock' in state:
-            del state['_font_cache_lock']
-        if '_font_cache' in state:
-            del state['_font_cache']
-        if '_fallback_font_cache' in state:
-            del state['_fallback_font_cache']
-        if '_font_notdef_signatures' in state:
-            del state['_font_notdef_signatures']
-        if '_hit_border_lock' in state:
-            del state['_hit_border_lock']
-        if '_hit_border_img' in state:
-            del state['_hit_border_img']
         for key in [
+            '_text_cache_lock',
+            '_text_cache',
+            '_icon_cache_lock',
+            '_icon_cache',
+            '_penalty_card_cache_lock',
+            '_penalty_card_cache',
+            '_font_cache_lock',
+            '_font_cache',
+            '_fallback_font_cache',
+            '_font_notdef_signatures',
+            '_hit_border_lock',
+            '_hit_border_img',
+            '_text_width_cache',
+            '_text_width_cache_lock',
+            '_text_bbox_cache',
+            '_text_bbox_cache_lock',
+            '_text_runs_cache',
+            '_text_runs_cache_lock',
             '_downtime_full',
             '_downtime_empty',
             '_downtime_cache_size',
@@ -324,6 +333,12 @@ class VideoGenerator:
         self._font_notdef_signatures = {}
         self._hit_border_img = None
         self._hit_border_lock = threading.Lock()
+        self._text_width_cache = {}
+        self._text_width_cache_lock = threading.Lock()
+        self._text_bbox_cache = {}
+        self._text_bbox_cache_lock = threading.Lock()
+        self._text_runs_cache = {}
+        self._text_runs_cache_lock = threading.Lock()
 
     def _get_cached_icon(
         self, icon_path: Path, size: int
@@ -1568,7 +1583,8 @@ class VideoGenerator:
     ) -> list[tuple[str, ImageFont.ImageFont]]:
         """Splits text into runs grouped by font support.
 
-        Characters not supported by the primary font are mapped to fallback fonts.
+        Characters not supported by the primary font are mapped to fallback
+        fonts.
 
         Args:
             text: The text to split.
@@ -1579,6 +1595,20 @@ class VideoGenerator:
         """
         if not text:
             return []
+
+        runs_cache_key: tuple[ImageFont.ImageFont, str] | None = None
+        try:
+            runs_cache_key = (font, text)
+            if not hasattr(self, '_text_runs_cache'):
+                self._text_runs_cache = {}
+            if not hasattr(self, '_text_runs_cache_lock'):
+                self._text_runs_cache_lock = threading.Lock()
+            with self._text_runs_cache_lock:
+                cached_runs = self._text_runs_cache.get(runs_cache_key)
+                if cached_runs is not None:
+                    return cached_runs
+        except TypeError:
+            runs_cache_key = None
 
         runs: list[tuple[str, ImageFont.ImageFont]] = []
         current_text: list[str] = []
@@ -1607,6 +1637,10 @@ class VideoGenerator:
         if current_text:
             runs.append((''.join(current_text), current_font))
 
+        if runs_cache_key is not None:
+            with self._text_runs_cache_lock:
+                self._text_runs_cache[runs_cache_key] = runs
+
         return runs
 
     def _measure_text_width_with_fallback(
@@ -1627,10 +1661,28 @@ class VideoGenerator:
         Returns:
             float: Total measured width in pixels.
         """
+        width_cache_key: tuple[ImageFont.ImageFont, str] | None = None
+        try:
+            width_cache_key = (font, text)
+            if not hasattr(self, '_text_width_cache'):
+                self._text_width_cache = {}
+            if not hasattr(self, '_text_width_cache_lock'):
+                self._text_width_cache_lock = threading.Lock()
+            with self._text_width_cache_lock:
+                cached_w = self._text_width_cache.get(width_cache_key)
+                if cached_w is not None:
+                    return cached_w
+        except TypeError:
+            width_cache_key = None
+
         runs = self._get_text_runs(text, font)
         total_w = 0.0
         for run_text, run_font in runs:
             total_w += draw.textlength(run_text, font=run_font)
+
+        if width_cache_key is not None:
+            with self._text_width_cache_lock:
+                self._text_width_cache[width_cache_key] = total_w
         return total_w
 
     def _measure_text_bbox_with_fallback(
@@ -1653,6 +1705,23 @@ class VideoGenerator:
         Returns:
             tuple[float, float, float, float]: Bounding box (x0, y0, x1, y1).
         """
+        if not text:
+            return (0.0, 0.0, 0.0, 0.0)
+
+        bbox_cache_key: tuple[ImageFont.ImageFont, str, str] | None = None
+        try:
+            bbox_cache_key = (font, text, anchor)
+            if not hasattr(self, '_text_bbox_cache'):
+                self._text_bbox_cache = {}
+            if not hasattr(self, '_text_bbox_cache_lock'):
+                self._text_bbox_cache_lock = threading.Lock()
+            with self._text_bbox_cache_lock:
+                cached_bbox = self._text_bbox_cache.get(bbox_cache_key)
+                if cached_bbox is not None:
+                    return cached_bbox
+        except TypeError:
+            bbox_cache_key = None
+
         runs = self._get_text_runs(text, font)
         if not runs:
             return (0.0, 0.0, 0.0, 0.0)
@@ -1678,7 +1747,23 @@ class VideoGenerator:
                     max_y = t_bbox[3]
             total_w += w
 
-        return (0.0, min_y, total_w, max_y)
+        result = (0.0, min_y, total_w, max_y)
+        if bbox_cache_key is not None:
+            with self._text_bbox_cache_lock:
+                self._text_bbox_cache[bbox_cache_key] = result
+        return result
+
+    def clear_text_measurement_cache(self) -> None:
+        """Clears text measurement and font run memoization caches."""
+        if hasattr(self, '_text_width_cache_lock'):
+            with self._text_width_cache_lock:
+                self._text_width_cache.clear()
+        if hasattr(self, '_text_bbox_cache_lock'):
+            with self._text_bbox_cache_lock:
+                self._text_bbox_cache.clear()
+        if hasattr(self, '_text_runs_cache_lock'):
+            with self._text_runs_cache_lock:
+                self._text_runs_cache.clear()
 
     def _draw_text_with_fallback(
         self,
@@ -2954,7 +3039,9 @@ class VideoGenerator:
                     raw_full = Image.open(path_full).convert('RGBA')
                     self._downtime_full = adjust_downtime_asset(
                         original_image=raw_full,
-                        resettable_percentage=self.downtime_params.resettable_percentage,
+                        resettable_percentage=(
+                            self.downtime_params.resettable_percentage
+                        ),
                     )
                     if self._downtime_full is not raw_full:
                         raw_full.close()
@@ -3426,7 +3513,8 @@ class VideoGenerator:
                                         )
                         except Exception as e:
                             print(
-                                f'Warning: failed to composite segment image: {e}'
+                                f'Warning: failed to composite segment '
+                                f'image: {e}'
                             )
                         seg_x += r_seg['width']
 
