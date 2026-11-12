@@ -43,8 +43,21 @@ class DummyDoubleVar:
         self._val = float(value)
 
 
+class DummyBooleanVar:
+    """Mock BooleanVar for testing."""
+
+    def __init__(self, value: bool = False) -> None:
+        self._val = bool(value)
+
+    def get(self) -> bool:
+        return self._val
+
+    def set(self, value: bool) -> None:
+        self._val = bool(value)
+
+
 class DummyWidget:
-    """A universal mocked Tkinter widget to prevent library/display dependencies."""
+    """Mock Tkinter widget to prevent display dependencies."""
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         self._state: str = 'normal'
@@ -288,7 +301,7 @@ tkinter.Menu = DummyMenu
 tkinter.Listbox = DummyWidget
 tkinter.StringVar = DummyStringVar
 tkinter.DoubleVar = DummyDoubleVar
-tkinter.BooleanVar = MagicMock
+tkinter.BooleanVar = DummyBooleanVar
 
 tkinter.ttk.PanedWindow = DummyWidget
 tkinter.ttk.Frame = DummyWidget

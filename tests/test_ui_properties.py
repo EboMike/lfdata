@@ -33,7 +33,7 @@ class DummyBooleanVar:
 
 
 class DummyWidget:
-    """A universal mocked Tkinter widget to prevent library/display dependencies."""
+    """Mock Tkinter widget to prevent display dependencies."""
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         self._state: str = 'normal'
@@ -447,3 +447,42 @@ def test_properties_hit_border(manager: UIConfigManager) -> None:
     assert panel.hb_max_scale_var.get() == ''
     assert panel.hb_col_zap_var.get() == ''
     assert panel.hb_col_penalty_var.get() == ''
+
+
+def test_properties_scoreboard_advanced_stats(
+    manager: UIConfigManager,
+) -> None:
+    parent = MagicMock()
+    panel = PropertiesPanel(parent, manager, lambda: None)
+
+    # 1. Non-scoreboard element hides advanced stats
+    panel.load_element('time')
+    assert panel.lbl_advanced_stats.winfo_ismapped() is False
+    assert panel.cmb_advanced_stats.winfo_ismapped() is False
+    assert panel.advanced_stats_var.get() == ''
+
+    # 2. Scoreboard element displays advanced stats
+    manager.update_element('scoreboard', 'enabled', True)
+    panel.load_element('scoreboard')
+    assert panel.lbl_advanced_stats.winfo_ismapped() is True
+    assert panel.cmb_advanced_stats.winfo_ismapped() is True
+    assert panel.advanced_stats_var.get() == 'after_game'
+
+    # 3. Change selection via event handler
+    panel.advanced_stats_var.set('always')
+    panel._on_advanced_stats_select(MagicMock())
+    el = manager.get_element('scoreboard')
+    assert el is not None
+    assert el.get('additional_values') == 'always'
+
+    # 4. Modify and apply via _apply_properties
+    panel.advanced_stats_var.set('never')
+    panel._apply_properties()
+    assert el.get('additional_values') == 'never'
+
+    # 5. Clear panel hides and resets advanced stats
+    panel.clear()
+    assert panel.lbl_advanced_stats.winfo_ismapped() is False
+    assert panel.cmb_advanced_stats.winfo_ismapped() is False
+    assert panel.advanced_stats_var.get() == ''
+

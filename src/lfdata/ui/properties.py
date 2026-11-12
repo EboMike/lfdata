@@ -1,29 +1,36 @@
 """UI element properties editor panel for the LF data UI.
 
-This module provides a GUI panel widget (`PropertiesPanel`) containing input forms to view
-and edit layout positions, colors, fonts, offsets, and animation keyframes of selected HUD elements.
+This module provides a GUI panel widget (`PropertiesPanel`) containing input
+forms to view and edit layout positions, colors, fonts, offsets, and animation
+keyframes of selected HUD elements.
 
 Usage example:
     from lfdata.ui.properties import PropertiesPanel
 
-    props = PropertiesPanel(parent=window, config_manager=cfg_mgr, on_update_callback=my_cb)
+    props = PropertiesPanel(
+        parent=window, config_manager=cfg_mgr, on_update_callback=my_cb
+    )
     props.pack(fill='both', expand=True)
 """
 
 import tkinter as tk
 from tkinter import ttk
 from typing import Callable
-from lfdata.ui.config_manager import UIConfigManager
+
+from lfdata.model.constants.scoreboard import ScoreboardAdditionalValues
 from lfdata.ui.animation_overview import AnimationOverviewPanel
+from lfdata.ui.config_manager import UIConfigManager
 
 
 class PropertiesPanel(ttk.LabelFrame):
-    """GUI widget panel providing form inputs to inspect and edit HUD element attributes.
+    """GUI widget panel providing form inputs to inspect HUD elements.
 
     Attributes:
         config_manager: UIConfigManager instance managing layout state.
-        on_update: Callback function triggered when element properties are edited.
-        selected_element: Optional element key name string currently selected for editing.
+        on_update: Callback function triggered when element properties
+            are edited.
+        selected_element: Optional element key name string currently selected
+            for editing.
     """
 
     def __init__(
@@ -121,6 +128,7 @@ class PropertiesPanel(ttk.LabelFrame):
         self.fade_in_ms_var = tk.StringVar()
         self.fade_out_ms_var = tk.StringVar()
         self.formatted_text_var = tk.StringVar()
+        self.advanced_stats_var = tk.StringVar()
 
         # Hit Border specific variables
         self.hb_dur_hp_var = tk.StringVar()
@@ -266,6 +274,34 @@ class PropertiesPanel(ttk.LabelFrame):
 
         # Formatted Text
         self._add_row(default_row, 'Formatted Text:', self.formatted_text_var)
+        default_row += 1
+
+        # Scoreboard specific: Advanced Stats
+        self.lbl_advanced_stats = ttk.Label(
+            self.default_frame, text='Advanced Stats:'
+        )
+        self.cmb_advanced_stats = ttk.Combobox(
+            self.default_frame,
+            textvariable=self.advanced_stats_var,
+            values=[
+                ScoreboardAdditionalValues.NEVER.value,
+                ScoreboardAdditionalValues.AFTER_GAME.value,
+                ScoreboardAdditionalValues.ALWAYS.value,
+            ],
+            state='readonly',
+        )
+        self.cmb_advanced_stats.bind(
+            '<<ComboboxSelected>>',
+            self._on_advanced_stats_select,
+        )
+        self.lbl_advanced_stats.grid(
+            row=default_row, column=0, sticky='w', padx=5, pady=3
+        )
+        self.cmb_advanced_stats.grid(
+            row=default_row, column=1, sticky='ew', padx=5, pady=3
+        )
+        self.lbl_advanced_stats.grid_remove()
+        self.cmb_advanced_stats.grid_remove()
         default_row += 1
 
         # Embedded Animation Overview Panel (initially hidden)
@@ -483,11 +519,31 @@ class PropertiesPanel(ttk.LabelFrame):
                 self.config_manager.is_prop_animated(name, 'tilt')
             )
 
+            if name == 'scoreboard':
+                self.lbl_advanced_stats.grid()
+                self.cmb_advanced_stats.grid()
+                raw_stats = el.get(
+                    'additional_values',
+                    el.get(
+                        'advanced_stats',
+                        ScoreboardAdditionalValues.AFTER_GAME,
+                    ),
+                )
+                stats_mode = ScoreboardAdditionalValues.from_str(str(raw_stats))
+                self.advanced_stats_var.set(stats_mode.value)
+            else:
+                self.lbl_advanced_stats.grid_remove()
+                self.cmb_advanced_stats.grid_remove()
+                self.advanced_stats_var.set('')
+
         self._update_animation_overview_visibility()
 
     def clear(self) -> None:
         """Clears all input values and disables forms."""
         self.enabled_var.set(False)
+        self.lbl_advanced_stats.grid_remove()
+        self.cmb_advanced_stats.grid_remove()
+        self.advanced_stats_var.set('')
         self.x_var.set('')
         self.y_var.set('')
         self.w_var.set('')
@@ -593,6 +649,21 @@ class PropertiesPanel(ttk.LabelFrame):
         )
         self.on_update()
 
+    def _on_advanced_stats_select(self, event: tk.Event) -> None:
+        """Handles advanced stats combobox selection immediately.
+
+        Args:
+            event: The combobox select event.
+        """
+        if not self.selected_element:
+            return
+        self.config_manager.update_element(
+            self.selected_element,
+            'additional_values',
+            self.advanced_stats_var.get(),
+        )
+        self.on_update()
+
     def _apply_properties(self) -> None:
         """Parses entry values and applies them back to config manager."""
         if not self.selected_element:
@@ -678,6 +749,13 @@ class PropertiesPanel(ttk.LabelFrame):
             self.selected_element, 'formatted_text', txt
         )
 
+        if self.selected_element == 'scoreboard':
+            stats_str = self.advanced_stats_var.get().strip()
+            if stats_str:
+                self.config_manager.update_element(
+                    self.selected_element, 'additional_values', stats_str
+                )
+
         self.on_update()
 
     def _apply_float(self, var: tk.StringVar, key: str) -> None:
@@ -741,12 +819,15 @@ class PropertiesPanel(ttk.LabelFrame):
         self._update_animation_overview_visibility()
 
     def _on_field_focus(self, key: str) -> None:
-        """Handles focus on animatable properties to sync timeline graph selection.
+        """Handles focus on animatable properties to sync graph selection.
 
         Args:
             key: The property key focused.
         """
-        if self._is_any_prop_animated() and self.anim_overview.winfo_ismapped():
+        if (
+            self._is_any_prop_animated()
+            and self.anim_overview.winfo_ismapped()
+        ):
             self.anim_overview.select_property(key)
 
     def _is_any_prop_animated(self) -> bool:

@@ -2601,7 +2601,10 @@ class VideoGenerator:
             bool: True if additional columns should be rendered.
         """
         raw_val = sb_config.get(
-            'additional_values', ScoreboardAdditionalValues.AFTER_GAME
+            'additional_values',
+            sb_config.get(
+                'advanced_stats', ScoreboardAdditionalValues.AFTER_GAME
+            ),
         )
         if isinstance(raw_val, bool):
             return raw_val
