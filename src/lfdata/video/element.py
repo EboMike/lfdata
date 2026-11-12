@@ -140,6 +140,19 @@ class LFScoreboardPlayerData:
         clears: Clears count integer (Laserball).
         blocks: Blocks count integer (Laserball).
         has_ball: True if player is actively holding the ball (Laserball).
+        shots_fired: Total shots fired count integer.
+        shots_landed: Total shots landed on targets count integer.
+        missiles_fired: Total missiles fired count integer.
+        missiles_landed: Total missiles landed on targets count integer.
+        nukes_detonated: Detonated nukes count integer.
+        nukes_activated: Activated nukes count integer.
+        nuke_cancels: Enemy nuke cancels count integer.
+        own_nuke_cancels: Own commander nuke cancels count integer.
+        medic_hits: Enemy medic hits count integer.
+        own_medic_hits: Own medic hits count integer.
+        medic_nukes: Enemy medic lives taken through nukes integer.
+        times_zapped: Times player was zapped integer.
+        times_zapped_opponents: Times player zapped opposing players integer.
     """
 
     codename: str
@@ -160,6 +173,19 @@ class LFScoreboardPlayerData:
     clears: int = 0
     blocks: int = 0
     has_ball: bool = False
+    shots_fired: int = 0
+    shots_landed: int = 0
+    missiles_fired: int = 0
+    missiles_landed: int = 0
+    nukes_detonated: int = 0
+    nukes_activated: int = 0
+    nuke_cancels: int = 0
+    own_nuke_cancels: int = 0
+    medic_hits: int = 0
+    own_medic_hits: int = 0
+    medic_nukes: int = 0
+    times_zapped: int = 0
+    times_zapped_opponents: int = 0
 
 
 @dataclass
@@ -178,6 +204,19 @@ class LFScoreboardTeamTotals:
         steals: Total team steals integer (Laserball).
         clears: Total team clears integer (Laserball).
         blocks: Total team blocks integer (Laserball).
+        shots_fired: Total team shots fired integer.
+        shots_landed: Total team shots landed integer.
+        missiles_fired: Total team missiles fired integer.
+        missiles_landed: Total team missiles landed integer.
+        nukes_detonated: Total team detonated nukes integer.
+        nukes_activated: Total team activated nukes integer.
+        nuke_cancels: Total team enemy nuke cancels integer.
+        own_nuke_cancels: Total team own nuke cancels integer.
+        medic_hits: Total team enemy medic hits integer.
+        own_medic_hits: Total team own medic hits integer.
+        medic_nukes: Total team enemy medic lives taken by nukes integer.
+        times_zapped: Total team times zapped integer.
+        times_zapped_opponents: Total team times opponent zapped integer.
     """
 
     score: int
@@ -191,6 +230,19 @@ class LFScoreboardTeamTotals:
     steals: int = 0
     clears: int = 0
     blocks: int = 0
+    shots_fired: int = 0
+    shots_landed: int = 0
+    missiles_fired: int = 0
+    missiles_landed: int = 0
+    nukes_detonated: int = 0
+    nukes_activated: int = 0
+    nuke_cancels: int = 0
+    own_nuke_cancels: int = 0
+    medic_hits: int = 0
+    own_medic_hits: int = 0
+    medic_nukes: int = 0
+    times_zapped: int = 0
+    times_zapped_opponents: int = 0
 
 
 @dataclass

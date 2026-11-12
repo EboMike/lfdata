@@ -2404,3 +2404,368 @@ def test_renderer_draw_text_segments() -> None:
     assert draw_text_calls[1][1] == (255, 255, 255, 255)
     assert draw_text_calls[2][0] == '3'
     assert draw_text_calls[2][1] == (0, 0, 255, 255)
+
+
+def test_scoreboard_additional_values_visibility() -> None:
+    from lfdata.model import LFGame
+    from lfdata.video.renderer import VideoGenerator
+
+    game = LFGame(game_id='test_vis', game_type='SM5', duration=900000)
+    vg = VideoGenerator(game)
+
+    cfg_never = {'additional_values': 'never'}
+    assert not vg._should_show_scoreboard_additional_values(
+        sb_config=cfg_never, time_ms=950000
+    )
+    assert not vg._should_show_scoreboard_additional_values(
+        sb_config=cfg_never, time_ms=100000
+    )
+
+    cfg_always = {'additional_values': 'always'}
+    assert vg._should_show_scoreboard_additional_values(
+        sb_config=cfg_always, time_ms=100000
+    )
+    assert vg._should_show_scoreboard_additional_values(
+        sb_config=cfg_always, time_ms=950000
+    )
+
+    cfg_after = {'additional_values': 'after_game'}
+    assert not vg._should_show_scoreboard_additional_values(
+        sb_config=cfg_after, time_ms=899999
+    )
+    assert vg._should_show_scoreboard_additional_values(
+        sb_config=cfg_after, time_ms=900000
+    )
+    assert vg._should_show_scoreboard_additional_values(
+        sb_config=cfg_after, time_ms=950000
+    )
+
+    cfg_default: dict[str, object] = {}
+    assert not vg._should_show_scoreboard_additional_values(
+        sb_config=cfg_default, time_ms=500000
+    )
+    assert vg._should_show_scoreboard_additional_values(
+        sb_config=cfg_default, time_ms=900001
+    )
+
+
+def test_sm5_scoreboard_additional_columns() -> None:
+    from lfdata.model import LFGame
+    from lfdata.video.renderer import VideoGenerator
+
+    game = LFGame(game_id='sm5_cols', game_type='SM5', duration=900000)
+    vg = VideoGenerator(game)
+
+    cols_std, offsets_std = vg._resolve_scoreboard_columns(
+        x_start=100, table_width=650, show_additional=False
+    )
+    assert cols_std == [
+        'Player',
+        'Role',
+        'Score',
+        'Lives',
+        'Shots',
+        'Missiles',
+        'Spec',
+    ]
+
+    cols_add, offsets_add = vg._resolve_scoreboard_columns(
+        x_start=100, table_width=1650, show_additional=True
+    )
+    assert cols_add == [
+        'Player',
+        'Role',
+        'Score',
+        'Lives',
+        'Shots',
+        'Missiles',
+        'Spec',
+        'Nukes',
+        'Missile Acc',
+        'Accuracy',
+        'Hit Ratio',
+        'Medic Hits',
+        'Nuke Cancels',
+    ]
+    assert len(offsets_add) == len(cols_add)
+    assert offsets_add[0] >= 100
+    acc_idx = cols_add.index('Accuracy')
+    hr_idx = cols_add.index('Hit Ratio')
+    med_idx = cols_add.index('Medic Hits')
+    assert offsets_add[hr_idx] - offsets_add[acc_idx] >= 240
+    assert offsets_add[med_idx] - offsets_add[hr_idx] >= 230
+
+
+def test_laserball_scoreboard_additional_columns() -> None:
+    from lfdata.model import LFGame
+    from lfdata.video.renderer import VideoGenerator
+
+    game = LFGame(game_id='lb_cols', game_type='Laserball', duration=900000)
+    vg = VideoGenerator(game)
+
+    cols_std, offsets_std = vg._resolve_scoreboard_columns(
+        x_start=100, table_width=650, show_additional=False
+    )
+    assert cols_std == [
+        'Player',
+        'Goals',
+        'Assists',
+        'Steals',
+        'Clears',
+        'Blocks',
+    ]
+
+    cols_add, offsets_add = vg._resolve_scoreboard_columns(
+        x_start=100, table_width=1200, show_additional=True
+    )
+    assert cols_add == [
+        'Player',
+        'Goals',
+        'Assists',
+        'Steals',
+        'Clears',
+        'Blocks',
+        'Accuracy',
+        'Hit Ratio',
+    ]
+    assert len(offsets_add) == len(cols_add)
+    acc_idx = cols_add.index('Accuracy')
+    hr_idx = cols_add.index('Hit Ratio')
+    assert offsets_add[hr_idx] - offsets_add[acc_idx] >= 240
+    assert 100 + 1200 - offsets_add[hr_idx] >= 230
+
+
+def test_scoreboard_player_row_additional_values_formatting() -> None:
+    from lfdata.model import LFGame
+    from lfdata.video.element import LFScoreboardPlayerData
+    from lfdata.video.renderer import VideoGenerator
+
+    game = LFGame(game_id='fmt_test', game_type='SM5')
+    vg = VideoGenerator(game)
+
+    cols = [
+        'Player',
+        'Nukes',
+        'Missile Acc',
+        'Accuracy',
+        'Hit Ratio',
+        'Medic Hits',
+        'Nuke Cancels',
+    ]
+
+    # Commander with nukes and cancels
+    p_cmd = LFScoreboardPlayerData(
+        codename='CommanderX',
+        role_name='Commander',
+        score=5000,
+        lives=10,
+        shots=50,
+        missiles=2,
+        special_points=15,
+        hp=3,
+        max_hp=3,
+        is_down=False,
+        is_eliminated=False,
+        penalties=0,
+        shots_fired=80,
+        shots_landed=20,
+        missiles_fired=5,
+        missiles_landed=3,
+        nukes_detonated=2,
+        nukes_activated=3,
+        nuke_cancels=2,
+        own_nuke_cancels=1,
+        medic_hits=1,
+        own_medic_hits=1,
+        medic_nukes=3,
+        times_zapped=40,
+        times_zapped_opponents=20,
+    )
+    vals_cmd = vg._compile_player_row_values(p=p_cmd, columns=cols)
+    assert vals_cmd[0] == 'CommanderX'
+    assert vals_cmd[1] == '2/3'
+    assert vals_cmd[2] == '3/5'
+    assert vals_cmd[3] == '20/80 (25%)'
+    assert vals_cmd[4] == '20/40 (0.50)'
+    assert vals_cmd[5] == '1/3/-1'
+    assert vals_cmd[6] == '2/-1'
+
+    # Scout with 0 shots fired and 0 zapped
+    p_scout = LFScoreboardPlayerData(
+        codename='ScoutY',
+        role_name='Scout',
+        score=1500,
+        lives=15,
+        shots=0,
+        missiles=0,
+        special_points=0,
+        hp=1,
+        max_hp=1,
+        is_down=False,
+        is_eliminated=False,
+        penalties=0,
+        shots_fired=0,
+        shots_landed=0,
+        missiles_fired=0,
+        missiles_landed=0,
+        nukes_detonated=0,
+        nukes_activated=0,
+        nuke_cancels=0,
+        own_nuke_cancels=0,
+        medic_hits=2,
+        own_medic_hits=3,
+        medic_nukes=0,
+        times_zapped=0,
+        times_zapped_opponents=15,
+    )
+    vals_scout = vg._compile_player_row_values(p=p_scout, columns=cols)
+    assert vals_scout[1] == ''
+    assert vals_scout[2] == ''
+    assert vals_scout[3] == '0/0 (0%)'
+    assert vals_scout[4] == '15/0 (15.00)'
+    assert vals_scout[5] == '2/-3'
+    assert vals_scout[6] == '0'
+
+
+def test_scoreboard_totals_row_additional_values_formatting() -> None:
+    from lfdata.model import LFGame
+    from lfdata.video.element import LFScoreboardTeamTotals
+    from lfdata.video.renderer import VideoGenerator
+
+    game = LFGame(game_id='totals_fmt', game_type='SM5')
+    vg = VideoGenerator(game)
+
+    cols = [
+        'Player',
+        'Nukes',
+        'Missile Acc',
+        'Accuracy',
+        'Hit Ratio',
+        'Medic Hits',
+        'Nuke Cancels',
+    ]
+    totals = LFScoreboardTeamTotals(
+        score=25000,
+        lives=40,
+        shots=200,
+        missiles=8,
+        special_points=30,
+        hp=5,
+        shots_fired=500,
+        shots_landed=250,
+        missiles_fired=10,
+        missiles_landed=6,
+        nukes_detonated=4,
+        nukes_activated=5,
+        nuke_cancels=3,
+        own_nuke_cancels=0,
+        medic_hits=0,
+        own_medic_hits=0,
+        medic_nukes=5,
+        times_zapped=80,
+        times_zapped_opponents=120,
+    )
+    vals = vg._compile_totals_row_values(totals=totals, columns=cols)
+    assert vals[0] == 'TOTAL'
+    assert vals[1] == '4/5'
+    assert vals[2] == '6/10'
+    assert vals[3] == '250/500 (50%)'
+    assert vals[4] == '120/80 (1.50)'
+    assert vals[5] == '0/5'
+    assert vals[6] == '3'
+
+
+def test_scoreboard_drawing_with_additional_values() -> None:
+    from PIL import Image
+    from lfdata.model import LFGame
+    from lfdata.video.element import (
+        LFScoreboardData,
+        LFScoreboardPlayerData,
+        LFScoreboardTeamData,
+        LFScoreboardTeamTotals,
+        UIElement,
+        UIElementStyle,
+    )
+    from lfdata.video.renderer import VideoGenerator
+
+    game = LFGame(game_id='draw_test', game_type='SM5', duration=900000)
+    vg = VideoGenerator(game)
+    img = Image.new('RGBA', (1920, 1080), (0, 0, 0, 0))
+
+    p = LFScoreboardPlayerData(
+        codename='AlphaOne',
+        role_name='Commander',
+        score=1000,
+        lives=10,
+        shots=50,
+        missiles=2,
+        special_points=5,
+        hp=3,
+        max_hp=3,
+        is_down=False,
+        is_eliminated=False,
+        penalties=0,
+        shots_fired=100,
+        shots_landed=40,
+        missiles_fired=4,
+        missiles_landed=2,
+        nukes_detonated=1,
+        nukes_activated=1,
+        nuke_cancels=0,
+        own_nuke_cancels=1,
+        medic_hits=2,
+        own_medic_hits=0,
+        medic_nukes=0,
+        times_zapped=10,
+        times_zapped_opponents=15,
+    )
+    totals = LFScoreboardTeamTotals(
+        score=1000,
+        lives=10,
+        shots=50,
+        missiles=2,
+        special_points=5,
+        hp=3,
+        shots_fired=100,
+        shots_landed=40,
+        missiles_fired=4,
+        missiles_landed=2,
+        nukes_detonated=1,
+        nukes_activated=1,
+        nuke_cancels=0,
+        own_nuke_cancels=1,
+        medic_hits=2,
+        own_medic_hits=0,
+        medic_nukes=0,
+        times_zapped=10,
+        times_zapped_opponents=15,
+    )
+    team = LFScoreboardTeamData(
+        team_index=0,
+        team_name='Red Team',
+        team_score=1000,
+        color_rgb='#ff0000',
+        players=[p],
+        visual_rank=1.0,
+        totals=totals,
+        y_pos=200.0,
+    )
+    el = UIElement(
+        element_type='scoreboard',
+        scoreboard_data=LFScoreboardData(teams=[team]),
+        style=UIElementStyle(size=20),
+    )
+
+    cfg = {
+        'elements': {
+            'scoreboard': {
+                'enabled': True,
+                'additional_values': 'always',
+                'draw_background': True,
+                'draw_borders': True,
+            }
+        }
+    }
+    vg._draw_scoreboard(image=img, el=el, config=cfg, time_ms=100000)
+    assert img.getbbox() is not None
+

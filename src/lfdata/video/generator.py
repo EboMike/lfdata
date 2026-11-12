@@ -287,6 +287,13 @@ class VisualElementGenerator:
         new_p.penalties = p.penalties
         new_p.times_zapped = p.times_zapped
         new_p.times_zapped_opponents = p.times_zapped_opponents
+        new_p.shots_fired = p.shots_fired
+        new_p.shots_hit = p.shots_hit
+        new_p.missiles_fired = p.missiles_fired
+        new_p.missiles_hit = p.missiles_hit
+        new_p.medic_hits = p.medic_hits
+        new_p.own_medic_hits = p.own_medic_hits
+        new_p.medic_nukes = p.medic_nukes
         new_p.goals = p.goals
         new_p.assists = p.assists
         new_p.steals = p.steals
@@ -1871,9 +1878,64 @@ class VisualElementGenerator:
         tot_steals = 0
         tot_clears = 0
         tot_blocks = 0
+        tot_shots_fired = 0
+        tot_shots_landed = 0
+        tot_missiles_fired = 0
+        tot_missiles_landed = 0
+        tot_nukes_detonated = 0
+        tot_nukes_activated = 0
+        tot_nuke_cancels = 0
+        tot_own_nuke_cancels = 0
+        tot_medic_hits = 0
+        tot_own_medic_hits = 0
+        tot_medic_nukes = 0
+        tot_times_zapped = 0
+        tot_times_zapped_opp = 0
+
+        stats_by_id = {}
+        actual_dur = self.game.duration or self.game_ended_at_ms or 0
+        if time_ms >= actual_dur and actual_dur > 0 and self.game.sm5_stats:
+            stats_by_id = {s.entity_id: s for s in self.game.sm5_stats}
 
         for p in team_players:
             codename = self.entity_names.get(p.entity_id, p.entity_id)
+            s = stats_by_id.get(p.entity_id)
+            p_shots_f = s.shots_fired if s and s.shots_fired else p.shots_fired
+            p_shots_l = s.shots_hit if s and s.shots_hit else p.shots_hit
+            p_msl_f = p.missiles_fired
+            p_msl_l = s.missile_hits if s and s.missile_hits else p.missiles_hit
+            p_nk_det = (
+                s.nukes_detonated
+                if s and s.nukes_detonated
+                else p.nukes_detonated
+            )
+            p_nk_act = (
+                s.nukes_activated
+                if s and s.nukes_activated
+                else p.nukes_activated
+            )
+            p_nk_canc = (
+                s.nuke_cancels if s and s.nuke_cancels else p.nuke_cancels
+            )
+            p_own_nk_canc = (
+                s.own_nuke_cancels
+                if s and s.own_nuke_cancels
+                else p.own_nuke_cancels
+            )
+            p_med_h = s.medic_hits if s and s.medic_hits else p.medic_hits
+            p_own_med_h = (
+                s.own_medic_hits if s and s.own_medic_hits else p.own_medic_hits
+            )
+            p_med_nk = s.medic_nukes if s and s.medic_nukes else p.medic_nukes
+            p_zapped = (
+                s.times_zapped if s and s.times_zapped else p.times_zapped
+            )
+            p_zapped_opp = (
+                s.shot_opponent
+                if s and s.shot_opponent
+                else p.times_zapped_opponents
+            )
+
             players_data.append(
                 LFScoreboardPlayerData(
                     codename=codename,
@@ -1894,6 +1956,19 @@ class VisualElementGenerator:
                     clears=p.clears,
                     blocks=p.blocks,
                     has_ball=p.has_ball,
+                    shots_fired=p_shots_f,
+                    shots_landed=p_shots_l,
+                    missiles_fired=p_msl_f,
+                    missiles_landed=p_msl_l,
+                    nukes_detonated=p_nk_det,
+                    nukes_activated=p_nk_act,
+                    nuke_cancels=p_nk_canc,
+                    own_nuke_cancels=p_own_nk_canc,
+                    medic_hits=p_med_h,
+                    own_medic_hits=p_own_med_h,
+                    medic_nukes=p_med_nk,
+                    times_zapped=p_zapped,
+                    times_zapped_opponents=p_zapped_opp,
                 )
             )
             tot_score += p.score
@@ -1906,6 +1981,19 @@ class VisualElementGenerator:
             tot_steals += p.steals
             tot_clears += p.clears
             tot_blocks += p.blocks
+            tot_shots_fired += p_shots_f
+            tot_shots_landed += p_shots_l
+            tot_missiles_fired += p_msl_f
+            tot_missiles_landed += p_msl_l
+            tot_nukes_detonated += p_nk_det
+            tot_nukes_activated += p_nk_act
+            tot_nuke_cancels += p_nk_canc
+            tot_own_nuke_cancels += p_own_nk_canc
+            tot_medic_hits += p_med_h
+            tot_own_medic_hits += p_own_med_h
+            tot_medic_nukes += p_med_nk
+            tot_times_zapped += p_zapped
+            tot_times_zapped_opp += p_zapped_opp
             if p.max_hp > 1:
                 tot_hp += p.hp
 
@@ -1921,6 +2009,19 @@ class VisualElementGenerator:
             steals=tot_steals,
             clears=tot_clears,
             blocks=tot_blocks,
+            shots_fired=tot_shots_fired,
+            shots_landed=tot_shots_landed,
+            missiles_fired=tot_missiles_fired,
+            missiles_landed=tot_missiles_landed,
+            nukes_detonated=tot_nukes_detonated,
+            nukes_activated=tot_nukes_activated,
+            nuke_cancels=tot_nuke_cancels,
+            own_nuke_cancels=tot_own_nuke_cancels,
+            medic_hits=tot_medic_hits,
+            own_medic_hits=tot_own_medic_hits,
+            medic_nukes=tot_medic_nukes,
+            times_zapped=tot_times_zapped,
+            times_zapped_opponents=tot_times_zapped_opp,
         )
         return players_data, totals
 

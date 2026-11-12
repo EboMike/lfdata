@@ -68,6 +68,7 @@ from lfdata.model.gametypes.sm5_events import (
     SM5_EVENT_MISSILE_BASE_DESTROY,
     SM5_EVENT_MISSILE_BASE_MISS,
     SM5_EVENT_MISSILE_DOWN_OPPONENT,
+    SM5_EVENT_MISSILE_DOWN_TEAM,
     SM5_EVENT_MISSILE_MISS,
     SM5_EVENT_MISSION_END,
     SM5_EVENT_MISSION_START,
@@ -116,7 +117,14 @@ class LFReplayHandlersMixin:
             and not actor.is_eliminated()
             and not target.is_eliminated()
         ):
+            actor.shots_hit += 1
             target.times_zapped += 1
+            if target.role == LFRole.MEDIC:
+                if actor.team_index != target.team_index:
+                    actor.medic_hits += 1
+                else:
+                    actor.own_medic_hits += 1
+
             if actor.team_index == target.team_index:
                 # Friendly fire: penalize actor
                 actor.score += SM5_SCORE_ZAP_TEAM
@@ -186,6 +194,14 @@ class LFReplayHandlersMixin:
             and not actor.is_eliminated()
             and not target.is_eliminated()
         ):
+            actor.missiles_hit += 1
+            if target.role == LFRole.MEDIC:
+                delta = 1 if target.lives <= 1 else 2
+                if actor.team_index != target.team_index:
+                    actor.medic_hits += delta
+                else:
+                    actor.own_medic_hits += delta
+
             if actor.team_index == target.team_index:
                 # Friendly fire missile: penalize actor
                 actor.score += SM5_SCORE_MISSILE_TEAM
@@ -290,6 +306,10 @@ class LFReplayHandlersMixin:
                     player.team_index != actor.team_index
                     and not player.is_eliminated()
                 ):
+                    if player.role == LFRole.MEDIC:
+                        actor.medic_nukes += min(
+                            player.lives, SM5_NUKE_LIVES_LOST
+                        )
                     was_already_down = player.is_down(event.time)
                     if not player.has_authoritative_lives:
                         player.lives = max(
@@ -537,13 +557,22 @@ class LFReplayHandlersMixin:
             return f'{actor_name} misses base'
         if event.event_type == SM5_EVENT_HIT_BASE:
             self._decrement_shots(event.actor_entity_id)
+            actor = self.game_state.players.get(event.actor_entity_id)
+            if actor:
+                actor.shots_hit += 1
             return f'{actor_name} zaps {target_name}'
         if event.event_type == SM5_EVENT_WARBOT_ZAP:
+            actor = self.game_state.players.get(event.actor_entity_id)
+            if actor:
+                actor.shots_hit += 1
             return f'{actor_name} zaps {target_name}'
         if event.event_type == SM5_EVENT_CLAIM_BEACON:
             self._decrement_shots(
                 event.actor_entity_id, count=SM5_BEACON_CLAIM_SHOTS_LOST
             )
+            actor = self.game_state.players.get(event.actor_entity_id)
+            if actor:
+                actor.shots_hit += 1
             return f'{actor_name} claims a beacon'
         if event.event_type == SM5_EVENT_LOCKING:
             return f'{actor_name} locking {target_name}'
@@ -552,6 +581,9 @@ class LFReplayHandlersMixin:
             return f'{actor_name} misses base'
         if event.event_type == SM5_EVENT_MISSILE_BASE_DAMAGE:
             self._decrement_missiles(event.actor_entity_id)
+            actor = self.game_state.players.get(event.actor_entity_id)
+            if actor:
+                actor.missiles_hit += 1
             return f'{actor_name} zaps {target_name}'
         if event.event_type == SM5_EVENT_MISSILE_MISS:
             self._decrement_missiles(event.actor_entity_id)
@@ -634,6 +666,22 @@ class LFReplayHandlersMixin:
                         enemy = self.game_state.players.get(ev.actor_entity_id)
                         if enemy and not enemy.is_eliminated():
                             enemy.nuke_cancels += 1
+                        break
+        elif event.action == 'nuke cancel by friendly fire':
+            for ev in self.game.events:
+                if (
+                    ev.time == event.time
+                    and ev.target_entity_id == actor.entity_id
+                ):
+                    if ev.event_type in (
+                        SM5_EVENT_DOWNED_TEAM,
+                        SM5_EVENT_MISSILE_DOWN_TEAM,
+                    ):
+                        teammate = self.game_state.players.get(
+                            ev.actor_entity_id
+                        )
+                        if teammate and not teammate.is_eliminated():
+                            teammate.own_nuke_cancels += 1
                         break
 
     def _get_nuke_cancel_suffix(self, action: str) -> str:

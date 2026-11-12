@@ -4992,3 +4992,135 @@ def test_player_events_resettable_simulation() -> None:
     assert hud_gen.player_event_log[2].time == 11000
 
 
+def test_scoreboard_additional_values_in_generator() -> None:
+    from lfdata.model import (
+        GameEntity,
+        GameEvent,
+        GameTeam,
+        LFGame,
+        LFRole,
+        Sm5Stats,
+    )
+    from lfdata.model.gametypes.sm5_events import (
+        SM5_EVENT_ACTIVATE_NUKE,
+        SM5_EVENT_DAMAGED_OPPONENT,
+        SM5_EVENT_DETONATE_NUKE,
+        SM5_EVENT_DOWNED_OPPONENT,
+        SM5_EVENT_DOWNED_TEAM,
+        SM5_EVENT_MISSILE_DOWN_OPPONENT,
+        SM5_EVENT_MISSION_START,
+        SM5_EVENT_NUKE_CANCEL,
+    )
+    from lfdata.video.generator import VisualElementGenerator
+
+    game = LFGame(game_id='test_add_sb_gen', game_type='SM5', duration=60000)
+    game.teams = [
+        GameTeam(game_id='test_add_sb_gen', team_index=0, desc='Red Team'),
+        GameTeam(game_id='test_add_sb_gen', team_index=1, desc='Green Team'),
+    ]
+    game.entities = [
+        GameEntity(
+            game_id='test_add_sb_gen',
+            entity_id='P1',
+            type='player',
+            desc='CmdrRed',
+            team_index=0,
+            category=LFRole.COMMANDER.role_id,
+        ),
+        GameEntity(
+            game_id='test_add_sb_gen',
+            entity_id='P2',
+            type='player',
+            desc='MedicGreen',
+            team_index=1,
+            category=LFRole.MEDIC.role_id,
+        ),
+        GameEntity(
+            game_id='test_add_sb_gen',
+            entity_id='P3',
+            type='player',
+            desc='CmdrGreen',
+            team_index=1,
+            category=LFRole.COMMANDER.role_id,
+        ),
+    ]
+    game.events = [
+        GameEvent(
+            time=1000,
+            event_type=SM5_EVENT_MISSION_START,
+            action='0100',
+        ),
+        # P1 zaps P2 (medic)
+        GameEvent(
+            time=2000,
+            event_type=SM5_EVENT_DOWNED_OPPONENT,
+            actor_entity_id='P1',
+            target_entity_id='P2',
+            action='0206',
+        ),
+        # P1 missiles P2 (medic)
+        GameEvent(
+            time=4000,
+            event_type=SM5_EVENT_MISSILE_DOWN_OPPONENT,
+            actor_entity_id='P1',
+            target_entity_id='P2',
+            action='0306',
+        ),
+        # P1 activates and detonates nuke
+        GameEvent(
+            time=5000,
+            event_type=SM5_EVENT_ACTIVATE_NUKE,
+            actor_entity_id='P1',
+            action='0404',
+        ),
+        GameEvent(
+            time=8000,
+            event_type=SM5_EVENT_DETONATE_NUKE,
+            actor_entity_id='P1',
+            action='0405',
+        ),
+        # P3 activates nuke, P1 cancels it by downing P3
+        GameEvent(
+            time=10000,
+            event_type=SM5_EVENT_ACTIVATE_NUKE,
+            actor_entity_id='P3',
+            action='0404',
+        ),
+        GameEvent(
+            time=12000,
+            event_type=SM5_EVENT_DOWNED_OPPONENT,
+            actor_entity_id='P1',
+            target_entity_id='P3',
+            action='0206',
+        ),
+        GameEvent(
+            time=12000,
+            event_type=SM5_EVENT_NUKE_CANCEL,
+            actor_entity_id='P3',
+            action='nuke cancel',
+        ),
+    ]
+
+    hud_gen = VisualElementGenerator(game=game, player_name='CmdrRed')
+    el = hud_gen._create_scoreboard_element(
+        teams=hud_gen.snapshots[-1][2],
+        players=hud_gen.snapshots[-1][1],
+        time_ms=15000,
+    )
+    assert el is not None
+    assert el.scoreboard_data is not None
+
+    red_team = next(t for t in el.scoreboard_data.teams if t.team_index == 0)
+    p1_data = next(p for p in red_team.players if p.codename == 'CmdrRed')
+
+    assert p1_data.medic_hits == 3  # 1 zap + 2 missile
+    assert p1_data.nukes_detonated == 1
+    assert p1_data.nukes_activated == 1
+    assert p1_data.nuke_cancels == 1
+    assert p1_data.missiles_fired == 1
+    assert p1_data.missiles_landed == 1
+    assert p1_data.shots_landed == 2  # zap P2, zap P3
+    assert p1_data.times_zapped_opponents == 2
+
+
+

@@ -23,7 +23,7 @@ from concurrent.futures import Future, ProcessPoolExecutor
 
 from PIL import Image, ImageChops, ImageDraw, ImageFont
 
-from lfdata.model import LFGame
+from lfdata.model import LFGame, ScoreboardAdditionalValues
 from lfdata.video.constants import (
     DEFAULT_EXTRA_FOOTAGE_MS,
     DEFAULT_FPS,
@@ -1847,6 +1847,9 @@ class VideoGenerator:
         sb_config = config.get('elements', {}).get('scoreboard', {})
         draw_background = sb_config.get('draw_background', False)
         draw_borders = sb_config.get('draw_borders', False)
+        show_additional = self._should_show_scoreboard_additional_values(
+            sb_config=sb_config, time_ms=time_ms
+        )
         stroke_width = max(1, int(pixel_size * 0.05))
 
         # Find max player column width (name + penalties + hitpoints)
@@ -1946,6 +1949,7 @@ class VideoGenerator:
                     pixel_size=pixel_size,
                     max_hp_w=max_hp_w,
                     time_ms=time_ms,
+                    show_additional=show_additional,
                 )
             if el.alpha < 1.0:
                 r, g, b, a = overlay.split()
@@ -2378,6 +2382,7 @@ class VideoGenerator:
         pixel_size: float | int = 27,
         max_hp_w: int = 0,
         time_ms: int = 0,
+        show_additional: bool = False,
     ) -> None:
         """Draws a single team's table border, headers, and rows.
 
@@ -2398,6 +2403,7 @@ class VideoGenerator:
             pixel_size: Standard font size in pixels.
             max_hp_w: Maximum hitpoints width in pixels.
             time_ms: Current millisecond timestamp for animations.
+            show_additional: Whether to show additional scoreboard columns.
         """
         bg_fill, text_color, dimmed_color, gray_color = (
             self._calculate_team_colors(team)
@@ -2409,21 +2415,20 @@ class VideoGenerator:
             draw = ImageDraw.Draw(overlay)
 
             scale = pixel_size / 27
-            table_width = int(650 * scale * image.width / 1920)
-            ty = int(team.y_pos or 0)
-
-            columns = ['Player']
             is_sm5 = bool(self.game.is_sm5)
             is_lb = bool(self.game.is_laserball)
-            if is_sm5:
-                columns.append('Role')
+            base_w = 650
+            if show_additional:
+                base_w = 1200 if is_lb else 1650
+            table_width = int(base_w * scale * image.width / 1920)
+            ty = int(team.y_pos or 0)
 
             if is_lb:
-                default_player_col_w = int(205 * table_width / 650)
-            elif 'Role' in columns:
-                default_player_col_w = int(160 * table_width / 650)
+                default_player_col_w = int(205 * table_width / base_w)
+            elif is_sm5 or show_additional:
+                default_player_col_w = int(160 * table_width / base_w)
             else:
-                default_player_col_w = int(210 * table_width / 650)
+                default_player_col_w = int(210 * table_width / base_w)
 
             excess_w = 0
             if max_player_w is not None and max_player_w > default_player_col_w:
@@ -2431,7 +2436,10 @@ class VideoGenerator:
             actual_table_width = table_width + excess_w
 
             columns, offsets = self._resolve_scoreboard_columns(
-                x_start, table_width, max_player_w
+                x_start=x_start,
+                table_width=table_width,
+                max_player_w=max_player_w,
+                show_additional=show_additional,
             )
             padding_y = int(5 * scale * image.height / DEFAULT_FRAME_HEIGHT)
 
@@ -2495,11 +2503,114 @@ class VideoGenerator:
         finally:
             overlay.close()
 
+    def _should_show_scoreboard_additional_values(
+        self, sb_config: dict[str, object], time_ms: int
+    ) -> bool:
+        """Determines whether to show additional values on scoreboards.
+
+        Args:
+            sb_config: Scoreboard element configuration dictionary.
+            time_ms: Current playback timestamp in milliseconds.
+
+        Returns:
+            bool: True if additional columns should be rendered.
+        """
+        raw_val = sb_config.get(
+            'additional_values', ScoreboardAdditionalValues.AFTER_GAME
+        )
+        if isinstance(raw_val, bool):
+            return raw_val
+
+        mode = ScoreboardAdditionalValues.from_str(str(raw_val))
+        if mode == ScoreboardAdditionalValues.ALWAYS:
+            return True
+        if mode == ScoreboardAdditionalValues.NEVER:
+            return False
+
+        dur = self.game.duration or 0
+        return time_ms >= dur if dur > 0 else False
+
+    @staticmethod
+    def _format_accuracy(shots_landed: int, shots_fired: int) -> str:
+        """Formats shots accuracy as '{shots landed}/{shots fired} ({acc}%)'.
+
+        Args:
+            shots_landed: Number of shots that landed on targets.
+            shots_fired: Number of shots fired.
+
+        Returns:
+            str: Formatted accuracy string.
+        """
+        if shots_fired == 0:
+            return '0/0 (0%)'
+        acc = round((shots_landed / shots_fired) * 100)
+        return f'{shots_landed}/{shots_fired} ({acc}%)'
+
+    @staticmethod
+    def _format_hit_ratio(zapped_opponents: int, times_zapped: int) -> str:
+        """Formats hit ratio as '{opponents zapped}/{times zapped} ({ratio})'.
+
+        Args:
+            zapped_opponents: Number of opponent players zapped.
+            times_zapped: Number of times player was zapped.
+
+        Returns:
+            str: Formatted hit ratio string with 2 decimal places.
+        """
+        if times_zapped == 0:
+            ratio = float(zapped_opponents)
+        else:
+            ratio = zapped_opponents / times_zapped
+        return f'{zapped_opponents}/{times_zapped} ({ratio:.2f})'
+
+    @staticmethod
+    def _format_medic_hits(
+        enemy_hits: int, medic_nukes: int, own_hits: int
+    ) -> str:
+        """Formats medic hits string according to SM5 video rules.
+
+        Format: '{enemy medic hits}/{nuke medic hits}/{own medic hits}'.
+        The nuke medic hits and own medic hits components are omitted if 0.
+
+        Args:
+            enemy_hits: Hits against enemy medics.
+            medic_nukes: Enemy medic lives taken by nukes.
+            own_hits: Friendly fire hits against own medics.
+
+        Returns:
+            str: Formatted medic hits string.
+        """
+        if medic_nukes > 0 and own_hits > 0:
+            return f'{enemy_hits}/{medic_nukes}/-{own_hits}'
+        if medic_nukes > 0:
+            return f'{enemy_hits}/{medic_nukes}'
+        if own_hits > 0:
+            return f'{enemy_hits}/-{own_hits}'
+        return str(enemy_hits)
+
+    @staticmethod
+    def _format_nuke_cancels(enemy_cancels: int, own_cancels: int) -> str:
+        """Formats nuke cancels string according to SM5 video rules.
+
+        Format: '{enemy cancels}' or '{enemy cancels}/-{own cancels}'.
+
+        Args:
+            enemy_cancels: Enemy nukes canceled count.
+            own_cancels: Own commander nukes canceled count.
+
+        Returns:
+            str: Formatted nuke cancels string.
+        """
+        if own_cancels > 0:
+            return f'{enemy_cancels}/-{own_cancels}'
+        return str(enemy_cancels)
+
     def _resolve_scoreboard_columns(
         self,
         x_start: int,
         table_width: int,
         max_player_w: int | None = None,
+        show_additional: bool = False,
     ) -> tuple[list[str], list[int]]:
         """Resolves which scoreboard columns to display based on game type.
 
@@ -2507,6 +2618,7 @@ class VideoGenerator:
             x_start: Table starting X position.
             table_width: Table width in pixels.
             max_player_w: Maximum player column width in pixels.
+            show_additional: Whether to include additional stats columns.
 
         Returns:
             tuple: Active column headers and absolute X coordinates.
@@ -2515,45 +2627,104 @@ class VideoGenerator:
         is_lb = bool(self.game.is_laserball)
 
         if is_lb:
-            columns = [
-                'Player',
-                'Goals',
-                'Assists',
-                'Steals',
-                'Clears',
-                'Blocks',
-            ]
-            col_offset_map = {
-                'Player': 35,
-                'Goals': 240,
-                'Assists': 320,
-                'Steals': 400,
-                'Clears': 480,
-                'Blocks': 560,
-            }
-            default_player_col_w = int(205 * table_width / 650)
+            if show_additional:
+                columns = [
+                    'Player',
+                    'Goals',
+                    'Assists',
+                    'Steals',
+                    'Clears',
+                    'Blocks',
+                    'Accuracy',
+                    'Hit Ratio',
+                ]
+                col_offset_map = {
+                    'Player': 35,
+                    'Goals': 240,
+                    'Assists': 330,
+                    'Steals': 430,
+                    'Clears': 520,
+                    'Blocks': 610,
+                    'Accuracy': 710,
+                    'Hit Ratio': 960,
+                }
+                base_w = 1200
+            else:
+                columns = [
+                    'Player',
+                    'Goals',
+                    'Assists',
+                    'Steals',
+                    'Clears',
+                    'Blocks',
+                ]
+                col_offset_map = {
+                    'Player': 35,
+                    'Goals': 240,
+                    'Assists': 320,
+                    'Steals': 400,
+                    'Clears': 480,
+                    'Blocks': 560,
+                }
+                base_w = 650
+            default_player_col_w = int(205 * table_width / base_w)
         else:
-            columns = ['Player']
-            if is_sm5:
-                columns.append('Role')
-            columns.append('Score')
-            if is_sm5:
-                columns.extend(['Lives', 'Shots', 'Missiles', 'Spec'])
+            if show_additional:
+                columns = [
+                    'Player',
+                    'Role',
+                    'Score',
+                    'Lives',
+                    'Shots',
+                    'Missiles',
+                    'Spec',
+                    'Nukes',
+                    'Missile Acc',
+                    'Accuracy',
+                    'Hit Ratio',
+                    'Medic Hits',
+                    'Nuke Cancels',
+                ]
+                col_offset_map = {
+                    'Player': 20,
+                    'Role': 180,
+                    'Score': 230,
+                    'Lives': 320,
+                    'Shots': 390,
+                    'Missiles': 460,
+                    'Spec': 540,
+                    'Nukes': 610,
+                    'Missile Acc': 680,
+                    'Accuracy': 830,
+                    'Hit Ratio': 1080,
+                    'Medic Hits': 1320,
+                    'Nuke Cancels': 1465,
+                }
+                base_w = 1650
+                default_player_col_w = int(160 * table_width / base_w)
+            else:
+                columns = ['Player']
+                if is_sm5:
+                    columns.append('Role')
+                columns.append('Score')
+                if is_sm5:
+                    columns.extend(['Lives', 'Shots', 'Missiles', 'Spec'])
 
-            col_offset_map = {
-                'Player': 20,
-                'Role': 180,
-                'Score': 230,
-                'Lives': 330,
-                'Shots': 410,
-                'Missiles': 490,
-                'Spec': 580,
-            }
-            default_player_col_w = (
-                int(160 * table_width / 650)
-                if 'Role' in columns
-                else int(210 * table_width / 650)
-            )
+                col_offset_map = {
+                    'Player': 20,
+                    'Role': 180,
+                    'Score': 230,
+                    'Lives': 330,
+                    'Shots': 410,
+                    'Missiles': 490,
+                    'Spec': 580,
+                }
+                base_w = 650
+                default_player_col_w = (
+                    int(160 * table_width / base_w)
+                    if 'Role' in columns
+                    else int(210 * table_width / base_w)
+                )
 
         excess_w = 0
         if max_player_w is not None and max_player_w > default_player_col_w:
@@ -2561,7 +2732,9 @@ class VideoGenerator:
 
         offsets = []
         for col in columns:
-            offset_val = x_start + int(col_offset_map[col] * table_width / 650)
+            offset_val = x_start + int(
+                col_offset_map[col] * table_width / base_w
+            )
             if col != 'Player' and excess_w > 0:
                 offset_val += excess_w
             offsets.append(offset_val)
@@ -2605,6 +2778,47 @@ class VideoGenerator:
                 vals.append(str(p.clears))
             elif col == 'Blocks':
                 vals.append(str(p.blocks))
+            elif col == 'Nukes':
+                if p.role_name.lower() == 'commander':
+                    vals.append(f'{p.nukes_detonated}/{p.nukes_activated}')
+                else:
+                    vals.append('')
+            elif col in ('Missile Acc', 'Missile Hits', 'Missiles Landed'):
+                if p.role_name.lower() in ('commander', 'heavy'):
+                    vals.append(f'{p.missiles_landed}/{p.missiles_fired}')
+                else:
+                    vals.append('')
+            elif col == 'Accuracy':
+                vals.append(
+                    self._format_accuracy(
+                        shots_landed=p.shots_landed,
+                        shots_fired=p.shots_fired,
+                    )
+                )
+            elif col in ('Hit Ratio', 'Ratio'):
+                vals.append(
+                    self._format_hit_ratio(
+                        zapped_opponents=p.times_zapped_opponents,
+                        times_zapped=p.times_zapped,
+                    )
+                )
+            elif col == 'Medic Hits':
+                vals.append(
+                    self._format_medic_hits(
+                        enemy_hits=p.medic_hits,
+                        medic_nukes=p.medic_nukes,
+                        own_hits=p.own_medic_hits,
+                    )
+                )
+            elif col in ('Nuke Cancels', 'Cancels'):
+                vals.append(
+                    self._format_nuke_cancels(
+                        enemy_cancels=p.nuke_cancels,
+                        own_cancels=p.own_nuke_cancels,
+                    )
+                )
+            else:
+                vals.append('')
         return vals
 
     def _compile_totals_row_values(
@@ -2645,6 +2859,45 @@ class VideoGenerator:
                 vals.append(str(totals.clears))
             elif col == 'Blocks':
                 vals.append(str(totals.blocks))
+            elif col == 'Nukes':
+                vals.append(
+                    f'{totals.nukes_detonated}/{totals.nukes_activated}'
+                )
+            elif col in ('Missile Acc', 'Missile Hits', 'Missiles Landed'):
+                vals.append(
+                    f'{totals.missiles_landed}/{totals.missiles_fired}'
+                )
+            elif col == 'Accuracy':
+                vals.append(
+                    self._format_accuracy(
+                        shots_landed=totals.shots_landed,
+                        shots_fired=totals.shots_fired,
+                    )
+                )
+            elif col in ('Hit Ratio', 'Ratio'):
+                vals.append(
+                    self._format_hit_ratio(
+                        zapped_opponents=totals.times_zapped_opponents,
+                        times_zapped=totals.times_zapped,
+                    )
+                )
+            elif col == 'Medic Hits':
+                vals.append(
+                    self._format_medic_hits(
+                        enemy_hits=totals.medic_hits,
+                        medic_nukes=totals.medic_nukes,
+                        own_hits=totals.own_medic_hits,
+                    )
+                )
+            elif col in ('Nuke Cancels', 'Cancels'):
+                vals.append(
+                    self._format_nuke_cancels(
+                        enemy_cancels=totals.nuke_cancels,
+                        own_cancels=totals.own_nuke_cancels,
+                    )
+                )
+            else:
+                vals.append('')
         return vals
 
     def _draw_downtime_bar(self, image: Image.Image, el: UIElement) -> None:

@@ -65,6 +65,13 @@ class LFReplayPlayerState:
         times_zapped_opponents: Times player zapped players on other teams.
         times_zapped_someone: Deprecated alias for times_zapped_opponents.
         hit_diff: Property returning ratio of opponent zaps to times zapped.
+        shots_fired: Total shots fired count.
+        shots_hit: Total shots landed on targets count.
+        missiles_fired: Total missiles fired count.
+        missiles_hit: Total missiles landed on targets count.
+        medic_hits: Enemy medic hits count.
+        own_medic_hits: Own medic hits count.
+        medic_nukes: Lives taken from enemy medics by nukes count.
     """
 
     def __init__(
@@ -144,6 +151,13 @@ class LFReplayPlayerState:
         self.penalties: int = 0
         self.times_zapped: int = 0
         self.times_zapped_opponents: int = 0
+        self.shots_fired: int = 0
+        self.shots_hit: int = 0
+        self.missiles_fired: int = 0
+        self.missiles_hit: int = 0
+        self.medic_hits: int = 0
+        self.own_medic_hits: int = 0
+        self.medic_nukes: int = 0
         self.state_history: list[PlayerStateHistory] | None = state_history
 
         # Laserball specific tracking

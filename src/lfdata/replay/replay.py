@@ -865,6 +865,7 @@ class LFReplaySystem(LFReplayHandlersMixin):
         """
         if actor_id and actor_id in self.game_state.players:
             player = self.game_state.players[actor_id]
+            player.shots_fired += count
             if (
                 not player.has_authoritative_ammo
                 and player.role
@@ -880,6 +881,7 @@ class LFReplaySystem(LFReplayHandlersMixin):
         """
         if actor_id and actor_id in self.game_state.players:
             player = self.game_state.players[actor_id]
+            player.missiles_fired += 1
             if (
                 not player.has_authoritative_missiles
                 and player.role

@@ -15,6 +15,7 @@ from lfdata.model.constants.centre import LFCentre
 from lfdata.model.constants.color import LFTeamColor
 from lfdata.model.constants.competition import StageType
 from lfdata.model.constants.role import LFRole
+from lfdata.model.constants.scoreboard import ScoreboardAdditionalValues
 from lfdata.model.constants.team_type import LFTeamType
 from lfdata.model.gametypes.laserball_events import LaserballEvent
 from lfdata.model.gametypes.laserball_notability import (
@@ -72,6 +73,7 @@ __all__ = [
     'PlayerStateHistory',
     'SM5Event',
     'ScheduledGame',
+    'ScoreboardAdditionalValues',
     'ScoreHistory',
     'Sm5NotabilityCondition',
     'Sm5NotabilityEvaluator',
