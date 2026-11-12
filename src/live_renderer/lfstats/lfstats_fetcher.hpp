@@ -51,6 +51,7 @@ struct LFStatsFetcherOptions {
     bool test_mode = false;
     std::string test_data_dir = "tests/fixtures/lfstats";
     std::string base_url = "https://lfstats.com/api";
+    std::string api_key;
     int64_t timeout_ms = 10000;
     std::string user_agent = "lfdata/1.0";
     size_t worker_threads = 4;
@@ -67,6 +68,12 @@ public:
     using HttpTransport = std::function<std::string(
         const std::string& url,
         const std::string& user_agent,
+        int64_t timeout_ms)>;
+
+    using HttpTransportWithKey = std::function<std::string(
+        const std::string& url,
+        const std::string& user_agent,
+        const std::string& api_key,
         int64_t timeout_ms)>;
 
     using CompetitionsCallback = std::function<void(
@@ -112,6 +119,24 @@ public:
      * @param transport Pluggable transport function.
      */
     void SetHttpTransport(HttpTransport transport);
+
+    /**
+     * Sets a custom HTTP transport function that accepts an API key.
+     * @param transport Pluggable transport function accepting API key.
+     */
+    void SetHttpTransport(HttpTransportWithKey transport);
+
+    /**
+     * Gets the configured API key for LFstats queries.
+     * @return API key string.
+     */
+    std::string GetApiKey() const;
+
+    /**
+     * Sets the API key for LFstats queries.
+     * @param api_key API key string.
+     */
+    void SetApiKey(const std::string& api_key);
 
     /**
      * Checks if test mode is enabled.
@@ -289,6 +314,7 @@ private:
     LFStatsFetcherOptions options_;
     mutable std::mutex options_mutex_;
     HttpTransport http_transport_;
+    HttpTransportWithKey http_transport_with_key_;
 
     // Thread pool state
     std::vector<std::thread> workers_;

@@ -137,6 +137,7 @@ std::string WideToUtf8(const std::wstring& wstr) {
 std::string DefaultWinHttpTransport(
     const std::string& url_str,
     const std::string& user_agent,
+    const std::string& api_key,
     int64_t timeout_ms) {
     std::wstring wide_url = Utf8ToWide(url_str);
     std::wstring wide_ua = Utf8ToWide(user_agent);
@@ -188,9 +189,15 @@ std::string DefaultWinHttpTransport(
         throw std::runtime_error("WinHttpOpenRequest failed: " + url_str);
     }
 
-    LPCWSTR accept_header = L"Accept: application/json\r\n";
+    std::wstring headers = L"Accept: application/json\r\n";
+    if (!api_key.empty()) {
+        std::wstring wide_key = Utf8ToWide(api_key);
+        headers += L"Authorization: Bearer " + wide_key + L"\r\n";
+        headers += L"X-API-Key: " + wide_key + L"\r\n";
+    }
+
     BOOL sent = WinHttpSendRequest(
-        hRequest, accept_header, static_cast<DWORD>(-1),
+        hRequest, headers.c_str(), static_cast<DWORD>(-1),
         nullptr, 0, 0, 0);
     if (!sent || !WinHttpReceiveResponse(hRequest, nullptr)) {
         WinHttpCloseHandle(hRequest);
@@ -231,6 +238,13 @@ std::string DefaultWinHttpTransport(
     WinHttpCloseHandle(hConnect);
     WinHttpCloseHandle(hSession);
     return response;
+}
+
+std::string DefaultWinHttpTransport(
+    const std::string& url_str,
+    const std::string& user_agent,
+    int64_t timeout_ms) {
+    return DefaultWinHttpTransport(url_str, user_agent, "", timeout_ms);
 }
 #endif
 
@@ -369,6 +383,21 @@ void LFStatsFetcher::SetHttpTransport(HttpTransport transport) {
     http_transport_ = std::move(transport);
 }
 
+void LFStatsFetcher::SetHttpTransport(HttpTransportWithKey transport) {
+    std::lock_guard<std::mutex> lock(options_mutex_);
+    http_transport_with_key_ = std::move(transport);
+}
+
+std::string LFStatsFetcher::GetApiKey() const {
+    std::lock_guard<std::mutex> lock(options_mutex_);
+    return options_.api_key;
+}
+
+void LFStatsFetcher::SetApiKey(const std::string& api_key) {
+    std::lock_guard<std::mutex> lock(options_mutex_);
+    options_.api_key = api_key;
+}
+
 bool LFStatsFetcher::IsTestMode() const {
     std::lock_guard<std::mutex> lock(options_mutex_);
     return options_.test_mode;
@@ -481,14 +510,18 @@ auto LFStatsFetcher::EnqueueTask(F&& f)
 std::string LFStatsFetcher::FetchRemoteJson(const std::string& endpoint_path) {
     std::string base_url;
     std::string user_agent;
+    std::string api_key;
     int64_t timeout_ms = 0;
     HttpTransport custom_transport;
+    HttpTransportWithKey custom_transport_with_key;
     {
         std::lock_guard<std::mutex> lock(options_mutex_);
         base_url = options_.base_url;
         user_agent = options_.user_agent;
+        api_key = options_.api_key;
         timeout_ms = options_.timeout_ms;
         custom_transport = http_transport_;
+        custom_transport_with_key = http_transport_with_key_;
     }
 
     while (!base_url.empty() && base_url.back() == '/') {
@@ -499,12 +532,15 @@ std::string LFStatsFetcher::FetchRemoteJson(const std::string& endpoint_path) {
                                 : endpoint_path;
     std::string full_url = base_url + norm_path;
 
+    if (custom_transport_with_key) {
+        return custom_transport_with_key(full_url, user_agent, api_key, timeout_ms);
+    }
     if (custom_transport) {
         return custom_transport(full_url, user_agent, timeout_ms);
     }
 
 #ifdef _WIN32
-    return DefaultWinHttpTransport(full_url, user_agent, timeout_ms);
+    return DefaultWinHttpTransport(full_url, user_agent, api_key, timeout_ms);
 #else
     throw std::runtime_error(
         "Direct HTTP transport not implemented on non-Windows platforms.");

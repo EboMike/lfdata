@@ -138,3 +138,6 @@ live_renderer_config.yaml
 ui_layout.yaml
 preferences.yaml
 imgui.ini
+
+# Environment variables
+.env

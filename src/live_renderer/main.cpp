@@ -13,6 +13,7 @@
 #include <thread>
 
 #include "live_renderer/config/config_serializer.hpp"
+#include "live_renderer/config/env_loader.hpp"
 #include "live_renderer/config/global_config.hpp"
 #include "live_renderer/config/preferences_manager.hpp"
 #include "live_renderer/config/ui_config.hpp"
@@ -40,10 +41,12 @@ int main(int argc, char* argv[]) {
     std::signal(SIGINT, SignalHandler);
     std::signal(SIGTERM, SignalHandler);
 
+    live_renderer::EnvLoader::Load();
     std::string config_path = "live_renderer_config.yaml";
     int max_frames = -1;
     bool lfstats_test_mode = false;
     std::string lfstats_test_data_dir;
+    std::string lfstats_api_key = live_renderer::EnvLoader::Get("LFSTATS_API_KEY");
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -62,6 +65,13 @@ int main(int argc, char* argv[]) {
              arg == "--test_data_dir") &&
             i + 1 < argc) {
             lfstats_test_data_dir = argv[++i];
+        } else if (
+            (arg == "--lfstats-api-key" ||
+             arg == "--lfstats_api_key" ||
+             arg == "--api-key" ||
+             arg == "--api_key") &&
+            i + 1 < argc) {
+            lfstats_api_key = argv[++i];
         }
     }
 
@@ -109,6 +119,9 @@ int main(int argc, char* argv[]) {
     }
     auto stats_fetcher = std::make_shared<live_renderer::LFStatsFetcher>(
         lfstats_test_mode, resolved_test_dir);
+    if (!lfstats_api_key.empty()) {
+        stats_fetcher->SetApiKey(lfstats_api_key);
+    }
     live_renderer::MainControlWindow control_window(
         config_path, global_cfg, ui_cfg, state_store, client, stats_fetcher);
     live_renderer::UIEditorWindow editor_window(ui_cfg, global_cfg.ui_config_file);

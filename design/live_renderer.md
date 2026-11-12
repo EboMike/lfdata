@@ -462,6 +462,8 @@ The global configuration YAML file has these settings:
 
 *   **--config**: Path to global configuration YAML file.
 *   **--preferences**: Path to local preferences YAML file.
+*   **--lfstats-api-key**: API key to authenticate requests against LFstats. Can
+    also be configured via the `LFSTATS_API_KEY` setting in a local `.env` file.
 *   **--lfstats-test-mode** (or **--lfstats-test**): Run in LFstats test
     mode, using local fixture data instead of live network services.
 *   **--lfstats-test-data-dir**: Directory path containing LFstats test

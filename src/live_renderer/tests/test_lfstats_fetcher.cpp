@@ -224,6 +224,44 @@ TEST(LFStatsFetcherTest, ConcurrentMultipleRequests) {
     }
 }
 
+TEST(LFStatsFetcherTest, ApiKeyConfiguration) {
+    LFStatsFetcher fetcher;
+    EXPECT_TRUE(fetcher.GetApiKey().empty());
+
+    fetcher.SetApiKey("my_test_api_key_456");
+    EXPECT_EQ(fetcher.GetApiKey(), "my_test_api_key_456");
+}
+
+TEST(LFStatsFetcherTest, HttpTransportWithKeyReceivesApiKey) {
+    LFStatsFetcher fetcher;
+    fetcher.SetTestMode(false);
+    fetcher.SetApiKey("secret_token_xyz");
+
+    std::string captured_url;
+    std::string captured_ua;
+    std::string captured_key;
+    int64_t captured_timeout = 0;
+
+    fetcher.SetHttpTransport(
+        [&](const std::string& url,
+            const std::string& user_agent,
+            const std::string& api_key,
+            int64_t timeout_ms) -> std::string {
+            captured_url = url;
+            captured_ua = user_agent;
+            captured_key = api_key;
+            captured_timeout = timeout_ms;
+            return "[]";
+        });
+
+    auto comps = fetcher.FetchCompetitions();
+    EXPECT_TRUE(comps.empty());
+    EXPECT_EQ(captured_url, "https://lfstats.com/api/competitions");
+    EXPECT_EQ(captured_ua, "lfdata/1.0");
+    EXPECT_EQ(captured_key, "secret_token_xyz");
+    EXPECT_EQ(captured_timeout, 10000);
+}
+
 }  // namespace
 }  // namespace live_renderer
 

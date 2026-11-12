@@ -91,6 +91,7 @@ target_link_libraries(imgui_sdl_gl3 PUBLIC
 # Core library
 set(CORE_SOURCES
     config/config_serializer.cpp
+    config/env_loader.cpp
     config/local_preferences.cpp
     config/preferences_manager.cpp
     state/live_state_store.cpp
@@ -150,6 +151,7 @@ enable_testing()
 add_executable(live_renderer_tests
     tests/test_protocol_parser.cpp
     tests/test_config_serializer.cpp
+    tests/test_env_loader.cpp
     tests/test_rich_text_layout.cpp
     tests/test_text_component.cpp
     tests/test_scorecard_sorting.cpp
