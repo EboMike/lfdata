@@ -1,8 +1,8 @@
 """Main command line interface for the LF data tool.
 
 This module provides the entry point for the `lfdata` command line interface.
-It coordinates TDF importing, state inspection, replay printing, state verification,
-and video generation capabilities.
+It coordinates TDF importing, state inspection, replay printing, state
+verification, and video generation capabilities.
 
 Usage example:
     $ lfdata --input_tdf game.tdf --print_replay
@@ -71,8 +71,8 @@ def main() -> None:
     """Parses command line arguments and runs the LF data tool CLI.
 
     Executes startup environment checks, parses command-line arguments,
-    and dispatches execution to appropriate commands (replay output, state query,
-    or video rendering).
+    and dispatches execution to appropriate commands (replay output,
+    state query, or video rendering).
     """
     StartupVerifier.check_assets_and_print_cwd()
     if hasattr(sys.stdout, 'reconfigure'):
@@ -226,6 +226,11 @@ def main() -> None:
             '(defaults to 700, representing 0.7 seconds).'
         ),
     )
+    parser.add_argument(
+        '--no-cache',
+        action='store_true',
+        help='Bypasses disk caching of replay simulation snapshots.',
+    )
 
     args = parser.parse_args()
 
@@ -315,7 +320,12 @@ def main() -> None:
         config = generator._load_config(args.config)
         if args.pregame_delay_ms is not None:
             config['pregame_delay_ms'] = args.pregame_delay_ms
-        hud_gen = VisualElementGenerator(game, args.video_player, config)
+        hud_gen = VisualElementGenerator(
+            game,
+            args.video_player,
+            config,
+            use_cache=not args.no_cache,
+        )
         elements = hud_gen.generate_at(args.video_state_at)
 
         if hud_gen.player_name:
@@ -420,7 +430,12 @@ def main() -> None:
         if args.pregame_delay_ms is not None:
             config['pregame_delay_ms'] = args.pregame_delay_ms
 
-        hud_gen = VisualElementGenerator(game, args.video_player, config)
+        hud_gen = VisualElementGenerator(
+            game,
+            args.video_player,
+            config,
+            use_cache=not args.no_cache,
+        )
         elements = hud_gen.generate_at(args.image_at)
         img = generator._render_frame(elements, args.image_at, config, hud_gen)
 
@@ -441,7 +456,12 @@ def main() -> None:
         if args.pregame_delay_ms is not None:
             config['pregame_delay_ms'] = args.pregame_delay_ms
 
-        hud_gen = VisualElementGenerator(game, args.video_player, config)
+        hud_gen = VisualElementGenerator(
+            game,
+            args.video_player,
+            config,
+            use_cache=not args.no_cache,
+        )
 
         actual_duration_ms = game.duration
         if hud_gen.game_ended_at_ms is not None:

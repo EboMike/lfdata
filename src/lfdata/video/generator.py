@@ -1,8 +1,8 @@
 """Visual HUD elements generator for LF video frames.
 
-This module precomputes replay snapshots and generates UI overlay elements (player stats,
-scoreboards, event logs, downtime indicators, hit border flashes, camera shakes) for
-rendering video frames.
+This module precomputes replay snapshots and generates UI overlay elements
+(player stats, scoreboards, event logs, downtime indicators, hit border
+flashes, camera shakes) for rendering video frames.
 
 Usage example:
     from lfdata.video.generator import VisualElementGenerator
@@ -59,6 +59,7 @@ from lfdata.model.gametypes.sm5_events import (
 )
 from lfdata.replay import LFReplaySystem
 from lfdata.replay.state import LFReplayPlayerState, LFReplayTeamState
+from lfdata.video.cache import ReplayCachePayload, ReplaySnapshotCache
 from lfdata.video.constants import (
     BASE_ZAP_BUNDLE_WINDOW_MS,
     DEFAULT_BALL_INDICATOR_SPEED,
@@ -72,6 +73,7 @@ from lfdata.video.element import (
     LFEventLogEntry,
     LFHitBorderInstance,
     LFMultilineSlot,
+    LFNukeInterval,
     LFPlayerEventLogEntry,
     LFPlayerEventUpdate,
     LFScoreboardData,
@@ -104,21 +106,6 @@ class LFResupplyTracker:
 
     time_ms: int
     actor_name: str
-
-
-@dataclasses.dataclass
-class LFNukeInterval:
-    """Represents a nuke activation interval and its activator name.
-
-    Attributes:
-        start_ms: Start timestamp in milliseconds when nuke was activated.
-        end_ms: End timestamp in milliseconds when nuke detonated or canceled.
-        nuker_name: Codename string of player who activated the nuke.
-    """
-
-    start_ms: int
-    end_ms: int
-    nuker_name: str
 
 
 def _clean_key_name(name: str) -> str:
@@ -158,14 +145,17 @@ class VisualElementGenerator:
         config: Merged video layout configuration dictionary.
         snapshots: List of precomputed replay state snapshot tuples.
         event_log: List of global LFEventLogEntry entries.
-        player_event_log: List of focused player LFPlayerEventLogEntry entries.
-        team_transitions: Dictionary mapping team index to rank transition lists.
+        player_event_log: List of focused player LFPlayerEventLogEntry
+            entries.
+        team_transitions: Dictionary mapping team index to rank transition
+            lists.
         game_ended_at_ms: Optional timestamp in milliseconds when game ended.
         current_time_ms: Active frame timestamp in milliseconds.
         current_variables: Dictionary of resolved template variable strings.
         camera_shakes: List of LFCameraShake effect instances.
         nuke_flashes: List of nuke flash timestamps in milliseconds.
-        missile_flashes_ms: List of missile hit flash timestamps in milliseconds.
+        missile_flashes_ms: List of missile hit flash timestamps in
+            milliseconds.
         hit_borders: List of LFHitBorderInstance effect entries.
     """
 
@@ -174,6 +164,8 @@ class VisualElementGenerator:
         game: LFGame,
         player_name: str | None = None,
         config: dict[str, object] | None = None,
+        cache: ReplaySnapshotCache | None = None,
+        use_cache: bool = True,
     ) -> None:
         """Initializes the HUD element generator.
 
@@ -182,9 +174,13 @@ class VisualElementGenerator:
             player_name: The codename of the player to focus the HUD on,
                 or None.
             config: Optional configuration override dictionary.
+            cache: Optional ReplaySnapshotCache disk cache manager.
+            use_cache: Whether to load and save precomputed replay to disk.
         """
         self.game = game
         self.player_name = player_name
+        self.cache = cache or ReplaySnapshotCache()
+        self.use_cache = use_cache
         self.entity_id = self._find_player_entity_id()
         self.entity_names = {e.entity_id: e.desc for e in game.entities}
 
@@ -220,16 +216,12 @@ class VisualElementGenerator:
         ] = {}
         self.current_variables: dict[str, str] = {}
 
-        self._precompute_replay()
         self.camera_shakes: list[LFCameraShake] = []
         self.nuke_flashes: list[int] = []
         self.missile_flashes_ms: list[int] = []
         self.hit_borders: list[LFHitBorderInstance] = []
-        self._detect_camera_shakes()
-        self._detect_hit_borders()
-        self.downtime_params: DowntimeParameters = DowntimeAnalyzer().analyze(
-            game=self.game
-        )
+        self.downtime_params: DowntimeParameters = DowntimeParameters()
+        self._precompute_replay()
 
     def _find_player_entity_id(self) -> str | None:
         """Finds the entity ID matching the player codename.
@@ -544,6 +536,35 @@ class VisualElementGenerator:
 
     def _precompute_replay(self) -> None:
         """Runs simulation once, caching snapshots and transition times."""
+        raw_pregame = self.config.get(
+            'pregame_delay_ms', DEFAULT_PREGAME_DELAY_MS
+        )
+        pregame_delay_ms = (
+            int(raw_pregame)
+            if isinstance(raw_pregame, (int, float, str))
+            else DEFAULT_PREGAME_DELAY_MS
+        )
+        if self.use_cache and self.cache.enabled:
+            payload = self.cache.load(
+                game=self.game,
+                player_name=self.player_name,
+                pregame_delay_ms=pregame_delay_ms,
+            )
+            if payload is not None:
+                self.snapshots = payload.snapshots
+                self._snapshot_times = payload.snapshot_times
+                self.event_log = payload.event_log
+                self.player_event_log = payload.player_event_log
+                self.team_transitions = payload.team_transitions
+                self.game_ended_at_ms = payload.game_ended_at_ms
+                self.nuke_intervals = payload.nuke_intervals
+                self.camera_shakes = payload.camera_shakes
+                self.nuke_flashes = payload.nuke_flashes
+                self.missile_flashes_ms = payload.missile_flashes_ms
+                self.hit_borders = payload.hit_borders
+                self.downtime_params = payload.downtime_params
+                return
+
         replay = LFReplaySystem(self.game)
         (
             team_ranks,
@@ -565,6 +586,31 @@ class VisualElementGenerator:
         self.game_ended_at_ms = replay.game_ended_at_ms
         self._snapshot_times = [snap[0] for snap in self.snapshots]
         self._precompute_nuke_intervals(sorted_events)
+        self._detect_camera_shakes()
+        self._detect_hit_borders()
+        self.downtime_params = DowntimeAnalyzer().analyze(game=self.game)
+
+        if self.use_cache and self.cache.enabled:
+            new_payload = ReplayCachePayload(
+                snapshots=self.snapshots,
+                snapshot_times=self._snapshot_times,
+                event_log=self.event_log,
+                player_event_log=self.player_event_log,
+                team_transitions=self.team_transitions,
+                game_ended_at_ms=self.game_ended_at_ms,
+                nuke_intervals=self.nuke_intervals,
+                camera_shakes=self.camera_shakes,
+                nuke_flashes=self.nuke_flashes,
+                missile_flashes_ms=self.missile_flashes_ms,
+                hit_borders=self.hit_borders,
+                downtime_params=self.downtime_params,
+            )
+            self.cache.save(
+                game=self.game,
+                payload=new_payload,
+                player_name=self.player_name,
+                pregame_delay_ms=pregame_delay_ms,
+            )
 
     def _precompute_nuke_intervals(
         self, sorted_events: list[GameEvent]
@@ -2816,7 +2862,9 @@ class VisualElementGenerator:
         teams: dict[int, LFReplayTeamState],
         time_ms: int,
     ) -> None:
-        """Adds all event elements to HUD (scroller, player events, game events).
+        """Adds all event elements to HUD.
+
+        Includes scroller, player events, and game events.
 
         Args:
             elements: List of visual elements to append to.
@@ -3018,7 +3066,7 @@ class VisualElementGenerator:
                 )
                 self.missile_flashes_ms.append(event.time)
 
-            # 2. Enemy commander detonates a nuke (0.03 strength, 1000 ms duration)
+            # 2. Enemy commander detonates nuke (0.03 strength, 1s duration)
             elif event.event_type == SM5_EVENT_DETONATE_NUKE:
                 actor_id = event.actor_entity_id
                 actor_entity = next(

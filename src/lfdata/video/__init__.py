@@ -12,6 +12,7 @@ Usage example:
 
 from typing import TYPE_CHECKING
 
+from lfdata.video.cache import ReplayCachePayload, ReplaySnapshotCache
 from lfdata.video.element import UIElement, UIElementStyle
 from lfdata.video.generator import VisualElementGenerator
 from lfdata.video.renderer import VideoGenerator
@@ -40,6 +41,8 @@ if TYPE_CHECKING:
 
 __all__ = [
     'VideoGenerator',
+    'ReplaySnapshotCache',
+    'ReplayCachePayload',
     'UIElement',
     'UIElementStyle',
     'VisualElementGenerator',

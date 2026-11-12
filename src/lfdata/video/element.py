@@ -1,14 +1,20 @@
 """UI elements and styling for LF game video generation.
 
-This module defines dataclasses representing visual UI elements, styling definitions,
-scoreboard structures, timeline slots, event log entries, and camera shake parameters
-rendered on video frames.
+This module defines dataclasses representing visual UI elements, styling
+definitions, scoreboard structures, timeline slots, event log entries, and
+camera shake parameters rendered on video frames.
 
 Usage example:
     from lfdata.video.element import UIElement, UIElementStyle
 
     style = UIElementStyle(font='GoogleSans-Bold', size=24, color='#FFFFFFFF')
-    element = UIElement(element_type='text', text='Game Start', style=style, x=100, y=50)
+    element = UIElement(
+        element_type='text',
+        text='Game Start',
+        style=style,
+        x=100,
+        y=50,
+    )
 """
 
 from dataclasses import dataclass, field
@@ -40,7 +46,8 @@ class LFPlayerEventUpdate:
     Attributes:
         time: Millisecond timestamp offset.
         desc: Description string of update.
-        target_color_override: Optional mapping of target entity ID to hex color.
+        target_color_override: Optional mapping of target entity ID to hex
+            color.
     """
 
     time: int
@@ -115,6 +122,21 @@ class LFHitBorderInstance:
     duration_ms: int
     tint_hex: str
     max_scale: float
+
+
+@dataclass
+class LFNukeInterval:
+    """Represents a nuke activation interval and its activator name.
+
+    Attributes:
+        start_ms: Start timestamp in milliseconds when nuke was activated.
+        end_ms: End timestamp in milliseconds when nuke detonated or canceled.
+        nuker_name: Codename string of player who activated the nuke.
+    """
+
+    start_ms: int
+    end_ms: int
+    nuker_name: str
 
 
 @dataclass
