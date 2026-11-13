@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include "live_renderer/model/scheduled_game.hpp"
 
 namespace live_renderer {
 
@@ -98,6 +99,14 @@ struct GameStateSnapshot {
     int ball_carrier_player_id = 0;
     std::string center_id;
     std::string center_name;
+
+    // Competition-related values
+    std::string competition_name;
+    std::string competition_team_1_name;
+    std::string competition_team_2_name;
+    std::string next_scheduled_game_team_1_name;
+    std::string next_scheduled_game_team_2_name;
+    std::vector<ScheduledGame> competition_schedule;
 
     std::unordered_map<int, TeamSnapshot> teams;
     std::unordered_map<int, PlayerSnapshot> players;

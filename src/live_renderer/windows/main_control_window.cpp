@@ -196,9 +196,11 @@ void MainControlWindow::SelectCompetition(int index) {
             notify = true;
         } else if (index < 0) {
             selected_competition_index_ = -1;
+            state_store_.ClearCompetition();
         }
     }
     if (notify) {
+        state_store_.SetCompetitionName(comp_to_notify.GetName());
         LoadCompetitionDetails(comp_to_notify.GetSlug());
         if (callbacks_.on_competition_selected) {
             callbacks_.on_competition_selected(comp_to_notify);
@@ -221,6 +223,7 @@ bool MainControlWindow::SelectCompetitionBySlug(const std::string& slug) {
         }
     }
     if (notify) {
+        state_store_.SetCompetitionName(comp_to_notify.GetName());
         LoadCompetitionDetails(comp_to_notify.GetSlug());
         if (callbacks_.on_competition_selected) {
             callbacks_.on_competition_selected(comp_to_notify);
@@ -275,6 +278,9 @@ void MainControlWindow::FetchTournamentSchedule(
                 } else {
                     schedule_.clear();
                 }
+            }
+            if (error.empty()) {
+                state_store_.SetCompetitionSchedule(games);
             }
             schedule_loading_ = false;
             if (error.empty() && callbacks_.on_schedule_loaded) {
@@ -688,6 +694,7 @@ void MainControlWindow::RenderCompetitionSection() {
     }
 
     if (notify) {
+        state_store_.SetCompetitionName(selected_to_notify.GetName());
         LoadCompetitionDetails(selected_to_notify.GetSlug());
         if (callbacks_.on_competition_selected) {
             callbacks_.on_competition_selected(selected_to_notify);

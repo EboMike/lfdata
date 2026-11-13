@@ -25,7 +25,9 @@ struct TextRun {
 class RichTextLayout {
 public:
     /**
-     * @brief Resolves placeholders like {game_type} and {center}.
+     * @brief Resolves placeholders like {game_type}, {center}, {competition_name},
+     *        {competition_team_1_name}, {competition_team_2_name},
+     *        {next_scheduled_game_team_1_name}, and {next_scheduled_game_team_2_name}.
      */
     static std::string SubstitutePlaceholders(
         std::string_view raw_text,

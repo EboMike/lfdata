@@ -5,6 +5,11 @@ namespace live_renderer {
 
 inline constexpr const char* const kTopLevelElementTypes[] = {
     "user_text",
+    "competition_name",
+    "competition_team_1_name",
+    "competition_team_2_name",
+    "next_scheduled_game_team_1_name",
+    "next_scheduled_game_team_2_name",
     "game_timer",
     "user_image",
     "movie",

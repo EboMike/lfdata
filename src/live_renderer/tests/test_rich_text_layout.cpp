@@ -13,6 +13,26 @@ TEST(RichTextLayoutTest, PlaceholderSubstitution) {
     EXPECT_EQ(res, "Welcome to Laserball at Syracuse!");
 }
 
+TEST(RichTextLayoutTest, CompetitionPlaceholderSubstitution) {
+    GameStateSnapshot state;
+    state.competition_name = "LF World Championships 2026";
+    state.competition_team_1_name = "Tigers";
+    state.competition_team_2_name = "Lions";
+    state.next_scheduled_game_team_1_name = "Wolves";
+    state.next_scheduled_game_team_2_name = "Bears";
+
+    std::string text = "Tournament: {competition_name} | Now: {competition_team_1_name} vs {competition_team_2_name} | Next: {next_scheduled_game_team_1_name} vs {next_scheduled_game_team_2_name}";
+    std::string res = RichTextLayout::SubstitutePlaceholders(text, state);
+    EXPECT_EQ(
+        res,
+        "Tournament: LF World Championships 2026 | Now: Tigers vs Lions | Next: Wolves vs Bears");
+
+    // Empty when none selected / available
+    GameStateSnapshot empty_state;
+    std::string empty_res = RichTextLayout::SubstitutePlaceholders(text, empty_state);
+    EXPECT_EQ(empty_res, "Tournament:  | Now:  vs  | Next:  vs ");
+}
+
 TEST(RichTextLayoutTest, ParseMarkupFontColors) {
     std::string raw = "<font color=\"#ff0000\">Alpha</font> zaps <font color=\"#00ff00\">Bravo</font>";
     auto runs = RichTextLayout::ParseMarkup(raw, "#ffffff");

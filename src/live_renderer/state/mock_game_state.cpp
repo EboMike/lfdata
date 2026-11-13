@@ -20,6 +20,11 @@ GameStateSnapshot MockGameState::CreateMockSM5State() {
     s.latest_event_time_ms = 245000;
     s.center_id = "4-43";
     s.center_name = "Loveland";
+    s.competition_name = "Loveland Open 2026";
+    s.competition_team_1_name = "Fire";
+    s.competition_team_2_name = "Earth";
+    s.next_scheduled_game_team_1_name = "Solar";
+    s.next_scheduled_game_team_2_name = "Lunar";
 
     // Team 1: Fire (#FF5000)
     TeamSnapshot t1;

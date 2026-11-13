@@ -24,7 +24,18 @@ visualization configuration file.
 
 The renderer will use a GPU if possible.
 
-NOTE: The lfstats integration will be TBD.
+## Competition-related values
+
+Users can select one competition in the main window. This will
+determine several values:
+
+*   **Current competition**: The selected competition is the current
+    competition.
+*   **Current game**: Going through the scheduled games in the
+    selected competition in chronological order, the first game
+    that hasn't finished yet (no score yet) is the "current game".
+*   **Next game**: The scheduled game chronoligically immediate after
+    the current game is the next game. 
 
 ## Render Components
 
@@ -48,6 +59,16 @@ Strings also support placeholders. These are:
 
 *   **{game_type}**: The current game type (SM5, Laserball)
 *   **{center}**: Name of the center (Loveland, Syracuse, etc.)
+*   **{next_scheduled_game_team_1_name}**: Name of the team that is scheduled
+    to play in the next game as team 1. Empty string if there is none.
+*   **{next_scheduled_game_team_2_name}**: Name of the team that is scheduled
+    to play in the next game as team 2. Empty string if there is none.
+*   **{competition_team_1_name}**: Name of the first team in the
+    current game, if the current game is a scheduled competition game.
+*   **{competition_team_2_name}**: Name of the first team in the
+    current game, if the current game is a scheduled competition game.
+*   **{competition_name}**: Name of the current competition, or empty
+    string if none is selected.
 
 Some placeholders exist in the context of a template that involves
 one player (player profile, player score row):

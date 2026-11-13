@@ -3,6 +3,7 @@
 #include "live_renderer/model/competition.hpp"
 #include "live_renderer/model/competition_team.hpp"
 #include "live_renderer/model/scheduled_game.hpp"
+#include "live_renderer/state/live_state_store.hpp"
 
 namespace live_renderer {
 namespace {
@@ -352,6 +353,80 @@ TEST(CompetitionTest, TournamentAliasWorks) {
     EXPECT_EQ(*game.GetActualStartTimeMs(), 1050LL);
     tournament.AddScheduledGame(game);
     EXPECT_EQ(tournament.GetSchedule().size(), 1u);
+}
+
+TEST(CompetitionTest, LiveStateStoreComputesCurrentAndNextGamePlaceholders) {
+    LiveStateStore store;
+    EXPECT_TRUE(store.GetSnapshot().competition_name.empty());
+    EXPECT_TRUE(store.GetSnapshot().competition_team_1_name.empty());
+    EXPECT_TRUE(store.GetSnapshot().competition_team_2_name.empty());
+    EXPECT_TRUE(store.GetSnapshot().next_scheduled_game_team_1_name.empty());
+    EXPECT_TRUE(store.GetSnapshot().next_scheduled_game_team_2_name.empty());
+
+    // Game 1: Complete (scores recorded)
+    ScheduledGame g1(
+        "R1 M1 G1", {"Alpha", "Bravo"}, {}, 1000LL, 2000LL,
+        1, 1, 1, "G", std::vector<int>{15000, 12000});
+
+    // Game 2: Uncompleted (First uncompleted -> Current Game)
+    ScheduledGame g2(
+        "R1 M1 G2", {"Charlie", "Delta"}, {}, 3000LL, 4000LL,
+        1, 1, 2, "G", std::nullopt);
+
+    // Game 3: Uncompleted (Next Game)
+    ScheduledGame g3(
+        "R1 M2 G1", {"Echo", "Foxtrot"}, {}, 5000LL, 6000LL,
+        1, 2, 1, "G", std::nullopt);
+
+    // Game 4: Further in schedule
+    ScheduledGame g4(
+        "R1 M2 G2", {"Golf", "Hotel"}, {}, 7000LL, 8000LL,
+        1, 2, 2, "G", std::nullopt);
+
+    // Pass in arbitrary order to test chronological sort
+    store.SetCompetition("Tournament 2026", {g3, g1, g4, g2});
+
+    auto s = store.GetSnapshot();
+    EXPECT_EQ(s.competition_name, "Tournament 2026");
+    EXPECT_EQ(s.competition_team_1_name, "Charlie");
+    EXPECT_EQ(s.competition_team_2_name, "Delta");
+    EXPECT_EQ(s.next_scheduled_game_team_1_name, "Echo");
+    EXPECT_EQ(s.next_scheduled_game_team_2_name, "Foxtrot");
+
+    // Session reset must preserve competition placeholders
+    store.ResetSession();
+    auto s_reset = store.GetSnapshot();
+    EXPECT_EQ(s_reset.competition_name, "Tournament 2026");
+    EXPECT_EQ(s_reset.competition_team_1_name, "Charlie");
+    EXPECT_EQ(s_reset.competition_team_2_name, "Delta");
+    EXPECT_EQ(s_reset.next_scheduled_game_team_1_name, "Echo");
+    EXPECT_EQ(s_reset.next_scheduled_game_team_2_name, "Foxtrot");
+
+    // When game 2 completes, game 3 becomes current and game 4 becomes next
+    g2.SetTeamScores(std::vector<int>{22000, 18000});
+    store.SetCompetitionSchedule({g1, g2, g3, g4});
+    auto s_updated = store.GetSnapshot();
+    EXPECT_EQ(s_updated.competition_team_1_name, "Echo");
+    EXPECT_EQ(s_updated.competition_team_2_name, "Foxtrot");
+    EXPECT_EQ(s_updated.next_scheduled_game_team_1_name, "Golf");
+    EXPECT_EQ(s_updated.next_scheduled_game_team_2_name, "Hotel");
+
+    // When all games complete, team names are empty
+    g3.SetTeamScores(std::vector<int>{19000, 17000});
+    g4.SetTeamScores(std::vector<int>{25000, 24000});
+    store.SetCompetitionSchedule({g1, g2, g3, g4});
+    auto s_finished = store.GetSnapshot();
+    EXPECT_EQ(s_finished.competition_name, "Tournament 2026");
+    EXPECT_TRUE(s_finished.competition_team_1_name.empty());
+    EXPECT_TRUE(s_finished.competition_team_2_name.empty());
+    EXPECT_TRUE(s_finished.next_scheduled_game_team_1_name.empty());
+    EXPECT_TRUE(s_finished.next_scheduled_game_team_2_name.empty());
+
+    // Clear competition
+    store.ClearCompetition();
+    auto s_cleared = store.GetSnapshot();
+    EXPECT_TRUE(s_cleared.competition_name.empty());
+    EXPECT_TRUE(s_cleared.competition_team_1_name.empty());
 }
 
 }  // namespace

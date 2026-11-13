@@ -276,9 +276,18 @@ void VisualizationWindow::GenerateElementCommands(
             batch);
     }
 
-    if (resolved_el.type == "user_text") {
+    if (resolved_el.type == "user_text" ||
+        resolved_el.type == "competition_name" ||
+        resolved_el.type == "competition_team_1_name" ||
+        resolved_el.type == "competition_team_2_name" ||
+        resolved_el.type == "next_scheduled_game_team_1_name" ||
+        resolved_el.type == "next_scheduled_game_team_2_name") {
+        ElementConfig text_el = resolved_el;
+        if (text_el.text.empty() && text_el.type != "user_text") {
+            text_el.text = "{" + text_el.type + "}";
+        }
         TextComponent::GenerateUserTextCommands(
-            resolved_el,
+            text_el,
             state,
             content_px_rect,
             static_cast<float>(GetHeight()),

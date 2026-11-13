@@ -96,14 +96,25 @@ public:
     void UpdateCompetitionPlayerDetails(const std::vector<PlayerDetailsUpdate>& details);
     void UpdatePlayerPicture(int player_id, const std::string& picture_url);
 
+    // Competition & schedule
+    void SetCompetition(
+        const std::string& name,
+        const std::vector<ScheduledGame>& schedule);
+    void SetCompetitionName(const std::string& name);
+    void SetCompetitionSchedule(const std::vector<ScheduledGame>& schedule);
+    void ClearCompetition();
+
 private:
     void BumpVersionLocked();
+    void RecomputeCompetitionValuesLocked();
     const PlayerDetailsUpdate* FindPlayerDetailsLocked(
         const std::string& entity_id, const std::string& name) const;
 
     mutable std::mutex mutex_;
     GameStateSnapshot state_;
     std::string default_profile_picture_url_;
+    std::string competition_name_;
+    std::vector<ScheduledGame> competition_schedule_;
     std::unordered_map<std::string, PlayerDetailsUpdate>
         competition_player_details_;
     std::unordered_map<std::string, PlayerDetailsUpdate>

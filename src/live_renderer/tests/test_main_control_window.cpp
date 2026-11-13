@@ -211,7 +211,7 @@ TEST(MainControlWindowTest, AboutModalAndMetadata) {
     EXPECT_STREQ(
         MainControlWindow::GetApplicationVersion(), kLiveRendererVersion);
     EXPECT_STREQ(
-        MainControlWindow::GetApplicationVersion(), "0.1.45");
+        MainControlWindow::GetApplicationVersion(), "0.1.46");
     EXPECT_STREQ(
         MainControlWindow::GetApplicationAuthor(), "EboMike");
 
@@ -424,6 +424,7 @@ TEST(MainControlWindowTest, SelectingCompetitionUpdatesPlayerDetailsInStateStore
     ASSERT_TRUE(s.players.contains(12));
     EXPECT_EQ(s.players[12].picture_url, global_cfg.default_profile_picture_url);
     EXPECT_EQ(s.players[12].team_name, "Baden's Overly Optimistic Buddies");
+    EXPECT_EQ(s.competition_name, "Syracuse Trios 2026");
 
     EXPECT_TRUE(win.HasSchedule());
     EXPECT_EQ(win.GetSchedule().size(), 54u);

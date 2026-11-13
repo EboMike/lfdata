@@ -18,6 +18,11 @@ std::string RichTextLayout::SubstitutePlaceholders(
 
     replace_all(result, "{game_type}", state.game_type);
     replace_all(result, "{center}", state.center_name.empty() ? state.center_id : state.center_name);
+    replace_all(result, "{competition_name}", state.competition_name);
+    replace_all(result, "{competition_team_1_name}", state.competition_team_1_name);
+    replace_all(result, "{competition_team_2_name}", state.competition_team_2_name);
+    replace_all(result, "{next_scheduled_game_team_1_name}", state.next_scheduled_game_team_1_name);
+    replace_all(result, "{next_scheduled_game_team_2_name}", state.next_scheduled_game_team_2_name);
 
     return result;
 }

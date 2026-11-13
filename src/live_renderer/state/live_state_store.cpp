@@ -1,4 +1,5 @@
 #include "live_renderer/state/live_state_store.hpp"
+#include <algorithm>
 #include <chrono>
 #include "live_renderer/config/global_config.hpp"
 
@@ -54,6 +55,7 @@ void LiveStateStore::ClearState() {
     state_.version = next_version;
     state_.in_session = false;
     state_.game_over = false;
+    RecomputeCompetitionValuesLocked();
 }
 
 void LiveStateStore::ResetSession() {
@@ -64,6 +66,7 @@ void LiveStateStore::ResetSession() {
     state_.in_session = true;
     state_.game_over = false;
     state_.game_start_time_local_ms = GetCurrentSteadyMillis();
+    RecomputeCompetitionValuesLocked();
 }
 
 void LiveStateStore::SetGameOver(int64_t timestamp_ms) {
@@ -455,6 +458,96 @@ void LiveStateStore::UpdatePlayerPicture(
         ? default_profile_picture_url_
         : picture_url;
     BumpVersionLocked();
+}
+
+void LiveStateStore::SetCompetition(
+    const std::string& name,
+    const std::vector<ScheduledGame>& schedule) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    competition_name_ = name;
+    competition_schedule_ = schedule;
+    RecomputeCompetitionValuesLocked();
+    BumpVersionLocked();
+}
+
+void LiveStateStore::SetCompetitionName(const std::string& name) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    competition_name_ = name;
+    RecomputeCompetitionValuesLocked();
+    BumpVersionLocked();
+}
+
+void LiveStateStore::SetCompetitionSchedule(
+    const std::vector<ScheduledGame>& schedule) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    competition_schedule_ = schedule;
+    RecomputeCompetitionValuesLocked();
+    BumpVersionLocked();
+}
+
+void LiveStateStore::ClearCompetition() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    competition_name_.clear();
+    competition_schedule_.clear();
+    RecomputeCompetitionValuesLocked();
+    BumpVersionLocked();
+}
+
+void LiveStateStore::RecomputeCompetitionValuesLocked() {
+    state_.competition_name = competition_name_;
+    state_.competition_schedule = competition_schedule_;
+
+    if (competition_schedule_.empty()) {
+        state_.competition_team_1_name.clear();
+        state_.competition_team_2_name.clear();
+        state_.next_scheduled_game_team_1_name.clear();
+        state_.next_scheduled_game_team_2_name.clear();
+        return;
+    }
+
+    auto sorted_schedule = competition_schedule_;
+    std::stable_sort(
+        sorted_schedule.begin(),
+        sorted_schedule.end(),
+        [](const ScheduledGame& a, const ScheduledGame& b) {
+            int64_t a_time = a.GetScheduledStartTimeMs().value_or(0);
+            int64_t b_time = b.GetScheduledStartTimeMs().value_or(0);
+            return a_time < b_time;
+        });
+
+    size_t current_idx = static_cast<size_t>(-1);
+    for (size_t i = 0; i < sorted_schedule.size(); ++i) {
+        if (!sorted_schedule[i].IsComplete()) {
+            current_idx = i;
+            break;
+        }
+    }
+
+    if (current_idx != static_cast<size_t>(-1)) {
+        const auto& current_game = sorted_schedule[current_idx];
+        const auto& cur_teams = current_game.GetTeamNames();
+        state_.competition_team_1_name =
+            cur_teams.size() > 0 ? cur_teams[0] : "";
+        state_.competition_team_2_name =
+            cur_teams.size() > 1 ? cur_teams[1] : "";
+
+        if (current_idx + 1 < sorted_schedule.size()) {
+            const auto& next_game = sorted_schedule[current_idx + 1];
+            const auto& next_teams = next_game.GetTeamNames();
+            state_.next_scheduled_game_team_1_name =
+                next_teams.size() > 0 ? next_teams[0] : "";
+            state_.next_scheduled_game_team_2_name =
+                next_teams.size() > 1 ? next_teams[1] : "";
+        } else {
+            state_.next_scheduled_game_team_1_name.clear();
+            state_.next_scheduled_game_team_2_name.clear();
+        }
+    } else {
+        state_.competition_team_1_name.clear();
+        state_.competition_team_2_name.clear();
+        state_.next_scheduled_game_team_1_name.clear();
+        state_.next_scheduled_game_team_2_name.clear();
+    }
 }
 
 }  // namespace live_renderer

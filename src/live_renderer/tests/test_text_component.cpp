@@ -26,6 +26,30 @@ TEST(TextComponentTest, PlaceholderSubstitution) {
     EXPECT_TRUE(batch.commands[0].black_outline);
 }
 
+TEST(TextComponentTest, CompetitionPlaceholderSubstitution) {
+    GameStateSnapshot state;
+    state.competition_name = "Brisbane Cup 2026";
+    state.competition_team_1_name = "Thunder";
+    state.competition_team_2_name = "Lightning";
+    state.next_scheduled_game_team_1_name = "Storm";
+    state.next_scheduled_game_team_2_name = "Hail";
+
+    ElementConfig el;
+    el.type = "user_text";
+    el.text = "{competition_name}: {competition_team_1_name} vs {competition_team_2_name} (Next: {next_scheduled_game_team_1_name} vs {next_scheduled_game_team_2_name})";
+    el.font_size = 20.0f;
+    el.rect = {0.0f, 0.0f, 1.0f, 0.1f};
+
+    RenderBatch batch;
+    TextComponent::GenerateUserTextCommands(el, state, {0.0f, 0.0f, 800.0f, 40.0f}, 800.0f, batch);
+
+    ASSERT_EQ(batch.commands.size(), 1u);
+    EXPECT_EQ(batch.commands[0].type, RenderCommand::Type::Text);
+    EXPECT_EQ(
+        batch.commands[0].text,
+        "Brisbane Cup 2026: Thunder vs Lightning (Next: Storm vs Hail)");
+}
+
 TEST(TextComponentTest, ResolvePlayerTextValues) {
     PlayerSnapshot p;
     p.name = "BravoScout";
