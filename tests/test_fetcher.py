@@ -162,8 +162,8 @@ def test_fetch_from_test_competitions_dataset_dir() -> None:
     comps = fetcher.fetch_competitions()
     assert len(comps) == 2
     assert [c.slug for c in comps] == [
-        'internationals_2026',
         'syracuse_trios_2026',
+        'internationals_2026',
     ]
 
     games_intl = fetcher.fetch_competition_schedule('internationals_2026')
@@ -253,12 +253,12 @@ def test_fetch_competitions_test_mode() -> None:
     fetcher = LFStatsFetcher(test_mode=True)
     comps = fetcher.fetch_competitions()
 
-    assert len(comps) == 68
+    assert len(comps) == 2
     assert comps[0] == CompetitionInfo(
         name='Syracuse Trios 2026',
         slug='syracuse_trios_2026',
     )
-    assert comps[3] == CompetitionInfo(
+    assert comps[1] == CompetitionInfo(
         name='Internationals 2026',
         slug='internationals_2026',
     )

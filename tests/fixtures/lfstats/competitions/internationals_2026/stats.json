@@ -1,0 +1,61 @@
+{
+  "internationals_2026": [
+    {
+      "ipl_id": "4-23-1",
+      "player_name": "Sanch",
+      "player_picture_url": "https://example.com/players/sanch.png",
+      "team_name": "Hidden Valley Sanch",
+      "team_logo_url": "https://lfstats-modern-images.s3.us-west-1.amazonaws.com/bec40e5c-ee4d-4db5-be6e-4fe7ac276b92?v=1"
+    },
+    {
+      "ipl_id": "4-23-2",
+      "player_name": "Heatseeker",
+      "player_picture_url": "https://example.com/players/heatseeker.png",
+      "team_name": "Utah Heatseekers",
+      "team_logo_url": "https://lfstats-modern-images.s3.us-west-1.amazonaws.com/4ec4674b-0269-4c2e-b6d2-dfcedd85cdb2"
+    },
+    {
+      "ipl_id": "4-23-3",
+      "player_name": "Jackal",
+      "player_picture_url": "https://example.com/players/jackal.png",
+      "team_name": "No Lives From Jackal",
+      "team_logo_url": "https://lfstats-modern-images.s3.us-west-1.amazonaws.com/3f45ea8f-5461-4cc7-8c6b-9bfe0afe79d3"
+    },
+    {
+      "ipl_id": "4-23-4",
+      "player_name": "Sweets",
+      "player_picture_url": "https://example.com/players/sweets.png",
+      "team_name": "Sweets And Savory",
+      "team_logo_url": "https://lfstats-modern-images.s3.us-west-1.amazonaws.com/3746ac4f-4615-4df3-9621-97e28c4c2408"
+    },
+    {
+      "ipl_id": "4-23-5",
+      "player_name": "HybrisAce",
+      "player_picture_url": "https://example.com/players/hybris.png",
+      "team_name": "HYBRIS",
+      "team_logo_url": "https://lfstats-modern-images.s3.us-west-1.amazonaws.com/9f641af9-918d-4648-85e3-555ce2bece9b"
+    },
+    {
+      "ipl_id": "4-23-6",
+      "player_name": "GeddYou",
+      "player_picture_url": "https://example.com/players/armagedd.png",
+      "team_name": "Armagedd You",
+      "team_logo_url": "https://lfstats-modern-images.s3.us-west-1.amazonaws.com/3dbc85bd-1070-41c8-9158-cc82c541f4d8"
+    },
+    {
+      "ipl_id": "4-23-7",
+      "player_name": "ExpendableOne",
+      "player_picture_url": "https://example.com/players/expendable.png",
+      "team_name": "The Expendables",
+      "team_logo_url": "https://lfstats-modern-images.s3.us-west-1.amazonaws.com/bb89a4e5-10d5-424d-83dd-4e42fd49b946"
+    },
+    {
+      "ipl_id": "4-23-8",
+      "player_name": "Olympian",
+      "player_picture_url": "https://example.com/players/olympian.png",
+      "team_name": "Team Olympus",
+      "team_logo_url": "https://lfstats-modern-images.s3.us-west-1.amazonaws.com/6971a505-ad37-4970-ae8a-68e6a3c27612"
+    }
+  ]
+}
+

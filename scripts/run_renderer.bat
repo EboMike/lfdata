@@ -5,7 +5,7 @@ set "SCRIPT_DIR=%~dp0"
 for %%i in ("%SCRIPT_DIR%..") do set "REPO_ROOT=%%~fi"
 
 set CONFIG=Release
-set CONFIG_FILE=
+set "APP_ARGS="
 
 :parse_args
 if "%~1"=="" goto after_args
@@ -19,12 +19,13 @@ if /i "%~1"=="release" (
     shift
     goto parse_args
 )
-if /i "%~1"=="--config" (
-    set CONFIG_FILE=%~2
+if /i "%~1"=="--build-config" (
+    set "CONFIG=%~2"
     shift
     shift
     goto parse_args
 )
+set "APP_ARGS=%APP_ARGS% %1"
 shift
 goto parse_args
 
@@ -42,8 +43,8 @@ if not exist "%EXE_PATH%" (
 )
 
 echo Starting live_renderer...
-if not "%CONFIG_FILE%"=="" (
-    "%EXE_PATH%" --config "%CONFIG_FILE%"
+if defined APP_ARGS (
+    "%EXE_PATH%" %APP_ARGS%
 ) else (
     "%EXE_PATH%"
 )

@@ -705,6 +705,8 @@ std::string LFStatsFetcher::FetchRemoteJson(const std::string& endpoint_path) {
                                 ? ("/" + endpoint_path)
                                 : endpoint_path;
     std::string full_url = base_url + norm_path;
+    std::cout << "[lfstats] [LIVE MODE] Fetching remote JSON from "
+              << full_url << "...\n";
 
     if (custom_transport_with_key) {
         return custom_transport_with_key(full_url, user_agent, api_key, timeout_ms);
@@ -737,6 +739,9 @@ std::string LFStatsFetcher::LoadLocalFixture(
                 std::filesystem::is_regular_file(attempt)) {
                 std::ifstream file(attempt, std::ios::in | std::ios::binary);
                 if (file.is_open()) {
+                    std::cout << "[lfstats] [TEST MODE] Loaded local fixture: "
+                              << attempt.string() << " (" << item_description
+                              << ")\n";
                     std::ostringstream ss;
                     ss << file.rdbuf();
                     return ss.str();
@@ -761,6 +766,9 @@ std::string LFStatsFetcher::LoadLocalFixture(
                     std::filesystem::is_regular_file(attempt)) {
                     std::ifstream file(attempt, std::ios::in | std::ios::binary);
                     if (file.is_open()) {
+                        std::cout << "[lfstats] [TEST MODE] Loaded local fixture: "
+                                  << attempt.string() << " ("
+                                  << item_description << ")\n";
                         std::ostringstream ss;
                         ss << file.rdbuf();
                         return ss.str();

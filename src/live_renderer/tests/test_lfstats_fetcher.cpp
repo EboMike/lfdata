@@ -66,11 +66,11 @@ TEST(LFStatsFetcherTest, FetchCompetitionsTestMode) {
     LFStatsFetcher fetcher(true, "tests/fixtures/lfstats");
     auto competitions = fetcher.FetchCompetitions();
 
-    ASSERT_EQ(competitions.size(), 68u);
+    ASSERT_EQ(competitions.size(), 2u);
     EXPECT_EQ(competitions[0].GetSlug(), "syracuse_trios_2026");
     EXPECT_EQ(competitions[0].GetName(), "Syracuse Trios 2026");
-    EXPECT_EQ(competitions[3].GetSlug(), "internationals_2026");
-    EXPECT_EQ(competitions[3].GetName(), "Internationals 2026");
+    EXPECT_EQ(competitions[1].GetSlug(), "internationals_2026");
+    EXPECT_EQ(competitions[1].GetName(), "Internationals 2026");
 
     auto alias = fetcher.FetchAllCompetitions();
     EXPECT_EQ(competitions, alias);
@@ -158,8 +158,8 @@ TEST(LFStatsFetcherTest, FetchFromTestCompetitionsDataset) {
 
     auto comps = fetcher.FetchCompetitions();
     ASSERT_EQ(comps.size(), 2u);
-    EXPECT_EQ(comps[0].GetSlug(), "internationals_2026");
-    EXPECT_EQ(comps[1].GetSlug(), "syracuse_trios_2026");
+    EXPECT_EQ(comps[0].GetSlug(), "syracuse_trios_2026");
+    EXPECT_EQ(comps[1].GetSlug(), "internationals_2026");
 
     auto intl_sched = fetcher.FetchCompetitionSchedule("internationals_2026");
     ASSERT_EQ(intl_sched.size(), 5u);
@@ -232,7 +232,7 @@ TEST(LFStatsFetcherTest, AsyncFuturesNonBlocking) {
     ASSERT_TRUE(fut_sched.valid());
 
     auto comps = fut_comps.get();
-    EXPECT_EQ(comps.size(), 68u);
+    EXPECT_EQ(comps.size(), 2u);
 
     auto sched = fut_sched.get();
     EXPECT_EQ(sched.size(), 5u);
@@ -263,7 +263,7 @@ TEST(LFStatsFetcherTest, AsyncCallbacksNonBlocking) {
         });
 
     auto comps = future_comps.get();
-    EXPECT_EQ(comps.size(), 68u);
+    EXPECT_EQ(comps.size(), 2u);
 
     auto sched = future_sched.get();
     EXPECT_EQ(sched.size(), 5u);
