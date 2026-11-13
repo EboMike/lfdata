@@ -81,7 +81,7 @@ def test_fetch_competition_schedule_test_mode_syracuse() -> None:
     fetcher = LFStatsFetcher(test_mode=True)
     games = fetcher.fetch_competition_schedule('syracuse_trios_2026')
 
-    assert len(games) == 54
+    assert len(games) == 5
 
     first = games[0]
     assert first.game_name == 'R1 M1 G1'
@@ -112,12 +112,70 @@ def test_fetch_competition_schedule_test_mode_syracuse() -> None:
     )
 
     alias_games = fetcher.fetch_schedule('syracuse_trios_2026')
-    assert len(alias_games) == 54
+    assert len(alias_games) == 5
 
     tournament_games = fetcher.fetch_tournament_schedule(
         'syracuse_trios_2026'
     )
-    assert len(tournament_games) == 54
+    assert len(tournament_games) == 5
+
+
+def test_fetch_competition_schedule_test_mode_internationals_2026() -> None:
+    fetcher = LFStatsFetcher(test_mode=True)
+    games = fetcher.fetch_competition_schedule('internationals_2026')
+
+    assert len(games) == 5
+
+    # Games 1-3 have scores and actual start time
+    assert games[0].game_name == 'R1 M1 G1'
+    assert games[0].team_names == ['Hidden Valley Sanch', 'Utah Heatseekers']
+    assert games[0].team_scores == [44452, 28130]
+    assert games[0].score_differential == 16322
+    assert games[0].is_complete is True
+
+    assert games[1].game_name == 'R1 M2 G1'
+    assert games[1].team_scores == [33192, 36072]
+    assert games[1].is_complete is True
+
+    assert games[2].game_name == 'R1 M3 G1'
+    assert games[2].team_scores == [37052, 17970]
+    assert games[2].is_complete is True
+
+    # Games 4-5 have no results yet
+    assert games[3].game_name == 'R1 M4 G1'
+    assert games[3].team_names == ['The Expendables', 'Team Olympus']
+    assert games[3].team_scores is None
+    assert games[3].actual_start_time is None
+    assert games[3].is_complete is False
+
+    assert games[4].game_name == 'R1 M1 G2'
+    assert games[4].team_names == ['Hidden Valley Sanch', 'Utah Heatseekers']
+    assert games[4].team_scores is None
+    assert games[4].actual_start_time is None
+    assert games[4].is_complete is False
+
+
+def test_fetch_from_test_competitions_dataset_dir() -> None:
+    dataset_dir = Path('tests/fixtures/test_competitions')
+    fetcher = LFStatsFetcher(test_mode=True, test_data_dir=dataset_dir)
+
+    comps = fetcher.fetch_competitions()
+    assert len(comps) == 2
+    assert [c.slug for c in comps] == [
+        'internationals_2026',
+        'syracuse_trios_2026',
+    ]
+
+    games_intl = fetcher.fetch_competition_schedule('internationals_2026')
+    assert len(games_intl) == 5
+    assert games_intl[3].is_complete is False
+    assert games_intl[4].is_complete is False
+
+    games_syracuse = fetcher.fetch_competition_schedule('syracuse_trios_2026')
+    assert len(games_syracuse) == 5
+    for g in games_syracuse:
+        assert g.is_complete is True
+        assert g.team_scores is not None
 
 
 def test_convert_game_dict_missing_start_time_raises() -> None:

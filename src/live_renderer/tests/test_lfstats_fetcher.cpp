@@ -80,7 +80,7 @@ TEST(LFStatsFetcherTest, FetchCompetitionScheduleTestMode) {
     LFStatsFetcher fetcher(true, "tests/fixtures/lfstats");
     auto schedule = fetcher.FetchCompetitionSchedule("syracuse_trios_2026");
 
-    ASSERT_EQ(schedule.size(), 54u);
+    ASSERT_EQ(schedule.size(), 5u);
 
     const auto& g1 = schedule[0];
     EXPECT_EQ(g1.GetGameName(), "R1 M1 G1");
@@ -113,8 +113,65 @@ TEST(LFStatsFetcherTest, FetchCompetitionScheduleTestMode) {
     auto alias = fetcher.FetchSchedule("syracuse_trios_2026");
     EXPECT_EQ(schedule, alias);
 
-    auto tournament_alias = fetcher.FetchTournamentSchedule("syracuse_trios_2026");
+    auto tournament_alias =
+        fetcher.FetchTournamentSchedule("syracuse_trios_2026");
     EXPECT_EQ(schedule, tournament_alias);
+}
+
+TEST(LFStatsFetcherTest, FetchCompetitionScheduleInternationals2026TestMode) {
+    LFStatsFetcher fetcher(true, "tests/fixtures/lfstats");
+    auto schedule = fetcher.FetchCompetitionSchedule("internationals_2026");
+
+    ASSERT_EQ(schedule.size(), 5u);
+
+    // Games 1-3 have scores and are complete
+    EXPECT_EQ(schedule[0].GetGameName(), "R1 M1 G1");
+    ASSERT_TRUE(schedule[0].GetTeamScores().has_value());
+    EXPECT_EQ((*schedule[0].GetTeamScores())[0], 44452);
+    EXPECT_EQ((*schedule[0].GetTeamScores())[1], 28130);
+    EXPECT_TRUE(schedule[0].IsComplete());
+
+    EXPECT_EQ(schedule[1].GetGameName(), "R1 M2 G1");
+    EXPECT_TRUE(schedule[1].IsComplete());
+
+    EXPECT_EQ(schedule[2].GetGameName(), "R1 M3 G1");
+    EXPECT_TRUE(schedule[2].IsComplete());
+
+    // Games 4-5 have no results yet
+    const auto& g4 = schedule[3];
+    EXPECT_EQ(g4.GetGameName(), "R1 M4 G1");
+    EXPECT_FALSE(g4.GetTeamScores().has_value());
+    EXPECT_FALSE(g4.GetScoreDifferential().has_value());
+    EXPECT_FALSE(g4.GetActualStartTimeMs().has_value());
+    EXPECT_FALSE(g4.IsComplete());
+
+    const auto& g5 = schedule[4];
+    EXPECT_EQ(g5.GetGameName(), "R1 M1 G2");
+    EXPECT_FALSE(g5.GetTeamScores().has_value());
+    EXPECT_FALSE(g5.GetScoreDifferential().has_value());
+    EXPECT_FALSE(g5.GetActualStartTimeMs().has_value());
+    EXPECT_FALSE(g5.IsComplete());
+}
+
+TEST(LFStatsFetcherTest, FetchFromTestCompetitionsDataset) {
+    LFStatsFetcher fetcher(true, "tests/fixtures/test_competitions");
+
+    auto comps = fetcher.FetchCompetitions();
+    ASSERT_EQ(comps.size(), 2u);
+    EXPECT_EQ(comps[0].GetSlug(), "internationals_2026");
+    EXPECT_EQ(comps[1].GetSlug(), "syracuse_trios_2026");
+
+    auto intl_sched = fetcher.FetchCompetitionSchedule("internationals_2026");
+    ASSERT_EQ(intl_sched.size(), 5u);
+    EXPECT_FALSE(intl_sched[3].IsComplete());
+    EXPECT_FALSE(intl_sched[4].IsComplete());
+
+    auto syr_sched = fetcher.FetchCompetitionSchedule("syracuse_trios_2026");
+    ASSERT_EQ(syr_sched.size(), 5u);
+    for (const auto& g : syr_sched) {
+        EXPECT_TRUE(g.IsComplete());
+        EXPECT_TRUE(g.GetTeamScores().has_value());
+    }
 }
 
 TEST(LFStatsFetcherTest, InvalidCompetitionSlugThrows) {
@@ -178,7 +235,7 @@ TEST(LFStatsFetcherTest, AsyncFuturesNonBlocking) {
     EXPECT_EQ(comps.size(), 68u);
 
     auto sched = fut_sched.get();
-    EXPECT_EQ(sched.size(), 54u);
+    EXPECT_EQ(sched.size(), 5u);
 }
 
 TEST(LFStatsFetcherTest, AsyncCallbacksNonBlocking) {
@@ -209,7 +266,7 @@ TEST(LFStatsFetcherTest, AsyncCallbacksNonBlocking) {
     EXPECT_EQ(comps.size(), 68u);
 
     auto sched = future_sched.get();
-    EXPECT_EQ(sched.size(), 54u);
+    EXPECT_EQ(sched.size(), 5u);
 }
 
 TEST(LFStatsFetcherTest, ConcurrentMultipleRequests) {
@@ -226,7 +283,7 @@ TEST(LFStatsFetcherTest, ConcurrentMultipleRequests) {
 
     for (auto& fut : futures) {
         auto result = fut.get();
-        EXPECT_EQ(result.size(), 54u);
+        EXPECT_EQ(result.size(), 5u);
     }
 }
 

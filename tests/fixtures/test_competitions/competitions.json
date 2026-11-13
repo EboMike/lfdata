@@ -1,0 +1,31 @@
+{
+  "data": [
+    {
+      "slug": "internationals_2026",
+      "name": "Internationals 2026",
+      "type": "competitive",
+      "game_type": "sm5",
+      "format": "team",
+      "category": "internationals",
+      "state": "completed",
+      "start_date": "2026-07-13",
+      "end_date": "2026-07-18",
+      "host_center": "4-23",
+      "games": 5
+    },
+    {
+      "slug": "syracuse_trios_2026",
+      "name": "Syracuse Trios 2026",
+      "type": "competitive",
+      "game_type": "sm5",
+      "format": "trios",
+      "category": "tournament",
+      "state": "completed",
+      "start_date": "2026-11-02",
+      "end_date": "2026-11-04",
+      "host_center": "4-23",
+      "games": 5
+    }
+  ]
+}
+

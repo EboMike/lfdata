@@ -1,0 +1,63 @@
+[
+  {
+    "gameName": "R1 M1 G1",
+    "team1Name": "Hidden Valley Sanch",
+    "team2Name": "Utah Heatseekers",
+    "team1LogoUrl": "https://lfstats-modern-images.s3.us-west-1.amazonaws.com/bec40e5c-ee4d-4db5-be6e-4fe7ac276b92?v=1",
+    "team2LogoUrl": "https://lfstats-modern-images.s3.us-west-1.amazonaws.com/4ec4674b-0269-4c2e-b6d2-dfcedd85cdb2",
+    "scheduledStartTime": "2026-07-13T12:00:00.000Z",
+    "actualStartTime": "2026-07-13T12:21:26.000Z",
+    "team1Score": 44452,
+    "team2Score": 28130,
+    "scoreDifferential": 16322
+  },
+  {
+    "gameName": "R1 M2 G1",
+    "team1Name": "No Lives From Jackal",
+    "team2Name": "Sweets And Savory",
+    "team1LogoUrl": "https://lfstats-modern-images.s3.us-west-1.amazonaws.com/3f45ea8f-5461-4cc7-8c6b-9bfe0afe79d3",
+    "team2LogoUrl": "https://lfstats-modern-images.s3.us-west-1.amazonaws.com/3746ac4f-4615-4df3-9621-97e28c4c2408",
+    "scheduledStartTime": "2026-07-13T12:20:00.000Z",
+    "actualStartTime": "2026-07-13T12:38:38.000Z",
+    "team1Score": 33192,
+    "team2Score": 36072,
+    "scoreDifferential": -2880
+  },
+  {
+    "gameName": "R1 M3 G1",
+    "team1Name": "HYBRIS",
+    "team2Name": "Armagedd You",
+    "team1LogoUrl": "https://lfstats-modern-images.s3.us-west-1.amazonaws.com/9f641af9-918d-4648-85e3-555ce2bece9b",
+    "team2LogoUrl": "https://lfstats-modern-images.s3.us-west-1.amazonaws.com/3dbc85bd-1070-41c8-9158-cc82c541f4d8",
+    "scheduledStartTime": "2026-07-13T12:40:00.000Z",
+    "actualStartTime": "2026-07-13T12:58:16.000Z",
+    "team1Score": 37052,
+    "team2Score": 17970,
+    "scoreDifferential": 19082
+  },
+  {
+    "gameName": "R1 M4 G1",
+    "team1Name": "The Expendables",
+    "team2Name": "Team Olympus",
+    "team1LogoUrl": "https://lfstats-modern-images.s3.us-west-1.amazonaws.com/bb89a4e5-10d5-424d-83dd-4e42fd49b946",
+    "team2LogoUrl": "https://lfstats-modern-images.s3.us-west-1.amazonaws.com/6971a505-ad37-4970-ae8a-68e6a3c27612",
+    "scheduledStartTime": "2026-07-13T13:00:00.000Z",
+    "actualStartTime": null,
+    "team1Score": null,
+    "team2Score": null,
+    "scoreDifferential": null
+  },
+  {
+    "gameName": "R1 M1 G2",
+    "team1Name": "Hidden Valley Sanch",
+    "team2Name": "Utah Heatseekers",
+    "team1LogoUrl": "https://lfstats-modern-images.s3.us-west-1.amazonaws.com/bec40e5c-ee4d-4db5-be6e-4fe7ac276b92?v=1",
+    "team2LogoUrl": "https://lfstats-modern-images.s3.us-west-1.amazonaws.com/4ec4674b-0269-4c2e-b6d2-dfcedd85cdb2",
+    "scheduledStartTime": "2026-07-13T13:20:00.000Z",
+    "actualStartTime": null,
+    "team1Score": null,
+    "team2Score": null,
+    "scoreDifferential": null
+  }
+]
+

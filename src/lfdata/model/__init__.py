@@ -32,6 +32,7 @@ from lfdata.model.gametypes.sm5_notability import (
 )
 from lfdata.model.gametypes.sm5_stats import Sm5Stats
 from lfdata.model.objects.competition import Competition, Tournament
+from lfdata.model.objects.competition_dataset import CompetitionDataset
 from lfdata.model.objects.competition_team import CompetitionTeam
 from lfdata.model.objects.entity import GameEntity
 from lfdata.model.objects.event import GameEvent
@@ -52,6 +53,7 @@ from lfdata.model.objects.team import GameTeam
 __all__ = [
     'Base',
     'Competition',
+    'CompetitionDataset',
     'CompetitionTeam',
     'GameEntity',
     'GameEvent',
@@ -80,6 +82,7 @@ __all__ = [
     'Sm5NotabilityResult',
     'Sm5Stats',
     'StageType',
+    'Tournament',
     'format_game_name',
     'parse_game_name',
 ]

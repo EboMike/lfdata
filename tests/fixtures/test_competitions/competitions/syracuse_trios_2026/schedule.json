@@ -1,0 +1,63 @@
+[
+  {
+    "gameName": "R1 M1 G1",
+    "team1Name": "Baden's Overly Optimistic Buddies & Fireball Friends",
+    "team2Name": "Death By Budder Knife & Still Expendable",
+    "team1LogoUrl": null,
+    "team2LogoUrl": "https://lfstats-modern-images.s3.us-west-1.amazonaws.com/6478e510-e248-4b91-a4af-09aec196731f?v=1",
+    "scheduledStartTime": "2026-11-02T15:00:00.000Z",
+    "actualStartTime": "2026-11-02T15:45:52.000Z",
+    "team1Score": 41172,
+    "team2Score": 11229,
+    "scoreDifferential": 29943
+  },
+  {
+    "gameName": "R1 M2 G1",
+    "team1Name": "MVP(eanuts) & ménage à trois",
+    "team2Name": "Les Missilérables & The Banana Stand",
+    "team1LogoUrl": null,
+    "team2LogoUrl": "https://lfstats-modern-images.s3.us-west-1.amazonaws.com/b429a35a-0b95-499e-8e88-52a9e0273225?v=2",
+    "scheduledStartTime": "2026-11-02T15:20:00.000Z",
+    "actualStartTime": "2026-11-02T15:57:14.000Z",
+    "team1Score": 47032,
+    "team2Score": 28712,
+    "scoreDifferential": 18320
+  },
+  {
+    "gameName": "R1 M1 G2",
+    "team1Name": "Baden's Overly Optimistic Buddies & Fireball Friends",
+    "team2Name": "Death By Budder Knife & Still Expendable",
+    "team1LogoUrl": null,
+    "team2LogoUrl": "https://lfstats-modern-images.s3.us-west-1.amazonaws.com/6478e510-e248-4b91-a4af-09aec196731f?v=1",
+    "scheduledStartTime": "2026-11-02T15:40:00.000Z",
+    "actualStartTime": "2026-11-02T16:15:13.000Z",
+    "team1Score": 38092,
+    "team2Score": 13189,
+    "scoreDifferential": 24903
+  },
+  {
+    "gameName": "R1 M2 G2",
+    "team1Name": "MVP(eanuts) & ménage à trois",
+    "team2Name": "Les Missilérables & The Banana Stand",
+    "team1LogoUrl": null,
+    "team2LogoUrl": "https://lfstats-modern-images.s3.us-west-1.amazonaws.com/b429a35a-0b95-499e-8e88-52a9e0273225?v=2",
+    "scheduledStartTime": "2026-11-02T16:00:00.000Z",
+    "actualStartTime": "2026-11-02T16:28:37.000Z",
+    "team1Score": 44732,
+    "team2Score": 26051,
+    "scoreDifferential": 18681
+  },
+  {
+    "gameName": "R1 M3 G1",
+    "team1Name": "Baden's Overly Optimistic Buddies & Sabo's Fire Wood",
+    "team2Name": "MVP(eanuts) & Les Missilérables",
+    "team1LogoUrl": null,
+    "team2LogoUrl": null,
+    "scheduledStartTime": "2026-11-02T16:20:00.000Z",
+    "actualStartTime": "2026-11-02T16:47:31.000Z",
+    "team1Score": 37192,
+    "team2Score": 21910,
+    "scoreDifferential": 15282
+  }
+]
+

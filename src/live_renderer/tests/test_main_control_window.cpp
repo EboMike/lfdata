@@ -211,7 +211,7 @@ TEST(MainControlWindowTest, AboutModalAndMetadata) {
     EXPECT_STREQ(
         MainControlWindow::GetApplicationVersion(), kLiveRendererVersion);
     EXPECT_STREQ(
-        MainControlWindow::GetApplicationVersion(), "0.1.46");
+        MainControlWindow::GetApplicationVersion(), "0.1.47");
     EXPECT_STREQ(
         MainControlWindow::GetApplicationAuthor(), "EboMike");
 
@@ -427,7 +427,7 @@ TEST(MainControlWindowTest, SelectingCompetitionUpdatesPlayerDetailsInStateStore
     EXPECT_EQ(s.competition_name, "Syracuse Trios 2026");
 
     EXPECT_TRUE(win.HasSchedule());
-    EXPECT_EQ(win.GetSchedule().size(), 54u);
+    EXPECT_EQ(win.GetSchedule().size(), 5u);
     EXPECT_EQ(win.GetSchedule()[0].GetGameName(), "R1 M1 G1");
 
     std::filesystem::remove("test_ctrl_cfg.yaml");
@@ -447,7 +447,7 @@ TEST(MainControlWindowTest, FetchTournamentScheduleDirectly) {
     MainControlWindow::Callbacks cbs;
     cbs.on_schedule_loaded = [&](const std::vector<ScheduledGame>& games) {
         callback_called = true;
-        EXPECT_EQ(games.size(), 54u);
+        EXPECT_EQ(games.size(), 5u);
     };
     win.SetCallbacks(cbs);
 
@@ -455,7 +455,7 @@ TEST(MainControlWindowTest, FetchTournamentScheduleDirectly) {
     EXPECT_TRUE(win.WaitForSchedule(3000));
     EXPECT_TRUE(callback_called);
     EXPECT_TRUE(win.HasSchedule());
-    EXPECT_EQ(win.GetSchedule().size(), 54u);
+    EXPECT_EQ(win.GetSchedule().size(), 5u);
 
     std::filesystem::remove("test_sched_cfg.yaml");
 }
