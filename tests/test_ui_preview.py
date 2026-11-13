@@ -71,6 +71,7 @@ class DummyWidget:
             self.image = value
 
     def config(self, *args: Any, **kwargs: Any) -> None:
+        self.__dict__.update(kwargs)
         if 'image' in kwargs:
             self.image = kwargs['image']
         if 'text' in kwargs:
@@ -307,4 +308,42 @@ def test_preview_render_error_handling(manager: UIConfigManager) -> None:
 
     preview._on_render_error(err_msg='Disk error', gen_id=3)
     assert 'Failed to render: Disk error' in preview.lbl_image.text
+
+
+def test_preview_slider_move_schedules_render(
+    manager: UIConfigManager,
+) -> None:
+    parent = MagicMock()
+    preview = ImagePreview(parent, manager)
+    preview.schedule_preview = MagicMock()
+    callback_calls: list[int] = []
+    preview.on_time_changed_callback = lambda t: callback_calls.append(t)
+
+    preview._on_slider_move('12345')
+
+    assert preview.current_time_ms == 12345
+    assert manager.current_time_ms == 12345
+    assert callback_calls == [12345]
+    preview.schedule_preview.assert_called_once_with(debounce_ms=100)
+
+
+def test_preview_slider_max_from_video_end_ms(
+    manager: UIConfigManager,
+) -> None:
+    from lfdata.model.objects.game import LFGame
+
+    parent = MagicMock()
+    manager.game = LFGame(game_id='test_end_game', duration=600000)
+    preview = ImagePreview(parent, manager)
+    mock_hud = MagicMock()
+    mock_hud.get_video_end_ms.return_value = 615000
+    preview.renderer.get_or_create_generators = MagicMock(
+        return_value=(mock_hud, MagicMock())
+    )
+    preview.update_preview = MagicMock()
+
+    preview.on_tdf_loaded()
+
+    assert getattr(preview.slider, 'to', None) == 615000.0
+
 

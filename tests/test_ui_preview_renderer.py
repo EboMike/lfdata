@@ -141,3 +141,50 @@ def test_preview_renderer_missing_sources_raises() -> None:
             base_cmd=None,
         )
 
+
+def test_preview_renderer_cancelled_returns_none() -> None:
+    game = LFGame(game_id='test_cancel', duration=600000, game_type='SM5')
+    renderer = PreviewRenderer()
+    config: dict[str, object] = {'elements': {}}
+
+    img = renderer.render_frame(
+        game=game,
+        tdf_path=None,
+        time_ms=5000,
+        config=config,
+        player_name=None,
+        is_cancelled=lambda: True,
+    )
+    assert img is None
+
+
+def test_preview_renderer_thread_lock_synchronization() -> None:
+    import threading
+
+    game = LFGame(game_id='test_thread_lock', duration=600000, game_type='SM5')
+    renderer = PreviewRenderer()
+    config: dict[str, object] = {'elements': {}}
+
+    results: list[Image.Image | None] = []
+
+    def worker(time_ms: int) -> None:
+        frame = renderer.render_frame(
+            game=game,
+            tdf_path=None,
+            time_ms=time_ms,
+            config=config,
+            player_name=None,
+        )
+        results.append(frame)
+
+    t1 = threading.Thread(target=worker, args=(1000,))
+    t2 = threading.Thread(target=worker, args=(2000,))
+    t1.start()
+    t2.start()
+    t1.join()
+    t2.join()
+
+    assert len(results) == 2
+    assert all(isinstance(r, Image.Image) for r in results)
+
+

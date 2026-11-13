@@ -1746,6 +1746,53 @@ def test_visible_end_ms_zero_stays_visible() -> None:
     assert el.visible_end_ms == 20000
 
 
+def test_element_visible_at_video_end_ms() -> None:
+    from datetime import datetime
+    from lfdata.model import LFGame
+    from lfdata.video.generator import VisualElementGenerator
+
+    game = LFGame(
+        game_id='test_end_vis_game',
+        timestamp=datetime.now(),
+        game_type='SM5',
+        duration=10000,
+    )
+    config = {
+        'pregame_delay_ms': 5000,
+        'extra_footage_ms': 10000,
+        'elements': {
+            'game_type': {
+                'enabled': True,
+                'visible_start_ms': 0,
+                'visible_end_ms': 0,
+            }
+        },
+    }
+    hud_gen = VisualElementGenerator(game, None, config=config)
+    assert hud_gen.get_video_end_ms() == 25000
+
+    elements_at_end = hud_gen.generate_at(25000)
+    el = next(
+        (e for e in elements_at_end if e.formatted_text == '{{ game_type }}'),
+        None,
+    )
+    assert el is not None
+    assert el.alpha == 1.0
+
+    elements_past_end = hud_gen.generate_at(26000)
+    el_past = next(
+        (
+            e
+            for e in elements_past_end
+            if e.formatted_text == '{{ game_type }}'
+        ),
+        None,
+    )
+    assert el_past is not None
+    assert el_past.alpha == 1.0
+
+
+
 def test_generator_keyframes_integration() -> None:
     """Verifies VisualElementGenerator evaluates keyframe animated properties."""
     from datetime import datetime

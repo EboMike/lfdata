@@ -135,15 +135,20 @@ class ImagePreview(ttk.LabelFrame):
 
         duration_ms = 0
         if self.config_manager.game:
-            duration_ms = self.config_manager.game.duration or 0
-
-        extra_ms = self.config_manager.config.get(
-            'extra_footage_ms', DEFAULT_EXTRA_FOOTAGE_MS
-        )
-        pregame_ms = self.config_manager.config.get(
-            'pregame_delay_ms', DEFAULT_PREGAME_DELAY_MS
-        )
-        max_ms = duration_ms + extra_ms + pregame_ms
+            hud_gen, _ = self.renderer.get_or_create_generators(
+                game=self.config_manager.game,
+                player_name=None,
+                config=self.config_manager.config,
+            )
+            max_ms = hud_gen.get_video_end_ms()
+        else:
+            extra_ms = self.config_manager.config.get(
+                'extra_footage_ms', DEFAULT_EXTRA_FOOTAGE_MS
+            )
+            pregame_ms = self.config_manager.config.get(
+                'pregame_delay_ms', DEFAULT_PREGAME_DELAY_MS
+            )
+            max_ms = duration_ms + extra_ms + pregame_ms
 
         self.slider.config(to=float(max_ms))
         self.slider_var.set(0.0)
@@ -160,7 +165,7 @@ class ImagePreview(ttk.LabelFrame):
         self.update_preview()
 
     def _on_slider_move(self, val: str) -> None:
-        """Handles slider moves to update label without triggering heavy render.
+        """Handles slider moves to update label and schedule preview render.
 
         Args:
             val: The current slider value as string.
@@ -171,6 +176,7 @@ class ImagePreview(ttk.LabelFrame):
         self._update_time_label(val_ms)
         if self.on_time_changed_callback:
             self.on_time_changed_callback(val_ms)
+        self.schedule_preview(debounce_ms=100)
 
     def _update_time_label(self, time_ms: int) -> None:
         """Formats and sets the text for the time indicator label.
@@ -295,6 +301,9 @@ class ImagePreview(ttk.LabelFrame):
             player_name: Optional focused player codename string.
             base_cmd: CLI executable prefix command list.
         """
+        if gen_id != self._render_generation:
+            return
+
         try:
             from lfdata.model.objects.game import LFGame
 
@@ -306,7 +315,11 @@ class ImagePreview(ttk.LabelFrame):
                 config=config,
                 player_name=player_name,
                 base_cmd=base_cmd,
+                is_cancelled=lambda: gen_id != self._render_generation,
             )
+            if img is None or gen_id != self._render_generation:
+                return
+
             if self.async_render:
                 self.after(
                     0,
@@ -315,6 +328,8 @@ class ImagePreview(ttk.LabelFrame):
             else:
                 self._on_render_success(img=img, gen_id=gen_id)
         except Exception as e:
+            if gen_id != self._render_generation:
+                return
             err_msg = str(e)
             if self.async_render:
                 self.after(

@@ -18,6 +18,7 @@ Usage example:
     )
 """
 
+from collections.abc import Callable
 from pathlib import Path
 import subprocess
 import tempfile
@@ -49,6 +50,7 @@ class PreviewRenderer:
         ] = {}
         self._video_generators: dict[int, VideoGenerator] = {}
         self._lock = threading.Lock()
+        self._render_lock = threading.Lock()
 
     def get_or_create_generators(
         self,
@@ -101,7 +103,8 @@ class PreviewRenderer:
         time_ms: int,
         config: dict[str, object],
         player_name: str | None = None,
-    ) -> Image.Image:
+        is_cancelled: Callable[[], bool] | None = None,
+    ) -> Image.Image | None:
         """Renders a preview frame in-memory using cached generators.
 
         Args:
@@ -109,22 +112,28 @@ class PreviewRenderer:
             time_ms: Timestamp in milliseconds to render.
             config: Video layout configuration dictionary.
             player_name: Optional focused player codename string.
+            is_cancelled: Optional callback returning True if render is aborted.
 
         Returns:
-            Image.Image: The rendered PIL image frame.
+            Image.Image | None: Rendered PIL image, or None if aborted.
         """
-        hud_gen, vid_gen = self.get_or_create_generators(
-            game=game,
-            player_name=player_name,
-            config=config,
-        )
-        elements = hud_gen.generate_at(time_ms=time_ms)
-        return vid_gen._render_frame(
-            elements=elements,
-            time_ms=time_ms,
-            config=config,
-            hud_gen=hud_gen,
-        )
+        with self._render_lock:
+            if is_cancelled is not None and is_cancelled():
+                return None
+            hud_gen, vid_gen = self.get_or_create_generators(
+                game=game,
+                player_name=player_name,
+                config=config,
+            )
+            elements = hud_gen.generate_at(time_ms=time_ms)
+            if is_cancelled is not None and is_cancelled():
+                return None
+            return vid_gen._render_frame(
+                elements=elements,
+                time_ms=time_ms,
+                config=config,
+                hud_gen=hud_gen,
+            )
 
     def render_via_subprocess(
         self,
@@ -187,7 +196,8 @@ class PreviewRenderer:
         config: dict[str, object],
         player_name: str | None = None,
         base_cmd: list[str] | None = None,
-    ) -> Image.Image:
+        is_cancelled: Callable[[], bool] | None = None,
+    ) -> Image.Image | None:
         """Renders a frame using in-memory cache or subprocess fallback.
 
         Args:
@@ -197,13 +207,17 @@ class PreviewRenderer:
             config: Video layout configuration dictionary.
             player_name: Optional focused player codename string.
             base_cmd: Optional CLI command prefix list.
+            is_cancelled: Optional callback returning True if render is aborted.
 
         Returns:
-            Image.Image: Rendered frame PIL image.
+            Image.Image | None: Rendered frame PIL image, or None if aborted.
 
         Raises:
             RuntimeError: If neither game nor TDF path is provided.
         """
+        if is_cancelled is not None and is_cancelled():
+            return None
+
         if game is not None:
             try:
                 return self.render_in_memory(
@@ -211,8 +225,11 @@ class PreviewRenderer:
                     time_ms=time_ms,
                     config=config,
                     player_name=player_name,
+                    is_cancelled=is_cancelled,
                 )
             except Exception:
+                if is_cancelled is not None and is_cancelled():
+                    return None
                 if tdf_path is not None and base_cmd is not None:
                     return self.render_via_subprocess(
                         tdf_path=tdf_path,

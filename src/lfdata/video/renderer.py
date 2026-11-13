@@ -517,22 +517,10 @@ class VideoGenerator:
         if video_end_ms is not None:
             return video_end_ms
 
-        actual_duration_ms = self.game.duration
-        if hud_gen.game_ended_at_ms is not None:
-            actual_duration_ms = hud_gen.game_ended_at_ms
-        if actual_duration_ms is None:
-            actual_duration_ms = 0
-
         if not self.game.events:
             return 0
 
-        pregame_delay_ms = config.get(
-            'pregame_delay_ms', DEFAULT_PREGAME_DELAY_MS
-        )
-        extra_footage_ms = config.get(
-            'extra_footage_ms', DEFAULT_EXTRA_FOOTAGE_MS
-        )
-        return actual_duration_ms + extra_footage_ms + pregame_delay_ms
+        return hud_gen.get_video_end_ms()
 
     def generate(
         self,

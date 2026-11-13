@@ -1825,17 +1825,8 @@ class VisualElementGenerator:
         pregame_delay = self.config.get(
             'pregame_delay_ms', DEFAULT_PREGAME_DELAY_MS
         )
-        video_end_ms = self.config.get('video_end_ms')
-        if video_end_ms is None:
-            actual_duration_ms = self.game.duration
-            if self.game_ended_at_ms is not None:
-                actual_duration_ms = self.game_ended_at_ms
-            if actual_duration_ms is None:
-                actual_duration_ms = 0
-            extra_footage_ms = self.config.get(
-                'extra_footage_ms', DEFAULT_EXTRA_FOOTAGE_MS
-            )
-            video_end_ms = actual_duration_ms + extra_footage_ms + pregame_delay
+        actual_duration_ms = self.get_actual_duration_ms()
+        video_end_ms = self.get_video_end_ms()
 
         offset_setting = kwargs_copy.pop(
             'start_time_offset',
@@ -2906,6 +2897,35 @@ class VisualElementGenerator:
         if el_scroller:
             elements.append(el_scroller)
 
+    def get_actual_duration_ms(self) -> int:
+        """Returns the actual duration of the game in milliseconds.
+
+        Returns:
+            int: Game duration in milliseconds.
+        """
+        if self.game_ended_at_ms is not None:
+            return self.game_ended_at_ms
+        return self.game.duration or 0
+
+    def get_video_end_ms(self) -> int:
+        """Calculates the end timestamp of the video in milliseconds.
+
+        Returns:
+            int: The calculated end timestamp in milliseconds.
+        """
+        pregame_delay = self.config.get(
+            'pregame_delay_ms', DEFAULT_PREGAME_DELAY_MS
+        )
+        video_end_ms = self.config.get('video_end_ms')
+        if video_end_ms is not None:
+            return int(video_end_ms)
+        extra_footage_ms = self.config.get(
+            'extra_footage_ms', DEFAULT_EXTRA_FOOTAGE_MS
+        )
+        return int(
+            self.get_actual_duration_ms() + extra_footage_ms + pregame_delay
+        )
+
     def generate_at(self, time_ms: int) -> list[UIElement]:
         """Generates HUD elements at a specific millisecond timestamp.
 
@@ -3005,11 +3025,14 @@ class VisualElementGenerator:
                         el.y += dy
 
             # Update alpha of each element based on visibility and fading
+            video_end_ms = self.get_video_end_ms()
             for el in elements:
-                if (
-                    time_ms < el.visible_start_ms
-                    or time_ms >= el.visible_end_ms
-                ):
+                if el.visible_end_ms >= video_end_ms:
+                    is_past_end = False
+                else:
+                    is_past_end = time_ms >= el.visible_end_ms
+
+                if time_ms < el.visible_start_ms or is_past_end:
                     el.alpha = 0.0
                 else:
                     multiplier = 1.0
