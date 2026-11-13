@@ -2591,7 +2591,10 @@ class VideoGenerator:
         raw_val = sb_config.get(
             'additional_values',
             sb_config.get(
-                'advanced_stats', ScoreboardAdditionalValues.AFTER_GAME
+                'additional_stats',
+                sb_config.get(
+                    'advanced_stats', ScoreboardAdditionalValues.AFTER_GAME
+                ),
             ),
         )
         if isinstance(raw_val, bool):

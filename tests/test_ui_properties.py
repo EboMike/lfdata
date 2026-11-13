@@ -457,6 +457,7 @@ def test_properties_scoreboard_advanced_stats(
 
     # 1. Non-scoreboard element hides advanced stats
     panel.load_element('time')
+    assert panel.scoreboard_frame.winfo_ismapped() is False
     assert panel.lbl_advanced_stats.winfo_ismapped() is False
     assert panel.cmb_advanced_stats.winfo_ismapped() is False
     assert panel.advanced_stats_var.get() == ''
@@ -464,6 +465,7 @@ def test_properties_scoreboard_advanced_stats(
     # 2. Scoreboard element displays advanced stats
     manager.update_element('scoreboard', 'enabled', True)
     panel.load_element('scoreboard')
+    assert panel.scoreboard_frame.winfo_ismapped() is True
     assert panel.lbl_advanced_stats.winfo_ismapped() is True
     assert panel.cmb_advanced_stats.winfo_ismapped() is True
     assert panel.advanced_stats_var.get() == 'after_game'
@@ -474,15 +476,24 @@ def test_properties_scoreboard_advanced_stats(
     el = manager.get_element('scoreboard')
     assert el is not None
     assert el.get('additional_values') == 'always'
+    assert el.get('additional_stats') == 'always'
 
     # 4. Modify and apply via _apply_properties
     panel.advanced_stats_var.set('never')
+    panel.sb_draw_bg_var.set(True)
+    panel.sb_draw_borders_var.set(True)
     panel._apply_properties()
     assert el.get('additional_values') == 'never'
+    assert el.get('additional_stats') == 'never'
+    assert el.get('draw_background') is True
+    assert el.get('draw_borders') is True
 
     # 5. Clear panel hides and resets advanced stats
     panel.clear()
+    assert panel.scoreboard_frame.winfo_ismapped() is False
     assert panel.lbl_advanced_stats.winfo_ismapped() is False
     assert panel.cmb_advanced_stats.winfo_ismapped() is False
     assert panel.advanced_stats_var.get() == ''
+    assert panel.sb_draw_bg_var.get() is False
+    assert panel.sb_draw_borders_var.get() is False
 

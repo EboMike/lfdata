@@ -106,6 +106,11 @@ class PropertiesPanel(ttk.LabelFrame):
         self.default_frame.grid(row=1, column=0, columnspan=3, sticky='nsew')
         self.default_frame.grid_columnconfigure(1, weight=1)
 
+        self.scoreboard_frame = ttk.LabelFrame(
+            self.container, text=' Scoreboard Options '
+        )
+        self.scoreboard_frame.grid_columnconfigure(1, weight=1)
+
         self.hit_border_frame = ttk.LabelFrame(
             self.container, text=' Hit Border Options '
         )
@@ -129,6 +134,9 @@ class PropertiesPanel(ttk.LabelFrame):
         self.fade_out_ms_var = tk.StringVar()
         self.formatted_text_var = tk.StringVar()
         self.advanced_stats_var = tk.StringVar()
+        self.additional_stats_var = self.advanced_stats_var
+        self.sb_draw_bg_var = tk.BooleanVar()
+        self.sb_draw_borders_var = tk.BooleanVar()
 
         # Hit Border specific variables
         self.hb_dur_hp_var = tk.StringVar()
@@ -276,32 +284,7 @@ class PropertiesPanel(ttk.LabelFrame):
         self._add_row(default_row, 'Formatted Text:', self.formatted_text_var)
         default_row += 1
 
-        # Scoreboard specific: Advanced Stats
-        self.lbl_advanced_stats = ttk.Label(
-            self.default_frame, text='Advanced Stats:'
-        )
-        self.cmb_advanced_stats = ttk.Combobox(
-            self.default_frame,
-            textvariable=self.advanced_stats_var,
-            values=[
-                ScoreboardAdditionalValues.NEVER.value,
-                ScoreboardAdditionalValues.AFTER_GAME.value,
-                ScoreboardAdditionalValues.ALWAYS.value,
-            ],
-            state='readonly',
-        )
-        self.cmb_advanced_stats.bind(
-            '<<ComboboxSelected>>',
-            self._on_advanced_stats_select,
-        )
-        self.lbl_advanced_stats.grid(
-            row=default_row, column=0, sticky='w', padx=5, pady=3
-        )
-        self.cmb_advanced_stats.grid(
-            row=default_row, column=1, sticky='ew', padx=5, pady=3
-        )
-        self.lbl_advanced_stats.grid_remove()
-        self.cmb_advanced_stats.grid_remove()
+        self._anim_overview_row = default_row
         default_row += 1
 
         # Embedded Animation Overview Panel (initially hidden)
@@ -310,6 +293,55 @@ class PropertiesPanel(ttk.LabelFrame):
             self.config_manager,
             on_keyframe_changed=self.on_update,
         )
+
+        # Scoreboard specific rows (in scoreboard_frame)
+        self.lbl_additional_stats = ttk.Label(
+            self.scoreboard_frame, text='Additional Stats:'
+        )
+        self.lbl_advanced_stats = self.lbl_additional_stats
+        self.cmb_additional_stats = ttk.Combobox(
+            self.scoreboard_frame,
+            textvariable=self.advanced_stats_var,
+            values=[
+                ScoreboardAdditionalValues.NEVER.value,
+                ScoreboardAdditionalValues.AFTER_GAME.value,
+                ScoreboardAdditionalValues.ALWAYS.value,
+            ],
+            state='readonly',
+        )
+        self.cmb_advanced_stats = self.cmb_additional_stats
+        self.cmb_additional_stats.bind(
+            '<<ComboboxSelected>>',
+            self._on_advanced_stats_select,
+        )
+        self.lbl_additional_stats.grid(
+            row=0, column=0, sticky='w', padx=5, pady=3
+        )
+        self.cmb_additional_stats.grid(
+            row=0, column=1, sticky='ew', padx=5, pady=3
+        )
+
+        self.chk_sb_draw_bg = ttk.Checkbutton(
+            self.scoreboard_frame,
+            text='Draw Background',
+            variable=self.sb_draw_bg_var,
+            command=self._on_scoreboard_check_toggle,
+        )
+        self.chk_sb_draw_bg.grid(row=1, column=1, sticky='w', padx=5, pady=3)
+
+        self.chk_sb_draw_borders = ttk.Checkbutton(
+            self.scoreboard_frame,
+            text='Draw Borders',
+            variable=self.sb_draw_borders_var,
+            command=self._on_scoreboard_check_toggle,
+        )
+        self.chk_sb_draw_borders.grid(
+            row=2, column=1, sticky='w', padx=5, pady=3
+        )
+
+        self.scoreboard_frame.grid_remove()
+        self.lbl_advanced_stats.grid_remove()
+        self.cmb_advanced_stats.grid_remove()
 
         # Hit Border specific rows (in hit_border_frame)
         hb_row = 0
@@ -407,8 +439,15 @@ class PropertiesPanel(ttk.LabelFrame):
         enabled_val = self.config_manager.resolve_val(el.get('enabled', False))
         self.enabled_var.set(bool(enabled_val))
 
+        is_scoreboard = name == 'scoreboard' or (
+            isinstance(el, dict) and el.get('element_type') == 'scoreboard'
+        )
+
         if name == 'hit_border':
             self.default_frame.grid_remove()
+            self.scoreboard_frame.grid_remove()
+            self.lbl_advanced_stats.grid_remove()
+            self.cmb_advanced_stats.grid_remove()
             self.hit_border_frame.grid(
                 row=1, column=0, columnspan=3, sticky='nsew'
             )
@@ -430,9 +469,46 @@ class PropertiesPanel(ttk.LabelFrame):
             self.hb_col_penalty_var.set(str(col_penalty))
         else:
             self.hit_border_frame.grid_remove()
-            self.default_frame.grid(
-                row=1, column=0, columnspan=3, sticky='nsew'
-            )
+            if is_scoreboard:
+                self.scoreboard_frame.grid(
+                    row=1,
+                    column=0,
+                    columnspan=3,
+                    sticky='nsew',
+                    padx=5,
+                    pady=5,
+                )
+                self.lbl_advanced_stats.grid()
+                self.cmb_advanced_stats.grid()
+                self.default_frame.grid(
+                    row=2, column=0, columnspan=3, sticky='nsew'
+                )
+                raw_stats = el.get(
+                    'additional_stats',
+                    el.get(
+                        'additional_values',
+                        el.get(
+                            'advanced_stats',
+                            ScoreboardAdditionalValues.AFTER_GAME,
+                        ),
+                    ),
+                )
+                stats_mode = ScoreboardAdditionalValues.from_str(str(raw_stats))
+                self.advanced_stats_var.set(stats_mode.value)
+                self.sb_draw_bg_var.set(bool(el.get('draw_background', False)))
+                self.sb_draw_borders_var.set(
+                    bool(el.get('draw_borders', False))
+                )
+            else:
+                self.scoreboard_frame.grid_remove()
+                self.lbl_advanced_stats.grid_remove()
+                self.cmb_advanced_stats.grid_remove()
+                self.advanced_stats_var.set('')
+                self.sb_draw_bg_var.set(False)
+                self.sb_draw_borders_var.set(False)
+                self.default_frame.grid(
+                    row=1, column=0, columnspan=3, sticky='nsew'
+                )
 
             x_val = self.config_manager.resolve_val(el.get('x', 0.0))
             y_val = self.config_manager.resolve_val(el.get('y', 0.0))
@@ -519,31 +595,17 @@ class PropertiesPanel(ttk.LabelFrame):
                 self.config_manager.is_prop_animated(name, 'tilt')
             )
 
-            if name == 'scoreboard':
-                self.lbl_advanced_stats.grid()
-                self.cmb_advanced_stats.grid()
-                raw_stats = el.get(
-                    'additional_values',
-                    el.get(
-                        'advanced_stats',
-                        ScoreboardAdditionalValues.AFTER_GAME,
-                    ),
-                )
-                stats_mode = ScoreboardAdditionalValues.from_str(str(raw_stats))
-                self.advanced_stats_var.set(stats_mode.value)
-            else:
-                self.lbl_advanced_stats.grid_remove()
-                self.cmb_advanced_stats.grid_remove()
-                self.advanced_stats_var.set('')
-
         self._update_animation_overview_visibility()
 
     def clear(self) -> None:
         """Clears all input values and disables forms."""
         self.enabled_var.set(False)
+        self.scoreboard_frame.grid_remove()
         self.lbl_advanced_stats.grid_remove()
         self.cmb_advanced_stats.grid_remove()
         self.advanced_stats_var.set('')
+        self.sb_draw_bg_var.set(False)
+        self.sb_draw_borders_var.set(False)
         self.x_var.set('')
         self.y_var.set('')
         self.w_var.set('')
@@ -586,6 +648,7 @@ class PropertiesPanel(ttk.LabelFrame):
         """
         for frame in (
             self.container,
+            self.scoreboard_frame,
             self.default_frame,
             self.hit_border_frame,
         ):
@@ -657,10 +720,32 @@ class PropertiesPanel(ttk.LabelFrame):
         """
         if not self.selected_element:
             return
+        val = self.advanced_stats_var.get()
         self.config_manager.update_element(
             self.selected_element,
             'additional_values',
-            self.advanced_stats_var.get(),
+            val,
+        )
+        self.config_manager.update_element(
+            self.selected_element,
+            'additional_stats',
+            val,
+        )
+        self.on_update()
+
+    def _on_scoreboard_check_toggle(self) -> None:
+        """Handles scoreboard background and border toggle checkboxes."""
+        if not self.selected_element:
+            return
+        self.config_manager.update_element(
+            self.selected_element,
+            'draw_background',
+            self.sb_draw_bg_var.get(),
+        )
+        self.config_manager.update_element(
+            self.selected_element,
+            'draw_borders',
+            self.sb_draw_borders_var.get(),
         )
         self.on_update()
 
@@ -749,12 +834,32 @@ class PropertiesPanel(ttk.LabelFrame):
             self.selected_element, 'formatted_text', txt
         )
 
-        if self.selected_element == 'scoreboard':
+        is_scoreboard = self.selected_element == 'scoreboard' or (
+            self.selected_element
+            and self.config_manager.get_element(self.selected_element).get(
+                'element_type'
+            )
+            == 'scoreboard'
+        )
+        if is_scoreboard:
             stats_str = self.advanced_stats_var.get().strip()
             if stats_str:
                 self.config_manager.update_element(
                     self.selected_element, 'additional_values', stats_str
                 )
+                self.config_manager.update_element(
+                    self.selected_element, 'additional_stats', stats_str
+                )
+            self.config_manager.update_element(
+                self.selected_element,
+                'draw_background',
+                self.sb_draw_bg_var.get(),
+            )
+            self.config_manager.update_element(
+                self.selected_element,
+                'draw_borders',
+                self.sb_draw_borders_var.get(),
+            )
 
         self.on_update()
 
@@ -851,7 +956,12 @@ class PropertiesPanel(ttk.LabelFrame):
         """Shows or hides the animation overview within properties panel."""
         if self._is_any_prop_animated():
             self.anim_overview.grid(
-                row=15, column=0, columnspan=3, sticky='ew', padx=5, pady=5
+                row=self._anim_overview_row,
+                column=0,
+                columnspan=3,
+                sticky='ew',
+                padx=5,
+                pady=5,
             )
             self.anim_overview.load_element(self.selected_element)
         else:
