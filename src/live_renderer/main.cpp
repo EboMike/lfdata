@@ -99,8 +99,9 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    const char* env_pic = std::getenv("DEFAULT_PROFILE_PICTURE_URL");
-    if (env_pic != nullptr && std::strlen(env_pic) > 0) {
+    std::string env_pic =
+        live_renderer::EnvLoader::Get("DEFAULT_PROFILE_PICTURE_URL");
+    if (!env_pic.empty()) {
         global_cfg.default_profile_picture_url = env_pic;
     }
 

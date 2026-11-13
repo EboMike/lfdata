@@ -19,6 +19,18 @@ static std::string NormalizeEntityId(const std::string& id) {
     return id.substr(start);
 }
 
+static std::string ToLowerTrim(const std::string& str) {
+    if (str.empty()) return "";
+    size_t start = str.find_first_not_of(" \t\r\n");
+    if (start == std::string::npos) return "";
+    size_t end = str.find_last_not_of(" \t\r\n");
+    std::string trimmed = str.substr(start, end - start + 1);
+    for (char& c : trimmed) {
+        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    }
+    return trimmed;
+}
+
 LiveStateStore::LiveStateStore()
     : default_profile_picture_url_(kDefaultProfilePictureUrl) {
     state_.version = 1;
@@ -123,6 +135,34 @@ void LiveStateStore::UpdateTeamRankings(const std::vector<int>& team_ids) {
     BumpVersionLocked();
 }
 
+const PlayerDetailsUpdate* LiveStateStore::FindPlayerDetailsLocked(
+    const std::string& entity_id, const std::string& name) const {
+    if (!entity_id.empty()) {
+        auto it = competition_player_details_.find(entity_id);
+        if (it != competition_player_details_.end()) return &it->second;
+
+        std::string norm = NormalizeEntityId(entity_id);
+        if (!norm.empty()) {
+            it = competition_player_details_.find(norm);
+            if (it != competition_player_details_.end()) return &it->second;
+
+            auto dash = norm.rfind('-');
+            if (dash != std::string::npos && dash + 1 < norm.size()) {
+                it = competition_player_details_.find(norm.substr(dash + 1));
+                if (it != competition_player_details_.end()) return &it->second;
+            }
+        }
+    }
+
+    if (!name.empty()) {
+        std::string lower_name = ToLowerTrim(name);
+        auto it = competition_player_details_by_name_.find(lower_name);
+        if (it != competition_player_details_by_name_.end()) return &it->second;
+    }
+
+    return nullptr;
+}
+
 void LiveStateStore::UpdatePlayerDescription(
     int player_id,
     const std::string& name,
@@ -138,22 +178,16 @@ void LiveStateStore::UpdatePlayerDescription(
     player.role = role;
 
     // Check if competition details provide picture or team metadata
-    auto it = competition_player_details_.find(entity_id);
-    if (it == competition_player_details_.end()) {
-        std::string norm = NormalizeEntityId(entity_id);
-        if (!norm.empty()) {
-            it = competition_player_details_.find(norm);
-        }
-    }
-    if (it != competition_player_details_.end()) {
-        player.picture_url = it->second.picture_url.empty()
+    const auto* match = FindPlayerDetailsLocked(entity_id, name);
+    if (match) {
+        player.picture_url = match->picture_url.empty()
             ? default_profile_picture_url_
-            : it->second.picture_url;
-        if (!it->second.team_name.empty()) {
-            player.team_name = it->second.team_name;
+            : match->picture_url;
+        if (!match->team_name.empty()) {
+            player.team_name = match->team_name;
         }
-        if (!it->second.team_logo_url.empty()) {
-            player.team_logo_url = it->second.team_logo_url;
+        if (!match->team_logo_url.empty()) {
+            player.team_logo_url = match->team_logo_url;
         }
     } else if (player.picture_url.empty()) {
         player.picture_url = default_profile_picture_url_;
@@ -378,6 +412,16 @@ void LiveStateStore::UpdateCompetitionPlayerDetails(
             std::string norm = NormalizeEntityId(d.entity_id);
             if (!norm.empty()) {
                 competition_player_details_[norm] = d;
+                auto dash = norm.rfind('-');
+                if (dash != std::string::npos && dash + 1 < norm.size()) {
+                    competition_player_details_[norm.substr(dash + 1)] = d;
+                }
+            }
+        }
+        if (!d.name.empty()) {
+            std::string lower_name = ToLowerTrim(d.name);
+            if (!lower_name.empty()) {
+                competition_player_details_by_name_[lower_name] = d;
             }
         }
     }
@@ -385,22 +429,17 @@ void LiveStateStore::UpdateCompetitionPlayerDetails(
     // Apply updates to existing active players
     for (auto& [pid, player] : state_.players) {
         if (player.is_dummy) continue;
-        auto it = competition_player_details_.find(player.entity_id);
-        if (it == competition_player_details_.end()) {
-            std::string norm = NormalizeEntityId(player.entity_id);
-            if (!norm.empty()) {
-                it = competition_player_details_.find(norm);
-            }
-        }
-        if (it != competition_player_details_.end()) {
-            player.picture_url = it->second.picture_url.empty()
+        const auto* match =
+            FindPlayerDetailsLocked(player.entity_id, player.name);
+        if (match) {
+            player.picture_url = match->picture_url.empty()
                 ? default_profile_picture_url_
-                : it->second.picture_url;
-            if (!it->second.team_name.empty()) {
-                player.team_name = it->second.team_name;
+                : match->picture_url;
+            if (!match->team_name.empty()) {
+                player.team_name = match->team_name;
             }
-            if (!it->second.team_logo_url.empty()) {
-                player.team_logo_url = it->second.team_logo_url;
+            if (!match->team_logo_url.empty()) {
+                player.team_logo_url = match->team_logo_url;
             }
         } else if (player.picture_url.empty()) {
             player.picture_url = default_profile_picture_url_;

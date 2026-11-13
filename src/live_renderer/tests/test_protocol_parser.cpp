@@ -224,3 +224,41 @@ TEST(ProtocolParserTest, PlayerProfilePictureFromCompetitionDetails) {
     EXPECT_EQ(s.players[12].team_name, "Baden's Buddies");
 }
 
+TEST(ProtocolParserTest, PlayerProfilePictureMatchesByNameAndPackSuffix) {
+    LiveStateStore store;
+    ProtocolParser parser(store);
+
+    std::vector<PlayerDetailsUpdate> details = {
+        {
+            "#YKcjZx",
+            "PlayBudderCraft",
+            "https://example.com/budder.png",
+            "Armagedd You",
+            "https://example.com/logo.png"
+        },
+        {
+            "4-1-105",
+            "Cheer",
+            "https://example.com/cheer.png",
+            "Buddies",
+            ""
+        }
+    };
+    store.UpdateCompetitionPlayerDetails(details);
+
+    // Player 13 has a local pack entity ID #201, but name matches "PlayBudderCraft"
+    EXPECT_TRUE(parser.ParseLine(
+        "16\t100\t13\tPlayBudderCraft\t#201\t1\tcommander\r\n"));
+    // Player 14 entity ID is #105, which matches suffix of 4-1-105
+    EXPECT_TRUE(parser.ParseLine(
+        "16\t100\t14\tCheerLeader\t#105\t1\theavy\r\n"));
+
+    auto s = store.GetSnapshot();
+    ASSERT_TRUE(s.players.contains(13));
+    EXPECT_EQ(s.players[13].picture_url, "https://example.com/budder.png");
+    EXPECT_EQ(s.players[13].team_name, "Armagedd You");
+
+    ASSERT_TRUE(s.players.contains(14));
+    EXPECT_EQ(s.players[14].picture_url, "https://example.com/cheer.png");
+}
+

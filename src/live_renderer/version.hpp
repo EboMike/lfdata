@@ -15,7 +15,7 @@
 
 namespace live_renderer {
 
-constexpr const char* kLiveRendererVersion = "0.1.43";
+constexpr const char* kLiveRendererVersion = "0.1.44";
 
 }  // namespace live_renderer
 

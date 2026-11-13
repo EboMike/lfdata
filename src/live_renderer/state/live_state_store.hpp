@@ -98,11 +98,16 @@ public:
 
 private:
     void BumpVersionLocked();
+    const PlayerDetailsUpdate* FindPlayerDetailsLocked(
+        const std::string& entity_id, const std::string& name) const;
 
     mutable std::mutex mutex_;
     GameStateSnapshot state_;
     std::string default_profile_picture_url_;
-    std::unordered_map<std::string, PlayerDetailsUpdate> competition_player_details_;
+    std::unordered_map<std::string, PlayerDetailsUpdate>
+        competition_player_details_;
+    std::unordered_map<std::string, PlayerDetailsUpdate>
+        competition_player_details_by_name_;
 };
 
 }  // namespace live_renderer

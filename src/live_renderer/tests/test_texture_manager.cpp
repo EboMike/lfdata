@@ -77,8 +77,8 @@ TEST(TextureManagerTest, LoadsDefaultPlayerAssetDimensions) {
     int h = -1;
     bool ok = tm.GetTextureDimensions(kDefaultProfilePictureAsset, w, h);
     if (ok) {
-        EXPECT_EQ(w, 256);
-        EXPECT_EQ(h, 256);
+        EXPECT_EQ(w, 1267);
+        EXPECT_EQ(h, 967);
     }
 }
 

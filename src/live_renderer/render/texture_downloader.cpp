@@ -20,20 +20,18 @@
 namespace live_renderer {
 namespace {
 
-std::string Utf8ToWideString(const std::string& str) {
+std::wstring Utf8ToWide(const std::string& str) {
 #ifdef _WIN32
-    if (str.empty()) return "";
+    if (str.empty()) return L"";
     int len = MultiByteToWideChar(
         CP_UTF8, 0, str.c_str(), static_cast<int>(str.size()), nullptr, 0);
     std::wstring result(len, 0);
     MultiByteToWideChar(
         CP_UTF8, 0, str.c_str(), static_cast<int>(str.size()),
         &result[0], len);
-    return std::string(
-        reinterpret_cast<const char*>(result.data()),
-        result.size() * sizeof(wchar_t));
+    return result;
 #else
-    return str;
+    return L"";
 #endif
 }
 
@@ -193,9 +191,7 @@ void TextureDownloader::PollCompletedDownloads(
 std::vector<uint8_t> TextureDownloader::DefaultWinHttpDownload(
     const std::string& url) {
 #ifdef _WIN32
-    std::string wide_url_bytes = Utf8ToWideString(url);
-    const wchar_t* wide_url =
-        reinterpret_cast<const wchar_t*>(wide_url_bytes.data());
+    std::wstring wide_url = Utf8ToWide(url);
 
     URL_COMPONENTS comp{};
     comp.dwStructSize = sizeof(comp);
@@ -204,7 +200,7 @@ std::vector<uint8_t> TextureDownloader::DefaultWinHttpDownload(
     comp.dwUrlPathLength = static_cast<DWORD>(-1);
     comp.dwExtraInfoLength = static_cast<DWORD>(-1);
 
-    if (!WinHttpCrackUrl(wide_url, 0, 0, &comp)) {
+    if (!WinHttpCrackUrl(wide_url.c_str(), 0, 0, &comp)) {
         return {};
     }
 
@@ -215,7 +211,7 @@ std::vector<uint8_t> TextureDownloader::DefaultWinHttpDownload(
     }
 
     HINTERNET hSession = WinHttpOpen(
-        L"live_renderer/0.1.43",
+        L"Mozilla/5.0 (Windows NT 10.0; Win64; x64) live_renderer/0.1.44",
         WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
         WINHTTP_NO_PROXY_NAME,
         WINHTTP_NO_PROXY_BYPASS,
@@ -243,8 +239,9 @@ std::vector<uint8_t> TextureDownloader::DefaultWinHttpDownload(
         return {};
     }
 
+    std::wstring headers = L"Accept: image/*, */*\r\n";
     BOOL sent = WinHttpSendRequest(
-        hReq, WINHTTP_NO_ADDITIONAL_HEADERS, 0,
+        hReq, headers.c_str(), static_cast<DWORD>(-1),
         WINHTTP_NO_REQUEST_DATA, 0, 0, 0);
     if (!sent || !WinHttpReceiveResponse(hReq, nullptr)) {
         WinHttpCloseHandle(hReq);
