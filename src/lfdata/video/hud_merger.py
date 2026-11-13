@@ -32,6 +32,11 @@ from lfdata.video.constants import (
     DEFAULT_HUD_MERGE_FADE_DURATION_MS,
     DEFAULT_HUD_MERGE_PRESET,
 )
+from lfdata.video.encoder import (
+    build_encoder_quality_args,
+    get_best_h264_encoder,
+    get_encoder_details,
+)
 
 
 @dataclass
@@ -68,6 +73,7 @@ class HudMergeOptions:
         start_ms: Start offset in milliseconds for the base GoPro video.
         ffmpeg_parameters: Additional parameters to pass to FFmpeg.
         gopro_2_path: Optional path to a second base GoPro video file.
+        codec: Optional explicit video encoder codec name.
         gopro_paths: List of all base GoPro video paths to concatenate.
     """
 
@@ -83,6 +89,7 @@ class HudMergeOptions:
     start_ms: int = 0
     ffmpeg_parameters: str | list[str] | None = None
     gopro_2_path: Path | None = None
+    codec: str | None = None
 
     @property
     def gopro_paths(self) -> list[Path]:
@@ -115,6 +122,7 @@ class HudMerger:
 
     ffprobe_bin: str
     ffmpeg_bin: str
+    _best_encoder: str | None
 
     def __init__(
         self,
@@ -129,6 +137,7 @@ class HudMerger:
         """
         self.ffprobe_bin = ffprobe_bin
         self.ffmpeg_bin = ffmpeg_bin
+        self._best_encoder = None
 
     def probe_video(self, file_path: Path) -> VideoMetadata:
         """Probe a video file to retrieve dimensions, duration, and audio.
@@ -583,14 +592,15 @@ class HudMerger:
         if all_have_audio:
             cmd.extend(['-map', '[outa]', '-c:a', 'aac'])
 
+        codec = options.codec or self.get_best_h264_encoder()
+        codec_args = build_encoder_quality_args(
+            codec=codec,
+            crf=options.crf,
+            preset=options.preset,
+        )
+        cmd.extend(codec_args)
         cmd.extend(
             [
-                '-c:v',
-                'libx264',
-                '-crf',
-                str(options.crf),
-                '-preset',
-                options.preset,
                 '-pix_fmt',
                 'yuv420p',
             ]
@@ -604,6 +614,18 @@ class HudMerger:
 
         cmd.append(str(options.output_path))
         return cmd
+
+    def get_best_h264_encoder(self) -> str:
+        """Detects and returns the best available H.264 encoder on the system.
+
+        Returns:
+            str: Detected encoder codec name.
+        """
+        if self._best_encoder is None:
+            self._best_encoder = get_best_h264_encoder(
+                ffmpeg_bin=self.ffmpeg_bin
+            )
+        return self._best_encoder
 
     def merge(self, options: HudMergeOptions) -> None:
         """Perform the complete HUD and base video merge process.
@@ -621,6 +643,10 @@ class HudMerger:
         """
         if options.lut_path and not options.lut_path.is_file():
             raise FileNotFoundError(f'LUT file not found: {options.lut_path}')
+
+        codec = options.codec or self.get_best_h264_encoder()
+        details = get_encoder_details(codec)
+        print(f'Using video encoder: {codec} ({details})')
 
         gopro_metas = [
             self.probe_video(file_path=p) for p in options.gopro_paths

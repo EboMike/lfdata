@@ -366,6 +366,7 @@ def test_merge_success():
 
     with (
         patch.object(merger, 'probe_video', return_value=dummy_meta),
+        patch.object(merger, 'get_best_h264_encoder', return_value='libx264'),
         patch('pathlib.Path.mkdir'),
         patch('subprocess.run') as mock_run,
     ):
@@ -539,6 +540,7 @@ def test_merge_with_lut_success():
     with (
         patch('pathlib.Path.is_file', return_value=True),
         patch.object(merger, 'probe_video', return_value=dummy_meta),
+        patch.object(merger, 'get_best_h264_encoder', return_value='libx264'),
         patch('pathlib.Path.mkdir'),
         patch('subprocess.run') as mock_run,
     ):
@@ -559,7 +561,8 @@ def test_hud_merge_options_custom_start_ms():
 
 def test_calculate_sync_parameters_with_start_ms():
     merger = HudMerger()
-    # GoPro total duration 60000ms, start_ms 13000ms -> effective duration 47000ms
+    # GoPro total duration 60000ms, start_ms 13000ms ->
+    # effective duration 47000ms.
     # HUD duration 50000ms. GoPro active = 47000ms.
     final_dur, fade_dur, fade_st = merger.calculate_sync_parameters(
         gopro_duration_ms=60000,
@@ -720,6 +723,7 @@ def test_merge_with_ffmpeg_parameters():
 
     with (
         patch.object(merger, 'probe_video', return_value=dummy_meta),
+        patch.object(merger, 'get_best_h264_encoder', return_value='libx264'),
         patch('pathlib.Path.mkdir'),
         patch('subprocess.run') as mock_run,
     ):
@@ -872,6 +876,7 @@ def test_merge_multiple_gopros_executes():
 
     with (
         patch.object(merger, 'probe_video', return_value=dummy_meta) as mock_p,
+        patch.object(merger, 'get_best_h264_encoder', return_value='libx264'),
         patch('pathlib.Path.mkdir'),
         patch('subprocess.run') as mock_run,
     ):
@@ -881,3 +886,55 @@ def test_merge_multiple_gopros_executes():
         cmd = mock_run.call_args[0][0]
         assert 'first.mp4' in cmd
         assert 'second.mp4' in cmd
+
+
+def test_build_ffmpeg_command_with_custom_codec_nvenc():
+    merger = HudMerger()
+    options = HudMergeOptions(
+        gopro_path=Path('gopro.mp4'),
+        hud_path=Path('hud.mp4'),
+        hud_alpha_path=Path('alpha.mp4'),
+        output_path=Path('out.mp4'),
+        codec='h264_nvenc',
+        crf=22,
+    )
+    gopro = VideoMetadata(
+        width=1920,
+        height=1080,
+        duration_ms=40000,
+        has_audio=False,
+    )
+    hud = VideoMetadata(
+        width=1920,
+        height=1080,
+        duration_ms=50000,
+        has_audio=False,
+    )
+
+    cmd = merger.build_ffmpeg_command(
+        options=options,
+        gopro_meta=gopro,
+        hud_meta=hud,
+    )
+
+    assert '-c:v' in cmd
+    idx = cmd.index('-c:v')
+    assert cmd[idx + 1] == 'h264_nvenc'
+    assert '-cq' in cmd
+    idx_cq = cmd.index('-cq')
+    assert cmd[idx_cq + 1] == '22'
+    assert '-crf' not in cmd
+
+
+def test_merger_get_best_h264_encoder_cached():
+    merger = HudMerger()
+    with patch(
+        'lfdata.video.hud_merger.get_best_h264_encoder',
+        return_value='h264_nvenc',
+    ) as mock_detect:
+        enc1 = merger.get_best_h264_encoder()
+        enc2 = merger.get_best_h264_encoder()
+        assert enc1 == 'h264_nvenc'
+        assert enc2 == 'h264_nvenc'
+        mock_detect.assert_called_once()
+

@@ -297,3 +297,21 @@ def test_main_with_gopro_2():
         mock_run_merge.assert_called_once()
         opts = mock_run_merge.call_args[1]['options']
         assert opts.gopro_2_path == Path('gopro2.mp4')
+
+
+def test_build_argument_parser_codec():
+    parser = build_argument_parser()
+    args = parser.parse_args(
+        ['gopro.mp4', 'hud.mp4', 'alpha.mp4', '--codec', 'h264_nvenc']
+    )
+    assert args.codec == 'h264_nvenc'
+
+
+def test_parse_options_with_codec():
+    parser = build_argument_parser()
+    args = parser.parse_args(
+        ['gopro.mp4', 'hud.mp4', 'alpha.mp4', '--codec', 'h264_amf']
+    )
+    options = parse_options(args=args)
+    assert options.codec == 'h264_amf'
+

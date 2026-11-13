@@ -130,87 +130,13 @@ def _render_frame_bytes_worker(
     )
 
 
-def _get_best_h264_encoder() -> str:
-    """Detects and returns the best available H.264 encoder on the system.
+from lfdata.video.encoder import (
+    get_best_h264_encoder,
+    get_encoder_details,
+)
 
-    Tries hardware-accelerated encoders (nvenc, amf, qsv, videotoolbox) and
-    falls back to libx264 if none are fully functional.
-
-    Returns:
-        The encoder codec name string.
-    """
-    candidates = [
-        'h264_nvenc',
-        'h264_amf',
-        'h264_qsv',
-        'h264_videotoolbox',
-    ]
-    for candidate in candidates:
-        try:
-            cmd = [
-                'ffmpeg',
-                '-hide_banner',
-                '-f',
-                'lavfi',
-                '-i',
-                'color=c=black:s=64x64',
-                '-frames:v',
-                '1',
-                '-c:v',
-                candidate,
-                '-f',
-                'null',
-                '-',
-            ]
-            subprocess.run(
-                cmd,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                timeout=5.0,
-                check=True,
-            )
-            return candidate
-        except (subprocess.SubprocessError, FileNotFoundError):
-            continue
-    return 'libx264'
-
-
-def _get_encoder_details(encoder: str) -> str:
-    """Returns a user-friendly description of the video encoder capabilities.
-
-    Identifies whether the encoder is GPU-assisted or CPU-only.
-
-    Args:
-        encoder: The name of the video encoder.
-
-    Returns:
-        A string describing the hardware acceleration details.
-    """
-    gpu_map = {
-        'h264_nvenc': 'GPU-assisted (NVIDIA NVENC)',
-        'h264_amf': 'GPU-assisted (AMD AMF)',
-        'h264_qsv': 'GPU-assisted (Intel Quick Sync Video)',
-        'h264_videotoolbox': 'GPU-assisted (Apple VideoToolbox)',
-        'hevc_nvenc': 'GPU-assisted (NVIDIA NVENC HEVC)',
-        'hevc_amf': 'GPU-assisted (AMD AMF HEVC)',
-        'hevc_qsv': 'GPU-assisted (Intel QSV HEVC)',
-        'hevc_videotoolbox': 'GPU-assisted (Apple VideoToolbox HEVC)',
-        'vp9_nvenc': 'GPU-assisted (NVIDIA NVENC VP9)',
-        'vp9_qsv': 'GPU-assisted (Intel QSV VP9)',
-    }
-    if encoder in gpu_map:
-        return gpu_map[encoder]
-    if any(
-        x in encoder
-        for x in [
-            '_nvenc',
-            '_amf',
-            '_qsv',
-            '_videotoolbox',
-        ]
-    ):
-        return 'GPU-assisted'
-    return 'CPU-only'
+_get_best_h264_encoder = get_best_h264_encoder
+_get_encoder_details = get_encoder_details
 
 
 class VideoGenerator:

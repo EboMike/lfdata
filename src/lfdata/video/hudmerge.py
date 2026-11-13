@@ -95,6 +95,15 @@ def build_argument_parser() -> argparse.ArgumentParser:
         help=f'Encoding preset for x264 (default: {DEFAULT_HUD_MERGE_PRESET}).',
     )
     parser.add_argument(
+        '--codec',
+        type=str,
+        default=None,
+        help=(
+            'Video encoder codec (e.g. h264_nvenc, libx264). '
+            'Defaults to auto-detect GPU encoder.'
+        ),
+    )
+    parser.add_argument(
         '--lut',
         '--cube',
         dest='lut',
@@ -158,6 +167,7 @@ def parse_options(args: argparse.Namespace) -> HudMergeOptions:
         preset=args.preset,
         lut_path=lut_path,
         start_ms=args.start_ms,
+        codec=args.codec,
         ffmpeg_parameters=args.ffmpeg_parameters,
         gopro_2_path=gopro_2_path,
     )
