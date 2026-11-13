@@ -67,9 +67,12 @@ def convert_game_dict_to_scheduled_game(
 
     start_val = item.get('scheduledStartTime')
     start_time = parse_iso_datetime(str(start_val) if start_val else None)
+    actual_val = item.get('actualStartTime')
+    actual_start_time = parse_iso_datetime(
+        str(actual_val) if actual_val else None
+    )
     if start_time is None:
-        actual_val = item.get('actualStartTime')
-        start_time = parse_iso_datetime(str(actual_val) if actual_val else None)
+        start_time = actual_start_time
     if start_time is None:
         raise ValueError(
             f"Cannot determine start_time for game '{game_name}'."
@@ -95,7 +98,9 @@ def convert_game_dict_to_scheduled_game(
         team_scores = [int(team1_score_val), int(team2_score_val)]
 
     score_diff_val = item.get('scoreDifferential')
-    score_diff = abs(int(score_diff_val)) if score_diff_val is not None else None
+    score_diff = (
+        abs(int(score_diff_val)) if score_diff_val is not None else None
+    )
 
     return ScheduledGame(
         game_name=game_name,
@@ -105,6 +110,7 @@ def convert_game_dict_to_scheduled_game(
         stage_indicator=stage,
         start_time=start_time,
         end_time=end_time,
+        actual_start_time=actual_start_time,
         team_names=team_names,
         team_logos=team_logos,
         team_scores=team_scores,

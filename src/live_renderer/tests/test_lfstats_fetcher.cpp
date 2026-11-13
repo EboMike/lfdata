@@ -107,8 +107,14 @@ TEST(LFStatsFetcherTest, FetchCompetitionScheduleTestMode) {
     ASSERT_TRUE(g1.GetScoreDifferential().has_value());
     EXPECT_EQ(*g1.GetScoreDifferential(), 29943);
 
+    ASSERT_TRUE(g1.GetActualStartTimeMs().has_value());
+    EXPECT_GT(*g1.GetActualStartTimeMs(), 0LL);
+
     auto alias = fetcher.FetchSchedule("syracuse_trios_2026");
     EXPECT_EQ(schedule, alias);
+
+    auto tournament_alias = fetcher.FetchTournamentSchedule("syracuse_trios_2026");
+    EXPECT_EQ(schedule, tournament_alias);
 }
 
 TEST(LFStatsFetcherTest, InvalidCompetitionSlugThrows) {

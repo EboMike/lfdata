@@ -40,6 +40,7 @@ public:
         std::function<void(const std::string& config_path)> on_open_configuration;
         std::function<void(const GlobalConfig& new_config)> on_save_settings;
         std::function<void(const CompetitionInfo& competition)> on_competition_selected;
+        std::function<void(const std::vector<ScheduledGame>& schedule)> on_schedule_loaded;
     };
 
     MainControlWindow(
@@ -84,6 +85,12 @@ public:
     bool SelectCompetitionBySlug(const std::string& slug);
     void LoadCompetitionDetails(const std::string& slug);
     bool WaitForCompetitionDetails(int timeout_ms = 2000);
+
+    // Schedule access & fetch
+    void FetchTournamentSchedule(const std::string& tournament_slug);
+    std::vector<ScheduledGame> GetSchedule() const;
+    bool HasSchedule() const;
+    bool WaitForSchedule(int timeout_ms = 2000);
 
     // Mock/Testing helpers
     void SetCompetitionsForTesting(const std::vector<CompetitionInfo>& competitions);
@@ -176,6 +183,10 @@ private:
     char settings_ui_file_buf_[512]{};
     char settings_default_picture_url_buf_[512]{};
     std::atomic<bool> details_loading_{false};
+
+    mutable std::mutex schedule_mutex_;
+    std::vector<ScheduledGame> schedule_;
+    std::atomic<bool> schedule_loading_{false};
 
     bool show_about_modal_ = false;
     bool pending_open_about_modal_ = false;

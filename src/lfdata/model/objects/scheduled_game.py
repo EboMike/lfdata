@@ -127,6 +127,7 @@ class ScheduledGame(Base):
         stage_indicator: Stage code string ('G', 'H', 'OT').
         start_time: Scheduled start DateTime timestamp.
         end_time: Scheduled end DateTime timestamp.
+        actual_start_time: Optional actual start DateTime when game occurred.
         team_names: List of names of teams playing in this match.
         team_logos: List of logo image URLs for teams playing.
         team_scores: Optional list of integer scores for each team.
@@ -134,6 +135,7 @@ class ScheduledGame(Base):
         game: Optional linked LFGame ORM relationship.
         scheduled_start: Property accessor/setter for start_time.
         scheduled_end: Property accessor/setter for end_time.
+        actual_time: Property accessor/setter for actual_start_time.
         logos: Property accessor/setter for team_logos.
         scores: Property accessor/setter for team_scores.
         names: Property accessor/setter for team_names.
@@ -158,6 +160,9 @@ class ScheduledGame(Base):
     )
     start_time: Mapped[datetime] = mapped_column(DateTime)
     end_time: Mapped[datetime] = mapped_column(DateTime)
+    actual_start_time: Mapped[datetime | None] = mapped_column(
+        DateTime, nullable=True, default=None
+    )
     team_names: Mapped[list[str]] = mapped_column(JSON, default=list)
     team_logos: Mapped[list[str]] = mapped_column(JSON, default=list)
     team_scores: Mapped[list[int] | None] = mapped_column(
@@ -195,6 +200,8 @@ class ScheduledGame(Base):
         game_id: str | None = None,
         scheduled_start: datetime | None = None,
         scheduled_end: datetime | None = None,
+        actual_start_time: datetime | None = None,
+        actual_time: datetime | None = None,
         logos: list[str] | None = None,
         scores: list[int] | None = None,
         names: list[str] | None = None,
@@ -217,6 +224,8 @@ class ScheduledGame(Base):
             game_id: Optional foreign key string to played LFGame.
             scheduled_start: Alias for start_time.
             scheduled_end: Alias for end_time.
+            actual_start_time: Optional actual start timestamp.
+            actual_time: Alias for actual_start_time.
             logos: Alias for team_logos.
             scores: Alias for team_scores.
             names: Alias for team_names.
@@ -233,6 +242,10 @@ class ScheduledGame(Base):
 
         self.start_time = resolved_start
         self.end_time = resolved_end
+        resolved_actual = (
+            actual_start_time if actual_start_time is not None else actual_time
+        )
+        self.actual_start_time = resolved_actual
         self.round_number = round_number
         self.match_number = match_number
         self.game_number = game_number
@@ -305,6 +318,24 @@ class ScheduledGame(Base):
             value: The new end timestamp.
         """
         self.end_time = value
+
+    @property
+    def actual_time(self) -> datetime | None:
+        """Returns the actual start timestamp when the game occurred.
+
+        Returns:
+            datetime | None: The actual game start timestamp or None.
+        """
+        return self.actual_start_time
+
+    @actual_time.setter
+    def actual_time(self, value: datetime | None) -> None:
+        """Sets the actual start timestamp when the game occurred.
+
+        Args:
+            value: The actual start timestamp or None.
+        """
+        self.actual_start_time = value
 
     @property
     def logos(self) -> list[str]:

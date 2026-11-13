@@ -309,6 +309,31 @@ class LFStatsFetcher:
             competition_slug=competition_slug
         )
 
+    def fetch_tournament_schedule(
+        self,
+        tournament_slug: str,
+    ) -> list[ScheduledGame]:
+        """Fetches the game schedule for a tournament by its slug.
+
+        Convenience alias for fetch_competition_schedule.
+
+        Args:
+            tournament_slug: Unique tournament or competition slug.
+
+        Returns:
+            list[ScheduledGame]: List of scheduled games.
+
+        Raises:
+            ValueError: If tournament_slug is empty.
+
+        Usage example:
+            fetcher = LFStatsFetcher()
+            games = fetcher.fetch_tournament_schedule('syracuse_trios_2026')
+        """
+        return self.fetch_competition_schedule(
+            competition_slug=tournament_slug
+        )
+
     def fetch_competition_teams(
         self,
         competition_slug: str,
@@ -398,6 +423,8 @@ class LFStatsFetcher:
 
         Usage example:
             fetcher = LFStatsFetcher()
-            teams = fetcher.fetch_competition_team_details('syracuse_trios_2026')
+            teams = fetcher.fetch_competition_team_details(
+                'syracuse_trios_2026'
+            )
         """
         return self.fetch_competition_teams(competition_slug=competition_slug)

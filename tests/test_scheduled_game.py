@@ -213,3 +213,23 @@ def test_scheduled_game_database_persistence() -> None:
         assert retrieved.team_scores == [21000, 18500]
         assert retrieved.score_differential == 2500
         assert retrieved.is_complete is True
+
+
+def test_scheduled_game_actual_time() -> None:
+    start = datetime(2026, 7, 10, 10, 0)
+    end = datetime(2026, 7, 10, 10, 20)
+    actual = datetime(2026, 7, 10, 10, 5)
+
+    game = ScheduledGame(
+        start_time=start,
+        end_time=end,
+        actual_start_time=actual,
+        game_name='R1 M1 G1',
+    )
+    assert game.actual_start_time == actual
+    assert game.actual_time == actual
+
+    new_actual = datetime(2026, 7, 10, 10, 7)
+    game.actual_time = new_actual
+    assert game.actual_start_time == new_actual
+    assert game.actual_time == new_actual

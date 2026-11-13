@@ -48,6 +48,7 @@ public:
      * @param game_number Optional integer game number.
      * @param stage_indicator Stage code prefix ('G', 'H', 'OT').
      * @param team_scores Optional scores for each team.
+     * @param actual_start_time_ms Optional timestamp in ms when game happened.
      */
     ScheduledGame(
         const std::string& game_name,
@@ -59,7 +60,8 @@ public:
         std::optional<int> match_number = std::nullopt,
         std::optional<int> game_number = std::nullopt,
         const std::string& stage_indicator = "G",
-        std::optional<std::vector<int>> team_scores = std::nullopt);
+        std::optional<std::vector<int>> team_scores = std::nullopt,
+        std::optional<int64_t> actual_start_time_ms = std::nullopt);
 
     /**
      * Gets the game name string (e.g. 'R1 M3 G2').
@@ -133,6 +135,19 @@ public:
      * @param scheduled_end_time_ms End timestamp in ms.
      */
     void SetScheduledEndTimeMs(std::optional<int64_t> scheduled_end_time_ms);
+
+    /**
+     * Gets the actual start timestamp in milliseconds when the game occurred.
+     * @return Optional int64_t actual start timestamp in ms.
+     */
+    const std::optional<int64_t>& GetActualStartTimeMs() const;
+
+    /**
+     * Sets the actual start timestamp in milliseconds when the game occurred.
+     * @param actual_start_time_ms Actual start timestamp in ms.
+     */
+    void SetActualStartTimeMs(
+        std::optional<int64_t> actual_start_time_ms);
 
     /**
      * Gets the optional tournament round number.
@@ -257,6 +272,7 @@ private:
     std::vector<std::string> team_logos_;
     std::optional<int64_t> scheduled_start_time_ms_;
     std::optional<int64_t> scheduled_end_time_ms_;
+    std::optional<int64_t> actual_start_time_ms_;
     std::optional<int> round_number_;
     std::optional<int> match_number_;
     std::optional<int> game_number_;

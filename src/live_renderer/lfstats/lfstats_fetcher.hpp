@@ -272,6 +272,15 @@ public:
         const std::string& competition_slug);
 
     /**
+     * Fetches the tournament schedule by tournament slug synchronously.
+     * Convenience alias for FetchCompetitionSchedule.
+     * @param tournament_slug Unique slug of the tournament or competition.
+     * @return Vector of ScheduledGame instances.
+     */
+    std::vector<ScheduledGame> FetchTournamentSchedule(
+        const std::string& tournament_slug);
+
+    /**
      * Fetches competition team details synchronously.
      * @param competition_slug Unique slug of the competition.
      * @return Vector of CompetitionTeam instances.
@@ -330,6 +339,15 @@ public:
         const std::string& competition_slug);
 
     /**
+     * Fetches tournament schedule asynchronously via background thread.
+     * Convenience alias for FetchCompetitionScheduleAsync.
+     * @param tournament_slug Unique slug of the tournament or competition.
+     * @return std::future holding vector of ScheduledGame.
+     */
+    std::future<std::vector<ScheduledGame>> FetchTournamentScheduleAsync(
+        const std::string& tournament_slug);
+
+    /**
      * Fetches competition teams asynchronously via background thread.
      * @param competition_slug Unique slug of the competition.
      * @return std::future holding vector of CompetitionTeam.
@@ -368,6 +386,16 @@ public:
      */
     void FetchCompetitionScheduleAsync(
         const std::string& competition_slug,
+        ScheduleCallback callback);
+
+    /**
+     * Fetches tournament schedule asynchronously and invokes callback.
+     * Convenience alias for FetchCompetitionScheduleAsync.
+     * @param tournament_slug Unique slug of the tournament or competition.
+     * @param callback Function receiving vector of ScheduledGame and error.
+     */
+    void FetchTournamentScheduleAsync(
+        const std::string& tournament_slug,
         ScheduleCallback callback);
 
     /**

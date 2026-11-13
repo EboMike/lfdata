@@ -9,7 +9,7 @@ Usage example:
     from lfdata.model import Competition, CompetitionTeam, ScheduledGame
 
     competition = Competition(
-        name='Laserforce World Championships 2026',
+        name='LF World Championships 2026',
         site='Brisbane',
         start_time=datetime(2026, 7, 10),
         end_time=datetime(2026, 7, 17),
@@ -172,3 +172,6 @@ class Competition(Base):
         return (
             f"Competition(id={self.id}, name='{self.name}', site='{self.site}')"
         )
+
+
+Tournament = Competition

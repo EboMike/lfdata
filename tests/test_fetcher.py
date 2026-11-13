@@ -104,9 +104,20 @@ def test_fetch_competition_schedule_test_mode_syracuse() -> None:
     assert first.end_time == datetime(
         2026, 11, 2, 15, DEFAULT_GAME_DURATION_MINUTES, tzinfo=timezone.utc
     )
+    assert first.actual_start_time == datetime(
+        2026, 11, 2, 15, 45, 52, tzinfo=timezone.utc
+    )
+    assert first.actual_time == datetime(
+        2026, 11, 2, 15, 45, 52, tzinfo=timezone.utc
+    )
 
     alias_games = fetcher.fetch_schedule('syracuse_trios_2026')
     assert len(alias_games) == 54
+
+    tournament_games = fetcher.fetch_tournament_schedule(
+        'syracuse_trios_2026'
+    )
+    assert len(tournament_games) == 54
 
 
 def test_convert_game_dict_missing_start_time_raises() -> None:

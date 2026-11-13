@@ -249,6 +249,11 @@ private:
     std::vector<ScheduledGame> schedule_;
 };
 
+/**
+ * Convenience alias for Competition.
+ */
+using Tournament = Competition;
+
 }  // namespace live_renderer
 
 #endif  // LIVE_RENDERER_MODEL_COMPETITION_HPP_

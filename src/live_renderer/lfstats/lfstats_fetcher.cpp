@@ -266,10 +266,13 @@ ScheduledGame ConvertNodeToScheduledGame(const YAML::Node& item) {
         start_ms = ParseIsoDatetimeToMs(
             item["scheduledStartTime"].as<std::string>());
     }
-    if (!start_ms.has_value() && item["actualStartTime"] &&
-        !item["actualStartTime"].IsNull()) {
-        start_ms = ParseIsoDatetimeToMs(
+    std::optional<int64_t> actual_start_ms;
+    if (item["actualStartTime"] && !item["actualStartTime"].IsNull()) {
+        actual_start_ms = ParseIsoDatetimeToMs(
             item["actualStartTime"].as<std::string>());
+    }
+    if (!start_ms.has_value() && actual_start_ms.has_value()) {
+        start_ms = actual_start_ms;
     }
     if (!start_ms.has_value()) {
         throw std::runtime_error(
@@ -317,7 +320,7 @@ ScheduledGame ConvertNodeToScheduledGame(const YAML::Node& item) {
     return ScheduledGame(
         game_name, team_names, team_logos,
         start_ms, end_ms, round_num, match_num, game_num, stage,
-        team_scores);
+        team_scores, actual_start_ms);
 }
 
 std::string SlugifyTeamName(const std::string& name) {
@@ -890,6 +893,11 @@ std::vector<ScheduledGame> LFStatsFetcher::FetchSchedule(
     return FetchCompetitionSchedule(competition_slug);
 }
 
+std::vector<ScheduledGame> LFStatsFetcher::FetchTournamentSchedule(
+    const std::string& tournament_slug) {
+    return FetchCompetitionSchedule(tournament_slug);
+}
+
 std::future<std::vector<CompetitionInfo>>
 LFStatsFetcher::FetchCompetitionsAsync() {
     return EnqueueTask([this]() { return FetchCompetitions(); });
@@ -911,6 +919,12 @@ LFStatsFetcher::FetchCompetitionScheduleAsync(
 std::future<std::vector<ScheduledGame>>
 LFStatsFetcher::FetchScheduleAsync(const std::string& competition_slug) {
     return FetchCompetitionScheduleAsync(competition_slug);
+}
+
+std::future<std::vector<ScheduledGame>>
+LFStatsFetcher::FetchTournamentScheduleAsync(
+    const std::string& tournament_slug) {
+    return FetchCompetitionScheduleAsync(tournament_slug);
 }
 
 void LFStatsFetcher::FetchCompetitionsAsync(CompetitionsCallback callback) {
@@ -939,6 +953,12 @@ void LFStatsFetcher::FetchCompetitionScheduleAsync(
             callback({}, "Unknown error occurred while fetching schedule.");
         }
     });
+}
+
+void LFStatsFetcher::FetchTournamentScheduleAsync(
+    const std::string& tournament_slug,
+    ScheduleCallback callback) {
+    FetchCompetitionScheduleAsync(tournament_slug, std::move(callback));
 }
 
 std::vector<CompetitionTeam> LFStatsFetcher::FetchCompetitionTeams(

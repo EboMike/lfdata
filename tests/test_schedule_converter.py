@@ -21,6 +21,7 @@ def test_convert_game_dict_full_fields() -> None:
         'team1LogoUrl': 'https://example.com/tigers.png',
         'team2LogoUrl': None,
         'scheduledStartTime': '2026-11-02T15:00:00.000Z',
+        'actualStartTime': '2026-11-02T15:05:30.000Z',
         'scheduledEndTime': '2026-11-02T15:15:00.000Z',
         'team1Score': 42000,
         'team2Score': 38000,
@@ -36,3 +37,9 @@ def test_convert_game_dict_full_fields() -> None:
     assert game.team_logos == ['https://example.com/tigers.png', '']
     assert game.team_scores == [42000, 38000]
     assert game.score_differential == 4000
+    assert game.actual_start_time == datetime(
+        2026, 11, 2, 15, 5, 30, tzinfo=timezone.utc
+    )
+    assert game.actual_time == datetime(
+        2026, 11, 2, 15, 5, 30, tzinfo=timezone.utc
+    )

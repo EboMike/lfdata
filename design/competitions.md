@@ -42,3 +42,5 @@ After a game is complete, the following data points are also available:
 
 - Score for each team
 - Score differential between the two teams
+- The actual time when the game happened
+

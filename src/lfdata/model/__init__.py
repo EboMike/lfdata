@@ -31,7 +31,7 @@ from lfdata.model.gametypes.sm5_notability import (
     Sm5NotabilityResult,
 )
 from lfdata.model.gametypes.sm5_stats import Sm5Stats
-from lfdata.model.objects.competition import Competition
+from lfdata.model.objects.competition import Competition, Tournament
 from lfdata.model.objects.competition_team import CompetitionTeam
 from lfdata.model.objects.entity import GameEntity
 from lfdata.model.objects.event import GameEvent

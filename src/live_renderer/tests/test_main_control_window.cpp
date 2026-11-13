@@ -211,7 +211,7 @@ TEST(MainControlWindowTest, AboutModalAndMetadata) {
     EXPECT_STREQ(
         MainControlWindow::GetApplicationVersion(), kLiveRendererVersion);
     EXPECT_STREQ(
-        MainControlWindow::GetApplicationVersion(), "0.1.44");
+        MainControlWindow::GetApplicationVersion(), "0.1.45");
     EXPECT_STREQ(
         MainControlWindow::GetApplicationAuthor(), "EboMike");
 
@@ -425,7 +425,38 @@ TEST(MainControlWindowTest, SelectingCompetitionUpdatesPlayerDetailsInStateStore
     EXPECT_EQ(s.players[12].picture_url, global_cfg.default_profile_picture_url);
     EXPECT_EQ(s.players[12].team_name, "Baden's Overly Optimistic Buddies");
 
+    EXPECT_TRUE(win.HasSchedule());
+    EXPECT_EQ(win.GetSchedule().size(), 54u);
+    EXPECT_EQ(win.GetSchedule()[0].GetGameName(), "R1 M1 G1");
+
     std::filesystem::remove("test_ctrl_cfg.yaml");
+}
+
+TEST(MainControlWindowTest, FetchTournamentScheduleDirectly) {
+    GlobalConfig global_cfg;
+    UIConfig ui_cfg;
+    LiveStateStore store;
+    ProtocolParser parser(store);
+    TcpConsumerClient client(parser, global_cfg.host, global_cfg.port);
+
+    auto fetcher = std::make_shared<LFStatsFetcher>(true, "tests/fixtures/lfstats");
+    MainControlWindow win("test_sched_cfg.yaml", global_cfg, ui_cfg, store, client, fetcher);
+
+    bool callback_called = false;
+    MainControlWindow::Callbacks cbs;
+    cbs.on_schedule_loaded = [&](const std::vector<ScheduledGame>& games) {
+        callback_called = true;
+        EXPECT_EQ(games.size(), 54u);
+    };
+    win.SetCallbacks(cbs);
+
+    win.FetchTournamentSchedule("syracuse_trios_2026");
+    EXPECT_TRUE(win.WaitForSchedule(3000));
+    EXPECT_TRUE(callback_called);
+    EXPECT_TRUE(win.HasSchedule());
+    EXPECT_EQ(win.GetSchedule().size(), 54u);
+
+    std::filesystem::remove("test_sched_cfg.yaml");
 }
 
 TEST(MainControlWindowTest, SettingsDialogUpdatesDefaultProfilePictureUrl) {

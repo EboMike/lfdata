@@ -128,12 +128,14 @@ TEST(ScheduledGameTest, SettersAndTeamLists) {
     game.SetMatchNumber(1);
     game.SetGameNumber(1);
     game.SetStageIndicator("H");
+    game.SetActualStartTimeMs(105000LL);
 
     EXPECT_EQ(game.GetGameName(), "R2 M1 H1");
     EXPECT_EQ(game.GetTeamNames().size(), 2u);
     EXPECT_EQ(game.GetTeamLogos().size(), 2u);
     EXPECT_EQ(*game.GetScheduledStartTimeMs(), 100000LL);
     EXPECT_EQ(*game.GetScheduledEndTimeMs(), 200000LL);
+    EXPECT_EQ(*game.GetActualStartTimeMs(), 105000LL);
     EXPECT_EQ(*game.GetRoundNumber(), 2);
     EXPECT_EQ(*game.GetMatchNumber(), 1);
     EXPECT_EQ(*game.GetGameNumber(), 1);
@@ -335,6 +337,21 @@ TEST(CompetitionTest, EqualityOperators) {
 
     EXPECT_EQ(c1, c2);
     EXPECT_NE(c1, c3);
+}
+
+TEST(CompetitionTest, TournamentAliasWorks) {
+    Tournament tournament("National Tournament", "nat_tourn_2026", "Dallas");
+    EXPECT_EQ(tournament.GetName(), "National Tournament");
+    EXPECT_EQ(tournament.GetSlug(), "nat_tourn_2026");
+    EXPECT_EQ(tournament.GetSite(), "Dallas");
+
+    ScheduledGame game(
+        "R1 M1 G1", {"Team 1", "Team 2"}, {}, 1000LL, 2000LL,
+        1, 1, 1, "G", std::nullopt, 1050LL);
+    ASSERT_TRUE(game.GetActualStartTimeMs().has_value());
+    EXPECT_EQ(*game.GetActualStartTimeMs(), 1050LL);
+    tournament.AddScheduledGame(game);
+    EXPECT_EQ(tournament.GetSchedule().size(), 1u);
 }
 
 }  // namespace

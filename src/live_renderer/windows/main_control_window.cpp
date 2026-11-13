@@ -255,11 +255,60 @@ void MainControlWindow::LoadCompetitionDetails(const std::string& slug) {
                 state_store_.UpdateCompetitionPlayerDetails(updates);
             }
         });
+    FetchTournamentSchedule(slug);
+}
+
+void MainControlWindow::FetchTournamentSchedule(
+    const std::string& tournament_slug) {
+    if (tournament_slug.empty() || !stats_fetcher_) return;
+    schedule_loading_ = true;
+    auto alive = is_alive_;
+    stats_fetcher_->FetchTournamentScheduleAsync(
+        tournament_slug,
+        [this, alive](const std::vector<ScheduledGame>& games,
+                      const std::string& error) {
+            if (!alive || !*alive) return;
+            {
+                std::lock_guard<std::mutex> lock(schedule_mutex_);
+                if (error.empty()) {
+                    schedule_ = games;
+                } else {
+                    schedule_.clear();
+                }
+            }
+            schedule_loading_ = false;
+            if (error.empty() && callbacks_.on_schedule_loaded) {
+                callbacks_.on_schedule_loaded(games);
+            }
+        });
+}
+
+std::vector<ScheduledGame> MainControlWindow::GetSchedule() const {
+    std::lock_guard<std::mutex> lock(schedule_mutex_);
+    return schedule_;
+}
+
+bool MainControlWindow::HasSchedule() const {
+    std::lock_guard<std::mutex> lock(schedule_mutex_);
+    return !schedule_.empty();
+}
+
+bool MainControlWindow::WaitForSchedule(int timeout_ms) {
+    auto start = std::chrono::steady_clock::now();
+    while (schedule_loading_) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - start).count();
+        if (elapsed >= timeout_ms) {
+            return false;
+        }
+    }
+    return true;
 }
 
 bool MainControlWindow::WaitForCompetitionDetails(int timeout_ms) {
     auto start = std::chrono::steady_clock::now();
-    while (details_loading_) {
+    while (details_loading_ || schedule_loading_) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now() - start).count();

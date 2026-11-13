@@ -30,12 +30,14 @@ ScheduledGame::ScheduledGame(
     std::optional<int> match_number,
     std::optional<int> game_number,
     const std::string& stage_indicator,
-    std::optional<std::vector<int>> team_scores)
+    std::optional<std::vector<int>> team_scores,
+    std::optional<int64_t> actual_start_time_ms)
     : game_name_(game_name),
       team_names_(team_names),
       team_logos_(team_logos),
       scheduled_start_time_ms_(scheduled_start_time_ms),
       scheduled_end_time_ms_(scheduled_end_time_ms),
+      actual_start_time_ms_(actual_start_time_ms),
       round_number_(round_number),
       match_number_(match_number),
       game_number_(game_number),
@@ -92,6 +94,16 @@ ScheduledGame::GetScheduledEndTimeMs() const {
 void ScheduledGame::SetScheduledEndTimeMs(
     std::optional<int64_t> scheduled_end_time_ms) {
     scheduled_end_time_ms_ = scheduled_end_time_ms;
+}
+
+const std::optional<int64_t>&
+ScheduledGame::GetActualStartTimeMs() const {
+    return actual_start_time_ms_;
+}
+
+void ScheduledGame::SetActualStartTimeMs(
+    std::optional<int64_t> actual_start_time_ms) {
+    actual_start_time_ms_ = actual_start_time_ms;
 }
 
 const std::optional<int>& ScheduledGame::GetRoundNumber() const {
@@ -215,6 +227,7 @@ bool ScheduledGame::operator==(const ScheduledGame& other) const {
            team_logos_ == other.team_logos_ &&
            scheduled_start_time_ms_ == other.scheduled_start_time_ms_ &&
            scheduled_end_time_ms_ == other.scheduled_end_time_ms_ &&
+           actual_start_time_ms_ == other.actual_start_time_ms_ &&
            round_number_ == other.round_number_ &&
            match_number_ == other.match_number_ &&
            game_number_ == other.game_number_ &&
