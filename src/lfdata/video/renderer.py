@@ -25,6 +25,7 @@ from concurrent.futures import Future, ProcessPoolExecutor
 from PIL import Image, ImageChops, ImageDraw, ImageFont
 
 from lfdata.model import LFGame, ScoreboardAdditionalValues
+from lfdata.model.gametypes.sm5_events import SM5_EVENT_MISSION_END
 from lfdata.video.constants import (
     DEFAULT_EXTRA_FOOTAGE_MS,
     DEFAULT_FPS,
@@ -153,6 +154,7 @@ class VideoGenerator:
             game: The LFGame data object.
         """
         self.game = game
+        self.game_ended_at_ms: int | None = self._find_game_ended_at_ms()
         self.downtime_params: DowntimeParameters = DowntimeAnalyzer().analyze(
             game=self.game
         )
@@ -265,6 +267,23 @@ class VideoGenerator:
         self._text_bbox_cache_lock = threading.Lock()
         self._text_runs_cache = {}
         self._text_runs_cache_lock = threading.Lock()
+
+    def _find_game_ended_at_ms(self) -> int | None:
+        """Finds the millisecond timestamp when the mission ended.
+
+        Returns:
+            int | None: The timestamp in ms of MISSION_END, or None.
+        """
+        if getattr(self, 'game_ended_at_ms', None) is not None:
+            return self.game_ended_at_ms
+        end_times = [
+            event.time
+            for event in (self.game.events or [])
+            if event.event_type == SM5_EVENT_MISSION_END
+        ]
+        if end_times:
+            return min(end_times)
+        return None
 
     def _get_cached_icon(
         self, icon_path: Path, size: int
@@ -1144,6 +1163,7 @@ class VideoGenerator:
         actual_duration_ms = hud_gen.game.duration
         if hud_gen.game_ended_at_ms is not None:
             actual_duration_ms = hud_gen.game_ended_at_ms
+            self.game_ended_at_ms = hud_gen.game_ended_at_ms
         if actual_duration_ms is None:
             actual_duration_ms = 0
 
@@ -1169,7 +1189,11 @@ class VideoGenerator:
         for el in elements:
             if el.element_type == 'scoreboard':
                 self._draw_scoreboard(
-                    img, el, resolved_config, time_ms=game_time_ms
+                    img,
+                    el,
+                    resolved_config,
+                    time_ms=game_time_ms,
+                    hud_gen=hud_gen,
                 )
             elif el.element_type == 'downtime_bar':
                 self._draw_downtime_bar(img, el)
@@ -1794,6 +1818,7 @@ class VideoGenerator:
         el: UIElement,
         config: dict[str, object],
         time_ms: int = 0,
+        hud_gen: VisualElementGenerator | None = None,
     ) -> None:
         """Draws the animated scoreboard table onto the image.
 
@@ -1802,6 +1827,7 @@ class VideoGenerator:
             el: The scoreboard UIElement containing team details.
             config: The merged video configuration options.
             time_ms: Current millisecond timestamp for animations.
+            hud_gen: Optional HUD generator providing game termination info.
         """
         teams = el.scoreboard_data.teams if el.scoreboard_data else []
         if not teams:
@@ -1847,7 +1873,7 @@ class VideoGenerator:
         draw_background = sb_config.get('draw_background', False)
         draw_borders = sb_config.get('draw_borders', False)
         show_additional = self._should_show_scoreboard_additional_values(
-            sb_config=sb_config, time_ms=time_ms
+            sb_config=sb_config, time_ms=time_ms, hud_gen=hud_gen
         )
         stroke_width = max(1, int(pixel_size * 0.05))
 
@@ -2503,13 +2529,17 @@ class VideoGenerator:
             overlay.close()
 
     def _should_show_scoreboard_additional_values(
-        self, sb_config: dict[str, object], time_ms: int
+        self,
+        sb_config: dict[str, object],
+        time_ms: int,
+        hud_gen: VisualElementGenerator | None = None,
     ) -> bool:
         """Determines whether to show additional values on scoreboards.
 
         Args:
             sb_config: Scoreboard element configuration dictionary.
             time_ms: Current playback timestamp in milliseconds.
+            hud_gen: Optional HUD generator providing game termination info.
 
         Returns:
             bool: True if additional columns should be rendered.
@@ -2532,8 +2562,22 @@ class VideoGenerator:
         if mode == ScoreboardAdditionalValues.NEVER:
             return False
 
-        dur = self.game.duration or 0
-        return time_ms >= dur if dur > 0 else False
+        end_ms: int | None = None
+        if hud_gen is not None and hud_gen.game_ended_at_ms is not None:
+            end_ms = hud_gen.game_ended_at_ms
+        elif getattr(self, 'game_ended_at_ms', None) is not None:
+            end_ms = self.game_ended_at_ms
+        else:
+            end_ms = self._find_game_ended_at_ms()
+
+        if end_ms is None:
+            end_ms = self.game.duration
+
+        return (
+            time_ms >= end_ms
+            if (end_ms is not None and end_ms > 0)
+            else False
+        )
 
     @staticmethod
     def _format_accuracy(shots_landed: int, shots_fired: int) -> str:

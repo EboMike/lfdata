@@ -2449,6 +2449,52 @@ def test_scoreboard_additional_values_visibility() -> None:
     )
 
 
+def test_scoreboard_additional_values_mission_end_early() -> None:
+    from unittest.mock import MagicMock
+    from lfdata.model import GameEvent, LFGame
+    from lfdata.model.gametypes.sm5_events import SM5_EVENT_MISSION_END
+    from lfdata.video.renderer import VideoGenerator
+
+    # Game scheduled for 900000ms (15 mins), but ends at 300000ms (5 mins)
+    ev_end = GameEvent(
+        time=300000,
+        event_type=SM5_EVENT_MISSION_END,
+        actor_entity_id=None,
+        target_entity_id=None,
+    )
+    game = LFGame(
+        game_id='early_end_game',
+        game_type='SM5',
+        duration=900000,
+        events=[ev_end],
+    )
+    vg = VideoGenerator(game)
+    assert vg.game_ended_at_ms == 300000
+
+    cfg_after = {'additional_values': 'after_game'}
+    # Before MISSION_END: should NOT show
+    assert not vg._should_show_scoreboard_additional_values(
+        sb_config=cfg_after, time_ms=299999
+    )
+    # At and after MISSION_END: SHOULD show even though duration is 900000
+    assert vg._should_show_scoreboard_additional_values(
+        sb_config=cfg_after, time_ms=300000
+    )
+    assert vg._should_show_scoreboard_additional_values(
+        sb_config=cfg_after, time_ms=350000
+    )
+
+    # Also verify via hud_gen override
+    mock_hud_gen = MagicMock()
+    mock_hud_gen.game_ended_at_ms = 400000
+    assert not vg._should_show_scoreboard_additional_values(
+        sb_config=cfg_after, time_ms=350000, hud_gen=mock_hud_gen
+    )
+    assert vg._should_show_scoreboard_additional_values(
+        sb_config=cfg_after, time_ms=400000, hud_gen=mock_hud_gen
+    )
+
+
 def test_sm5_scoreboard_additional_columns() -> None:
     from lfdata.model import LFGame
     from lfdata.video.renderer import VideoGenerator
