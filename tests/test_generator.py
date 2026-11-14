@@ -5046,14 +5046,11 @@ def test_scoreboard_additional_values_in_generator() -> None:
         GameTeam,
         LFGame,
         LFRole,
-        Sm5Stats,
     )
     from lfdata.model.gametypes.sm5_events import (
         SM5_EVENT_ACTIVATE_NUKE,
-        SM5_EVENT_DAMAGED_OPPONENT,
         SM5_EVENT_DETONATE_NUKE,
         SM5_EVENT_DOWNED_OPPONENT,
-        SM5_EVENT_DOWNED_TEAM,
         SM5_EVENT_MISSILE_DOWN_OPPONENT,
         SM5_EVENT_MISSION_START,
         SM5_EVENT_NUKE_CANCEL,
@@ -5168,6 +5165,529 @@ def test_scoreboard_additional_values_in_generator() -> None:
     assert p1_data.missiles_landed == 1
     assert p1_data.shots_landed == 2  # zap P2, zap P3
     assert p1_data.times_zapped_opponents == 2
+
+
+def test_player_events_zap_double_targeted_player() -> None:
+    from unittest.mock import MagicMock
+    from lfdata.model import GameEvent, LFGame, LFRole
+    from lfdata.model.gametypes.sm5_events import SM5_EVENT_DOWNED_OPPONENT
+    from lfdata.replay.state import LFReplayPlayerState, LFReplayTeamState
+
+    game = LFGame(
+        game_id='test_zap_double_target',
+        timestamp=datetime.now(),
+        game_type='SM5',
+    )
+    config = {'show_hit_points_in_events': False}
+    gen = VisualElementGenerator(
+        game=game,
+        player_name='PlayerT',
+        config=config,
+    )
+    gen.entity_id = 'PT'
+    gen.entity_names = {'PT': 'PlayerT', 'PA': 'PlayerA', 'PB': 'PlayerB'}
+
+    mock_replay = MagicMock()
+    pt_state = LFReplayPlayerState('PT', LFRole.SCOUT, 0)
+    pa_state = LFReplayPlayerState('PA', LFRole.SCOUT, 1)
+    pb_state = LFReplayPlayerState('PB', LFRole.SCOUT, 1)
+    mock_replay.game_state.players = {
+        'PT': pt_state,
+        'PA': pa_state,
+        'PB': pb_state,
+    }
+    mock_replay.game_state.teams = {
+        0: LFReplayTeamState(0, 'Fire', '#ff0000'),
+        1: LFReplayTeamState(1, 'Earth', '#00ff00'),
+    }
+
+    pt_prev1 = LFReplayPlayerState('PT', LFRole.SCOUT, 0)
+    pt_prev1.hp = 1
+    gen.snapshots = [(0, {'PT': pt_prev1}, {}), (0, {'PT': pt_prev1}, {})]
+
+    # First zap downs PT at 1000ms
+    ev1 = GameEvent(
+        game_id='test_zap_double_target',
+        time=1000,
+        event_type=SM5_EVENT_DOWNED_OPPONENT,
+        actor_entity_id='PA',
+        target_entity_id='PT',
+    )
+    pt_state.hp = 0
+    pt_state.downtime_ends_at_ms = 9000
+    gen._process_hud_event_triggers(
+        event=ev1,
+        replay=mock_replay,
+        desc='',
+        resettable_player_ids=set(),
+    )
+    assert len(gen.player_event_log) == 1
+    assert gen.player_event_log[0].desc == 'Zapped by PlayerA'
+
+    # Second zap against PT at 1050ms (within 1s, PT already downed)
+    pt_prev2 = LFReplayPlayerState('PT', LFRole.SCOUT, 0)
+    pt_prev2.hp = 0
+    pt_prev2.downtime_ends_at_ms = 9000
+    gen.snapshots.append((1000, {'PT': pt_prev2}, {}))
+
+    ev2 = GameEvent(
+        game_id='test_zap_double_target',
+        time=1050,
+        event_type=SM5_EVENT_DOWNED_OPPONENT,
+        actor_entity_id='PB',
+        target_entity_id='PT',
+    )
+    gen._process_hud_event_triggers(
+        event=ev2,
+        replay=mock_replay,
+        desc='',
+        resettable_player_ids=set(),
+    )
+    assert len(gen.player_event_log) == 2
+    assert gen.player_event_log[1].desc == 'Zapped by PlayerB (Double)'
+
+
+def test_player_events_zap_double_actor_player() -> None:
+    from unittest.mock import MagicMock
+    from lfdata.model import GameEvent, LFGame, LFRole
+    from lfdata.model.gametypes.sm5_events import SM5_EVENT_DOWNED_OPPONENT
+    from lfdata.replay.state import LFReplayPlayerState, LFReplayTeamState
+
+    game = LFGame(
+        game_id='test_zap_double_actor',
+        timestamp=datetime.now(),
+        game_type='SM5',
+    )
+    config = {'show_hit_points_in_events': False}
+    gen = VisualElementGenerator(
+        game=game,
+        player_name='PlayerB',
+        config=config,
+    )
+    gen.entity_id = 'PB'
+    gen.entity_names = {'PT': 'PlayerT', 'PA': 'PlayerA', 'PB': 'PlayerB'}
+
+    mock_replay = MagicMock()
+    pt_state = LFReplayPlayerState('PT', LFRole.SCOUT, 0)
+    pa_state = LFReplayPlayerState('PA', LFRole.SCOUT, 1)
+    pb_state = LFReplayPlayerState('PB', LFRole.SCOUT, 1)
+    mock_replay.game_state.players = {
+        'PT': pt_state,
+        'PA': pa_state,
+        'PB': pb_state,
+    }
+    mock_replay.game_state.teams = {
+        0: LFReplayTeamState(0, 'Fire', '#ff0000'),
+        1: LFReplayTeamState(1, 'Earth', '#00ff00'),
+    }
+
+    pt_prev1 = LFReplayPlayerState('PT', LFRole.SCOUT, 0)
+    pt_prev1.hp = 1
+    gen.snapshots = [(0, {'PT': pt_prev1}, {}), (0, {'PT': pt_prev1}, {})]
+
+    # PlayerA downs PlayerT at 2000ms (PB is not involved, no player event)
+    ev1 = GameEvent(
+        game_id='test_zap_double_actor',
+        time=2000,
+        event_type=SM5_EVENT_DOWNED_OPPONENT,
+        actor_entity_id='PA',
+        target_entity_id='PT',
+    )
+    pt_state.hp = 0
+    pt_state.downtime_ends_at_ms = 10000
+    gen._process_hud_event_triggers(
+        event=ev1,
+        replay=mock_replay,
+        desc='',
+        resettable_player_ids=set(),
+    )
+    assert len(gen.player_event_log) == 0
+
+    # PlayerB (focus player) zaps PlayerT at 2100ms (100ms later)
+    pt_prev2 = LFReplayPlayerState('PT', LFRole.SCOUT, 0)
+    pt_prev2.hp = 0
+    pt_prev2.downtime_ends_at_ms = 10000
+    gen.snapshots.append((2000, {'PT': pt_prev2}, {}))
+
+    ev2 = GameEvent(
+        game_id='test_zap_double_actor',
+        time=2100,
+        event_type=SM5_EVENT_DOWNED_OPPONENT,
+        actor_entity_id='PB',
+        target_entity_id='PT',
+    )
+    gen._process_hud_event_triggers(
+        event=ev2,
+        replay=mock_replay,
+        desc='',
+        resettable_player_ids=set(),
+    )
+    assert len(gen.player_event_log) == 1
+    assert gen.player_event_log[0].desc == 'Zapped PlayerT (Double)'
+
+
+def test_player_events_zap_double_friendly_fire() -> None:
+    from unittest.mock import MagicMock
+    from lfdata.model import GameEvent, LFGame, LFRole
+    from lfdata.model.gametypes.sm5_events import SM5_EVENT_DOWNED_TEAM
+    from lfdata.replay.state import LFReplayPlayerState, LFReplayTeamState
+
+    game = LFGame(
+        game_id='test_zap_double_friendly',
+        timestamp=datetime.now(),
+        game_type='SM5',
+    )
+    config = {'show_hit_points_in_events': False}
+    gen = VisualElementGenerator(
+        game=game,
+        player_name='PlayerT',
+        config=config,
+    )
+    gen.entity_id = 'PT'
+    gen.entity_names = {'PT': 'PlayerT', 'PA': 'PlayerA', 'PB': 'PlayerB'}
+
+    mock_replay = MagicMock()
+    pt_state = LFReplayPlayerState('PT', LFRole.SCOUT, 0)
+    pa_state = LFReplayPlayerState('PA', LFRole.SCOUT, 0)
+    pb_state = LFReplayPlayerState('PB', LFRole.SCOUT, 0)
+    mock_replay.game_state.players = {
+        'PT': pt_state,
+        'PA': pa_state,
+        'PB': pb_state,
+    }
+    mock_replay.game_state.teams = {
+        0: LFReplayTeamState(0, 'Fire', '#ff0000'),
+    }
+
+    pt_prev1 = LFReplayPlayerState('PT', LFRole.SCOUT, 0)
+    pt_prev1.hp = 1
+    gen.snapshots = [(0, {'PT': pt_prev1}, {}), (0, {'PT': pt_prev1}, {})]
+
+    # Teammate PA downs PT
+    ev1 = GameEvent(
+        game_id='test_zap_double_friendly',
+        time=1000,
+        event_type=SM5_EVENT_DOWNED_TEAM,
+        actor_entity_id='PA',
+        target_entity_id='PT',
+    )
+    pt_state.hp = 0
+    pt_state.downtime_ends_at_ms = 9000
+    gen._process_hud_event_triggers(
+        event=ev1,
+        replay=mock_replay,
+        desc='',
+        resettable_player_ids=set(),
+    )
+    assert len(gen.player_event_log) == 1
+    assert gen.player_event_log[0].desc == 'FRIENDLY zap by PlayerA'
+
+    # Teammate PB double downs PT
+    pt_prev2 = LFReplayPlayerState('PT', LFRole.SCOUT, 0)
+    pt_prev2.hp = 0
+    pt_prev2.downtime_ends_at_ms = 9000
+    gen.snapshots.append((1000, {'PT': pt_prev2}, {}))
+
+    ev2 = GameEvent(
+        game_id='test_zap_double_friendly',
+        time=1200,
+        event_type=SM5_EVENT_DOWNED_TEAM,
+        actor_entity_id='PB',
+        target_entity_id='PT',
+    )
+    gen._process_hud_event_triggers(
+        event=ev2,
+        replay=mock_replay,
+        desc='',
+        resettable_player_ids=set(),
+    )
+    assert len(gen.player_event_log) == 2
+    assert gen.player_event_log[1].desc == 'FRIENDLY zap by PlayerB (Double)'
+
+
+def test_player_events_zap_double_third_zap_and_expiry() -> None:
+    from unittest.mock import MagicMock
+    from lfdata.model import GameEvent, LFGame, LFRole
+    from lfdata.model.gametypes.sm5_events import SM5_EVENT_DOWNED_OPPONENT
+    from lfdata.replay.state import LFReplayPlayerState, LFReplayTeamState
+
+    game = LFGame(
+        game_id='test_zap_double_third',
+        timestamp=datetime.now(),
+        game_type='SM5',
+    )
+    config = {'show_hit_points_in_events': False}
+    gen = VisualElementGenerator(
+        game=game,
+        player_name='PlayerT',
+        config=config,
+    )
+    gen.entity_id = 'PT'
+    gen.entity_names = {
+        'PT': 'PlayerT',
+        'PA': 'PlayerA',
+        'PB': 'PlayerB',
+        'PC': 'PlayerC',
+        'PD': 'PlayerD',
+    }
+
+    mock_replay = MagicMock()
+    pt_state = LFReplayPlayerState('PT', LFRole.SCOUT, 0)
+    mock_replay.game_state.players = {
+        'PT': pt_state,
+        'PA': LFReplayPlayerState('PA', LFRole.SCOUT, 1),
+        'PB': LFReplayPlayerState('PB', LFRole.SCOUT, 1),
+        'PC': LFReplayPlayerState('PC', LFRole.SCOUT, 1),
+        'PD': LFReplayPlayerState('PD', LFRole.SCOUT, 1),
+    }
+    mock_replay.game_state.teams = {
+        0: LFReplayTeamState(0, 'Fire', '#ff0000'),
+        1: LFReplayTeamState(1, 'Earth', '#00ff00'),
+    }
+
+    pt_prev = LFReplayPlayerState('PT', LFRole.SCOUT, 0)
+    pt_prev.hp = 1
+    gen.snapshots = [(0, {'PT': pt_prev}, {}), (0, {'PT': pt_prev}, {})]
+
+    # Zap 1: downs PT at 1000ms
+    ev1 = GameEvent(
+        game_id='test_zap_double_third',
+        time=1000,
+        event_type=SM5_EVENT_DOWNED_OPPONENT,
+        actor_entity_id='PA',
+        target_entity_id='PT',
+    )
+    pt_state.hp = 0
+    pt_state.downtime_ends_at_ms = 9000
+    gen._process_hud_event_triggers(
+        event=ev1,
+        replay=mock_replay,
+        desc='',
+        resettable_player_ids=set(),
+    )
+
+    # Zap 2: double down at 1050ms
+    pt_prev_down = LFReplayPlayerState('PT', LFRole.SCOUT, 0)
+    pt_prev_down.hp = 0
+    pt_prev_down.downtime_ends_at_ms = 9000
+    gen.snapshots.append((1000, {'PT': pt_prev_down}, {}))
+
+    ev2 = GameEvent(
+        game_id='test_zap_double_third',
+        time=1050,
+        event_type=SM5_EVENT_DOWNED_OPPONENT,
+        actor_entity_id='PB',
+        target_entity_id='PT',
+    )
+    gen._process_hud_event_triggers(
+        event=ev2,
+        replay=mock_replay,
+        desc='',
+        resettable_player_ids=set(),
+    )
+
+    # Zap 3: third zap at 1100ms (within 1s, but 3rd zap -> not Double)
+    gen.snapshots.append((1050, {'PT': pt_prev_down}, {}))
+    ev3 = GameEvent(
+        game_id='test_zap_double_third',
+        time=1100,
+        event_type=SM5_EVENT_DOWNED_OPPONENT,
+        actor_entity_id='PC',
+        target_entity_id='PT',
+    )
+    gen._process_hud_event_triggers(
+        event=ev3,
+        replay=mock_replay,
+        desc='',
+        resettable_player_ids=set(),
+    )
+
+    # Zap 4: zap at 2500ms (>1000ms since down -> expired, not Double)
+    gen.snapshots.append((1100, {'PT': pt_prev_down}, {}))
+    ev4 = GameEvent(
+        game_id='test_zap_double_third',
+        time=2500,
+        event_type=SM5_EVENT_DOWNED_OPPONENT,
+        actor_entity_id='PD',
+        target_entity_id='PT',
+    )
+    gen._process_hud_event_triggers(
+        event=ev4,
+        replay=mock_replay,
+        desc='',
+        resettable_player_ids=set(),
+    )
+
+    assert len(gen.player_event_log) == 4
+    assert gen.player_event_log[0].desc == 'Zapped by PlayerA'
+    assert gen.player_event_log[1].desc == 'Zapped by PlayerB (Double)'
+    assert gen.player_event_log[2].desc == 'Zapped by PlayerC'
+    assert gen.player_event_log[3].desc == 'Zapped by PlayerD'
+
+
+def test_player_events_missile_damage_resettable() -> None:
+    from unittest.mock import MagicMock
+    from lfdata.model import GameEvent, LFGame, LFRole
+    from lfdata.model.gametypes.sm5_events import (
+        SM5_EVENT_MISSILE_DAMAGE_OPPONENT,
+        SM5_EVENT_MISSILE_DAMAGE_TEAM,
+    )
+    from lfdata.replay.state import LFReplayPlayerState, LFReplayTeamState
+
+    game = LFGame(
+        game_id='test_missile_dmg_resettable',
+        timestamp=datetime.now(),
+        game_type='SM5',
+    )
+    config = {'show_hit_points_in_events': False}
+    gen = VisualElementGenerator(
+        game=game,
+        player_name='Player1',
+        config=config,
+    )
+    gen.entity_id = 'P1'
+    gen.entity_names = {'P1': 'Player1', 'P2': 'Player2', 'P3': 'Player3'}
+
+    mock_replay = MagicMock()
+    p1_state = LFReplayPlayerState('P1', LFRole.SCOUT, 0)
+    p2_state = LFReplayPlayerState('P2', LFRole.SCOUT, 1)
+    p3_state = LFReplayPlayerState('P3', LFRole.SCOUT, 0)
+    mock_replay.game_state.players = {
+        'P1': p1_state,
+        'P2': p2_state,
+        'P3': p3_state,
+    }
+    mock_replay.game_state.teams = {
+        0: LFReplayTeamState(0, 'Fire', '#ff0000'),
+        1: LFReplayTeamState(1, 'Earth', '#00ff00'),
+    }
+    gen.snapshots = [(0, {}, {}), (0, {}, {})]
+
+    # Opponent missile damage while P2 is resettable
+    ev1 = GameEvent(
+        game_id='test_missile_dmg_resettable',
+        time=3000,
+        event_type=SM5_EVENT_MISSILE_DAMAGE_OPPONENT,
+        actor_entity_id='P1',
+        target_entity_id='P2',
+    )
+    gen._process_hud_event_triggers(
+        event=ev1,
+        replay=mock_replay,
+        desc='',
+        resettable_player_ids={'P2'},
+    )
+    assert len(gen.player_event_log) == 1
+    assert gen.player_event_log[0].desc == 'Missiled Player2 (Reset)'
+
+    # Friendly missile damage while P3 is resettable
+    ev2 = GameEvent(
+        game_id='test_missile_dmg_resettable',
+        time=4000,
+        event_type=SM5_EVENT_MISSILE_DAMAGE_TEAM,
+        actor_entity_id='P1',
+        target_entity_id='P3',
+    )
+    gen._process_hud_event_triggers(
+        event=ev2,
+        replay=mock_replay,
+        desc='',
+        resettable_player_ids={'P3'},
+    )
+    assert len(gen.player_event_log) == 2
+    assert gen.player_event_log[1].desc == 'FRIENDLY missile Player3 (Reset)'
+
+
+def test_player_events_double_down_simulation() -> None:
+    from lfdata.model import GameEntity, GameEvent, GameTeam, LFGame
+    from lfdata.model.gametypes.sm5_events import SM5_EVENT_DOWNED_OPPONENT
+
+    game = LFGame(
+        game_id='sm5_double_down_sim',
+        game_type='SM5',
+        duration=60000,
+    )
+    game.entities = [
+        GameEntity(
+            game_id='sm5_double_down_sim',
+            entity_id='P1',
+            type='player',
+            desc='Player1',
+            team_index=0,
+            category=1,
+        ),
+        GameEntity(
+            game_id='sm5_double_down_sim',
+            entity_id='P2',
+            type='player',
+            desc='Player2',
+            team_index=1,
+            category=2,
+        ),
+    ]
+    game.teams = [
+        GameTeam(
+            game_id='sm5_double_down_sim',
+            team_index=0,
+            desc='Fire Team',
+            color_enum=11,
+            color_desc='Fire',
+            color_rgb='#FF5000',
+        ),
+        GameTeam(
+            game_id='sm5_double_down_sim',
+            team_index=1,
+            desc='Earth Team',
+            color_enum=12,
+            color_desc='Earth',
+            color_rgb='#00FF00',
+        ),
+    ]
+    # P1 downs P2 at t=1000ms.
+    # P1 zaps P2 again at t=1200ms (within 1s, P2 already downed -> Double).
+    # At t=6000ms, P2 is in resettable state -> Reset.
+    game.events = [
+        GameEvent(
+            time=1000,
+            event_type=SM5_EVENT_DOWNED_OPPONENT,
+            actor_entity_id='P1',
+            target_entity_id='P2',
+        ),
+        GameEvent(
+            time=1200,
+            event_type=SM5_EVENT_DOWNED_OPPONENT,
+            actor_entity_id='P1',
+            target_entity_id='P2',
+        ),
+        GameEvent(
+            time=6000,
+            event_type=SM5_EVENT_DOWNED_OPPONENT,
+            actor_entity_id='P1',
+            target_entity_id='P2',
+        ),
+    ]
+
+    hud_gen_p1 = VisualElementGenerator(
+        game=game,
+        player_name='Player1',
+        config={'show_hit_points_in_events': False},
+    )
+    assert len(hud_gen_p1.player_event_log) == 3
+    assert hud_gen_p1.player_event_log[0].desc == 'Zapped Player2'
+    assert hud_gen_p1.player_event_log[1].desc == 'Zapped Player2 (Double)'
+    assert hud_gen_p1.player_event_log[2].desc == 'Zapped Player2 (Reset)'
+
+    hud_gen_p2 = VisualElementGenerator(
+        game=game,
+        player_name='Player2',
+        config={'show_hit_points_in_events': False},
+    )
+    assert len(hud_gen_p2.player_event_log) == 3
+    assert hud_gen_p2.player_event_log[0].desc == 'Zapped by Player1'
+    assert hud_gen_p2.player_event_log[1].desc == 'Zapped by Player1 (Double)'
+    assert hud_gen_p2.player_event_log[2].desc == 'Zapped by Player1 (Reset)'
+
+
 
 
 

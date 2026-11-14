@@ -48,6 +48,8 @@ from lfdata.model.gametypes.sm5_events import (
     SM5_EVENT_MISSILE_BASE_DAMAGE,
     SM5_EVENT_MISSILE_BASE_DESTROY,
     SM5_EVENT_MISSILE_BASE_MISS,
+    SM5_EVENT_MISSILE_DAMAGE_OPPONENT,
+    SM5_EVENT_MISSILE_DAMAGE_TEAM,
     SM5_EVENT_MISSILE_DOWN_OPPONENT,
     SM5_EVENT_MISSILE_DOWN_TEAM,
     SM5_EVENT_MISSILE_MISS,
@@ -206,6 +208,7 @@ class VisualElementGenerator:
         self._last_medic_resup: LFResupplyTracker | None = None
         self._last_ammo_resup_by_me: dict[str, int] = {}
         self._last_medic_resup_by_me: dict[str, int] = {}
+        self._down_zap_info: dict[str, tuple[int, int]] = {}
         self.team_transitions: dict[int, list[LFTeamTransition]] = {}
         self.game_ended_at_ms: int | None = None
         self.current_time_ms: int = 0
@@ -454,6 +457,7 @@ class VisualElementGenerator:
             visual_rank_at_last_trans: Visual rank at last transition.
             eliminated_teams: Set of team indices already eliminated.
         """
+        self._down_zap_info.clear()
         for event in sorted_events:
             for player in replay.game_state.players.values():
                 player.update_downtime(event.time)
@@ -717,6 +721,46 @@ class VisualElementGenerator:
                 SM5_EVENT_DAMAGED_TEAM,
                 SM5_EVENT_DOWNED_TEAM,
             ):
+                is_double = False
+                if target_id:
+                    prev_target = prev_players.get(target_id)
+                    was_down_before = bool(
+                        prev_target
+                        and (
+                            prev_target.hp == 0
+                            or prev_target.is_down(event.time)
+                        )
+                    )
+                    if target_id in self._down_zap_info:
+                        t_down_ms, count = self._down_zap_info[target_id]
+                        if 0 <= event.time - t_down_ms <= 1000:
+                            count += 1
+                            self._down_zap_info[target_id] = (
+                                t_down_ms,
+                                count,
+                            )
+                            if count == 2:
+                                is_double = True
+                        else:
+                            del self._down_zap_info[target_id]
+
+                    if not is_double and not was_down_before:
+                        is_downed_now = et in (
+                            SM5_EVENT_DOWNED_OPPONENT,
+                            SM5_EVENT_DOWNED_TEAM,
+                        )
+                        if not is_downed_now:
+                            curr_target = replay.game_state.players.get(
+                                target_id
+                            )
+                            if curr_target and (
+                                curr_target.hp == 0
+                                or curr_target.is_down(event.time)
+                            ):
+                                is_downed_now = True
+                        if is_downed_now:
+                            self._down_zap_info[target_id] = (event.time, 1)
+
                 target_state = None
                 if actor_id == self.entity_id:
                     t_state = replay.game_state.players.get(target_id or '')
@@ -740,6 +784,8 @@ class VisualElementGenerator:
                 if msg and target_state:
                     if is_target_resettable:
                         msg = f'{msg} (Reset)'
+                    elif is_double:
+                        msg = f'{msg} (Double)'
                     base_msg = msg
                     show_hp = self.config.get('show_hit_points_in_events', True)
                     bundle = self.config.get('bundle_zap_events', True)
@@ -843,6 +889,8 @@ class VisualElementGenerator:
             elif et in (
                 SM5_EVENT_MISSILE_DOWN_OPPONENT,
                 SM5_EVENT_MISSILE_DOWN_TEAM,
+                SM5_EVENT_MISSILE_DAMAGE_OPPONENT,
+                SM5_EVENT_MISSILE_DAMAGE_TEAM,
                 SM5_EVENT_MISSILE_MISS,
                 SM5_EVENT_MISSILE_BASE_MISS,
                 SM5_EVENT_MISSILE_BASE_DAMAGE,
@@ -864,7 +912,10 @@ class VisualElementGenerator:
                             break
 
                 follow_up_msg = None
-                if et == SM5_EVENT_MISSILE_DOWN_OPPONENT:
+                if et in (
+                    SM5_EVENT_MISSILE_DOWN_OPPONENT,
+                    SM5_EVENT_MISSILE_DAMAGE_OPPONENT,
+                ):
                     if actor_id == self.entity_id:
                         t_state = replay.game_state.players.get(target_id or '')
                         self_state = replay.game_state.players.get(
@@ -889,7 +940,10 @@ class VisualElementGenerator:
                                 )
                             else:
                                 follow_up_msg = f'Missiled by {actor_name}'
-                elif et == SM5_EVENT_MISSILE_DOWN_TEAM:
+                elif et in (
+                    SM5_EVENT_MISSILE_DOWN_TEAM,
+                    SM5_EVENT_MISSILE_DAMAGE_TEAM,
+                ):
                     if actor_id == self.entity_id:
                         follow_up_msg = f'FRIENDLY missile {target_name}'
                     elif target_id == self.entity_id:
@@ -936,6 +990,8 @@ class VisualElementGenerator:
                     in (
                         SM5_EVENT_MISSILE_DOWN_OPPONENT,
                         SM5_EVENT_MISSILE_DOWN_TEAM,
+                        SM5_EVENT_MISSILE_DAMAGE_OPPONENT,
+                        SM5_EVENT_MISSILE_DAMAGE_TEAM,
                     )
                 ):
                     follow_up_msg = f'{follow_up_msg} (Reset)'
@@ -958,6 +1014,8 @@ class VisualElementGenerator:
                     if et in (
                         SM5_EVENT_MISSILE_DOWN_OPPONENT,
                         SM5_EVENT_MISSILE_DOWN_TEAM,
+                        SM5_EVENT_MISSILE_DAMAGE_OPPONENT,
+                        SM5_EVENT_MISSILE_DAMAGE_TEAM,
                         SM5_EVENT_MISSILE_BASE_DAMAGE,
                         SM5_EVENT_MISSILE_BASE_DESTROY,
                     ) or (

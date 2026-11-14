@@ -380,6 +380,20 @@ each zap replaces the previous message instead of creating a new message:
 - Second zap: "2x Zapped base <base name>" (and increments for further zaps)
 - Destroy zap: "Destroyed base <base name>" (if it resulted in destruction)
 
+#### Reset rules
+
+For all zap and missile events against a player, these rules apply:
+
+- If the targeted player was in the "Resettable" state, append ` (Reset)` to the
+  message. For example, `Zapped by Player A (Reset)`.
+- If this is second zap event against the targeted player within one second and
+  the player was already downed by the first event (i.e. out of hit points),
+  append ` (Double)` to the message. For example:
+  ```
+  Zapped by Player A
+  Zapped by Player B (Double)
+  ```
+
 ### Important game events
 
 The following global events will be shown:
