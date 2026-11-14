@@ -344,7 +344,10 @@ options are:
 - **Always**: Additional values are shown at all times
 
 The default is "After game". When additional values are not shown, the
-respective columns are not shown in the scoreboard either.
+respective columns are not shown in the scoreboard either. When additional
+stats switch between enabled and disabled states (or vice versa), they smoothly
+fade in or out. The fade duration is configurable via
+`additional_values_fade_ms` (defaulting to 1000ms).
 
 ## SM5 rules
 

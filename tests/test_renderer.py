@@ -2495,6 +2495,255 @@ def test_scoreboard_additional_values_mission_end_early() -> None:
     )
 
 
+def test_scoreboard_additional_values_fade_alpha() -> None:
+    from lfdata.model import LFGame
+    from lfdata.video.renderer import VideoGenerator
+
+    game = LFGame(game_id='fade_test', game_type='SM5', duration=900000)
+    vg = VideoGenerator(game)
+
+    # 1. Default fade duration (1000ms) with after_game
+    cfg_after = {'additional_values': 'after_game'}
+    assert vg._get_scoreboard_additional_values_alpha(cfg_after, 899999) == 0.0
+    assert vg._get_scoreboard_additional_values_alpha(cfg_after, 900000) == 0.0
+    assert vg._get_scoreboard_additional_values_alpha(cfg_after, 900250) == 0.25
+    assert vg._get_scoreboard_additional_values_alpha(cfg_after, 900500) == 0.5
+    assert vg._get_scoreboard_additional_values_alpha(cfg_after, 900750) == 0.75
+    assert vg._get_scoreboard_additional_values_alpha(cfg_after, 901000) == 1.0
+    assert vg._get_scoreboard_additional_values_alpha(cfg_after, 950000) == 1.0
+
+    # 2. Configurable fade duration (e.g. 500ms)
+    cfg_500 = {
+        'additional_values': 'after_game',
+        'additional_values_fade_ms': 500,
+    }
+    assert vg._get_scoreboard_additional_values_alpha(cfg_500, 900000) == 0.0
+    assert vg._get_scoreboard_additional_values_alpha(cfg_500, 900250) == 0.5
+    assert vg._get_scoreboard_additional_values_alpha(cfg_500, 900500) == 1.0
+
+    # 3. Configurable fade duration via additional_stats_fade_ms
+    cfg_stats_fade = {
+        'additional_stats': 'after_game',
+        'additional_stats_fade_ms': 2000,
+    }
+    assert (
+        vg._get_scoreboard_additional_values_alpha(cfg_stats_fade, 901000)
+        == 0.5
+    )
+
+    # 4. Instant fade (0ms)
+    cfg_instant = {
+        'additional_values': 'after_game',
+        'additional_values_fade_ms': 0,
+    }
+    assert (
+        vg._get_scoreboard_additional_values_alpha(cfg_instant, 899999) == 0.0
+    )
+    assert (
+        vg._get_scoreboard_additional_values_alpha(cfg_instant, 900000) == 1.0
+    )
+
+    # 5. Always and Never
+    cfg_always = {'additional_values': 'always'}
+    assert vg._get_scoreboard_additional_values_alpha(cfg_always, 100000) == 1.0
+    cfg_never = {'additional_values': 'never'}
+    assert vg._get_scoreboard_additional_values_alpha(cfg_never, 950000) == 0.0
+
+
+def test_scoreboard_additional_values_keyframes_fade() -> None:
+    from lfdata.model import LFGame
+    from lfdata.video.renderer import VideoGenerator
+
+    game = LFGame(game_id='kf_fade_test', game_type='SM5', duration=900000)
+    vg = VideoGenerator(game)
+
+    # Keyframes: True at 10000ms (fade in), False at 20000ms (fade out)
+    kfs = [
+        {'time': 10000, 'value': True},
+        {'time': 20000, 'value': False},
+    ]
+    cfg = {
+        'additional_values': {'keyframes': kfs},
+        'additional_values_fade_ms': 1000,
+    }
+
+    # Before first keyframe
+    assert vg._get_scoreboard_additional_values_alpha(cfg, 5000) == 0.0
+
+    # Fading in (10000 -> 11000)
+    assert vg._get_scoreboard_additional_values_alpha(cfg, 10000) == 0.0
+    assert vg._get_scoreboard_additional_values_alpha(cfg, 10500) == 0.5
+    assert vg._get_scoreboard_additional_values_alpha(cfg, 11000) == 1.0
+    assert vg._get_scoreboard_additional_values_alpha(cfg, 15000) == 1.0
+
+    # Fading out (20000 -> 21000)
+    assert vg._get_scoreboard_additional_values_alpha(cfg, 20000) == 1.0
+    assert vg._get_scoreboard_additional_values_alpha(cfg, 20500) == 0.5
+    assert vg._get_scoreboard_additional_values_alpha(cfg, 21000) == 0.0
+    assert vg._get_scoreboard_additional_values_alpha(cfg, 30000) == 0.0
+
+
+def test_scoreboard_columns_offset_interpolation() -> None:
+    from lfdata.model import LFGame
+    from lfdata.video.renderer import VideoGenerator
+
+    game = LFGame(game_id='interp_test', game_type='SM5', duration=900000)
+    vg = VideoGenerator(game)
+
+    cols_std, offsets_std = vg._resolve_scoreboard_columns(
+        x_start=0, table_width=650, show_additional=False
+    )
+    cols_wide, offsets_wide = vg._resolve_scoreboard_columns(
+        x_start=0, table_width=1650, show_additional=True, additional_alpha=1.0
+    )
+    cols_half, offsets_half = vg._resolve_scoreboard_columns(
+        x_start=0, table_width=1650, show_additional=True, additional_alpha=0.5
+    )
+
+    std_map = dict(zip(cols_std, offsets_std))
+    wide_map = dict(zip(cols_wide, offsets_wide))
+    half_map = dict(zip(cols_half, offsets_half))
+
+    # Standard columns should be at midpoint
+    for col in cols_std:
+        expected = int(std_map[col] + (wide_map[col] - std_map[col]) * 0.5)
+        assert half_map[col] == expected
+
+    # Additional columns should match wide offset
+    for col in cols_wide:
+        if col not in cols_std:
+            assert half_map[col] == wide_map[col]
+
+
+def test_scoreboard_drawing_with_fade_alpha() -> None:
+    from unittest.mock import patch
+    from PIL import Image
+    from lfdata.model import LFGame
+    from lfdata.video.element import (
+        LFScoreboardData,
+        LFScoreboardPlayerData,
+        LFScoreboardTeamData,
+        LFScoreboardTeamTotals,
+        UIElement,
+        UIElementStyle,
+    )
+    from lfdata.video.renderer import VideoGenerator
+
+    game = LFGame(game_id='fade_draw', game_type='SM5', duration=900000)
+    vg = VideoGenerator(game)
+    img = Image.new('RGBA', (1920, 1080), (0, 0, 0, 0))
+
+    p = LFScoreboardPlayerData(
+        codename='PlayerOne',
+        role_name='Commander',
+        score=500,
+        lives=15,
+        shots=30,
+        missiles=1,
+        special_points=3,
+        hp=3,
+        max_hp=3,
+        is_down=False,
+        is_eliminated=False,
+        penalties=0,
+        shots_fired=60,
+        shots_landed=30,
+        missiles_fired=2,
+        missiles_landed=1,
+        nukes_detonated=1,
+        nukes_activated=1,
+        nuke_cancels=0,
+        own_nuke_cancels=0,
+        medic_hits=1,
+        own_medic_hits=0,
+        medic_nukes=0,
+        times_zapped=5,
+        times_zapped_opponents=8,
+    )
+    totals = LFScoreboardTeamTotals(
+        score=500,
+        lives=15,
+        shots=30,
+        missiles=1,
+        special_points=3,
+        hp=3,
+        shots_fired=60,
+        shots_landed=30,
+        missiles_fired=2,
+        missiles_landed=1,
+        nukes_detonated=1,
+        nukes_activated=1,
+        nuke_cancels=0,
+        own_nuke_cancels=0,
+        medic_hits=1,
+        own_medic_hits=0,
+        medic_nukes=0,
+        times_zapped=5,
+        times_zapped_opponents=8,
+    )
+    team = LFScoreboardTeamData(
+        team_index=0,
+        team_name='Red Team',
+        team_score=500,
+        color_rgb='#ff0000',
+        players=[p],
+        visual_rank=1.0,
+        totals=totals,
+        y_pos=200.0,
+    )
+    el = UIElement(
+        element_type='scoreboard',
+        scoreboard_data=LFScoreboardData(teams=[team]),
+        style=UIElementStyle(size=20),
+    )
+
+    cfg = {
+        'elements': {
+            'scoreboard': {
+                'enabled': True,
+                'additional_values': 'after_game',
+                'additional_values_fade_ms': 1000,
+            }
+        }
+    }
+
+    draw_calls: list[tuple[str, tuple[int, ...]]] = []
+    orig_draw = vg._draw_text_with_fallback
+
+    def mock_draw(
+        draw: object,
+        xy: tuple[float, float],
+        text: str,
+        fill: tuple[int, ...],
+        font: object,
+        anchor: str = 'la',
+        stroke_width: int = 0,
+        stroke_fill: tuple[int, ...] | None = None,
+    ) -> None:
+        draw_calls.append((text, fill))
+        orig_draw(
+            draw=draw,
+            xy=xy,
+            text=text,
+            fill=fill,
+            font=font,
+            anchor=anchor,
+            stroke_width=stroke_width,
+            stroke_fill=stroke_fill,
+        )
+
+    with patch.object(vg, '_draw_text_with_fallback', side_effect=mock_draw):
+        vg._draw_scoreboard(image=img, el=el, config=cfg, time_ms=900500)
+
+    nukes_header_calls = [c for c in draw_calls if c[0] == 'Nukes']
+    assert len(nukes_header_calls) == 1
+    assert nukes_header_calls[0][1] == (255, 255, 255, 127)
+
+    player_header_calls = [c for c in draw_calls if c[0] == 'Player']
+    assert len(player_header_calls) == 1
+    assert player_header_calls[0][1] == (255, 255, 255, 255)
+
+
 def test_sm5_scoreboard_additional_columns() -> None:
     from lfdata.model import LFGame
     from lfdata.video.renderer import VideoGenerator

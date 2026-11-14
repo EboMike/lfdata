@@ -57,6 +57,15 @@ from lfdata.video.helpers import (
 
 IMAGE_TAG_PATTERN = re.compile(r'\[img:([^\]]+)\]')
 
+ADDITIONAL_SCOREBOARD_COLUMNS: frozenset[str] = frozenset({
+    'Nukes',
+    'Missile Acc',
+    'Accuracy',
+    'Hit Ratio',
+    'Medic Hits',
+    'Nuke Cancels',
+})
+
 _local_vg: 'VideoGenerator | None' = None
 _local_hud_gen: VisualElementGenerator | None = None
 
@@ -1194,6 +1203,7 @@ class VideoGenerator:
                     resolved_config,
                     time_ms=game_time_ms,
                     hud_gen=hud_gen,
+                    raw_config=config,
                 )
             elif el.element_type == 'downtime_bar':
                 self._draw_downtime_bar(img, el)
@@ -1819,6 +1829,7 @@ class VideoGenerator:
         config: dict[str, object],
         time_ms: int = 0,
         hud_gen: VisualElementGenerator | None = None,
+        raw_config: dict[str, object] | None = None,
     ) -> None:
         """Draws the animated scoreboard table onto the image.
 
@@ -1828,6 +1839,7 @@ class VideoGenerator:
             config: The merged video configuration options.
             time_ms: Current millisecond timestamp for animations.
             hud_gen: Optional HUD generator providing game termination info.
+            raw_config: Optional un-resolved video configuration dictionary.
         """
         teams = el.scoreboard_data.teams if el.scoreboard_data else []
         if not teams:
@@ -1872,9 +1884,18 @@ class VideoGenerator:
         sb_config = config.get('elements', {}).get('scoreboard', {})
         draw_background = sb_config.get('draw_background', False)
         draw_borders = sb_config.get('draw_borders', False)
-        show_additional = self._should_show_scoreboard_additional_values(
-            sb_config=sb_config, time_ms=time_ms, hud_gen=hud_gen
+        raw_sb_cfg = (
+            raw_config.get('elements', {}).get('scoreboard', {})
+            if raw_config is not None
+            else None
         )
+        additional_alpha = self._get_scoreboard_additional_values_alpha(
+            sb_config=sb_config,
+            time_ms=time_ms,
+            hud_gen=hud_gen,
+            raw_sb_config=raw_sb_cfg,
+        )
+        show_additional = additional_alpha > 0.0
         stroke_width = max(1, int(pixel_size * 0.05))
 
         # Find max player column width (name + penalties + hitpoints)
@@ -1975,6 +1996,7 @@ class VideoGenerator:
                     max_hp_w=max_hp_w,
                     time_ms=time_ms,
                     show_additional=show_additional,
+                    additional_alpha=additional_alpha,
                 )
             if el.alpha < 1.0:
                 r, g, b, a = overlay.split()
@@ -2060,6 +2082,7 @@ class VideoGenerator:
         draw_background: bool,
         draw_borders: bool,
         max_hp_w: int = 0,
+        additional_alpha: float = 1.0,
     ) -> int:
         """Draws the outer table rectangle and the header columns.
 
@@ -2080,6 +2103,7 @@ class VideoGenerator:
             draw_background: Whether to draw the table background color.
             draw_borders: Whether to draw the table borders and lines.
             max_hp_w: Maximum hitpoints width in pixels.
+            additional_alpha: Transition opacity for additional stats columns.
 
         Returns:
             int: The Y coordinate starting for player rows.
@@ -2100,19 +2124,30 @@ class VideoGenerator:
             )
 
         for col_name, offset in zip(columns, offsets):
+            col_alpha = (
+                additional_alpha
+                if col_name in ADDITIONAL_SCOREBOARD_COLUMNS
+                else 1.0
+            )
+            if col_alpha <= 0.0:
+                continue
+
             x_pos = offset
             if col_name == 'Player':
                 x_pos += max_hp_w
+
+            text_fill = (255, 255, 255, int(255 * col_alpha))
+            text_stroke = (0, 0, 0, int(255 * col_alpha))
 
             self._draw_text_with_fallback(
                 draw,
                 (x_pos, ty + header_h // 2),
                 col_name,
-                fill=(255, 255, 255, 255),
+                fill=text_fill,
                 font=bold_font,
                 anchor='lm',
                 stroke_width=stroke_width,
-                stroke_fill=(0, 0, 0, 255),
+                stroke_fill=text_stroke,
             )
 
         sep_y = ty + header_h
@@ -2143,6 +2178,7 @@ class VideoGenerator:
         x_start: int = 0,
         table_width: int = 0,
         time_ms: int = 0,
+        additional_alpha: float = 1.0,
     ) -> int:
         """Draws individual player rows inside the table.
 
@@ -2164,6 +2200,7 @@ class VideoGenerator:
             x_start: Table starting X position.
             table_width: Table width in pixels.
             time_ms: Current millisecond timestamp for animations.
+            additional_alpha: Transition opacity for additional stats columns.
 
         Returns:
             int: The Y coordinate ending after player rows.
@@ -2281,15 +2318,42 @@ class VideoGenerator:
                                     shield_img,
                                 )
 
+                col_alpha = (
+                    additional_alpha
+                    if col in ADDITIONAL_SCOREBOARD_COLUMNS
+                    else 1.0
+                )
+                if col_alpha <= 0.0:
+                    continue
+
+                draw_color = (
+                    p_color[0],
+                    p_color[1],
+                    p_color[2],
+                    int(
+                        (p_color[3] if len(p_color) > 3 else 255)
+                        * col_alpha
+                    ),
+                )
+                draw_stroke = (
+                    0,
+                    0,
+                    0,
+                    int(
+                        (stroke_fill[3] if len(stroke_fill) > 3 else 255)
+                        * col_alpha
+                    ),
+                )
+
                 self._draw_text_with_fallback(
                     draw,
                     (x_pos, y_row + row_h // 2),
                     val,
-                    fill=p_color,
+                    fill=draw_color,
                     font=font,
                     anchor='lm',
                     stroke_width=stroke_width,
-                    stroke_fill=stroke_fill,
+                    stroke_fill=draw_stroke,
                 )
 
                 if col == 'Player':
@@ -2349,6 +2413,7 @@ class VideoGenerator:
         stroke_width: int,
         draw_borders: bool,
         max_hp_w: int = 0,
+        additional_alpha: float = 1.0,
     ) -> None:
         """Draws the totals row at the bottom of the table.
 
@@ -2366,6 +2431,7 @@ class VideoGenerator:
             stroke_width: The text outline stroke width in pixels.
             draw_borders: Whether to draw the totals separator line.
             max_hp_w: Maximum hitpoints width in pixels.
+            additional_alpha: Transition opacity for additional stats columns.
         """
         if draw_borders:
             draw.line(
@@ -2375,18 +2441,28 @@ class VideoGenerator:
             )
         tot_vals = self._compile_totals_row_values(totals, columns)
         for col, val, offset in zip(columns, tot_vals, offsets):
+            col_alpha = (
+                additional_alpha
+                if col in ADDITIONAL_SCOREBOARD_COLUMNS
+                else 1.0
+            )
+            if col_alpha <= 0.0:
+                continue
+
             x_pos: int = offset
             if col == 'Player':
                 x_pos += max_hp_w
+            text_fill = (255, 255, 255, int(255 * col_alpha))
+            text_stroke = (0, 0, 0, int(255 * col_alpha))
             self._draw_text_with_fallback(
                 draw,
                 (x_pos, y_row + totals_h // 2),
                 val,
-                fill=(255, 255, 255, 255),
+                fill=text_fill,
                 font=bold_font,
                 anchor='lm',
                 stroke_width=stroke_width,
-                stroke_fill=(0, 0, 0, 255),
+                stroke_fill=text_stroke,
             )
 
     def _draw_team_table(
@@ -2408,6 +2484,7 @@ class VideoGenerator:
         max_hp_w: int = 0,
         time_ms: int = 0,
         show_additional: bool = False,
+        additional_alpha: float = 1.0,
     ) -> None:
         """Draws a single team's table border, headers, and rows.
 
@@ -2429,6 +2506,7 @@ class VideoGenerator:
             max_hp_w: Maximum hitpoints width in pixels.
             time_ms: Current millisecond timestamp for animations.
             show_additional: Whether to show additional scoreboard columns.
+            additional_alpha: Transition opacity for additional stats columns.
         """
         bg_fill, text_color, dimmed_color, gray_color = (
             self._calculate_team_colors(team)
@@ -2465,6 +2543,7 @@ class VideoGenerator:
                 table_width=table_width,
                 max_player_w=max_player_w,
                 show_additional=show_additional,
+                additional_alpha=additional_alpha,
             )
             padding_y = int(5 * scale * image.height / DEFAULT_FRAME_HEIGHT)
 
@@ -2485,6 +2564,7 @@ class VideoGenerator:
                 draw_background=draw_background,
                 draw_borders=draw_borders,
                 max_hp_w=max_hp_w,
+                additional_alpha=additional_alpha,
             )
 
             y_row = self._draw_player_rows(
@@ -2505,6 +2585,7 @@ class VideoGenerator:
                 x_start=x_start,
                 table_width=actual_table_width,
                 time_ms=time_ms,
+                additional_alpha=additional_alpha,
             )
 
             totals_h = int(pixel_size * (35 / 27))
@@ -2522,11 +2603,219 @@ class VideoGenerator:
                 stroke_width=stroke_width,
                 draw_borders=draw_borders,
                 max_hp_w=max_hp_w,
+                additional_alpha=additional_alpha,
             )
 
             image.alpha_composite(overlay)
         finally:
             overlay.close()
+
+    def _resolve_game_ended_ms(
+        self, hud_gen: VisualElementGenerator | None = None
+    ) -> int | None:
+        """Resolves the game termination timestamp in milliseconds.
+
+        Args:
+            hud_gen: Optional HUD generator providing game termination info.
+
+        Returns:
+            int | None: Game end timestamp in milliseconds, or None.
+        """
+        if hud_gen is not None and hud_gen.game_ended_at_ms is not None:
+            return hud_gen.game_ended_at_ms
+        if getattr(self, 'game_ended_at_ms', None) is not None:
+            return self.game_ended_at_ms
+        end_ms = self._find_game_ended_at_ms()
+        if end_ms is not None:
+            return end_ms
+        return self.game.duration
+
+    def _calculate_keyframed_additional_values_alpha(
+        self,
+        keyframes_data: list[object],
+        time_ms: int,
+        fade_ms: int,
+        hud_gen: VisualElementGenerator | None = None,
+    ) -> float:
+        """Calculates alpha from keyframes defining additional stats state.
+
+        Args:
+            keyframes_data: List of keyframe dictionaries.
+            time_ms: Current playback timestamp in milliseconds.
+            fade_ms: Transition duration in milliseconds.
+            hud_gen: Optional HUD generator providing game info.
+
+        Returns:
+            float: Opacity fraction between 0.0 and 1.0.
+        """
+        if not keyframes_data:
+            return 0.0
+
+        end_ms = self._resolve_game_ended_ms(hud_gen)
+        resolved_kfs: list[tuple[int, float]] = []
+
+        for kf in keyframes_data:
+            if not isinstance(kf, dict):
+                continue
+            kf_time_raw = kf.get('time', 0)
+            try:
+                kf_time_ms = int(float(kf_time_raw))
+            except (TypeError, ValueError):
+                kf_time_ms = 0
+
+            ref = kf.get(
+                'reference', kf.get('time_reference', 'start_of_game')
+            )
+            if not isinstance(ref, str):
+                ref = 'start_of_game'
+            ref_clean = ref.strip().lower().replace(' ', '_')
+
+            if ref_clean in ('end_of_game', 'game_end') and end_ms is not None:
+                abs_time_ms = end_ms + kf_time_ms
+            else:
+                abs_time_ms = kf_time_ms
+
+            val = kf.get('value')
+            target_alpha: float = 0.0
+            if isinstance(val, bool):
+                target_alpha = 1.0 if val else 0.0
+            elif isinstance(val, (int, float)):
+                target_alpha = max(0.0, min(1.0, float(val)))
+            elif isinstance(val, str):
+                mode = ScoreboardAdditionalValues.from_str(val)
+                if mode == ScoreboardAdditionalValues.ALWAYS:
+                    target_alpha = 1.0
+                elif mode == ScoreboardAdditionalValues.NEVER:
+                    target_alpha = 0.0
+                elif mode == ScoreboardAdditionalValues.AFTER_GAME:
+                    target_alpha = (
+                        1.0
+                        if (end_ms is not None and abs_time_ms >= end_ms)
+                        else 0.0
+                    )
+            resolved_kfs.append((abs_time_ms, target_alpha))
+
+        if not resolved_kfs:
+            return 0.0
+
+        resolved_kfs.sort(key=lambda item: item[0])
+
+        if time_ms < resolved_kfs[0][0]:
+            return 0.0
+
+        active_idx = 0
+        for i, (kf_t, _) in enumerate(resolved_kfs):
+            if time_ms >= kf_t:
+                active_idx = i
+            else:
+                break
+
+        curr_t, curr_target = resolved_kfs[active_idx]
+        prev_target = (
+            resolved_kfs[active_idx - 1][1] if active_idx > 0 else 0.0
+        )
+
+        if curr_target == prev_target or fade_ms <= 0:
+            return curr_target
+
+        elapsed_ms = time_ms - curr_t
+        if elapsed_ms < fade_ms:
+            p = elapsed_ms / fade_ms
+            return max(
+                0.0, min(1.0, prev_target + (curr_target - prev_target) * p)
+            )
+
+        return curr_target
+
+    def _get_scoreboard_additional_values_alpha(
+        self,
+        sb_config: dict[str, object],
+        time_ms: int,
+        hud_gen: VisualElementGenerator | None = None,
+        raw_sb_config: dict[str, object] | None = None,
+    ) -> float:
+        """Calculates the fade opacity fraction for scoreboard additional stats.
+
+        Determines the transition alpha (0.0 to 1.0) when additional stats fade
+        in or out based on configuration and game state.
+
+        Args:
+            sb_config: Scoreboard element configuration dictionary.
+            time_ms: Current playback timestamp in milliseconds.
+            hud_gen: Optional HUD generator providing game termination info.
+            raw_sb_config: Optional un-resolved scoreboard configuration dict.
+
+        Returns:
+            float: Alpha value between 0.0 (hidden) and 1.0 (fully visible).
+        """
+        fade_ms_val = sb_config.get(
+            'additional_values_fade_ms',
+            sb_config.get(
+                'additional_stats_fade_ms',
+                sb_config.get('fade_duration_ms', 1000),
+            ),
+        )
+        try:
+            fade_ms = int(fade_ms_val)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            fade_ms = 1000
+        if fade_ms < 0:
+            fade_ms = 0
+
+        check_cfg = raw_sb_config if raw_sb_config is not None else sb_config
+        raw_val = check_cfg.get(
+            'additional_values',
+            check_cfg.get(
+                'additional_stats',
+                check_cfg.get('advanced_stats', None),
+            ),
+        )
+        if raw_val is None and check_cfg is not sb_config:
+            raw_val = sb_config.get(
+                'additional_values',
+                sb_config.get(
+                    'additional_stats',
+                    sb_config.get(
+                        'advanced_stats', ScoreboardAdditionalValues.AFTER_GAME
+                    ),
+                ),
+            )
+        elif raw_val is None:
+            raw_val = ScoreboardAdditionalValues.AFTER_GAME
+
+        if isinstance(raw_val, dict) and 'keyframes' in raw_val:
+            return self._calculate_keyframed_additional_values_alpha(
+                keyframes_data=raw_val['keyframes'],
+                time_ms=time_ms,
+                fade_ms=fade_ms,
+                hud_gen=hud_gen,
+            )
+
+        if isinstance(raw_val, float):
+            return max(0.0, min(1.0, raw_val))
+
+        if isinstance(raw_val, bool):
+            return 1.0 if raw_val else 0.0
+
+        mode = ScoreboardAdditionalValues.from_str(str(raw_val))
+        if mode == ScoreboardAdditionalValues.ALWAYS:
+            return 1.0
+        if mode == ScoreboardAdditionalValues.NEVER:
+            return 0.0
+
+        if mode == ScoreboardAdditionalValues.AFTER_GAME:
+            end_ms = self._resolve_game_ended_ms(hud_gen)
+            if end_ms is None or end_ms <= 0:
+                return 0.0
+            if time_ms < end_ms:
+                return 0.0
+            if fade_ms <= 0:
+                return 1.0
+            if time_ms >= end_ms + fade_ms:
+                return 1.0
+            return (time_ms - end_ms) / fade_ms
+
+        return 0.0
 
     def _should_show_scoreboard_additional_values(
         self,
@@ -2544,6 +2833,12 @@ class VideoGenerator:
         Returns:
             bool: True if additional columns should be rendered.
         """
+        alpha = self._get_scoreboard_additional_values_alpha(
+            sb_config=sb_config, time_ms=time_ms, hud_gen=hud_gen
+        )
+        if alpha > 0.0:
+            return True
+        end_ms = self._resolve_game_ended_ms(hud_gen)
         raw_val = sb_config.get(
             'additional_values',
             sb_config.get(
@@ -2553,31 +2848,16 @@ class VideoGenerator:
                 ),
             ),
         )
-        if isinstance(raw_val, bool):
-            return raw_val
-
-        mode = ScoreboardAdditionalValues.from_str(str(raw_val))
-        if mode == ScoreboardAdditionalValues.ALWAYS:
-            return True
-        if mode == ScoreboardAdditionalValues.NEVER:
-            return False
-
-        end_ms: int | None = None
-        if hud_gen is not None and hud_gen.game_ended_at_ms is not None:
-            end_ms = hud_gen.game_ended_at_ms
-        elif getattr(self, 'game_ended_at_ms', None) is not None:
-            end_ms = self.game_ended_at_ms
-        else:
-            end_ms = self._find_game_ended_at_ms()
-
-        if end_ms is None:
-            end_ms = self.game.duration
-
-        return (
-            time_ms >= end_ms
-            if (end_ms is not None and end_ms > 0)
-            else False
-        )
+        if (
+            ScoreboardAdditionalValues.from_str(str(raw_val))
+            == ScoreboardAdditionalValues.AFTER_GAME
+        ):
+            return (
+                time_ms >= end_ms
+                if (end_ms is not None and end_ms > 0)
+                else False
+            )
+        return False
 
     @staticmethod
     def _format_accuracy(shots_landed: int, shots_fired: int) -> str:
@@ -2660,6 +2940,7 @@ class VideoGenerator:
         table_width: int,
         max_player_w: int | None = None,
         show_additional: bool = False,
+        additional_alpha: float = 1.0,
     ) -> tuple[list[str], list[int]]:
         """Resolves which scoreboard columns to display based on game type.
 
@@ -2668,6 +2949,7 @@ class VideoGenerator:
             table_width: Table width in pixels.
             max_player_w: Maximum player column width in pixels.
             show_additional: Whether to include additional stats columns.
+            additional_alpha: Transition opacity for additional stats columns.
 
         Returns:
             tuple: Active column headers and absolute X coordinates.
@@ -2787,6 +3069,29 @@ class VideoGenerator:
             if col != 'Player' and excess_w > 0:
                 offset_val += excess_w
             offsets.append(offset_val)
+
+        if show_additional and 0.0 < additional_alpha < 1.0:
+            std_cols, std_offsets = self._resolve_scoreboard_columns(
+                x_start=x_start,
+                table_width=int(650 * table_width / base_w),
+                max_player_w=max_player_w,
+                show_additional=False,
+                additional_alpha=0.0,
+            )
+            std_map = dict(zip(std_cols, std_offsets))
+            interpolated_offsets: list[int] = []
+            for col, wide_offset in zip(columns, offsets):
+                if col in std_map:
+                    std_offset = std_map[col]
+                    interpolated = int(
+                        std_offset
+                        + (wide_offset - std_offset) * additional_alpha
+                    )
+                    interpolated_offsets.append(interpolated)
+                else:
+                    interpolated_offsets.append(wide_offset)
+            return columns, interpolated_offsets
+
         return columns, offsets
 
     def _compile_player_row_values(

@@ -137,6 +137,7 @@ class PropertiesPanel(ttk.LabelFrame):
         self.additional_stats_var = self.advanced_stats_var
         self.sb_draw_bg_var = tk.BooleanVar()
         self.sb_draw_borders_var = tk.BooleanVar()
+        self.sb_fade_ms_var = tk.StringVar()
 
         # Hit Border specific variables
         self.hb_dur_hp_var = tk.StringVar()
@@ -339,6 +340,25 @@ class PropertiesPanel(ttk.LabelFrame):
             row=2, column=1, sticky='w', padx=5, pady=3
         )
 
+        self.lbl_sb_fade_ms = ttk.Label(
+            self.scoreboard_frame, text='Fade (ms):'
+        )
+        self.entry_sb_fade_ms = ttk.Entry(
+            self.scoreboard_frame, textvariable=self.sb_fade_ms_var
+        )
+        self.entry_sb_fade_ms.bind(
+            '<FocusOut>', self._on_sb_fade_ms_change
+        )
+        self.entry_sb_fade_ms.bind(
+            '<Return>', self._on_sb_fade_ms_change
+        )
+        self.lbl_sb_fade_ms.grid(
+            row=3, column=0, sticky='w', padx=5, pady=3
+        )
+        self.entry_sb_fade_ms.grid(
+            row=3, column=1, sticky='ew', padx=5, pady=3
+        )
+
         self.scoreboard_frame.grid_remove()
         self.lbl_advanced_stats.grid_remove()
         self.cmb_advanced_stats.grid_remove()
@@ -499,6 +519,11 @@ class PropertiesPanel(ttk.LabelFrame):
                 self.sb_draw_borders_var.set(
                     bool(el.get('draw_borders', False))
                 )
+                raw_fade_ms = el.get(
+                    'additional_values_fade_ms',
+                    el.get('additional_stats_fade_ms', 1000),
+                )
+                self.sb_fade_ms_var.set(str(raw_fade_ms))
             else:
                 self.scoreboard_frame.grid_remove()
                 self.lbl_advanced_stats.grid_remove()
@@ -506,6 +531,7 @@ class PropertiesPanel(ttk.LabelFrame):
                 self.advanced_stats_var.set('')
                 self.sb_draw_bg_var.set(False)
                 self.sb_draw_borders_var.set(False)
+                self.sb_fade_ms_var.set('')
                 self.default_frame.grid(
                     row=1, column=0, columnspan=3, sticky='nsew'
                 )
@@ -606,6 +632,7 @@ class PropertiesPanel(ttk.LabelFrame):
         self.advanced_stats_var.set('')
         self.sb_draw_bg_var.set(False)
         self.sb_draw_borders_var.set(False)
+        self.sb_fade_ms_var.set('')
         self.x_var.set('')
         self.y_var.set('')
         self.w_var.set('')
@@ -749,6 +776,31 @@ class PropertiesPanel(ttk.LabelFrame):
         )
         self.on_update()
 
+    def _on_sb_fade_ms_change(self, _event: tk.Event | None = None) -> None:
+        """Handles changes to scoreboard additional stats fade duration.
+
+        Args:
+            _event: Optional Tkinter event object.
+        """
+        if not self.selected_element:
+            return
+        val_str = self.sb_fade_ms_var.get().strip()
+        try:
+            fade_ms = int(val_str)
+        except (ValueError, TypeError):
+            fade_ms = 1000
+        self.config_manager.update_element(
+            self.selected_element,
+            'additional_values_fade_ms',
+            fade_ms,
+        )
+        self.config_manager.update_element(
+            self.selected_element,
+            'additional_stats_fade_ms',
+            fade_ms,
+        )
+        self.on_update()
+
     def _apply_properties(self) -> None:
         """Parses entry values and applies them back to config manager."""
         if not self.selected_element:
@@ -860,6 +912,22 @@ class PropertiesPanel(ttk.LabelFrame):
                 'draw_borders',
                 self.sb_draw_borders_var.get(),
             )
+            fade_str = self.sb_fade_ms_var.get().strip()
+            if fade_str:
+                try:
+                    fade_ms = int(fade_str)
+                except (ValueError, TypeError):
+                    fade_ms = 1000
+                self.config_manager.update_element(
+                    self.selected_element,
+                    'additional_values_fade_ms',
+                    fade_ms,
+                )
+                self.config_manager.update_element(
+                    self.selected_element,
+                    'additional_stats_fade_ms',
+                    fade_ms,
+                )
 
         self.on_update()
 

@@ -469,24 +469,32 @@ def test_properties_scoreboard_advanced_stats(
     assert panel.lbl_advanced_stats.winfo_ismapped() is True
     assert panel.cmb_advanced_stats.winfo_ismapped() is True
     assert panel.advanced_stats_var.get() == 'after_game'
+    assert panel.sb_fade_ms_var.get() == '1000'
 
     # 3. Change selection via event handler
     panel.advanced_stats_var.set('always')
     panel._on_advanced_stats_select(MagicMock())
+    panel.sb_fade_ms_var.set('1500')
+    panel._on_sb_fade_ms_change(MagicMock())
     el = manager.get_element('scoreboard')
     assert el is not None
     assert el.get('additional_values') == 'always'
     assert el.get('additional_stats') == 'always'
+    assert el.get('additional_values_fade_ms') == 1500
+    assert el.get('additional_stats_fade_ms') == 1500
 
     # 4. Modify and apply via _apply_properties
     panel.advanced_stats_var.set('never')
     panel.sb_draw_bg_var.set(True)
     panel.sb_draw_borders_var.set(True)
+    panel.sb_fade_ms_var.set('2500')
     panel._apply_properties()
     assert el.get('additional_values') == 'never'
     assert el.get('additional_stats') == 'never'
     assert el.get('draw_background') is True
     assert el.get('draw_borders') is True
+    assert el.get('additional_values_fade_ms') == 2500
+    assert el.get('additional_stats_fade_ms') == 2500
 
     # 5. Clear panel hides and resets advanced stats
     panel.clear()
@@ -496,4 +504,5 @@ def test_properties_scoreboard_advanced_stats(
     assert panel.advanced_stats_var.get() == ''
     assert panel.sb_draw_bg_var.get() is False
     assert panel.sb_draw_borders_var.get() is False
+    assert panel.sb_fade_ms_var.get() == ''
 
