@@ -120,7 +120,11 @@
 
 If any command or any conversation introduced important design decisions that
 will apply to further decisions and are not currently captured in any existing
-document, add them to the `design/additional_context.md`.
+document, add them to the `design/additional_context.md`, if it exists.
+
+Also, if changes were made to any system that is documented in any design file
+(any Markdown file in this project, especially within `design/`), update the
+file to include new or updated fields, features, or functionality.
 
 ## Additional instructions
 
