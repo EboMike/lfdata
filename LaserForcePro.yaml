@@ -131,6 +131,8 @@ elements:
     x: 0.98
     y: 0.96
   hit_border:
+    ball_pulse_speed: 1.0
+    color_ball_carrier: '#0000ff'
     color_other: '#ff0000'
     color_penalty: '#ffff00'
     color_resupplied: '#ffffff'
@@ -245,10 +247,13 @@ elements:
     x: 0.65
     y: 0.92
   scoreboard:
+    additional_stats: after_game
+    additional_values: after_game
     align: left
     draw_background: false
     draw_borders: false
     enabled: true
+    end_time_offset: beginning of game
     extents:
       keyframes:
       - interpolator: linear
@@ -275,9 +280,22 @@ elements:
         value:
         - 0.4
         - 0.4
+      - interpolator: linear
+        reference: start_of_video
+        time: 808323
+        value:
+        - 0.4
+        - 0.4
+      - interpolator: linear
+        reference: start_of_video
+        time: 916828
+        value:
+        - 0.4
+        - 0.4
     fade_in_ms: 2000
     fade_out_ms: 0
     formatted_text: ''
+    start_time_offset: beginning of video
     style:
       size:
         keyframes:
@@ -297,6 +315,10 @@ elements:
           reference: end_of_game
           time: 6000
           value: 30
+        - interpolator: linear
+          reference: start_of_video
+          time: 916828
+          value: 19
     tilt: 0.0
     visible_end_ms: 0
     visible_start_ms: 3000
@@ -318,6 +340,14 @@ elements:
         reference: end_of_game
         time: 6000
         value: 0.14
+      - interpolator: linear
+        reference: start_of_video
+        time: 808323
+        value: 0.02
+      - interpolator: linear
+        reference: start_of_video
+        time: 916828
+        value: 0.0
     y:
       keyframes:
       - interpolator: linear
@@ -336,6 +366,14 @@ elements:
         reference: end_of_game
         time: 6000
         value: 0.17
+      - interpolator: linear
+        reference: start_of_video
+        time: 808323
+        value: 0.4
+      - interpolator: linear
+        reference: start_of_video
+        time: 916828
+        value: 0.12
   team_scores:
     align: left
     enabled: true
