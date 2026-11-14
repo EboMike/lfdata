@@ -478,10 +478,10 @@ def test_properties_scoreboard_advanced_stats(
     panel._on_sb_fade_ms_change(MagicMock())
     el = manager.get_element('scoreboard')
     assert el is not None
-    assert el.get('additional_values') == 'always'
     assert el.get('additional_stats') == 'always'
-    assert el.get('additional_values_fade_ms') == 1500
+    assert el.get('additional_values') is None
     assert el.get('additional_stats_fade_ms') == 1500
+    assert el.get('additional_values_fade_ms') is None
 
     # 4. Modify and apply via _apply_properties
     panel.advanced_stats_var.set('never')
@@ -489,12 +489,12 @@ def test_properties_scoreboard_advanced_stats(
     panel.sb_draw_borders_var.set(True)
     panel.sb_fade_ms_var.set('2500')
     panel._apply_properties()
-    assert el.get('additional_values') == 'never'
     assert el.get('additional_stats') == 'never'
+    assert el.get('additional_values') is None
     assert el.get('draw_background') is True
     assert el.get('draw_borders') is True
-    assert el.get('additional_values_fade_ms') == 2500
     assert el.get('additional_stats_fade_ms') == 2500
+    assert el.get('additional_values_fade_ms') is None
 
     # 5. Clear panel hides and resets advanced stats
     panel.clear()

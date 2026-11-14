@@ -2413,7 +2413,7 @@ def test_scoreboard_additional_values_visibility() -> None:
     game = LFGame(game_id='test_vis', game_type='SM5', duration=900000)
     vg = VideoGenerator(game)
 
-    cfg_never = {'additional_values': 'never'}
+    cfg_never = {'additional_stats': 'never'}
     assert not vg._should_show_scoreboard_additional_values(
         sb_config=cfg_never, time_ms=950000
     )
@@ -2421,7 +2421,7 @@ def test_scoreboard_additional_values_visibility() -> None:
         sb_config=cfg_never, time_ms=100000
     )
 
-    cfg_always = {'additional_values': 'always'}
+    cfg_always = {'additional_stats': 'always'}
     assert vg._should_show_scoreboard_additional_values(
         sb_config=cfg_always, time_ms=100000
     )
@@ -2429,7 +2429,7 @@ def test_scoreboard_additional_values_visibility() -> None:
         sb_config=cfg_always, time_ms=950000
     )
 
-    cfg_after = {'additional_values': 'after_game'}
+    cfg_after = {'additional_stats': 'after_game'}
     assert not vg._should_show_scoreboard_additional_values(
         sb_config=cfg_after, time_ms=899999
     )
@@ -2438,6 +2438,12 @@ def test_scoreboard_additional_values_visibility() -> None:
     )
     assert vg._should_show_scoreboard_additional_values(
         sb_config=cfg_after, time_ms=950000
+    )
+
+    # Fallback to additional_values
+    cfg_legacy = {'additional_values': 'always'}
+    assert vg._should_show_scoreboard_additional_values(
+        sb_config=cfg_legacy, time_ms=100000
     )
 
     cfg_default: dict[str, object] = {}
@@ -2471,7 +2477,7 @@ def test_scoreboard_additional_values_mission_end_early() -> None:
     vg = VideoGenerator(game)
     assert vg.game_ended_at_ms == 300000
 
-    cfg_after = {'additional_values': 'after_game'}
+    cfg_after = {'additional_stats': 'after_game'}
     # Before MISSION_END: should NOT show
     assert not vg._should_show_scoreboard_additional_values(
         sb_config=cfg_after, time_ms=299999
@@ -2503,7 +2509,7 @@ def test_scoreboard_additional_values_fade_alpha() -> None:
     vg = VideoGenerator(game)
 
     # 1. Default fade duration (1000ms) with after_game
-    cfg_after = {'additional_values': 'after_game'}
+    cfg_after = {'additional_stats': 'after_game'}
     assert vg._get_scoreboard_additional_values_alpha(cfg_after, 899999) == 0.0
     assert vg._get_scoreboard_additional_values_alpha(cfg_after, 900000) == 0.0
     assert vg._get_scoreboard_additional_values_alpha(cfg_after, 900250) == 0.25
@@ -2514,27 +2520,27 @@ def test_scoreboard_additional_values_fade_alpha() -> None:
 
     # 2. Configurable fade duration (e.g. 500ms)
     cfg_500 = {
-        'additional_values': 'after_game',
-        'additional_values_fade_ms': 500,
+        'additional_stats': 'after_game',
+        'additional_stats_fade_ms': 500,
     }
     assert vg._get_scoreboard_additional_values_alpha(cfg_500, 900000) == 0.0
     assert vg._get_scoreboard_additional_values_alpha(cfg_500, 900250) == 0.5
     assert vg._get_scoreboard_additional_values_alpha(cfg_500, 900500) == 1.0
 
-    # 3. Configurable fade duration via additional_stats_fade_ms
-    cfg_stats_fade = {
-        'additional_stats': 'after_game',
-        'additional_stats_fade_ms': 2000,
+    # 3. Legacy fallback to additional_values_fade_ms
+    cfg_legacy_fade = {
+        'additional_values': 'after_game',
+        'additional_values_fade_ms': 2000,
     }
     assert (
-        vg._get_scoreboard_additional_values_alpha(cfg_stats_fade, 901000)
+        vg._get_scoreboard_additional_values_alpha(cfg_legacy_fade, 901000)
         == 0.5
     )
 
     # 4. Instant fade (0ms)
     cfg_instant = {
-        'additional_values': 'after_game',
-        'additional_values_fade_ms': 0,
+        'additional_stats': 'after_game',
+        'additional_stats_fade_ms': 0,
     }
     assert (
         vg._get_scoreboard_additional_values_alpha(cfg_instant, 899999) == 0.0
@@ -2544,9 +2550,9 @@ def test_scoreboard_additional_values_fade_alpha() -> None:
     )
 
     # 5. Always and Never
-    cfg_always = {'additional_values': 'always'}
+    cfg_always = {'additional_stats': 'always'}
     assert vg._get_scoreboard_additional_values_alpha(cfg_always, 100000) == 1.0
-    cfg_never = {'additional_values': 'never'}
+    cfg_never = {'additional_stats': 'never'}
     assert vg._get_scoreboard_additional_values_alpha(cfg_never, 950000) == 0.0
 
 
@@ -2563,8 +2569,8 @@ def test_scoreboard_additional_values_keyframes_fade() -> None:
         {'time': 20000, 'value': False},
     ]
     cfg = {
-        'additional_values': {'keyframes': kfs},
-        'additional_values_fade_ms': 1000,
+        'additional_stats': {'keyframes': kfs},
+        'additional_stats_fade_ms': 1000,
     }
 
     # Before first keyframe
@@ -2701,8 +2707,8 @@ def test_scoreboard_drawing_with_fade_alpha() -> None:
         'elements': {
             'scoreboard': {
                 'enabled': True,
-                'additional_values': 'after_game',
-                'additional_values_fade_ms': 1000,
+                'additional_stats': 'after_game',
+                'additional_stats_fade_ms': 1000,
             }
         }
     }
@@ -3057,7 +3063,7 @@ def test_scoreboard_drawing_with_additional_values() -> None:
         'elements': {
             'scoreboard': {
                 'enabled': True,
-                'additional_values': 'always',
+                'additional_stats': 'always',
                 'draw_background': True,
                 'draw_borders': True,
             }

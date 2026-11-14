@@ -190,8 +190,8 @@ DEFAULT_CONFIG: dict[str, object] = {
             'align': 'left',
             'draw_background': False,
             'draw_borders': False,
-            'additional_values': 'after_game',
-            'additional_values_fade_ms': 1000,
+            'additional_stats': 'after_game',
+            'additional_stats_fade_ms': 1000,
             'style': {'size': 15},
         },
         'downtime': {

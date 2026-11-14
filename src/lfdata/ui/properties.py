@@ -17,7 +17,10 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Callable
 
-from lfdata.model.constants.scoreboard import ScoreboardAdditionalValues
+from lfdata.model.constants.scoreboard import (
+    ScoreboardAdditionalStats,
+    ScoreboardAdditionalValues,
+)
 from lfdata.ui.animation_overview import AnimationOverviewPanel
 from lfdata.ui.config_manager import UIConfigManager
 
@@ -509,19 +512,19 @@ class PropertiesPanel(ttk.LabelFrame):
                         'additional_values',
                         el.get(
                             'advanced_stats',
-                            ScoreboardAdditionalValues.AFTER_GAME,
+                            ScoreboardAdditionalStats.AFTER_GAME,
                         ),
                     ),
                 )
-                stats_mode = ScoreboardAdditionalValues.from_str(str(raw_stats))
+                stats_mode = ScoreboardAdditionalStats.from_str(str(raw_stats))
                 self.advanced_stats_var.set(stats_mode.value)
                 self.sb_draw_bg_var.set(bool(el.get('draw_background', False)))
                 self.sb_draw_borders_var.set(
                     bool(el.get('draw_borders', False))
                 )
                 raw_fade_ms = el.get(
-                    'additional_values_fade_ms',
-                    el.get('additional_stats_fade_ms', 1000),
+                    'additional_stats_fade_ms',
+                    el.get('additional_values_fade_ms', 1000),
                 )
                 self.sb_fade_ms_var.set(str(raw_fade_ms))
             else:
@@ -748,11 +751,9 @@ class PropertiesPanel(ttk.LabelFrame):
         if not self.selected_element:
             return
         val = self.advanced_stats_var.get()
-        self.config_manager.update_element(
-            self.selected_element,
-            'additional_values',
-            val,
-        )
+        el = self.config_manager.get_element(self.selected_element)
+        if el and 'additional_values' in el:
+            del el['additional_values']
         self.config_manager.update_element(
             self.selected_element,
             'additional_stats',
@@ -789,11 +790,9 @@ class PropertiesPanel(ttk.LabelFrame):
             fade_ms = int(val_str)
         except (ValueError, TypeError):
             fade_ms = 1000
-        self.config_manager.update_element(
-            self.selected_element,
-            'additional_values_fade_ms',
-            fade_ms,
-        )
+        el = self.config_manager.get_element(self.selected_element)
+        if el and 'additional_values_fade_ms' in el:
+            del el['additional_values_fade_ms']
         self.config_manager.update_element(
             self.selected_element,
             'additional_stats_fade_ms',
@@ -894,11 +893,13 @@ class PropertiesPanel(ttk.LabelFrame):
             == 'scoreboard'
         )
         if is_scoreboard:
+            el = self.config_manager.get_element(self.selected_element)
+            if el and 'additional_values' in el:
+                del el['additional_values']
+            if el and 'additional_values_fade_ms' in el:
+                del el['additional_values_fade_ms']
             stats_str = self.advanced_stats_var.get().strip()
             if stats_str:
-                self.config_manager.update_element(
-                    self.selected_element, 'additional_values', stats_str
-                )
                 self.config_manager.update_element(
                     self.selected_element, 'additional_stats', stats_str
                 )
@@ -918,11 +919,6 @@ class PropertiesPanel(ttk.LabelFrame):
                     fade_ms = int(fade_str)
                 except (ValueError, TypeError):
                     fade_ms = 1000
-                self.config_manager.update_element(
-                    self.selected_element,
-                    'additional_values_fade_ms',
-                    fade_ms,
-                )
                 self.config_manager.update_element(
                     self.selected_element,
                     'additional_stats_fade_ms',

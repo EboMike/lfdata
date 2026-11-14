@@ -24,7 +24,11 @@ from concurrent.futures import Future, ProcessPoolExecutor
 
 from PIL import Image, ImageChops, ImageDraw, ImageFont
 
-from lfdata.model import LFGame, ScoreboardAdditionalValues
+from lfdata.model import (
+    LFGame,
+    ScoreboardAdditionalStats,
+    ScoreboardAdditionalValues,
+)
 from lfdata.model.gametypes.sm5_events import SM5_EVENT_MISSION_END
 from lfdata.video.constants import (
     DEFAULT_EXTRA_FOOTAGE_MS,
@@ -2853,9 +2857,9 @@ class VideoGenerator:
             float: Alpha value between 0.0 (hidden) and 1.0 (fully visible).
         """
         fade_ms_val = sb_config.get(
-            'additional_values_fade_ms',
+            'additional_stats_fade_ms',
             sb_config.get(
-                'additional_stats_fade_ms',
+                'additional_values_fade_ms',
                 sb_config.get('fade_duration_ms', 1000),
             ),
         )
@@ -2868,24 +2872,24 @@ class VideoGenerator:
 
         check_cfg = raw_sb_config if raw_sb_config is not None else sb_config
         raw_val = check_cfg.get(
-            'additional_values',
+            'additional_stats',
             check_cfg.get(
-                'additional_stats',
+                'additional_values',
                 check_cfg.get('advanced_stats', None),
             ),
         )
         if raw_val is None and check_cfg is not sb_config:
             raw_val = sb_config.get(
-                'additional_values',
+                'additional_stats',
                 sb_config.get(
-                    'additional_stats',
+                    'additional_values',
                     sb_config.get(
-                        'advanced_stats', ScoreboardAdditionalValues.AFTER_GAME
+                        'advanced_stats', ScoreboardAdditionalStats.AFTER_GAME
                     ),
                 ),
             )
         elif raw_val is None:
-            raw_val = ScoreboardAdditionalValues.AFTER_GAME
+            raw_val = ScoreboardAdditionalStats.AFTER_GAME
 
         if isinstance(raw_val, dict) and 'keyframes' in raw_val:
             return self._calculate_keyframed_additional_values_alpha(
@@ -2901,13 +2905,13 @@ class VideoGenerator:
         if isinstance(raw_val, bool):
             return 1.0 if raw_val else 0.0
 
-        mode = ScoreboardAdditionalValues.from_str(str(raw_val))
-        if mode == ScoreboardAdditionalValues.ALWAYS:
+        mode = ScoreboardAdditionalStats.from_str(str(raw_val))
+        if mode == ScoreboardAdditionalStats.ALWAYS:
             return 1.0
-        if mode == ScoreboardAdditionalValues.NEVER:
+        if mode == ScoreboardAdditionalStats.NEVER:
             return 0.0
 
-        if mode == ScoreboardAdditionalValues.AFTER_GAME:
+        if mode == ScoreboardAdditionalStats.AFTER_GAME:
             end_ms = self._resolve_game_ended_ms(hud_gen)
             if end_ms is None or end_ms <= 0:
                 return 0.0
@@ -2944,17 +2948,17 @@ class VideoGenerator:
             return True
         end_ms = self._resolve_game_ended_ms(hud_gen)
         raw_val = sb_config.get(
-            'additional_values',
+            'additional_stats',
             sb_config.get(
-                'additional_stats',
+                'additional_values',
                 sb_config.get(
-                    'advanced_stats', ScoreboardAdditionalValues.AFTER_GAME
+                    'advanced_stats', ScoreboardAdditionalStats.AFTER_GAME
                 ),
             ),
         )
         if (
-            ScoreboardAdditionalValues.from_str(str(raw_val))
-            == ScoreboardAdditionalValues.AFTER_GAME
+            ScoreboardAdditionalStats.from_str(str(raw_val))
+            == ScoreboardAdditionalStats.AFTER_GAME
         ):
             return (
                 time_ms >= end_ms
@@ -2962,6 +2966,13 @@ class VideoGenerator:
                 else False
             )
         return False
+
+    _get_scoreboard_additional_stats_alpha = (
+        _get_scoreboard_additional_values_alpha
+    )
+    _should_show_scoreboard_additional_stats = (
+        _should_show_scoreboard_additional_values
+    )
 
     @staticmethod
     def _format_accuracy(shots_landed: int, shots_fired: int) -> str:

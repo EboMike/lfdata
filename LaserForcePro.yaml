@@ -248,8 +248,7 @@ elements:
     y: 0.92
   scoreboard:
     additional_stats: after_game
-    additional_values: after_game
-    additional_values_fade_ms: 1000
+    additional_stats_fade_ms: 1000
     align: left
     draw_background: false
     draw_borders: false

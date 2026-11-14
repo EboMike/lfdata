@@ -342,18 +342,18 @@ color of the row so that its color pulses between the normal color and white.
 Also give the row a semitransparent blue background. Also render the ball (PNG
 file in `assets/ball.png`) to the left of the player's name.
 
-A scoreboard has a configurable value regarding its additional values. The
+A scoreboard has a configurable value regarding its additional stats. The
 options are:
 
-- **Never**: Additional values are never shown
-- **After game**: Additional values are only shown after the game has finished
-- **Always**: Additional values are shown at all times
+- **Never**: Additional stats are never shown
+- **After game**: Additional stats are only shown after the game has finished
+- **Always**: Additional stats are shown at all times
 
-The default is "After game". When additional values are not shown, the
+The default is "After game". When additional stats are not shown, the
 respective columns are not shown in the scoreboard either. When additional
 stats switch between enabled and disabled states (or vice versa), they smoothly
-fade in or out. The fade duration is configurable via
-`additional_values_fade_ms` (defaulting to 1000ms).
+fade in or out. The fade duration is configurable via `additional_stats_fade_ms`
+(defaulting to 1000ms).
 
 ## SM5 rules
 

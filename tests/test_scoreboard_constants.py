@@ -1,10 +1,14 @@
-from lfdata.model.constants.scoreboard import ScoreboardAdditionalValues
+from lfdata.model.constants.scoreboard import (
+    ScoreboardAdditionalStats,
+    ScoreboardAdditionalValues,
+)
 
 
 def test_scoreboard_additional_values_members() -> None:
     assert ScoreboardAdditionalValues.NEVER.value == 'never'
     assert ScoreboardAdditionalValues.AFTER_GAME.value == 'after_game'
     assert ScoreboardAdditionalValues.ALWAYS.value == 'always'
+    assert ScoreboardAdditionalStats is ScoreboardAdditionalValues
 
 
 def test_scoreboard_additional_values_from_str() -> None:
