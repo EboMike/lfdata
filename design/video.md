@@ -232,18 +232,22 @@ Additional stats (not shown by default):
 
 - **Nukes**, as `{nukes detonated}/{nukes activated}` (empty string for roles
   other than Commander)
-- **Missiles**, as `{missiles landed}/{missiles fired}` (empty string for roles
-  other than Heavy and Commander). "Landed" is hitting a player or a target.
-  "Fired" is anything that subtracts a missile from the player's supply.
-- **Accuracy**, as `{shots landed}/{shots fired} {accuracy}%` (for example
-  `20/80 (25%)`). This is `0/0 (0%)` if no shots were fired. "Landed" is
-  anything that hits a target, like a team mate, opponent, or base. "Fired" is
-  anything that subtracts a shot from the player's supply.
-- **Hit ratio**, as `{times zapping another player}/{times zapped} {ratio}`. A
-  zap is a single shot fired that hit the target. Only shots against opposing
-  players count. Missiles do not count. The ratio is the first number divided by
-  the second number, as `N.NN`. If the player was never zapped, the ratio is
-  equal to the number another player was zapped. Example: `20/40 (0.50)`.
+- **Misl Acc** (Missile Accuracy), as `{missiles landed}/{missiles fired}`
+  (empty string for roles other than Heavy and Commander). "Landed" is hitting a
+  player or a target. "Fired" is anything that subtracts a missile from the
+  player's supply.
+- **Accuracy**, as `{shots landed}/{shots fired} ({accuracy}%)` (for example
+  `20/80 (25%)`). The number part (`20/80`) is right-aligned and the percentage
+  part (`(25%)`) is left-aligned. This is `0/0 (0%)` if no shots were fired.
+  "Landed" is anything that hits a target, like a teammate, opponent, or base.
+  "Fired" is anything that subtracts a shot from the player's supply.
+- **Hit ratio**, as `{times zapping another player}/{times zapped} ({ratio})`.
+  The number part (`20/40`) is right-aligned and the ratio part (`(0.50)`) is
+  left-aligned. A zap is a single shot fired that hit the target. Only shots
+  against opposing players count. Missiles do not count. The ratio is the first
+  number divided by the second number, as `N.NN`. If the player was never
+  zapped, the ratio is equal to the number another player was zapped.
+  Example: `20/40 (0.50)`.
 - **Medic hits**, the number of times a medic was tagged. This is a string that
   might display these values:
   - **Enemy medic hits**: How many times the enemy medic was zapped. Increases
@@ -284,15 +288,17 @@ the same, then it is by whichever team has the higher combined score.
 
 Additional stats (not shown by default):
 
-- **Accuracy**, as `{shots landed}/{shots fired} {accuracy}%` (for example
-  `20/80 (25%)`). This is `0/0 (0%)` if no shots were fired. "Landed" is
-  anything that hits a target, like a team mate, opponent, or base. "Fired" is
-  anything that subtracts a shot from the player's supply.
-- **Hit ratio**, as `{times zapping another player}/{times zapped} {ratio}`. A
-  zap is a single shot fired that hit the target. Only shots against opposing
-  players count. The ratio is the first number divided by the second number, as
-  `N.NN`. If the player was never zapped, the ratio is equal to the number
-  another player was zapped. Example: `20/40 (0.50)`.
+- **Accuracy**, as `{shots landed}/{shots fired} ({accuracy}%)` (for example
+  `20/80 (25%)`). The number part is right-aligned and the percentage part is
+  left-aligned. This is `0/0 (0%)` if no shots were fired. "Landed" is anything
+  that hits a target, like a teammate, opponent, or base. "Fired" is anything
+  that subtracts a shot from the player's supply.
+- **Hit ratio**, as `{times zapping another player}/{times zapped} ({ratio})`.
+  The number part is right-aligned and the ratio part is left-aligned. A zap is a
+  single shot fired that hit the target. Only shots against opposing players
+  count. The ratio is the first number divided by the second number, as `N.NN`.
+  If the player was never zapped, the ratio is equal to the number another
+  player was zapped. Example: `20/40 (0.50)`.
 
 ### Any other format
 

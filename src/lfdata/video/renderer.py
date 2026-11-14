@@ -59,6 +59,7 @@ IMAGE_TAG_PATTERN = re.compile(r'\[img:([^\]]+)\]')
 
 ADDITIONAL_SCOREBOARD_COLUMNS: frozenset[str] = frozenset({
     'Nukes',
+    'Misl Acc',
     'Missile Acc',
     'Accuracy',
     'Hit Ratio',
@@ -1767,6 +1768,75 @@ class VideoGenerator:
             )
             current_x += draw.textlength(run_text, font=run_font)
 
+    def _draw_split_stat_cell(
+        self,
+        draw: ImageDraw.ImageDraw,
+        offset: int,
+        y: int,
+        val: str,
+        fill: str | tuple[int, ...] | list[int],
+        font: ImageFont.ImageFont,
+        stroke_width: int,
+        stroke_fill: str | tuple[int, ...] | list[int] | None,
+        scale_factor: float = 1.0,
+    ) -> None:
+        """Draws split stat with right-aligned number and left-aligned pct.
+
+        Args:
+            draw: ImageDraw context.
+            offset: Column starting X coordinate.
+            y: Vertical center Y coordinate.
+            val: Formatted string containing number and percentage.
+            fill: Font color.
+            font: Font for rendering.
+            stroke_width: Text stroke outline width.
+            stroke_fill: Text stroke color.
+            scale_factor: Display scaling multiplier.
+        """
+        if not val:
+            return
+        if ' ' in val:
+            parts = val.split(' ', 1)
+            num_part, pct_part = parts[0], parts[1]
+            split_x = offset + int(85 * scale_factor)
+            space_w = self._measure_text_width_with_fallback(draw, ' ', font)
+            gap = (
+                int(space_w)
+                if isinstance(space_w, (int, float)) and space_w > 0
+                else max(4, int(6 * scale_factor))
+            )
+            self._draw_text_with_fallback(
+                draw,
+                (split_x, y),
+                num_part,
+                fill=fill,
+                font=font,
+                anchor='rm',
+                stroke_width=stroke_width,
+                stroke_fill=stroke_fill,
+            )
+            self._draw_text_with_fallback(
+                draw,
+                (split_x + gap, y),
+                pct_part,
+                fill=fill,
+                font=font,
+                anchor='lm',
+                stroke_width=stroke_width,
+                stroke_fill=stroke_fill,
+            )
+        else:
+            self._draw_text_with_fallback(
+                draw,
+                (offset, y),
+                val,
+                fill=fill,
+                font=font,
+                anchor='lm',
+                stroke_width=stroke_width,
+                stroke_fill=stroke_fill,
+            )
+
     def _load_scoreboard_fonts(
         self,
         font_name: str,
@@ -2345,16 +2415,34 @@ class VideoGenerator:
                     ),
                 )
 
-                self._draw_text_with_fallback(
-                    draw,
-                    (x_pos, y_row + row_h // 2),
-                    val,
-                    fill=draw_color,
-                    font=font,
-                    anchor='lm',
-                    stroke_width=stroke_width,
-                    stroke_fill=draw_stroke,
-                )
+                if col in ('Accuracy', 'Hit Ratio', 'Ratio'):
+                    scale = row_h / 28
+                    img_w = (
+                        overlay.width if overlay is not None else 1920
+                    )
+                    scale_factor = scale * img_w / 1920
+                    self._draw_split_stat_cell(
+                        draw=draw,
+                        offset=x_pos,
+                        y=y_row + row_h // 2,
+                        val=val,
+                        fill=draw_color,
+                        font=font,
+                        stroke_width=stroke_width,
+                        stroke_fill=draw_stroke,
+                        scale_factor=scale_factor,
+                    )
+                else:
+                    self._draw_text_with_fallback(
+                        draw,
+                        (x_pos, y_row + row_h // 2),
+                        val,
+                        fill=draw_color,
+                        font=font,
+                        anchor='lm',
+                        stroke_width=stroke_width,
+                        stroke_fill=draw_stroke,
+                    )
 
                 if col == 'Player':
                     num_penalties = p.penalties
@@ -2414,6 +2502,7 @@ class VideoGenerator:
         draw_borders: bool,
         max_hp_w: int = 0,
         additional_alpha: float = 1.0,
+        scale_factor: float = 1.0,
     ) -> None:
         """Draws the totals row at the bottom of the table.
 
@@ -2432,6 +2521,7 @@ class VideoGenerator:
             draw_borders: Whether to draw the totals separator line.
             max_hp_w: Maximum hitpoints width in pixels.
             additional_alpha: Transition opacity for additional stats columns.
+            scale_factor: Display scaling multiplier.
         """
         if draw_borders:
             draw.line(
@@ -2454,16 +2544,29 @@ class VideoGenerator:
                 x_pos += max_hp_w
             text_fill = (255, 255, 255, int(255 * col_alpha))
             text_stroke = (0, 0, 0, int(255 * col_alpha))
-            self._draw_text_with_fallback(
-                draw,
-                (x_pos, y_row + totals_h // 2),
-                val,
-                fill=text_fill,
-                font=bold_font,
-                anchor='lm',
-                stroke_width=stroke_width,
-                stroke_fill=text_stroke,
-            )
+            if col in ('Accuracy', 'Hit Ratio', 'Ratio'):
+                self._draw_split_stat_cell(
+                    draw=draw,
+                    offset=x_pos,
+                    y=y_row + totals_h // 2,
+                    val=val,
+                    fill=text_fill,
+                    font=bold_font,
+                    stroke_width=stroke_width,
+                    stroke_fill=text_stroke,
+                    scale_factor=scale_factor,
+                )
+            else:
+                self._draw_text_with_fallback(
+                    draw,
+                    (x_pos, y_row + totals_h // 2),
+                    val,
+                    fill=text_fill,
+                    font=bold_font,
+                    anchor='lm',
+                    stroke_width=stroke_width,
+                    stroke_fill=text_stroke,
+                )
 
     def _draw_team_table(
         self,
@@ -2522,7 +2625,7 @@ class VideoGenerator:
             is_lb = bool(self.game.is_laserball)
             base_w = 650
             if show_additional:
-                base_w = 1200 if is_lb else 1650
+                base_w = 1200 if is_lb else 1590
             table_width = int(base_w * scale * image.width / 1920)
             ty = int(team.y_pos or 0)
 
@@ -2604,6 +2707,7 @@ class VideoGenerator:
                 draw_borders=draw_borders,
                 max_hp_w=max_hp_w,
                 additional_alpha=additional_alpha,
+                scale_factor=scale * image.width / 1920,
             )
 
             image.alpha_composite(overlay)
@@ -3010,7 +3114,7 @@ class VideoGenerator:
                     'Missiles',
                     'Spec',
                     'Nukes',
-                    'Missile Acc',
+                    'Misl Acc',
                     'Accuracy',
                     'Hit Ratio',
                     'Medic Hits',
@@ -3025,13 +3129,14 @@ class VideoGenerator:
                     'Missiles': 460,
                     'Spec': 540,
                     'Nukes': 610,
+                    'Misl Acc': 680,
                     'Missile Acc': 680,
-                    'Accuracy': 830,
-                    'Hit Ratio': 1080,
-                    'Medic Hits': 1320,
-                    'Nuke Cancels': 1465,
+                    'Accuracy': 770,
+                    'Hit Ratio': 1020,
+                    'Medic Hits': 1260,
+                    'Nuke Cancels': 1405,
                 }
-                base_w = 1650
+                base_w = 1590
                 default_player_col_w = int(160 * table_width / base_w)
             else:
                 columns = ['Player']
@@ -3137,7 +3242,12 @@ class VideoGenerator:
                     vals.append(f'{p.nukes_detonated}/{p.nukes_activated}')
                 else:
                     vals.append('')
-            elif col in ('Missile Acc', 'Missile Hits', 'Missiles Landed'):
+            elif col in (
+                'Misl Acc',
+                'Missile Acc',
+                'Missile Hits',
+                'Missiles Landed',
+            ):
                 if p.role_name.lower() in ('commander', 'heavy'):
                     vals.append(f'{p.missiles_landed}/{p.missiles_fired}')
                 else:
@@ -3217,7 +3327,12 @@ class VideoGenerator:
                 vals.append(
                     f'{totals.nukes_detonated}/{totals.nukes_activated}'
                 )
-            elif col in ('Missile Acc', 'Missile Hits', 'Missiles Landed'):
+            elif col in (
+                'Misl Acc',
+                'Missile Acc',
+                'Missile Hits',
+                'Missiles Landed',
+            ):
                 vals.append(
                     f'{totals.missiles_landed}/{totals.missiles_fired}'
                 )

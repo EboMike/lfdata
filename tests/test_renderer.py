@@ -2594,10 +2594,10 @@ def test_scoreboard_columns_offset_interpolation() -> None:
         x_start=0, table_width=650, show_additional=False
     )
     cols_wide, offsets_wide = vg._resolve_scoreboard_columns(
-        x_start=0, table_width=1650, show_additional=True, additional_alpha=1.0
+        x_start=0, table_width=1590, show_additional=True, additional_alpha=1.0
     )
     cols_half, offsets_half = vg._resolve_scoreboard_columns(
-        x_start=0, table_width=1650, show_additional=True, additional_alpha=0.5
+        x_start=0, table_width=1590, show_additional=True, additional_alpha=0.5
     )
 
     std_map = dict(zip(cols_std, offsets_std))
@@ -2765,7 +2765,7 @@ def test_sm5_scoreboard_additional_columns() -> None:
     ]
 
     cols_add, offsets_add = vg._resolve_scoreboard_columns(
-        x_start=100, table_width=1650, show_additional=True
+        x_start=100, table_width=1590, show_additional=True
     )
     assert cols_add == [
         'Player',
@@ -2776,7 +2776,7 @@ def test_sm5_scoreboard_additional_columns() -> None:
         'Missiles',
         'Spec',
         'Nukes',
-        'Missile Acc',
+        'Misl Acc',
         'Accuracy',
         'Hit Ratio',
         'Medic Hits',
@@ -2784,9 +2784,11 @@ def test_sm5_scoreboard_additional_columns() -> None:
     ]
     assert len(offsets_add) == len(cols_add)
     assert offsets_add[0] >= 100
+    misl_idx = cols_add.index('Misl Acc')
     acc_idx = cols_add.index('Accuracy')
     hr_idx = cols_add.index('Hit Ratio')
     med_idx = cols_add.index('Medic Hits')
+    assert offsets_add[acc_idx] - offsets_add[misl_idx] == 90
     assert offsets_add[hr_idx] - offsets_add[acc_idx] >= 240
     assert offsets_add[med_idx] - offsets_add[hr_idx] >= 230
 
@@ -3092,5 +3094,191 @@ def test_text_measurement_memoization() -> None:
     vg.clear_text_measurement_cache()
     assert (font, 'TestMemo') not in vg._text_width_cache
     assert (font, 'TestMemo', 'la') not in vg._text_bbox_cache
+
+
+def test_scoreboard_misl_acc_player_and_totals() -> None:
+    from lfdata.model import LFGame
+    from lfdata.video.element import (
+        LFScoreboardPlayerData,
+        LFScoreboardTeamTotals,
+    )
+    from lfdata.video.renderer import VideoGenerator
+
+    game = LFGame(game_id='misl_test', game_type='SM5')
+    vg = VideoGenerator(game)
+
+    cols = ['Player', 'Misl Acc']
+    p_heavy = LFScoreboardPlayerData(
+        codename='HeavyX',
+        role_name='Heavy',
+        score=2000,
+        lives=10,
+        shots=30,
+        missiles=3,
+        special_points=0,
+        hp=1,
+        max_hp=1,
+        is_down=False,
+        is_eliminated=False,
+        penalties=0,
+        shots_fired=100,
+        shots_landed=40,
+        missiles_fired=6,
+        missiles_landed=4,
+        nukes_detonated=0,
+        nukes_activated=0,
+        nuke_cancels=0,
+        own_nuke_cancels=0,
+        medic_hits=0,
+        own_medic_hits=0,
+        medic_nukes=0,
+        times_zapped=10,
+        times_zapped_opponents=15,
+    )
+    vals = vg._compile_player_row_values(p=p_heavy, columns=cols)
+    assert vals == ['HeavyX', '4/6']
+
+    totals = LFScoreboardTeamTotals(
+        score=2000,
+        lives=10,
+        shots=30,
+        missiles=3,
+        special_points=0,
+        hp=1,
+        shots_fired=100,
+        shots_landed=40,
+        missiles_fired=6,
+        missiles_landed=4,
+        nukes_detonated=0,
+        nukes_activated=0,
+        nuke_cancels=0,
+        own_nuke_cancels=0,
+        medic_hits=0,
+        own_medic_hits=0,
+        medic_nukes=0,
+        times_zapped=10,
+        times_zapped_opponents=15,
+        goals=0,
+        assists=0,
+        steals=0,
+        clears=0,
+        blocks=0,
+    )
+    tot_vals = vg._compile_totals_row_values(totals=totals, columns=cols)
+    assert tot_vals == ['TOTAL', '4/6']
+
+
+def test_scoreboard_split_stat_cell_drawing() -> None:
+    from unittest.mock import MagicMock
+    from lfdata.model import LFGame
+    from lfdata.video.renderer import VideoGenerator
+
+    game = LFGame()
+    vg = VideoGenerator(game)
+    draw_mock = MagicMock()
+    font_mock = MagicMock()
+
+    calls: list[dict[str, object]] = []
+
+    def mock_draw_text(
+        draw: object,
+        pos: tuple[int, int],
+        text: str,
+        fill: object,
+        font: object,
+        anchor: str = 'la',
+        stroke_width: int = 0,
+        stroke_fill: object = None,
+    ) -> None:
+        calls.append({
+            'pos': pos,
+            'text': text,
+            'anchor': anchor,
+            'stroke_width': stroke_width,
+        })
+
+    vg._draw_text_with_fallback = mock_draw_text  # type: ignore[assignment]
+    vg._measure_text_width_with_fallback = (  # type: ignore[assignment]
+        lambda d, t, f: 6
+    )
+
+    # Empty string should not draw anything
+    vg._draw_split_stat_cell(
+        draw=draw_mock,
+        offset=100,
+        y=50,
+        val='',
+        fill='white',
+        font=font_mock,
+        stroke_width=1,
+        stroke_fill='black',
+        scale_factor=1.0,
+    )
+    assert len(calls) == 0
+
+    # Single value without space: draws single text with anchor 'lm'
+    vg._draw_split_stat_cell(
+        draw=draw_mock,
+        offset=100,
+        y=50,
+        val='100',
+        fill='white',
+        font=font_mock,
+        stroke_width=1,
+        stroke_fill='black',
+        scale_factor=1.0,
+    )
+    assert len(calls) == 1
+    assert calls[0]['anchor'] == 'lm'
+    assert calls[0]['pos'] == (100, 50)
+    assert calls[0]['text'] == '100'
+
+    calls.clear()
+
+    # Split value: Accuracy "30/40 (75%)"
+    vg._draw_split_stat_cell(
+        draw=draw_mock,
+        offset=200,
+        y=80,
+        val='30/40 (75%)',
+        fill='white',
+        font=font_mock,
+        stroke_width=2,
+        stroke_fill='black',
+        scale_factor=1.0,
+    )
+    assert len(calls) == 2
+    # Number part: right-aligned at offset + 85
+    assert calls[0]['anchor'] == 'rm'
+    assert calls[0]['pos'] == (285, 80)
+    assert calls[0]['text'] == '30/40'
+    # Percentage part: left-aligned at offset + 85 + gap (6)
+    assert calls[1]['anchor'] == 'lm'
+    assert calls[1]['pos'] == (291, 80)
+    assert calls[1]['text'] == '(75%)'
+
+    calls.clear()
+
+    # Split value: Hit Ratio "20/40 (0.50)"
+    vg._draw_split_stat_cell(
+        draw=draw_mock,
+        offset=500,
+        y=100,
+        val='20/40 (0.50)',
+        fill='white',
+        font=font_mock,
+        stroke_width=2,
+        stroke_fill='black',
+        scale_factor=2.0,
+    )
+    assert len(calls) == 2
+    # Scale factor 2.0: split_x = 500 + int(85 * 2.0) = 670
+    assert calls[0]['anchor'] == 'rm'
+    assert calls[0]['pos'] == (670, 100)
+    assert calls[0]['text'] == '20/40'
+    assert calls[1]['anchor'] == 'lm'
+    assert calls[1]['pos'] == (676, 100)
+    assert calls[1]['text'] == '(0.50)'
+
 
 
