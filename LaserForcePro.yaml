@@ -1,16 +1,16 @@
 animation: ease-in-out
-background_color: '#00000000'
-color: '#ffffffff'
+background_color: "#00000000"
+color: "#ffffffff"
 elements:
   all_game_events:
     align: left
     enabled: true
     extents:
-    - 0.25
-    - 0.25
+      - 0.25
+      - 0.25
     fade_in_ms: 2000
     fade_out_ms: 0
-    formatted_text: ''
+    formatted_text: ""
     style:
       size: 16
     tilt: 10.0
@@ -24,7 +24,7 @@ elements:
     end_time_offset: end of game
     fade_in_ms: 1000
     fade_out_ms: 1000
-    formatted_text: ''
+    formatted_text: ""
     start_time_offset: beginning of video
     style:
       size: 24
@@ -39,7 +39,7 @@ elements:
     end_time_offset: end of game
     fade_in_ms: 1000
     fade_out_ms: 1000
-    formatted_text: ''
+    formatted_text: ""
     speed: 3.0
     start_time_offset: beginning of video
     style:
@@ -55,7 +55,7 @@ elements:
     end_time_offset: end of game
     fade_in_ms: 1000
     fade_out_ms: 1000
-    formatted_text: ''
+    formatted_text: ""
     speed: 3.0
     start_time_offset: beginning of video
     style:
@@ -78,7 +78,7 @@ elements:
     fade_in_ms: 0
     fade_out_ms: 0
     format: null
-    formatted_text: '{{date_of_game}} | {{normalized_game_type}}'
+    formatted_text: "{{date_of_game}} | {{normalized_game_type}}"
     start_time_offset: beginning of video
     style:
       size: 18
@@ -91,11 +91,11 @@ elements:
     enabled: true
     end_time_offset: end of game
     extents:
-    - 0.4
-    - 0.03
+      - 0.4
+      - 0.03
     fade_in_ms: 1000
     fade_out_ms: 1000
-    formatted_text: ''
+    formatted_text: ""
     start_time_offset: beginning of video
     tilt: 0.0
     visible_end_ms: 2000
@@ -108,7 +108,7 @@ elements:
     end_time_offset: end of game
     fade_in_ms: 0
     fade_out_ms: 1000
-    formatted_text: ''
+    formatted_text: ""
     start_time_offset: beginning of video
     style:
       size: 20
@@ -122,7 +122,7 @@ elements:
     enabled: false
     fade_in_ms: 0
     fade_out_ms: 0
-    formatted_text: ''
+    formatted_text: ""
     style:
       size: 14
     tilt: 0.0
@@ -132,11 +132,11 @@ elements:
     y: 0.96
   hit_border:
     ball_pulse_speed: 1.0
-    color_ball_carrier: '#0000ff'
-    color_other: '#ff0000'
-    color_penalty: '#ffff00'
-    color_resupplied: '#ffffff'
-    color_zapped_hp: '#ffff00'
+    color_ball_carrier: "#0000ff"
+    color_other: "#ff0000"
+    color_penalty: "#ffff00"
+    color_resupplied: "#ffffff"
+    color_zapped_hp: "#ffff00"
     duration_down_s: 1.0
     duration_hp_s: 0.5
     enabled: true
@@ -154,7 +154,7 @@ elements:
     end_time_offset: end of game
     fade_in_ms: 0
     fade_out_ms: 1000
-    formatted_text: ''
+    formatted_text: ""
     max_lines: 4
     start_time_offset: beginning of video
     style:
@@ -168,8 +168,8 @@ elements:
     align: left
     enabled: true
     extents:
-    - 0.05
-    - 0.05
+      - 0.05
+      - 0.05
     icon: shields
     style:
       size: 18
@@ -179,8 +179,8 @@ elements:
     align: left
     enabled: true
     extents:
-    - 0.05
-    - 0.05
+      - 0.05
+      - 0.05
     icon: lives
     style:
       size: 18
@@ -190,8 +190,8 @@ elements:
     align: left
     enabled: true
     extents:
-    - 0.05
-    - 0.05
+      - 0.05
+      - 0.05
     icon: missiles
     style:
       size: 18
@@ -216,7 +216,7 @@ elements:
     enabled: true
     fade_in_ms: 1000
     fade_out_ms: 0
-    formatted_text: ''
+    formatted_text: ""
     style:
       size: 36
     tilt: 0.0
@@ -228,8 +228,8 @@ elements:
     align: left
     enabled: true
     extents:
-    - 0.05
-    - 0.05
+      - 0.05
+      - 0.05
     icon: shots
     style:
       size: 18
@@ -239,8 +239,8 @@ elements:
     align: left
     enabled: true
     extents:
-    - 0.05
-    - 0.05
+      - 0.05
+      - 0.05
     icon: sp
     style:
       size: 18
@@ -256,131 +256,99 @@ elements:
     end_time_offset: beginning of game
     extents:
       keyframes:
-      - interpolator: linear
-        reference: start_of_video
-        time: 0
-        value:
-        - 0.4
-        - 0.4
-      - interpolator: linear
-        reference: end_of_game
-        time: 0
-        value:
-        - 0.4
-        - 0.4
-      - interpolator: linear
-        reference: end_of_game
-        time: 2500
-        value:
-        - 0.4
-        - 0.4
-      - interpolator: linear
-        reference: end_of_game
-        time: 6000
-        value:
-        - 0.4
-        - 0.4
-      - interpolator: linear
-        reference: start_of_video
-        time: 808323
-        value:
-        - 0.4
-        - 0.4
-      - interpolator: linear
-        reference: start_of_video
-        time: 916828
-        value:
-        - 0.4
-        - 0.4
+        - interpolator: linear
+          reference: start_of_video
+          time: 0
+          value:
+            - 0.4
+            - 0.4
+        - interpolator: linear
+          reference: end_of_game
+          time: 0
+          value:
+            - 0.4
+            - 0.4
+        - interpolator: linear
+          reference: end_of_game
+          time: 2500
+          value:
+            - 0.4
+            - 0.4
+        - interpolator: linear
+          reference: end_of_game
+          time: 6000
+          value:
+            - 0.4
+            - 0.4
     fade_in_ms: 2000
     fade_out_ms: 0
-    formatted_text: ''
+    formatted_text: ""
     start_time_offset: beginning of video
     style:
       size:
         keyframes:
-        - interpolator: linear
-          reference: start_of_video
-          time: 0
-          value: 15
-        - interpolator: linear
-          reference: end_of_game
-          time: 0
-          value: 15
-        - interpolator: linear
-          reference: end_of_game
-          time: 2500
-          value: 30
-        - interpolator: linear
-          reference: end_of_game
-          time: 6000
-          value: 30
-        - interpolator: linear
-          reference: start_of_video
-          time: 916828
-          value: 19
+          - interpolator: linear
+            reference: start_of_video
+            time: 0
+            value: 15
+          - interpolator: linear
+            reference: end_of_game
+            time: 0
+            value: 15
+          - interpolator: linear
+            reference: end_of_game
+            time: 2500
+            value: 19
+          - interpolator: linear
+            reference: end_of_game
+            time: 6000
+            value: 19
     tilt: 0.0
     visible_end_ms: 0
     visible_start_ms: 3000
     x:
       keyframes:
-      - interpolator: linear
-        reference: start_of_video
-        time: 0
-        value: 0.02
-      - interpolator: linear
-        reference: end_of_game
-        time: 0
-        value: 0.02
-      - interpolator: linear
-        reference: end_of_game
-        time: 2500
-        value: 0.14
-      - interpolator: linear
-        reference: end_of_game
-        time: 6000
-        value: 0.14
-      - interpolator: linear
-        reference: start_of_video
-        time: 808323
-        value: 0.02
-      - interpolator: linear
-        reference: start_of_video
-        time: 916828
-        value: 0.0
+        - interpolator: linear
+          reference: start_of_video
+          time: 0
+          value: 0.02
+        - interpolator: linear
+          reference: end_of_game
+          time: 0
+          value: 0.02
+        - interpolator: linear
+          reference: end_of_game
+          time: 2500
+          value: 0.0
+        - interpolator: linear
+          reference: end_of_game
+          time: 6000
+          value: 0.0
     y:
       keyframes:
-      - interpolator: linear
-        reference: start_of_video
-        time: 0
-        value: 0.4
-      - interpolator: linear
-        reference: end_of_game
-        time: 0
-        value: 0.4
-      - interpolator: linear
-        reference: end_of_game
-        time: 2500
-        value: 0.17
-      - interpolator: linear
-        reference: end_of_game
-        time: 6000
-        value: 0.17
-      - interpolator: linear
-        reference: start_of_video
-        time: 808323
-        value: 0.4
-      - interpolator: linear
-        reference: start_of_video
-        time: 916828
-        value: 0.12
+        - interpolator: linear
+          reference: start_of_video
+          time: 0
+          value: 0.4
+        - interpolator: linear
+          reference: end_of_game
+          time: 0
+          value: 0.4
+        - interpolator: linear
+          reference: end_of_game
+          time: 2500
+          value: 0.12
+        - interpolator: linear
+          reference: end_of_game
+          time: 6000
+          value: 0.12
   team_scores:
     align: left
     enabled: true
     end_time_offset: beginning of game
     fade_in_ms: 2000
     fade_out_ms: 0
-    formatted_text: ''
+    formatted_text: ""
     start_time_offset: beginning of video
     style:
       size: 64
@@ -394,7 +362,7 @@ elements:
     enabled: true
     fade_in_ms: 500
     fade_out_ms: 0
-    formatted_text: ''
+    formatted_text: ""
     style:
       font: advanced_pixel_lcd-7
       size: 40
@@ -412,7 +380,7 @@ elements:
     style:
       font: Nasalization Rg.otf
       size: 60
-    text: ''
+    text: ""
     tilt: 0.0
     visible_end_ms: 3000
     visible_start_ms: 0
@@ -423,7 +391,7 @@ elements:
     enabled: false
     style:
       size: 20
-    text: ''
+    text: ""
     x: 0.1
     y: 0.6
   user_defined_text_11:
@@ -431,7 +399,7 @@ elements:
     enabled: false
     style:
       size: 20
-    text: ''
+    text: ""
     x: 0.1
     y: 0.7
   user_defined_text_12:
@@ -439,7 +407,7 @@ elements:
     enabled: false
     style:
       size: 20
-    text: ''
+    text: ""
     x: 0.1
     y: 0.8
   user_defined_text_2:
@@ -451,7 +419,7 @@ elements:
     style:
       font: Nasalization Rg.otf
       size: 60
-    text: ''
+    text: ""
     tilt: 0.0
     visible_end_ms: 3100
     visible_start_ms: 0
@@ -466,7 +434,7 @@ elements:
     style:
       font: Poppins
       size: 60
-    text: ''
+    text: ""
     tilt: 0.0
     visible_end_ms: 3200
     visible_start_ms: 0
@@ -477,11 +445,11 @@ elements:
     enabled: true
     fade_in_ms: 0
     fade_out_ms: 1000
-    formatted_text: '[img:discord.png] LF Tournaments'
+    formatted_text: "[img:discord.png] LF Tournaments"
     style:
       font: Poppins
       size: 60
-    text: ''
+    text: ""
     tilt: 0.0
     visible_end_ms: 3300
     visible_start_ms: 0
@@ -496,7 +464,7 @@ elements:
     start_time_offset: beginning of video
     style:
       size: 16
-    text: ''
+    text: ""
     tilt: 0.0
     visible_end_ms: 0
     visible_start_ms: 2500
@@ -507,11 +475,11 @@ elements:
     enabled: true
     fade_in_ms: 2000
     fade_out_ms: 0
-    formatted_text: '[img:discord.png] LFTournaments'
+    formatted_text: "[img:discord.png] LFTournaments"
     start_time_offset: beginning of video
     style:
       size: 16
-    text: ''
+    text: ""
     tilt: 0.0
     visible_end_ms: 0
     visible_start_ms: 2600
@@ -522,11 +490,11 @@ elements:
     enabled: true
     fade_in_ms: 0
     fade_out_ms: 0
-    formatted_text: '{{ centre_name }}'
+    formatted_text: "{{ centre_name }}"
     start_time_offset: beginning of video
     style:
       size: 16
-    text: ''
+    text: ""
     tilt: 0.0
     visible_end_ms: 0
     visible_start_ms: 0
@@ -541,7 +509,7 @@ elements:
     start_time_offset: end of game
     style:
       size: 20
-    text: ''
+    text: ""
     tilt: 0.0
     visible_end_ms: 0
     visible_start_ms: 0
@@ -556,7 +524,7 @@ elements:
     start_time_offset: beginning of video
     style:
       size: 20
-    text: ''
+    text: ""
     tilt: 0.0
     visible_end_ms: 4000
     visible_start_ms: 1000
@@ -569,7 +537,7 @@ fps: 60
 player_name: null
 pregame_delay_ms: 5000
 resolution:
-- 1920
-- 1080
+  - 1920
+  - 1080
 size: 20
 style: normal
