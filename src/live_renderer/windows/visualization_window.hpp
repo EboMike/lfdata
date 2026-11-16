@@ -6,6 +6,7 @@
 #include "live_renderer/components/event_scroller_tracker.hpp"
 #include "live_renderer/components/list_animation_tracker.hpp"
 #include "live_renderer/components/messages_display_tracker.hpp"
+#include "live_renderer/components/shake_tracker.hpp"
 #include "live_renderer/config/ui_config.hpp"
 #include "live_renderer/render/render_batch.hpp"
 #include "live_renderer/state/game_state_snapshot.hpp"
@@ -133,7 +134,8 @@ private:
         const std::string& team_rgb,
         const std::array<float, 4>& card_px_rect,
         float win_h,
-        RenderBatch& batch) const;
+        RenderBatch& batch,
+        int64_t current_time_ms = 0) const;
 
     void GenerateEventScrollerCommands(
         const ElementConfig& element,
@@ -167,6 +169,7 @@ private:
     mutable ListAnimationTracker list_animation_tracker_;
     mutable MessagesDisplayTracker messages_display_tracker_;
     mutable EventScrollerTracker event_scroller_tracker_;
+    mutable ShakeTracker shake_tracker_;
 };
 
 }  // namespace live_renderer

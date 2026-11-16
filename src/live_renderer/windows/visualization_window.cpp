@@ -8,6 +8,29 @@
 
 namespace live_renderer {
 
+namespace {
+
+std::string DimHex(const std::string& hex, float dim_factor) {
+    if (hex.size() < 7 || hex[0] != '#') return hex;
+    int r = 255, g = 255, b = 255;
+    try {
+        r = std::stoi(hex.substr(1, 2), nullptr, 16);
+        g = std::stoi(hex.substr(3, 2), nullptr, 16);
+        b = std::stoi(hex.substr(5, 2), nullptr, 16);
+    } catch (...) {
+        return hex;
+    }
+    const float factor = std::clamp(1.0f - dim_factor, 0.0f, 1.0f);
+    r = std::clamp(static_cast<int>(r * factor + 0.5f), 0, 255);
+    g = std::clamp(static_cast<int>(g * factor + 0.5f), 0, 255);
+    b = std::clamp(static_cast<int>(b * factor + 0.5f), 0, 255);
+    char buf[16];
+    std::snprintf(buf, sizeof(buf), "#%02x%02x%02x", r, g, b);
+    return std::string(buf);
+}
+
+}  // namespace
+
 VisualizationWindow::VisualizationWindow(WindowConfig config, const UIConfig& ui_config)
     : config_(std::move(config)),
       ui_config_(ui_config) {}
@@ -420,6 +443,38 @@ void VisualizationWindow::GenerateElementCommands(
             }
         }
         batch.commands.push_back(cmd);
+    } else if (resolved_el.type == "elimination_image") {
+        PlayerSnapshot sample_player{
+            11, "AlphaCommander", "#101", 1, "commander",
+            8200, 0, 45, 3, 20, 0, 4, false};
+        for (const auto& [pid, p] : state.players) {
+            if (!p.is_dummy && (resolved_el.team_index <= 0 ||
+                                p.team_id == resolved_el.team_index)) {
+                sample_player = p;
+                break;
+            }
+        }
+        const bool is_eliminated = !sample_player.is_dummy &&
+            (sample_player.lives <= 0 || sample_player.state == 4);
+        if (is_eliminated) {
+            RenderCommand cmd;
+            cmd.type = RenderCommand::Type::TexturedQuad;
+            cmd.pixel_rect = content_px_rect;
+            cmd.texture_asset = !resolved_el.image_file.empty()
+                ? resolved_el.image_file
+                : kDefaultEliminationImageAsset;
+            cmd.opacity = resolved_el.opacity;
+            cmd.fit = resolved_el.fit.empty() ? "stretch" : resolved_el.fit;
+            if (resolved_el.tint_team_color > 0.0f &&
+                resolved_el.team_index > 0) {
+                auto tit = state.teams.find(resolved_el.team_index);
+                if (tit != state.teams.end()) {
+                    cmd.color_rgba = ScorecardHelper::ComputeTeamTint(
+                        tit->second.rgb, resolved_el.tint_team_color);
+                }
+            }
+            batch.commands.push_back(cmd);
+        }
     } else {
         // Player elements: player_name, player_role, player_score, etc.
         PlayerSnapshot sample_player{
@@ -921,29 +976,90 @@ void VisualizationWindow::RenderPlayerProfileCard(
     const std::string& team_rgb,
     const std::array<float, 4>& card_px_rect,
     float win_h,
-    RenderBatch& batch) const {
+    RenderBatch& batch,
+    int64_t current_time_ms) const {
+    const bool is_down = !player.is_dummy &&
+        (player.lives > 0 && player.state != 4) &&
+        (player.state == 2 || player.state == 3 || player.hitpoints <= 0);
+
+    const float tmpl_dim = (profile_tmpl && is_down)
+        ? std::clamp(profile_tmpl->dim_while_down, 0.0f, 1.0f)
+        : 0.0f;
+
+    std::pair<float, float> tmpl_shake{0.0f, 0.0f};
+    if (profile_tmpl && profile_tmpl->shake_on_down.IsEnabled()) {
+        const std::string tmpl_key = std::to_string(config_.id) +
+            "_tmpl_" + std::to_string(profile_tmpl->id) +
+            "_p_" + std::to_string(player.id);
+        tmpl_shake = shake_tracker_.GetShakeOffset(
+            tmpl_key,
+            is_down,
+            current_time_ms,
+            profile_tmpl->shake_on_down.duration,
+            profile_tmpl->shake_on_down.strength);
+    }
+
     if (!profile_tmpl || profile_tmpl->elements.empty()) {
         ElementConfig d_name;
         d_name.type = "player_name";
         d_name.font_size = 18.0f;
         std::array<float, 4> nrect{
-            card_px_rect[0] + 4.0f,
-            card_px_rect[1] + 2.0f,
+            card_px_rect[0] + 4.0f + tmpl_shake.first,
+            card_px_rect[1] + 2.0f + tmpl_shake.second,
             card_px_rect[2] - 8.0f,
             card_px_rect[3] * 0.5f
         };
+        const size_t cmd_start = batch.commands.size();
         TextComponent::GeneratePlayerElementCommands(
             d_name, player, team_rgb, nrect, win_h, batch);
+        if (tmpl_dim > 0.0f) {
+            const float b = 1.0f - tmpl_dim;
+            for (size_t c = cmd_start; c < batch.commands.size(); ++c) {
+                batch.commands[c].color_rgba[0] *= b;
+                batch.commands[c].color_rgba[1] *= b;
+                batch.commands[c].color_rgba[2] *= b;
+                if (batch.commands[c].type == RenderCommand::Type::Text) {
+                    batch.commands[c].hex_color = DimHex(
+                        batch.commands[c].hex_color, tmpl_dim);
+                }
+            }
+        }
         return;
     }
 
-    for (const auto& pel : profile_tmpl->elements) {
+    for (size_t el_idx = 0; el_idx < profile_tmpl->elements.size(); ++el_idx) {
+        const auto& pel = profile_tmpl->elements[el_idx];
+
+        std::pair<float, float> el_shake{0.0f, 0.0f};
+        if (pel.shake_on_down.IsEnabled()) {
+            const std::string el_key = std::to_string(config_.id) +
+                "_tmpl_" + std::to_string(profile_tmpl->id) +
+                "_p_" + std::to_string(player.id) +
+                "_el_" + std::to_string(el_idx);
+            el_shake = shake_tracker_.GetShakeOffset(
+                el_key,
+                is_down,
+                current_time_ms,
+                pel.shake_on_down.duration,
+                pel.shake_on_down.strength);
+        }
+
+        const float total_shake_x = tmpl_shake.first + el_shake.first;
+        const float total_shake_y = tmpl_shake.second + el_shake.second;
+
         std::array<float, 4> pel_rect{
-            card_px_rect[0] + (pel.rect[0] * card_px_rect[2]),
-            card_px_rect[1] + (pel.rect[1] * card_px_rect[3]),
+            card_px_rect[0] + (pel.rect[0] * card_px_rect[2]) + total_shake_x,
+            card_px_rect[1] + (pel.rect[1] * card_px_rect[3]) + total_shake_y,
             pel.rect[2] * card_px_rect[2],
             pel.rect[3] * card_px_rect[3]
         };
+
+        const float el_dim = is_down
+            ? std::clamp(pel.dim_while_down, 0.0f, 1.0f)
+            : 0.0f;
+        const float brightness = (1.0f - tmpl_dim) * (1.0f - el_dim);
+        const float eff_dim = 1.0f - brightness;
+        const size_t cmd_start = batch.commands.size();
 
         if (pel.background.enabled) {
             const auto pel_pad = ComputePaddingRect(
@@ -990,8 +1106,45 @@ void VisualizationWindow::RenderPlayerProfileCard(
             cmd.pixel_rect = pel_rect;
             std::string pic = !player.picture_url.empty()
                 ? player.picture_url
-                : (!pel.image_file.empty() ? pel.image_file : kDefaultProfilePictureAsset);
+                : (!pel.image_file.empty()
+                       ? pel.image_file
+                       : kDefaultProfilePictureAsset);
             cmd.texture_asset = pic;
+            cmd.opacity = pel.opacity;
+            cmd.fit = pel.fit.empty() ? "stretch" : pel.fit;
+            if (pel.tint_team_color > 0.0f) {
+                cmd.color_rgba = ScorecardHelper::ComputeTeamTint(
+                    team_rgb, pel.tint_team_color);
+            }
+            batch.commands.push_back(cmd);
+        } else if (pel.type == "elimination_image") {
+            const bool is_eliminated = !player.is_dummy &&
+                (player.lives <= 0 || player.state == 4);
+            if (is_eliminated) {
+                RenderCommand cmd;
+                cmd.type = RenderCommand::Type::TexturedQuad;
+                cmd.pixel_rect = pel_rect;
+                cmd.texture_asset = !pel.image_file.empty()
+                    ? pel.image_file
+                    : kDefaultEliminationImageAsset;
+                cmd.opacity = pel.opacity;
+                cmd.fit = pel.fit.empty() ? "stretch" : pel.fit;
+                if (pel.tint_team_color > 0.0f) {
+                    cmd.color_rgba = ScorecardHelper::ComputeTeamTint(
+                        team_rgb, pel.tint_team_color);
+                }
+                batch.commands.push_back(cmd);
+            }
+        } else if (pel.type == "team_logo") {
+            RenderCommand cmd;
+            cmd.type = RenderCommand::Type::TexturedQuad;
+            cmd.pixel_rect = pel_rect;
+            std::string logo = !player.team_logo_url.empty()
+                ? player.team_logo_url
+                : (!pel.image_file.empty()
+                       ? pel.image_file
+                       : "assets/ball.png");
+            cmd.texture_asset = logo;
             cmd.opacity = pel.opacity;
             cmd.fit = pel.fit.empty() ? "stretch" : pel.fit;
             if (pel.tint_team_color > 0.0f) {
@@ -1007,6 +1160,18 @@ void VisualizationWindow::RenderPlayerProfileCard(
                 pel_rect,
                 win_h,
                 batch);
+        }
+
+        if (brightness < 1.0f) {
+            for (size_t c = cmd_start; c < batch.commands.size(); ++c) {
+                batch.commands[c].color_rgba[0] *= brightness;
+                batch.commands[c].color_rgba[1] *= brightness;
+                batch.commands[c].color_rgba[2] *= brightness;
+                if (batch.commands[c].type == RenderCommand::Type::Text) {
+                    batch.commands[c].hex_color = DimHex(
+                        batch.commands[c].hex_color, eff_dim);
+                }
+            }
         }
     }
 }
@@ -1100,7 +1265,13 @@ void VisualizationWindow::GenerateTeamRosterCommands(
             const std::array<float, 4> card_rect{
                 anim_x, base_px_rect[1], card_w, card_h};
             RenderPlayerProfileCard(
-                profile_tmpl, pit->second, team.rgb, card_rect, win_h, batch);
+                profile_tmpl,
+                pit->second,
+                team.rgb,
+                card_rect,
+                win_h,
+                batch,
+                current_time_ms);
         }
     } else {
         const float total_h = static_cast<float>(num_players) * card_h +
@@ -1127,7 +1298,13 @@ void VisualizationWindow::GenerateTeamRosterCommands(
             const std::array<float, 4> card_rect{
                 base_px_rect[0] + offset_x, anim_y, card_w, card_h};
             RenderPlayerProfileCard(
-                profile_tmpl, pit->second, team.rgb, card_rect, win_h, batch);
+                profile_tmpl,
+                pit->second,
+                team.rgb,
+                card_rect,
+                win_h,
+                batch,
+                current_time_ms);
         }
     }
 }

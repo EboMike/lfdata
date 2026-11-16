@@ -123,6 +123,7 @@ set(CORE_SOURCES
     components/list_animation_tracker.cpp
     components/messages_display_tracker.cpp
     components/event_scroller_tracker.cpp
+    components/shake_tracker.cpp
     model/competition_team.cpp
     model/scheduled_game.cpp
     model/competition.cpp
@@ -178,6 +179,7 @@ add_executable(live_renderer_tests
     tests/test_render_geometry.cpp
     tests/test_competition.cpp
     tests/test_lfstats_fetcher.cpp
+    tests/test_shake_tracker.cpp
 )
 target_link_libraries(live_renderer_tests PRIVATE
     live_renderer_core

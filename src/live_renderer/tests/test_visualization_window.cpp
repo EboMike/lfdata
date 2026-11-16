@@ -1298,6 +1298,201 @@ TEST(VisualizationWindowTest, SelectionHighlightOutlinesTotalExtents) {
     EXPECT_NEAR(top_border.pixel_rect[2], ext_px[2] + 4.0f, 0.1f);
 }
 
+TEST(VisualizationWindowTest, PlayerProfileEliminationImageOnlyWhenEliminated) {
+    UIConfig ui;
+
+    TemplateConfig tmpl;
+    tmpl.id = 50;
+    tmpl.name = "ElimTestProfile";
+    tmpl.type = "player_profile";
+    tmpl.size = {1.0f, 1.0f};
+
+    ElementConfig elim_el;
+    elim_el.type = "elimination_image";
+    elim_el.image_file = "assets/custom_x.png";
+    elim_el.rect = {0.0f, 0.0f, 1.0f, 1.0f};
+    tmpl.elements.push_back(elim_el);
+
+    ui.templates.push_back(tmpl);
+
+    WindowConfig wcfg;
+    wcfg.id = 50;
+    wcfg.rect = {0, 0, 1600, 800};
+
+    ElementConfig roster;
+    roster.type = "team_roster";
+    roster.rect = {0.1f, 0.1f, 0.4f, 0.8f};
+    roster.team_index = 1;
+    roster.player_profile_template_id = 50;
+    wcfg.elements.push_back(roster);
+
+    VisualizationWindow win(wcfg, ui);
+
+    // Active players (lives > 0)
+    auto state = MockGameState::CreateMockSM5State();
+    for (auto& [pid, p] : state.players) {
+        p.lives = 10;
+        p.state = 0; // Up
+    }
+
+    auto batch_up = win.GenerateBatch(state, 1000);
+    bool has_elim_img_up = false;
+    for (const auto& cmd : batch_up.commands) {
+        if (cmd.type == RenderCommand::Type::TexturedQuad &&
+            cmd.texture_asset == "assets/custom_x.png") {
+            has_elim_img_up = true;
+        }
+    }
+    EXPECT_FALSE(has_elim_img_up);
+
+    // Eliminate player 11 (lives = 0, state = 4)
+    state.players[11].lives = 0;
+    state.players[11].state = 4;
+
+    auto batch_elim = win.GenerateBatch(state, 1000);
+    bool has_elim_img_elim = false;
+    for (const auto& cmd : batch_elim.commands) {
+        if (cmd.type == RenderCommand::Type::TexturedQuad &&
+            cmd.texture_asset == "assets/custom_x.png") {
+            has_elim_img_elim = true;
+        }
+    }
+    EXPECT_TRUE(has_elim_img_elim);
+}
+
+TEST(VisualizationWindowTest, PlayerProfileDimWhileDownHierarchical) {
+    UIConfig ui;
+
+    TemplateConfig tmpl;
+    tmpl.id = 51;
+    tmpl.name = "DimTestProfile";
+    tmpl.type = "player_profile";
+    tmpl.size = {1.0f, 1.0f};
+    tmpl.dim_while_down = 0.5f;
+
+    ElementConfig pic_el;
+    pic_el.type = "user_image";
+    pic_el.image_file = "assets/ball.png";
+    pic_el.rect = {0.0f, 0.0f, 0.5f, 0.5f};
+    pic_el.dim_while_down = 0.5f; // Hierarchical: 0.5 * 0.5 = 0.25 brightness
+    tmpl.elements.push_back(pic_el);
+
+    ui.templates.push_back(tmpl);
+
+    WindowConfig wcfg;
+    wcfg.id = 51;
+    wcfg.rect = {0, 0, 1600, 800};
+
+    ElementConfig roster;
+    roster.type = "team_roster";
+    roster.rect = {0.1f, 0.1f, 0.4f, 0.8f};
+    roster.team_index = 1;
+    roster.player_profile_template_id = 51;
+    wcfg.elements.push_back(roster);
+
+    VisualizationWindow win(wcfg, ui);
+
+    // All players Up: brightness = 1.0
+    auto state = MockGameState::CreateMockSM5State();
+    for (int pid : {11, 12, 13, 14, 15}) {
+        state.players[pid].lives = 10;
+        state.players[pid].hitpoints = 1;
+        state.players[pid].state = 0; // Up
+    }
+
+    auto batch_up = win.GenerateBatch(state, 1000);
+    int up_count = 0;
+    for (const auto& cmd : batch_up.commands) {
+        if (cmd.type == RenderCommand::Type::TexturedQuad &&
+            cmd.texture_asset == "assets/ball.png") {
+            EXPECT_FLOAT_EQ(cmd.color_rgba[0], 1.0f);
+            EXPECT_FLOAT_EQ(cmd.color_rgba[1], 1.0f);
+            EXPECT_FLOAT_EQ(cmd.color_rgba[2], 1.0f);
+            ++up_count;
+        }
+    }
+    EXPECT_GT(up_count, 0);
+
+    // Player 11 Down (state = 3): brightness = (1 - 0.5) * (1 - 0.5) = 0.25
+    state.players[11].state = 3; // Down
+    auto batch_down = win.GenerateBatch(state, 1000);
+    bool found_dimmed_quad = false;
+    for (const auto& cmd : batch_down.commands) {
+        if (cmd.type == RenderCommand::Type::TexturedQuad &&
+            cmd.texture_asset == "assets/ball.png") {
+            if (std::abs(cmd.color_rgba[0] - 0.25f) < 0.01f) {
+                found_dimmed_quad = true;
+            }
+        }
+    }
+    EXPECT_TRUE(found_dimmed_quad);
+}
+
+TEST(VisualizationWindowTest, PlayerProfileShakeOnDownHierarchical) {
+    UIConfig ui;
+
+    TemplateConfig tmpl;
+    tmpl.id = 52;
+    tmpl.name = "ShakeTestProfile";
+    tmpl.type = "player_profile";
+    tmpl.size = {1.0f, 1.0f};
+    tmpl.shake_on_down.duration = 1.0f;
+    tmpl.shake_on_down.strength = 10.0f;
+
+    ElementConfig pic_el;
+    pic_el.type = "user_image";
+    pic_el.image_file = "assets/ball.png";
+    pic_el.rect = {0.0f, 0.0f, 0.5f, 0.5f};
+    pic_el.shake_on_down.duration = 1.0f;
+    pic_el.shake_on_down.strength = 5.0f;
+    tmpl.elements.push_back(pic_el);
+
+    ui.templates.push_back(tmpl);
+
+    WindowConfig wcfg;
+    wcfg.id = 52;
+    wcfg.rect = {0, 0, 1600, 800};
+
+    ElementConfig roster;
+    roster.type = "team_roster";
+    roster.rect = {0.1f, 0.1f, 0.4f, 0.8f};
+    roster.team_index = 1;
+    roster.player_profile_template_id = 52;
+    wcfg.elements.push_back(roster);
+
+    VisualizationWindow win(wcfg, ui);
+
+    // Player Up: no shake translation
+    auto state = MockGameState::CreateMockSM5State();
+    for (int pid : {11, 12, 13, 14, 15}) {
+        state.players[pid].lives = 10;
+        state.players[pid].hitpoints = 1;
+        state.players[pid].state = 0; // Up
+    }
+
+    auto batch_up = win.GenerateBatch(state, 1000);
+    float base_x = 0.0f;
+    for (const auto& cmd : batch_up.commands) {
+        if (cmd.type == RenderCommand::Type::TexturedQuad &&
+            cmd.texture_asset == "assets/ball.png") {
+            base_x = cmd.pixel_rect[0];
+            break;
+        }
+    }
+
+    // Player Down (state = 2 / Resettable): triggers shake
+    state.players[11].state = 2;
+    auto batch_down = win.GenerateBatch(state, 1100);
+    for (const auto& cmd : batch_down.commands) {
+        if (cmd.type == RenderCommand::Type::TexturedQuad &&
+            cmd.texture_asset == "assets/ball.png") {
+            // Max combined shake is 10.0 + 5.0 = 15.0 px
+            EXPECT_LE(std::abs(cmd.pixel_rect[0] - base_x), 15.01f);
+        }
+    }
+}
+
+
 
 
 

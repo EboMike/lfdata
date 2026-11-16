@@ -460,6 +460,35 @@ void UIEditorWindow::RenderActiveDetails() {
                     "%.3f")) {
                 if (it->size[1] < 0.001f) it->size[1] = 0.001f;
             }
+            if (it->type == "player_profile") {
+                ImGui::Spacing();
+                ImGui::TextUnformatted(
+                    "Player Profile Effects (Template-wide):");
+                ImGui::SliderFloat(
+                    "Dim While Down##tmpl_dim",
+                    &it->dim_while_down,
+                    0.0f,
+                    1.0f,
+                    "%.2f");
+                ImGui::TextUnformatted("Shake on Down:");
+                ImGui::SetNextItemWidth(120.0f);
+                ImGui::DragFloat(
+                    "Strength##tmpl_shake_str",
+                    &it->shake_on_down.strength,
+                    0.5f,
+                    0.0f,
+                    100.0f,
+                    "%.1f px");
+                ImGui::SameLine();
+                ImGui::SetNextItemWidth(120.0f);
+                ImGui::DragFloat(
+                    "Duration##tmpl_shake_dur",
+                    &it->shake_on_down.duration,
+                    0.05f,
+                    0.0f,
+                    10.0f,
+                    "%.2f s");
+            }
         }
     } else {
         if (active_window_index_ >= 0 && active_window_index_ < static_cast<int>(ui_config_.windows.size())) {

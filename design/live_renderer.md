@@ -357,6 +357,10 @@ A text component with the player's current special points.
 
 An image component with an image of the player, loaded from the lfstats page.
 
+### Eliminiation image
+
+An image that is shown if player is eliminated (out of lives).
+
 ### Team Logo
 
 An image component with a team logo, loaded from the lfstats page.
@@ -447,6 +451,34 @@ following elements:
 *   Missile accuracy string (shown as "missiles landed/missiles landed", for
     example "3/5". Empty string if player role has no missiles, otherwise
     always shown, even "0/0").
+*   Elimination image
+
+## Effect controls
+
+Depending on the context, UI elements have various properties to determine their
+rendering behavior.
+
+### General definitions
+
+Various elements may have these controls:
+
+* **Shake**: Defines a random translation in X and Y for a certain of time.
+  A shake is controlled via duration and strength. Duration is the number of
+  seconds the effect will last. Strength is the maximum amount the element
+  could be translated randomly in X or Y (positively or negatively). As the
+  effect progresses, the strength will be reduced. By the time the number of
+  seconds given in "duration" has elapsed, the maximum strength would be 0.
+
+### Player profiles
+
+Every element within a player profile, including the player profile template
+itself, has these controls. The controls are hierarchical, so if something is
+applied to a player profile, it will affect all elements in the template.
+
+* **Shake on down**: How much this element will shake if the player is down
+  (out of hit points, or missiled, or nuked).
+* **Dim while down**: A number between 0.0 and 1.0 that indicates by how much
+  the profile will be made darker while the player is down.
 
 ## UI configuration file
 

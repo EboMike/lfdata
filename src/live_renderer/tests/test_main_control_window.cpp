@@ -211,7 +211,7 @@ TEST(MainControlWindowTest, AboutModalAndMetadata) {
     EXPECT_STREQ(
         MainControlWindow::GetApplicationVersion(), kLiveRendererVersion);
     EXPECT_STREQ(
-        MainControlWindow::GetApplicationVersion(), "0.1.48");
+        MainControlWindow::GetApplicationVersion(), "0.1.49");
     EXPECT_STREQ(
         MainControlWindow::GetApplicationAuthor(), "EboMike");
 

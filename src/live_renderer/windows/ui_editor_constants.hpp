@@ -60,6 +60,7 @@ inline constexpr const char* const kPlayerProfileElementTypes[] = {
     "player_missiles",
     "player_special_points",
     "player_profile_picture",
+    "elimination_image",
     "team_logo",
     "player_medic_hits",
     "player_shots_fired",

@@ -72,6 +72,8 @@ void ElementPropertyInspector::Render(
     RenderScrollerControls(element);
     ImGui::Spacing();
     RenderMessagesDisplayControls(element);
+    ImGui::Spacing();
+    RenderPlayerProfileEffectsControls(element);
 }
 
 void ElementPropertyInspector::RenderHeaderAndActions(
@@ -307,6 +309,7 @@ void ElementPropertyInspector::RenderImageControls(ElementConfig& element) {
         element.type == "image" ||
         element.type == "player_role" ||
         element.type == "player_profile_picture" ||
+        element.type == "elimination_image" ||
         element.type == "team_logo");
 
     if (!is_image && element.image_file.empty()) {
@@ -754,6 +757,34 @@ void ElementPropertyInspector::RenderMessagesDisplayControls(
             0.0f,
             10.0f,
             "s");
+    }
+}
+
+void ElementPropertyInspector::RenderPlayerProfileEffectsControls(
+    ElementConfig& element) {
+    if (ImGui::CollapsingHeader(
+            "Player Profile Effects", ImGuiTreeNodeFlags_DefaultOpen)) {
+        ImGui::SliderFloat(
+            "Dim While Down",
+            &element.dim_while_down,
+            0.0f,
+            1.0f,
+            "%.2f");
+        ImGui::TextUnformatted("Shake on Down:");
+        ImGui::DragFloat(
+            "Strength##shake_str",
+            &element.shake_on_down.strength,
+            0.5f,
+            0.0f,
+            100.0f,
+            "%.1f px");
+        ImGui::DragFloat(
+            "Duration##shake_dur",
+            &element.shake_on_down.duration,
+            0.05f,
+            0.0f,
+            10.0f,
+            "%.2f s");
     }
 }
 

@@ -38,6 +38,18 @@ struct InsetsConfig {
 };
 
 /**
+ * @brief Configuration for shake effects (duration in seconds and strength).
+ */
+struct ShakeConfig {
+    float duration = 0.5f;            // Duration in seconds
+    float strength = 0.0f;            // Maximum translation amount in pixels
+
+    bool IsEnabled() const {
+        return duration > 0.0f && strength > 0.0f;
+    }
+};
+
+/**
  * @brief Representation of an individual render element inside a template or window.
  */
 struct ElementConfig {
@@ -80,6 +92,8 @@ struct ElementConfig {
     float fadeout_time = 1.0f;                    // Seconds to fade out
     BackgroundConfig background;                  // Optional background
     BackgroundConfig team_background;             // Optional team background
+    ShakeConfig shake_on_down;                    // Shake effect when down
+    float dim_while_down = 0.0f;                  // Darkening (0.0 to 1.0)
 };
 
 /**
@@ -88,9 +102,11 @@ struct ElementConfig {
 struct TemplateConfig {
     int id = 0;
     std::string name;
-    std::string type;                             // "scorecard_row", "scorecard_header_row", "player_profile"
-    std::array<float, 2> size{1.0f, 0.05f};       // [relative width, relative height]
+    std::string type;                             // "scorecard_row", etc.
+    std::array<float, 2> size{1.0f, 0.05f};       // [relative w, relative h]
     std::vector<ElementConfig> elements;
+    ShakeConfig shake_on_down;                    // Template-wide shake on down
+    float dim_while_down = 0.0f;                  // Template-wide dim on down
 };
 
 /**

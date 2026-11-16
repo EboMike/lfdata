@@ -213,4 +213,48 @@ TEST(ConfigSerializerTest, RoundTripPaddingAndMargin) {
     std::filesystem::remove(path);
 }
 
+TEST(ConfigSerializerTest, RoundTripPlayerProfileEffectsAndEliminationImage) {
+    UIConfig ui;
+
+    TemplateConfig prof_tmpl;
+    prof_tmpl.id = 42;
+    prof_tmpl.name = "ProfileTemplate";
+    prof_tmpl.type = "player_profile";
+    prof_tmpl.shake_on_down.duration = 1.2f;
+    prof_tmpl.shake_on_down.strength = 15.0f;
+    prof_tmpl.dim_while_down = 0.45f;
+
+    ElementConfig elim;
+    elim.type = "elimination_image";
+    elim.image_file = "assets/custom_x.png";
+    elim.shake_on_down.duration = 0.8f;
+    elim.shake_on_down.strength = 10.0f;
+    elim.dim_while_down = 0.3f;
+    prof_tmpl.elements.push_back(elim);
+
+    ui.templates.push_back(prof_tmpl);
+
+    std::string path = "test_profile_effects_config.yaml";
+    EXPECT_TRUE(ConfigSerializer::SaveUIConfig(path, ui));
+
+    UIConfig loaded;
+    EXPECT_TRUE(ConfigSerializer::LoadUIConfig(path, loaded));
+    ASSERT_EQ(loaded.templates.size(), 1);
+    const auto& t = loaded.templates[0];
+    EXPECT_EQ(t.type, "player_profile");
+    EXPECT_FLOAT_EQ(t.shake_on_down.duration, 1.2f);
+    EXPECT_FLOAT_EQ(t.shake_on_down.strength, 15.0f);
+    EXPECT_FLOAT_EQ(t.dim_while_down, 0.45f);
+
+    ASSERT_EQ(t.elements.size(), 1);
+    const auto& el = t.elements[0];
+    EXPECT_EQ(el.type, "elimination_image");
+    EXPECT_EQ(el.image_file, "assets/custom_x.png");
+    EXPECT_FLOAT_EQ(el.shake_on_down.duration, 0.8f);
+    EXPECT_FLOAT_EQ(el.shake_on_down.strength, 10.0f);
+    EXPECT_FLOAT_EQ(el.dim_while_down, 0.3f);
+
+    std::filesystem::remove(path);
+}
+
 

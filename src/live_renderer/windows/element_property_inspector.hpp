@@ -56,6 +56,7 @@ private:
         BackgroundConfig& bg);
     void RenderScrollerControls(ElementConfig& element);
     void RenderMessagesDisplayControls(ElementConfig& element);
+    void RenderPlayerProfileEffectsControls(ElementConfig& element);
 
     void RenderPathInputWithPicker(
         const char* label,

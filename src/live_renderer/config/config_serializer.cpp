@@ -116,6 +116,24 @@ static void ParseInsetsNode(
     }
 }
 
+static void ParseShakeConfigNode(
+    const YAML::Node& node, ShakeConfig& out_shake) {
+    if (!node) return;
+    if (node.IsMap()) {
+        if (node["duration"]) {
+            out_shake.duration = node["duration"].as<float>();
+        }
+        if (node["strength"]) {
+            out_shake.strength = node["strength"].as<float>();
+        }
+    } else if (node.IsScalar()) {
+        out_shake.strength = node.as<float>();
+        if (out_shake.duration <= 0.0f) {
+            out_shake.duration = 0.5f;
+        }
+    }
+}
+
 static ElementConfig ParseElementNode(const YAML::Node& node) {
     ElementConfig el;
     if (node["type"]) el.type = node["type"].as<std::string>();
@@ -200,6 +218,18 @@ static ElementConfig ParseElementNode(const YAML::Node& node) {
     if (node["team_background"] && node["team_background"].IsMap()) {
         ParseBackgroundConfigNode(node["team_background"], el.team_background);
     }
+    if (node["shake_on_down"]) {
+        ParseShakeConfigNode(node["shake_on_down"], el.shake_on_down);
+    }
+    if (node["shake_on_down_duration"]) {
+        el.shake_on_down.duration = node["shake_on_down_duration"].as<float>();
+    }
+    if (node["shake_on_down_strength"]) {
+        el.shake_on_down.strength = node["shake_on_down_strength"].as<float>();
+    }
+    if (node["dim_while_down"]) {
+        el.dim_while_down = node["dim_while_down"].as<float>();
+    }
     return el;
 }
 
@@ -259,6 +289,17 @@ static void EmitInsetsNode(
     if (insets.down != 0.0f) {
         out << YAML::Key << "down" << YAML::Value << insets.down;
     }
+    out << YAML::EndMap;
+}
+
+static void EmitShakeConfigNode(
+    YAML::Emitter& out,
+    const char* key_name,
+    const ShakeConfig& shake) {
+    if (!shake.IsEnabled()) return;
+    out << YAML::Key << key_name << YAML::Value << YAML::BeginMap;
+    out << YAML::Key << "duration" << YAML::Value << shake.duration;
+    out << YAML::Key << "strength" << YAML::Value << shake.strength;
     out << YAML::EndMap;
 }
 
@@ -342,6 +383,11 @@ static void EmitElementNode(YAML::Emitter& out, const ElementConfig& el) {
                 << el.fadeout_time;
         }
     }
+    EmitShakeConfigNode(out, "shake_on_down", el.shake_on_down);
+    if (el.dim_while_down > 0.0f) {
+        out << YAML::Key << "dim_while_down" << YAML::Value
+            << el.dim_while_down;
+    }
     out << YAML::EndMap;
 }
 
@@ -370,6 +416,22 @@ bool ConfigSerializer::LoadUIConfig(const std::string& path, UIConfig& out_confi
                     for (const auto& el_node : tmpl_node["elements"]) {
                         tmpl.elements.push_back(ParseElementNode(el_node));
                     }
+                }
+                if (tmpl_node["shake_on_down"]) {
+                    ParseShakeConfigNode(
+                        tmpl_node["shake_on_down"], tmpl.shake_on_down);
+                }
+                if (tmpl_node["shake_on_down_duration"]) {
+                    tmpl.shake_on_down.duration =
+                        tmpl_node["shake_on_down_duration"].as<float>();
+                }
+                if (tmpl_node["shake_on_down_strength"]) {
+                    tmpl.shake_on_down.strength =
+                        tmpl_node["shake_on_down_strength"].as<float>();
+                }
+                if (tmpl_node["dim_while_down"]) {
+                    tmpl.dim_while_down =
+                        tmpl_node["dim_while_down"].as<float>();
                 }
                 out_config.templates.push_back(tmpl);
             }
@@ -427,6 +489,11 @@ bool ConfigSerializer::SaveUIConfig(const std::string& path, const UIConfig& con
                 EmitElementNode(out, el);
             }
             out << YAML::EndSeq;
+            EmitShakeConfigNode(out, "shake_on_down", tmpl.shake_on_down);
+            if (tmpl.dim_while_down > 0.0f) {
+                out << YAML::Key << "dim_while_down" << YAML::Value
+                    << tmpl.dim_while_down;
+            }
             out << YAML::EndMap;
         }
         out << YAML::EndSeq;
