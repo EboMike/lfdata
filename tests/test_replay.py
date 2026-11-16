@@ -1055,6 +1055,7 @@ def test_nuke_cancel_scenarios() -> None:
 
     # Verify stat counters
     c1_state = replay.game_state.players['C1']
+    s1_state = replay.game_state.players['S1']
     s2_state = replay.game_state.players['S2']
     c2_state = replay.game_state.players['C2']
 
@@ -1062,16 +1063,24 @@ def test_nuke_cancel_scenarios() -> None:
     assert c1_state.nukes_activated == 5
     # C1 detonated 0 times
     assert c1_state.nukes_detonated == 0
-    # C1 had own nuke canceled 5 times
-    assert c1_state.own_nuke_cancels == 5
+    # C1 did not cancel any nukes (own_nuke_cancels only counts canceling
+    # a teammate commander's nuke, not having one's own nuke canceled)
+    assert c1_state.nuke_cancels == 0
+    assert c1_state.own_nuke_cancels == 0
+
+    # S1 downed Cmd1 at 22000 (Scenario 2), canceling own commander's nuke.
+    assert s1_state.nuke_cancels == 0
+    assert s1_state.own_nuke_cancels == 1
 
     # S2 zapped Cmd1 at 3000 (Scenario 1), canceling Cmd1's nuke.
     # S2's nuke_cancels should be 1.
     assert s2_state.nuke_cancels == 1
+    assert s2_state.own_nuke_cancels == 0
 
     # C2 activated 1 time (55000), detonated 1 time (61000)
     assert c2_state.nukes_activated == 1
     assert c2_state.nukes_detonated == 1
+    assert c2_state.nuke_cancels == 0
     assert c2_state.own_nuke_cancels == 0
 
 

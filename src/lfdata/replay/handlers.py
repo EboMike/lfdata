@@ -650,8 +650,6 @@ class LFReplayHandlersMixin:
             event: The nuke cancel event.
             actor: The actor player state.
         """
-        actor.own_nuke_cancels += 1
-
         if event.action == 'nuke cancel':
             # Find the zapping/missiling enemy event at the same time
             for ev in self.game.events:
@@ -710,10 +708,10 @@ class LFReplayHandlersMixin:
     ) -> str:
         """Processes nuke cancel events and updates cancel statistics.
 
-        Increments the commander's own_nuke_cancels count. If the cancel is due
-        to being zapped or missiled by an enemy, it finds the event that caused
-        the cancel and increments the zapper's nuke_cancels count. Then, returns
-        the display string.
+        If the cancel is due to being zapped or missiled by an enemy, it finds
+        the event that caused the cancel and increments the zapper's
+        nuke_cancels count. If the cancel is due to friendly fire, it increments
+        the teammate's own_nuke_cancels count. Then, returns the display string.
 
         Args:
             event: The nuke cancel event.

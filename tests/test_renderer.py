@@ -2930,6 +2930,27 @@ def test_scoreboard_player_row_additional_values_formatting() -> None:
     assert vals_scout[6] == '0'
 
 
+def test_format_nuke_cancels() -> None:
+    from lfdata.video.renderer import VideoGenerator
+
+    assert (
+        VideoGenerator._format_nuke_cancels(enemy_cancels=0, own_cancels=0)
+        == '0'
+    )
+    assert (
+        VideoGenerator._format_nuke_cancels(enemy_cancels=2, own_cancels=0)
+        == '2'
+    )
+    assert (
+        VideoGenerator._format_nuke_cancels(enemy_cancels=2, own_cancels=1)
+        == '2/-1'
+    )
+    assert (
+        VideoGenerator._format_nuke_cancels(enemy_cancels=0, own_cancels=1)
+        == '0/-1'
+    )
+
+
 def test_scoreboard_totals_row_additional_values_formatting() -> None:
     from lfdata.model import LFGame
     from lfdata.video.element import LFScoreboardTeamTotals

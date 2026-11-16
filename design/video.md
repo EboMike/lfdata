@@ -246,8 +246,8 @@ Additional stats (not shown by default):
   left-aligned. A zap is a single shot fired that hit the target. Only shots
   against opposing players count. Missiles do not count. The ratio is the first
   number divided by the second number, as `N.NN`. If the player was never
-  zapped, the ratio is equal to the number another player was zapped.
-  Example: `20/40 (0.50)`.
+  zapped, the ratio is equal to the number another player was zapped. Example:
+  `20/40 (0.50)`.
 - **Medic hits**, the number of times a medic was tagged. This is a string that
   might display these values:
   - **Enemy medic hits**: How many times the enemy medic was zapped. Increases
@@ -268,11 +268,16 @@ Additional stats (not shown by default):
   - "0/5": 0 enemy medic hits, 5 medic hits through nukes
 - **Nuke cancels**: The number of times the player canceled a nuke by tagging
   the commander. If the player canceled a nuke of their own commander, it will
-  be shown as a second, negative number. Examples:
+  be shown as a second, negative number. Note that this second number only
+  applies to a player canceling the nuke of the commander of their own team. It
+  does NOT apply to a commander getting their own nuke canceled by somebody
+  else. Examples:
   - `0`: The player did not cancel any nukes
   - `2`: The player canceled 2 enemy nukes
   - `2/-1`: The player canceled 2 enemy nukes, and 1 of their own commander
   - `0/-1`: The player canceled 1 nuke of their own commander
+  - `0`: The player, a commander, did not cancel nukes, but an enemy player
+    canceled this player's nuke.
 
 ### In Laserball
 
@@ -294,8 +299,8 @@ Additional stats (not shown by default):
   that hits a target, like a teammate, opponent, or base. "Fired" is anything
   that subtracts a shot from the player's supply.
 - **Hit ratio**, as `{times zapping another player}/{times zapped} ({ratio})`.
-  The number part is right-aligned and the ratio part is left-aligned. A zap is a
-  single shot fired that hit the target. Only shots against opposing players
+  The number part is right-aligned and the ratio part is left-aligned. A zap is
+  a single shot fired that hit the target. Only shots against opposing players
   count. The ratio is the first number divided by the second number, as `N.NN`.
   If the player was never zapped, the ratio is equal to the number another
   player was zapped. Example: `20/40 (0.50)`.
@@ -349,10 +354,10 @@ options are:
 - **After game**: Additional stats are only shown after the game has finished
 - **Always**: Additional stats are shown at all times
 
-The default is "After game". When additional stats are not shown, the
-respective columns are not shown in the scoreboard either. When additional
-stats switch between enabled and disabled states (or vice versa), they smoothly
-fade in or out. The fade duration is configurable via `additional_stats_fade_ms`
+The default is "After game". When additional stats are not shown, the respective
+columns are not shown in the scoreboard either. When additional stats switch
+between enabled and disabled states (or vice versa), they smoothly fade in or
+out. The fade duration is configurable via `additional_stats_fade_ms`
 (defaulting to 1000ms).
 
 ## SM5 rules

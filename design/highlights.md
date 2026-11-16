@@ -23,24 +23,28 @@ indicates in which scenarios the highlight is noteworthy:
 
 ### Per-player ingame highlight
 
-- **Nuke saved**: After activating a nuke, a commander is zapped by another player. The commander
-  downs the attacker, and the nuke detonates. 
+- **Nuke saved**: After activating a nuke, a commander is zapped by another
+  player. The commander downs the attacker, and the nuke detonates.
 - **Nuke denied**: A player cancels the nuke of an opponent.
-- **Medic Save**: After an enemy commander nukes, a medic resupplies a teammate who hsa 3 or
-  fewer lives. The nuke detonates, and the resupplied teammate survives.
+- **Medic Save**: After an enemy commander nukes, a medic resupplies a teammate
+  who hsa 3 or fewer lives. The nuke detonates, and the resupplied teammate
+  survives.
 - **Last Stand**: A player stays on exactly one life for more than 60 seconds.
-- **Missile Chain**: A commander or heavy lands 3 or more missile hits on opposing players, with
-  each 3 in a row inside 15 seconds.
-- **Nuke Chain**: A commander detonates 5 nukes in a row, with no cancelled nuke between them, within 35 seconds of the first activation.
+- **Missile Chain**: A commander or heavy lands 3 or more missile hits on
+  opposing players, with each 3 in a row inside 15 seconds.
+- **Nuke Chain**: A commander detonates 5 nukes in a row, with no cancelled nuke
+  between them, within 35 seconds of the first activation.
 
 ### Global game stats highlights
 
-- The game ended in a draw. Both teams have an identical score.
-- The two teams ended with a score within 200 points of each other.
-- A team was eliminated in less than 8 minutes.
-- The other team only has a combined 5 lives or left yet and was thus almost
-  eliminated.
-- **Comeback**: A team wins after having trailed by more than 10,000 points at some point during the game.
+- **Draw**: The game ended in a draw. Both teams have an identical score.
+- **Very Close**: The two teams ended with a score within 200 points of each
+  other.
+- **Quick elim**: A team was eliminated in less than 8 minutes.
+- **Down to the last lives**: A team was eliminated, the other team only has a
+  combined 5 lives or left yet and was thus almost eliminated.
+- **Comeback**: A team wins after having trailed by more than 10,000 points at
+  some point during the game.
 
 ### Per-Player stats highlights
 
