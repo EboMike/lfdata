@@ -43,6 +43,7 @@ from lfdata.video.constants import (
     DEFAULT_HOP_LENGTH,
     DEFAULT_N_FFT,
     DEFAULT_SAMPLE_RATE_HZ,
+    DEFAULT_START_SOUND_METHOD,
 )
 
 
@@ -57,6 +58,7 @@ class AudioMatchConfig:
         threshold: Minimum confidence score threshold (default: 0.2).
         template_duration_ms: Optional template duration in ms to crop to.
         min_energy_ratio: Optional minimum in-band energy ratio for gating.
+        start_sounds_dir: Optional directory of pre-game start-sound samples.
     """
 
     reference_sound_path: str
@@ -65,6 +67,7 @@ class AudioMatchConfig:
     threshold: float = DEFAULT_AUDIO_THRESHOLD
     template_duration_ms: int | None = None
     min_energy_ratio: float | None = None
+    start_sounds_dir: str | None = None
 
 
 def load_sound_config(config_path: str | Path) -> AudioMatchConfig:
@@ -124,6 +127,15 @@ def load_sound_config(config_path: str | Path) -> AudioMatchConfig:
     raw_energy = raw_data.get('min_energy_ratio')
     min_energy_ratio = float(raw_energy) if raw_energy is not None else None
 
+    raw_start_dir = raw_data.get('start_sounds_dir')
+    start_sounds_dir: str | None = None
+    if raw_start_dir:
+        start_dir_obj = Path(str(raw_start_dir))
+        if not start_dir_obj.is_absolute():
+            start_sounds_dir = str((path.parent / start_dir_obj).resolve())
+        else:
+            start_sounds_dir = str(start_dir_obj)
+
     return AudioMatchConfig(
         reference_sound_path=resolved_ref_path,
         freq_min_hz=freq_min,
@@ -131,6 +143,7 @@ def load_sound_config(config_path: str | Path) -> AudioMatchConfig:
         threshold=threshold,
         template_duration_ms=template_duration_ms,
         min_energy_ratio=min_energy_ratio,
+        start_sounds_dir=start_sounds_dir,
     )
 
 
@@ -139,12 +152,16 @@ class AudioMatchResult:
     """Represents a candidate timestamp match with its confidence score.
 
     Attributes:
-        timestamp_ms: Millisecond offset into the video where the sound starts.
+        timestamp_ms: Millisecond offset into the video where the sound starts
+            (or game start time in milliseconds).
         confidence: Confidence score from 0.0 to 1.0 (normalized correlation).
+        method: Identifier of the method or sound that produced the match
+            (e.g. 'siren' or 'start_sounds/<sample>.wav').
     """
 
     timestamp_ms: int
     confidence: float
+    method: str = DEFAULT_START_SOUND_METHOD
 
     @property
     def timestamp_sec(self) -> float:
@@ -861,6 +878,128 @@ class AudioMatcher:
             cluster_sequence=cluster_sequence,
         )
 
+    def load_audio(
+        self,
+        file_path: Path,
+        start_ms: int | None = None,
+        end_ms: int | None = None,
+    ) -> np.ndarray:
+        """Loads and converts an audio or video file into mono float32 samples.
+
+        Args:
+            file_path: Path to the media file.
+            start_ms: Optional start offset in milliseconds.
+            end_ms: Optional end offset in milliseconds.
+
+        Returns:
+            np.ndarray: 1D array of normalized float32 audio samples.
+
+        Raises:
+            RuntimeError: If ffmpeg fails to decode the audio stream.
+        """
+        return self._load_audio(
+            file_path=file_path,
+            start_ms=start_ms,
+            end_ms=end_ms,
+        )
+
+    def compute_spectrogram(
+        self, audio: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Computes frequency bin centers and power spectrogram of audio.
+
+        Args:
+            audio: 1D normalized float32 audio sample array.
+
+        Returns:
+            tuple[np.ndarray, np.ndarray]: 1D frequency bins array in Hz, and
+                2D power spectrogram matrix.
+        """
+        return self._compute_spectrogram(audio=audio)
+
+    def find_peaks_nms(
+        self,
+        correlation_series: np.ndarray,
+        threshold: float,
+        min_dist_frames: int,
+    ) -> list[tuple[int, float]]:
+        """Applies Non-Maximum Suppression to extract peaks above threshold.
+
+        Args:
+            correlation_series: 1D array of normalized correlation scores.
+            threshold: Minimum score threshold.
+            min_dist_frames: Minimum frame distance between adjacent peaks.
+
+        Returns:
+            list[tuple[int, float]]: List of (frame_index, score) pairs
+                sorted by highest score first.
+        """
+        return self._find_peaks_nms(
+            correlation_series=correlation_series,
+            threshold=threshold,
+            min_dist_frames=min_dist_frames,
+        )
+
+    def detect_game_start(
+        self,
+        video_or_audio_path: str | Path,
+        reference_sound_path: str | Path | None = None,
+        start_sounds_dir: str | Path | None = None,
+        config: AudioMatchConfig | str | Path | None = None,
+        threshold: float | None = None,
+        start_ms: int | None = None,
+        end_ms: int | None = None,
+        freq_min_hz: float | None = None,
+        freq_max_hz: float | None = None,
+        template_duration_ms: int | None = None,
+        min_energy_ratio: float | None = None,
+        two_stage: bool = False,
+        cluster_sequence: bool = False,
+    ) -> AudioMatchResult | None:
+        """Detects game start using both start-sound samples and siren matching.
+
+        Combines pre-game start-sound sample matching with the existing siren
+        matcher and returns the most reliable start time, method, and
+        confidence score in [0.0, 1.0].
+
+        Args:
+            video_or_audio_path: Path to the target video or audio file.
+            reference_sound_path: Optional path to siren reference WAV file.
+            start_sounds_dir: Optional directory of pre-game start-sound WAVs.
+            config: Optional AudioMatchConfig or path to YAML config file.
+            threshold: Optional confidence threshold override.
+            start_ms: Optional search window start offset in milliseconds.
+            end_ms: Optional search window end offset in milliseconds.
+            freq_min_hz: Optional lower frequency cutoff in Hz for siren.
+            freq_max_hz: Optional upper frequency cutoff in Hz for siren.
+            template_duration_ms: Optional template crop duration in ms.
+            min_energy_ratio: Optional minimum in-band energy ratio.
+            two_stage: Whether to use two-stage matching for siren detection.
+            cluster_sequence: Whether to cluster repeated siren blasts.
+
+        Returns:
+            AudioMatchResult | None: Best game-start match with timestamp_ms,
+                method, and confidence, or None if no match is found.
+        """
+        from lfdata.video.start_sound_matcher import GameStartDetector
+
+        detector = GameStartDetector(audio_matcher=self)
+        return detector.detect(
+            video_or_audio_path=video_or_audio_path,
+            reference_sound_path=reference_sound_path,
+            start_sounds_dir=start_sounds_dir,
+            config=config,
+            threshold=threshold,
+            start_ms=start_ms,
+            end_ms=end_ms,
+            freq_min_hz=freq_min_hz,
+            freq_max_hz=freq_max_hz,
+            template_duration_ms=template_duration_ms,
+            min_energy_ratio=min_energy_ratio,
+            two_stage=two_stage,
+            cluster_sequence=cluster_sequence,
+        )
+
     def _load_audio(
         self,
         file_path: Path,
@@ -1109,6 +1248,12 @@ def main() -> None:
         help='Path to sound definition YAML file (e.g. sm5_game_start.yaml).',
     )
     parser.add_argument(
+        '--start-sounds-dir',
+        type=str,
+        default=None,
+        help='Directory of pre-game start-sound samples.',
+    )
+    parser.add_argument(
         '--threshold',
         type=float,
         default=None,
@@ -1183,9 +1328,9 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    if not args.reference and not args.config:
+    if not args.reference and not args.config and not args.start_sounds_dir:
         parser.error(
-            'Either a reference sound WAV path or --config must be provided.'
+            'Provide a reference sound WAV, --config, or --start-sounds-dir.'
         )
 
     video_path = Path(args.video)
@@ -1198,6 +1343,7 @@ def main() -> None:
     eff_freq_max = args.freq_max
     eff_template_duration: int | None = None
     eff_min_energy_ratio: float | None = None
+    eff_start_sounds_dir: str | None = args.start_sounds_dir
 
     if args.config:
         cfg = load_sound_config(args.config)
@@ -1209,6 +1355,8 @@ def main() -> None:
             eff_freq_min = cfg.freq_min_hz
         if eff_freq_max is None:
             eff_freq_max = cfg.freq_max_hz
+        if eff_start_sounds_dir is None:
+            eff_start_sounds_dir = cfg.start_sounds_dir
         eff_template_duration = cfg.template_duration_ms
         eff_min_energy_ratio = cfg.min_energy_ratio
 
@@ -1217,17 +1365,33 @@ def main() -> None:
             args.template_duration_ms if args.template_duration_ms > 0 else None
         )
 
-    if not ref_path or not Path(ref_path).exists():
+    if ref_path and not Path(ref_path).exists():
         raise FileNotFoundError(f'Reference sound not found: {ref_path}')
 
     if eff_threshold is None:
         eff_threshold = 0.2
 
     matcher = AudioMatcher()
-    if args.two_stage:
-        results = matcher.match_two_stage(
+    if eff_start_sounds_dir:
+        best = matcher.detect_game_start(
             video_or_audio_path=args.video,
             reference_sound_path=ref_path,
+            start_sounds_dir=eff_start_sounds_dir,
+            threshold=eff_threshold,
+            start_ms=args.start_ms,
+            end_ms=args.end_ms,
+            freq_min_hz=eff_freq_min,
+            freq_max_hz=eff_freq_max,
+            template_duration_ms=eff_template_duration,
+            min_energy_ratio=eff_min_energy_ratio,
+            two_stage=args.two_stage,
+            cluster_sequence=args.cluster_sequence,
+        )
+        results = [best] if best is not None else []
+    elif args.two_stage:
+        results = matcher.match_two_stage(
+            video_or_audio_path=args.video,
+            reference_sound_path=str(ref_path),
             threshold=eff_threshold,
             min_interval_ms=args.min_interval_ms,
             start_ms=args.start_ms,
@@ -1241,7 +1405,7 @@ def main() -> None:
     else:
         results = matcher.match(
             video_or_audio_path=args.video,
-            reference_sound_path=ref_path,
+            reference_sound_path=str(ref_path),
             threshold=eff_threshold,
             min_interval_ms=args.min_interval_ms,
             start_ms=args.start_ms,
@@ -1259,6 +1423,7 @@ def main() -> None:
             {
                 'timestamp_ms': r.timestamp_ms,
                 'timestamp_sec': r.timestamp_sec,
+                'method': r.method,
                 'confidence': round(r.confidence, 4),
             }
             for r in results
@@ -1277,7 +1442,7 @@ def main() -> None:
         time_str = f'{minutes:02d}:{seconds:06.3f}'
         print(
             f'  {i}. {r.timestamp_ms} ms ({time_str}) - '
-            f'confidence: {r.confidence:.4f}'
+            f'method: {r.method} - confidence: {r.confidence:.4f}'
         )
 
 

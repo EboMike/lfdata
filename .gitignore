@@ -123,6 +123,9 @@ data/*.sqlite
 # Internal assets
 assets_src/
 
+# Licensed assets
+assets/sm5/start_sounds/
+
 # Goofy vibe stuff
 private.AGENTS.md
 

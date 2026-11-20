@@ -26,6 +26,10 @@ if TYPE_CHECKING:
         AudioMatcher,
         load_sound_config,
     )
+    from lfdata.video.start_sound_matcher import (
+        GameStartDetector,
+        StartSoundMatcher,
+    )
     from lfdata.video.audio_benchmark import (
         AudioBenchmarkRunner,
         AudioTestCase,
@@ -52,6 +56,8 @@ __all__ = [
     'AudioMatchResult',
     'AudioMatchDiagnostic',
     'AudioMatchConfig',
+    'GameStartDetector',
+    'StartSoundMatcher',
     'load_sound_config',
     'AudioBenchmarkRunner',
     'AudioTestCase',
@@ -89,6 +95,14 @@ def __getattr__(name: str) -> object:
         import lfdata.video.audio_matcher as am
 
         return getattr(am, name)
+    start_matcher_attrs = {
+        'GameStartDetector',
+        'StartSoundMatcher',
+    }
+    if name in start_matcher_attrs:
+        import lfdata.video.start_sound_matcher as ssm
+
+        return getattr(ssm, name)
     benchmark_attrs = {
         'AudioBenchmarkRunner',
         'AudioTestCase',

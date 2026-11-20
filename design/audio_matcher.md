@@ -1,10 +1,10 @@
 # Audio Matcher
 
-The audio matcher module locates occurrences of a reference sound effect
-(such as the game start buzzer, arena horns, chimes, or the countdown klaxon)
-within video or audio recordings. Its primary purpose is to automatically
-synchronize POV video footage (such as GoPro recordings) with LF game data
-and replay timelines.
+The audio matcher module locates occurrences of reference sound effects
+(such as the game start siren/klaxon, arena horns, chimes, or pre-game
+start-sound samples) within video or audio recordings. Its primary purpose is
+to automatically synchronize POV video footage (such as GoPro recordings) with
+LF game data and replay timelines.
 
 ## Overview and How It Works
 
@@ -13,11 +13,25 @@ exact moment the game begins. Because POV recordings typically contain loud
 arena music, player shouting, running noise, and arena reverberation, simple
 volume peak detection is insufficient.
 
-The audio matcher uses 2D spectrogram template matching combined with
-bandpass filtering and human voice rejection to robustly pinpoint reference
-sound effects.
+To achieve high reliability, game-start detection combines two complementary
+methods:
 
-The matching pipeline follows these stages:
+1. **Siren / Start-Sound Effect Matching (Existing Method)**: Listens for the
+   game start siren or countdown klaxon using 2D spectrogram template matching
+   combined with bandpass filtering, human voice rejection, and energy gating.
+2. **Pre-Game Start-Sound Sample Matching (New Method)**: Listens for one of
+   several pre-game sound samples played immediately before the game begins
+   (stored in `assets/sm5/start_sounds/`). Because the game starts immediately
+   after the sample finishes playing, detecting any portion of the sample
+   pinpoints the exact game start time.
+
+Both methods produce a normalized confidence score between `0.0` and `1.0`.
+The matcher evaluates both signals and selects the most reliable start time.
+
+## Single-Sound Spectrogram Matching Pipeline
+
+The existing matching pipeline for individual sound effects (including the
+start siren) follows these stages:
 
 ### 1. Audio Extraction and Normalization
 
@@ -116,6 +130,120 @@ To isolate distinct sound events and prevent duplicate triggers:
 
 ---
 
+## Pre-Game Start-Sound Sample Matching
+
+In addition to listening for the start siren, the matcher supports detecting
+pre-game sound samples played immediately before the game begins.
+
+### Sample Library (`assets/sm5/start_sounds`)
+
+* Candidate start-sound samples are stored in `assets/sm5/start_sounds/`
+  (or a configurable directory path).
+* Each game plays one of these samples immediately before game start.
+* Because the game begins the instant the sample finishes playing, a sample
+  of total duration $D_{\text{ms}}$ starting at $t_{\text{onset\_ms}}$
+  determines the game start time as:
+
+$$t_{\text{game\_start}} = t_{\text{onset\_ms}} + D_{\text{ms}}$$
+
+### Handling Partial Recordings (Late GoPro Start)
+
+A GoPro recording may begin *after* the pre-game sample has already started
+playing, leaving only the middle or trailing portion of the sample in the
+recording. Full-template matching would fail in this case.
+
+To handle partial playback:
+1. **Overlapping Sub-Window Chunking**: Each reference sample is divided into
+   overlapping sub-templates (chunks, e.g., 1,500–2,000 ms with 50% overlap),
+   always including a chunk anchored at the very end of the sample.
+2. **End-Anchored Offset Mapping**: Each chunk $i$ has a fixed remaining
+   duration $R_i = D_{\text{ms}} - t_{\text{chunk\_start}, i}$ until the end
+   of the sample. When chunk $i$ matches the recording at $t_{\text{hit}}$, it
+   directly predicts:
+   $$t_{\text{game\_start}, i} = t_{\text{hit}} + R_i$$
+3. **Suffix Availability**: Even if the recording begins mid-sample and only
+   the final few seconds are captured near $t = 0$, the trailing chunks still
+   align and predict the exact same $t_{\text{game\_start}}$.
+
+### Handling Overlapping Speech and Arena Noise
+
+Pre-game samples play over arena speakers while players talk, cheer, or move
+near the camera microphone. The sample matcher stays robust to foreground
+noise through:
+* **Log-Magnitude Spectrogram Normalization**: Compresses dynamic range so
+  sudden loud vocal bursts or microphone bumps do not dominate correlation.
+* **High-Pass Filtering and Vocal Suppression**: Attenuates low-frequency
+  handling rumble (< 150 Hz) and down-weights frames dominated by close-mic
+  human speech energy relative to the sample's spectral profile.
+* **Chunk Consensus Voting**: Individual chunk predictions
+  $t_{\text{game\_start}, i}$ are clustered within a timing tolerance (e.g.,
+  ±150 ms). A player shouting over one or two chunks only degrades those local
+  slices, while the remaining clean chunks still vote consistently for the
+  true game start time.
+
+---
+
+## Confidence Scoring and Start-Time Selection
+
+When determining game start, the matcher runs both the pre-game sample matcher
+and the existing siren matcher, producing a confidence score in `[0.0, 1.0]`
+for each.
+
+### Per-Method Confidence (`0.0` to `1.0`)
+
+* **Siren Matcher Confidence**: Derived from the normalized spectrogram
+  correlation after vocal penalty and energy gating, scaled by the
+  peak-to-noise margin over the strongest out-of-tolerance peak.
+* **Start-Sound Sample Confidence**: Combines:
+  1. Mean (or trimmed-mean) correlation across the agreeing chunks.
+  2. **Chunk Consensus Ratio**: Fraction of available chunks (within the
+     recording's bounds) that agree on the winning $t_{\text{game\_start}}$.
+  3. **Disambiguation Margin**: Separation between the winning sample's score
+     and the next-best candidate sample or background false-positive peak.
+  The combined score is normalized to `[0.0, 1.0]`.
+
+### Selecting the Most Reliable Start Time
+
+The matcher evaluates both methods and selects the final game start time
+using the following reliability hierarchy:
+
+1. **Corroborated Agreement (Highest Reliability)**:
+   If both a pre-game sample and the siren matcher detect a start time within
+   the agreement tolerance (e.g., ±500 ms), their agreement confirms the
+   exact game start. The combined confidence is boosted toward `1.0` (higher
+   than either method alone), and the start time is taken from the
+   higher-precision estimate (or confidence-weighted consensus).
+2. **Start-Sound Sample Preferred**:
+   If a pre-game sample from `assets/sm5/start_sounds/` matches with high
+   confidence and strong chunk consensus—and either no siren was found or the
+   sample signal is stronger—the sample-derived $t_{\text{game\_start}}$ is
+   selected, as multi-second tracks are less susceptible to brief arena false
+   positives.
+3. **Existing Siren Matcher Fallback**:
+   If no pre-game sample matches (e.g., the arena uses an unrecognized track,
+   or the recording began right at the siren), the matcher falls back to the
+   existing siren matcher and uses its timestamp and confidence.
+4. **Conflict Resolution**:
+   If both methods produce detections that disagree beyond the agreement
+   tolerance, the matcher selects the method with the higher
+   reliability-weighted score (factoring in method confidence, chunk
+   consensus, and peak-to-noise margin) and applies a conflict penalty to the
+   reported confidence.
+
+### Game Start Result
+
+Every game-start detection returns a structured result containing:
+
+* **`timestamp_ms`** (and `timestamp_sec`): The determined game start time in
+  milliseconds (as already returned).
+* **`method`**: The specific method or sound that determined the start time
+  (e.g., the matched sample identifier such as `start_sounds/<sample>.wav`,
+  or `'siren'` / `'sm5_game_start'`).
+* **`confidence`**: A float in `[0.0, 1.0]` indicating how certain the matcher
+  is that it pinpointed the exact game start.
+
+---
+
 ## How to Run Audio Matching
 
 The audio matcher can be invoked via platform launcher scripts, the installed
@@ -165,6 +293,7 @@ python -m lfdata.video.audio_matcher <video_or_audio> \
 | `video` | Path | (Required) | Target video or audio file to analyze. |
 | `reference` | Path | `None` | Reference WAV (optional if `--config` used). |
 | `--config` | Path | `None` | Path to YAML sound definition file. |
+| `--start-sounds-dir` | Path | `None` | Directory of pre-game start-sound samples. |
 | `--threshold` | Float | Config/0.2 | Minimum confidence score (0.0 to 1.0). |
 | `--min-interval-ms` | Int | Ref duration | Minimum ms between detections. |
 | `--start-ms` | Int | `None` | Search start offset in milliseconds. |
@@ -187,7 +316,7 @@ Run matching using a tuned YAML definition (such as `sm5_game_start.yaml`):
 Output:
 ```
 Found 1 match(es):
-  1. 20240 ms (00:20.240) - confidence: 0.5842
+  1. 20240 ms (00:20.240) - method: siren - confidence: 0.5842
 ```
 
 #### 2. Matching with Direct WAV File
@@ -220,6 +349,7 @@ Output:
   {
     "timestamp_ms": 20240,
     "timestamp_sec": 20.24,
+    "method": "siren",
     "confidence": 0.5842
   }
 ]
@@ -259,6 +389,7 @@ for match in results:
     print(
         f'Match at {match.timestamp_ms} ms '
         f'({match.timestamp_sec:.2f}s) '
+        f'method: {match.method} '
         f'confidence: {match.confidence:.4f}'
     )
 ```
@@ -310,6 +441,9 @@ test_cases:
 * `description`: Explanatory notes about the sound.
 * `reference_sound_path`: Path to reference audio WAV file (relative paths are
   resolved relative to the directory containing the YAML file).
+* `start_sounds_dir`: Optional path to a directory of pre-game start-sound
+  samples (e.g., `assets/sm5/start_sounds`). Relative paths resolve from the
+  YAML directory.
 * `freq_min_hz`: Lower frequency cutoff in Hz (e.g. `1400.0`).
 * `freq_max_hz`: Upper frequency cutoff in Hz (e.g. `2400.0`).
 * `threshold`: Detection confidence threshold (0.0 to 1.0, e.g. `0.2`).
