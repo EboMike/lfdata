@@ -27,6 +27,21 @@ bool ConfigSerializer::LoadGlobalConfig(const std::string& path, GlobalConfig& o
             out_config.default_profile_picture_url =
                 doc["default_profile_picture_url"].as<std::string>();
         }
+        out_config.feeds.clear();
+        if (doc["feeds"] && doc["feeds"].IsSequence()) {
+            for (const auto& feed_node : doc["feeds"]) {
+                FeedConfig feed;
+                if (feed_node["name"]) {
+                    feed.name = feed_node["name"].as<std::string>();
+                }
+                if (feed_node["url"]) {
+                    feed.url = feed_node["url"].as<std::string>();
+                }
+                if (!feed.name.empty() || !feed.url.empty()) {
+                    out_config.feeds.push_back(std::move(feed));
+                }
+            }
+        }
         return true;
     } catch (...) {
         return false;
@@ -45,6 +60,16 @@ bool ConfigSerializer::SaveGlobalConfig(const std::string& path, const GlobalCon
         out << YAML::Key << "preferences_file" << YAML::Value << config.preferences_file;
         out << YAML::Key << "default_profile_picture_url" << YAML::Value
             << config.default_profile_picture_url;
+        if (!config.feeds.empty()) {
+            out << YAML::Key << "feeds" << YAML::Value << YAML::BeginSeq;
+            for (const auto& feed : config.feeds) {
+                out << YAML::BeginMap;
+                out << YAML::Key << "name" << YAML::Value << feed.name;
+                out << YAML::Key << "url" << YAML::Value << feed.url;
+                out << YAML::EndMap;
+            }
+            out << YAML::EndSeq;
+        }
         out << YAML::EndMap;
 
         std::ofstream fout(path);

@@ -37,6 +37,7 @@ public:
     struct Callbacks {
         std::function<void()> on_reconnect;
         std::function<void()> on_enter_ui_editor;
+        std::function<void()> on_open_feeds;
         std::function<void(const std::string& config_path)> on_open_configuration;
         std::function<void(const GlobalConfig& new_config)> on_save_settings;
         std::function<void(const CompetitionInfo& competition)> on_competition_selected;
@@ -100,6 +101,7 @@ public:
     // Button & menu actions (callable directly in unit tests or via ImGui buttons)
     void ClickReconnect();
     void ClickUIEditor();
+    void ClickFeeds();
     void ClickQuit();
     void ConfirmQuit();
     void CancelQuit();

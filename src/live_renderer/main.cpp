@@ -21,6 +21,7 @@
 #include "live_renderer/network/tcp_consumer_client.hpp"
 #include "live_renderer/state/live_state_store.hpp"
 #include "live_renderer/state/mock_game_state.hpp"
+#include "live_renderer/windows/feed_manager_window.hpp"
 #include "live_renderer/windows/main_control_window.hpp"
 #include "live_renderer/windows/ui_editor_window.hpp"
 #include "live_renderer/diagnostics/crash_handler.hpp"
@@ -137,6 +138,7 @@ int main(int argc, char* argv[]) {
     live_renderer::MainControlWindow control_window(
         config_path, global_cfg, ui_cfg, state_store, client, stats_fetcher);
     live_renderer::UIEditorWindow editor_window(ui_cfg, global_cfg.ui_config_file);
+    live_renderer::FeedManagerWindow feed_manager_window(global_cfg.feeds);
 
     SDL_SetMainReady();
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) {
@@ -204,9 +206,13 @@ int main(int argc, char* argv[]) {
         .on_enter_ui_editor = [&]() {
             SDL_SetWindowTitle(main_window, "LF Live Renderer - UI Editor");
         },
+        .on_open_feeds = [&]() {
+            feed_manager_window.Open();
+        },
         .on_open_configuration = [&](const std::string&) {
             editor_window.SetUIConfigFile(global_cfg.ui_config_file);
             window_manager.SyncWithConfig(ui_cfg);
+            feed_manager_window.SyncFeedsFromConfig();
         },
         .on_save_settings = [&](const live_renderer::GlobalConfig&) {
             editor_window.SetUIConfigFile(global_cfg.ui_config_file);
@@ -216,6 +222,12 @@ int main(int argc, char* argv[]) {
         .on_competition_selected = [](const live_renderer::CompetitionInfo& comp) {
             std::cout << "[live_renderer] Selected competition: " << comp.GetName()
                       << " (" << comp.GetSlug() << ")\n";
+        }
+    });
+
+    feed_manager_window.SetCallbacks({
+        .on_feeds_changed = [&](const std::vector<live_renderer::FeedConfig>&) {
+            live_renderer::ConfigSerializer::SaveGlobalConfig(config_path, global_cfg);
         }
     });
 
@@ -237,6 +249,9 @@ int main(int argc, char* argv[]) {
     while (!g_shutdown_requested.load() && !control_window.IsQuitConfirmed()) {
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
+            if (feed_manager_window.HandleEvent(event)) {
+                continue;
+            }
             ImGui_ImplSDL2_ProcessEvent(&event);
             window_manager.HandleEvent(
                 event,
@@ -308,12 +323,15 @@ int main(int argc, char* argv[]) {
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
         SDL_GL_SwapWindow(main_window);
 
+        feed_manager_window.Render();
+
         if (max_frames > 0 && ++frame_count >= max_frames) {
             break;
         }
     }
 
     std::cout << "[live_renderer] Shutting down...\n";
+    feed_manager_window.Close();
     pref_manager.Save();
     client.Stop();
 

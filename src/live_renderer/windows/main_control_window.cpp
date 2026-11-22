@@ -702,6 +702,12 @@ void MainControlWindow::RenderCompetitionSection() {
     }
 }
 
+void MainControlWindow::ClickFeeds() {
+    if (callbacks_.on_open_feeds) {
+        callbacks_.on_open_feeds();
+    }
+}
+
 void MainControlWindow::RenderMainButtons() {
     const float button_width = ImGui::GetContentRegionAvail().x;
     const ImVec2 button_size(button_width, 36.0f);
@@ -713,6 +719,11 @@ void MainControlWindow::RenderMainButtons() {
 
     if (ImGui::Button("UI Editor", button_size)) {
         ClickUIEditor();
+    }
+    ImGui::Spacing();
+
+    if (ImGui::Button("Feeds", button_size)) {
+        ClickFeeds();
     }
     ImGui::Spacing();
 
