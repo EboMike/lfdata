@@ -39,55 +39,9 @@ shift
 goto parse_args
 
 :after_args
-cd /d "%REPO_ROOT%"
+set "CLEAN_ARG="
+if "%CLEAN%"=="1" set "CLEAN_ARG=-Clean"
 
-if "%CLEAN%"=="1" (
-    echo Cleaning build directory...
-    if exist "%REPO_ROOT%\build" rd /s /q "%REPO_ROOT%\build"
-)
-
-set VCVARS=
-if exist "C:\Program Files\Microsoft Visual Studio\18\Community\VC\Auxiliary\Build\vcvars64.bat" (
-    set "VCVARS=C:\Program Files\Microsoft Visual Studio\18\Community\VC\Auxiliary\Build\vcvars64.bat"
-) else if exist "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat" (
-    set "VCVARS=C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
-) else if exist "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvars64.bat" (
-    set "VCVARS=C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvars64.bat"
-)
-
-if "%VCVARS%"=="" (
-    echo Error: Could not find Visual Studio vcvars64.bat.
-    exit /b 1
-)
-
-echo Initializing MSVC and building live_renderer (%CONFIG%, target: %TARGET%)...
-call "%VCVARS%"
-cd /d "%REPO_ROOT%"
-if errorlevel 1 exit /b 1
-
-cmake -B "%REPO_ROOT%\build" -S "%REPO_ROOT%\src\live_renderer" -DYAML_MSVC_SHARED_RT=ON
-if errorlevel 1 exit /b 1
-
-set "TARGET_DIR=%REPO_ROOT%\build\%CONFIG%"
-set "LKG_DIR=%TARGET_DIR%\last_known_good"
-if exist "%TARGET_DIR%\*.exe" (
-    echo Backing up previous version to last_known_good...
-    if not exist "%LKG_DIR%" md "%LKG_DIR%"
-    copy /y "%TARGET_DIR%\*.exe" "%LKG_DIR%\" >nul
-    if exist "%TARGET_DIR%\*.pdb" copy /y "%TARGET_DIR%\*.pdb" "%LKG_DIR%\" >nul
-)
-
-if "%TARGET%"=="all" (
-    cmake --build "%REPO_ROOT%\build" --config %CONFIG%
-) else (
-    cmake --build "%REPO_ROOT%\build" --config %CONFIG% --target %TARGET%
-)
-
-if errorlevel 1 (
-    echo Build failed.
-    exit /b 1
-)
-
-echo Build succeeded.
-exit /b 0
+powershell -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%build_renderer.ps1" -Config %CONFIG% -Target %TARGET% %CLEAN_ARG%
+exit /b %errorlevel%
 
