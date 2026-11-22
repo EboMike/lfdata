@@ -708,6 +708,12 @@ void MainControlWindow::ClickFeeds() {
     }
 }
 
+void MainControlWindow::ClickLatencyMeter() {
+    if (callbacks_.on_open_latency_meter) {
+        callbacks_.on_open_latency_meter();
+    }
+}
+
 void MainControlWindow::RenderMainButtons() {
     const float button_width = ImGui::GetContentRegionAvail().x;
     const ImVec2 button_size(button_width, 36.0f);
@@ -724,6 +730,11 @@ void MainControlWindow::RenderMainButtons() {
 
     if (ImGui::Button("Feeds", button_size)) {
         ClickFeeds();
+    }
+    ImGui::Spacing();
+
+    if (ImGui::Button("Latency Meter", button_size)) {
+        ClickLatencyMeter();
     }
     ImGui::Spacing();
 

@@ -520,6 +520,7 @@ Underneath, it has buttons with the following options:
   cause the server to resend the current game state.
 - **UI Editor**: Begins the UI editor mode, described below.
 - **Feeds**: Opens a window with the feed manager, described below.
+- **Latency Meter**: Opens a window with the latency meter, described below.
 - **Quit**: Terminate the program, with a confirmation dialog.
 
 The main window also has a menu:
@@ -566,6 +567,21 @@ show an error text underneath the text field if the URL is invalid.
 
 Clicking on a feed in the grid in the feed manager brings up an edit dialog that
 is identical to the "add new feed" dialog.
+
+## Latency Meter
+
+The latency meter is a separate window that counts down from 5 to 0, in seconds.
+During this duration, it will show the respective number in the window, filling
+almost the entire screen. On the bottom, there is text: "On 0, press space or
+click the button".
+
+When the timer hits 0, it will play a 0.2 seconds long beep at 1000Hz.
+
+At this point, nothing changes on the screen. After the user presses the space
+bar, the screen will show the number of milliseconds that have passed between
+the counter reaching 0 and the user pressing space.
+
+Nothing else will happen after this point and the window can be closed.
 
 ## UI Editor Mode
 

@@ -22,6 +22,7 @@
 #include "live_renderer/state/live_state_store.hpp"
 #include "live_renderer/state/mock_game_state.hpp"
 #include "live_renderer/windows/feed_manager_window.hpp"
+#include "live_renderer/windows/latency_meter_window.hpp"
 #include "live_renderer/windows/main_control_window.hpp"
 #include "live_renderer/windows/ui_editor_window.hpp"
 #include "live_renderer/diagnostics/crash_handler.hpp"
@@ -139,6 +140,7 @@ int main(int argc, char* argv[]) {
         config_path, global_cfg, ui_cfg, state_store, client, stats_fetcher);
     live_renderer::UIEditorWindow editor_window(ui_cfg, global_cfg.ui_config_file);
     live_renderer::FeedManagerWindow feed_manager_window(global_cfg.feeds);
+    live_renderer::LatencyMeterWindow latency_meter_window;
 
     SDL_SetMainReady();
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) {
@@ -164,7 +166,7 @@ int main(int argc, char* argv[]) {
         SDL_WINDOWPOS_CENTERED,
         SDL_WINDOWPOS_CENTERED,
         420,
-        340,
+        400,
         window_flags);
     if (!main_window) {
         std::cerr << "[live_renderer] SDL_CreateWindow Error: " << SDL_GetError() << "\n";
@@ -209,6 +211,9 @@ int main(int argc, char* argv[]) {
         .on_open_feeds = [&]() {
             feed_manager_window.Open();
         },
+        .on_open_latency_meter = [&]() {
+            latency_meter_window.Open();
+        },
         .on_open_configuration = [&](const std::string&) {
             editor_window.SetUIConfigFile(global_cfg.ui_config_file);
             window_manager.SyncWithConfig(ui_cfg);
@@ -250,6 +255,9 @@ int main(int argc, char* argv[]) {
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
             if (feed_manager_window.HandleEvent(event)) {
+                continue;
+            }
+            if (latency_meter_window.HandleEvent(event)) {
                 continue;
             }
             ImGui_ImplSDL2_ProcessEvent(&event);
@@ -324,6 +332,7 @@ int main(int argc, char* argv[]) {
         SDL_GL_SwapWindow(main_window);
 
         feed_manager_window.Render();
+        latency_meter_window.Render();
 
         if (max_frames > 0 && ++frame_count >= max_frames) {
             break;
@@ -331,6 +340,7 @@ int main(int argc, char* argv[]) {
     }
 
     std::cout << "[live_renderer] Shutting down...\n";
+    latency_meter_window.Close();
     feed_manager_window.Close();
     pref_manager.Save();
     client.Stop();

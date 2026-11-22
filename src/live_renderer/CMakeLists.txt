@@ -105,6 +105,7 @@ set(CORE_SOURCES
     components/text_component.cpp
     windows/element_property_inspector.cpp
     windows/feed_manager_window.cpp
+    windows/latency_meter_window.cpp
     windows/main_control_window.cpp
     feeds/rtsp_feed_reader.cpp
     windows/ui_editor_window.cpp
@@ -161,6 +162,7 @@ add_executable(live_renderer_tests
     tests/test_scorecard_sorting.cpp
     tests/test_main_control_window.cpp
     tests/test_feed_manager.cpp
+    tests/test_latency_meter.cpp
     tests/test_ui_editor_window.cpp
     tests/test_visualization_window.cpp
     tests/test_window_manager.cpp
