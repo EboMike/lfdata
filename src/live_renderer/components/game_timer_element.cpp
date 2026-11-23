@@ -1,26 +1,25 @@
 #include "live_renderer/components/game_timer_element.hpp"
+#include <algorithm>
+#include <cctype>
 #include <iomanip>
 #include <sstream>
 
 namespace live_renderer {
 
-std::string GameTimerElement::FormatRemainingTime(
+namespace {
+
+int64_t ComputeElapsedMs(
     const GameStateSnapshot& state,
     int64_t current_steady_ms) {
     if (!state.in_session &&
         state.latest_event_time_ms <= 0 &&
         state.game_start_time_local_ms <= 0) {
-        int m = state.max_game_length_seconds / 60;
-        int s = state.max_game_length_seconds % 60;
-        std::ostringstream oss;
-        oss << std::setfill('0') << std::setw(2) << m << ":"
-            << std::setfill('0') << std::setw(2) << s;
-        return oss.str();
+        return 0;
     }
 
     int64_t elapsed_ms = 0;
     if (state.game_over) {
-        // Freeze countdown when game is over
+        // Freeze timer when game is over
         elapsed_ms = (state.latest_event_time_ms > 0)
             ? state.latest_event_time_ms
             : static_cast<int64_t>(state.max_game_length_seconds) * 1000;
@@ -45,19 +44,63 @@ std::string GameTimerElement::FormatRemainingTime(
         }
     }
 
-    int64_t total_game_ms =
-        static_cast<int64_t>(state.max_game_length_seconds) * 1000;
-    int64_t remaining_ms = total_game_ms - elapsed_ms;
-    if (remaining_ms < 0) remaining_ms = 0;
+    if (elapsed_ms < 0) elapsed_ms = 0;
+    return elapsed_ms;
+}
 
-    int remaining_sec = static_cast<int>((remaining_ms + 999) / 1000);
-    int minutes = remaining_sec / 60;
-    int seconds = remaining_sec % 60;
+}  // namespace
+
+GameTimerMode GameTimerElement::ParseMode(const std::string& mode_str) {
+    std::string lower;
+    lower.reserve(mode_str.size());
+    for (unsigned char ch : mode_str) {
+        if (!std::isspace(ch)) {
+            lower.push_back(static_cast<char>(std::tolower(ch)));
+        }
+    }
+    if (lower == "elapsed") {
+        return GameTimerMode::Elapsed;
+    }
+    return GameTimerMode::Remaining;
+}
+
+std::string GameTimerElement::FormatTime(
+    const GameStateSnapshot& state,
+    GameTimerMode mode,
+    int64_t current_steady_ms) {
+    const int64_t total_game_ms =
+        static_cast<int64_t>(state.max_game_length_seconds) * 1000;
+    int64_t elapsed_ms = ComputeElapsedMs(state, current_steady_ms);
+    if (total_game_ms > 0 && elapsed_ms > total_game_ms) {
+        elapsed_ms = total_game_ms;
+    }
+
+    int64_t display_ms = elapsed_ms;
+    if (mode == GameTimerMode::Remaining) {
+        display_ms = total_game_ms - elapsed_ms;
+        if (display_ms < 0) display_ms = 0;
+        if (display_ms > 0 && display_ms < 1000) {
+            const int centiseconds = static_cast<int>(display_ms / 10);
+            std::ostringstream oss;
+            oss << "00:" << std::setfill('0') << std::setw(2) << centiseconds;
+            return oss.str();
+        }
+    }
+
+    const int64_t total_seconds = display_ms / 1000;
+    const int minutes = static_cast<int>(total_seconds / 60);
+    const int seconds = static_cast<int>(total_seconds % 60);
 
     std::ostringstream oss;
     oss << std::setfill('0') << std::setw(2) << minutes << ":"
         << std::setfill('0') << std::setw(2) << seconds;
     return oss.str();
+}
+
+std::string GameTimerElement::FormatRemainingTime(
+    const GameStateSnapshot& state,
+    int64_t current_steady_ms) {
+    return FormatTime(state, GameTimerMode::Remaining, current_steady_ms);
 }
 
 }  // namespace live_renderer

@@ -179,6 +179,7 @@ static ElementConfig ParseElementNode(const YAML::Node& node) {
     if (node["color"]) el.color = node["color"].as<std::string>();
     if (node["font_size"]) el.font_size = node["font_size"].as<float>();
     if (node["alignment"]) el.alignment = node["alignment"].as<std::string>();
+    if (node["timer_mode"]) el.timer_mode = node["timer_mode"].as<std::string>();
     if (node["image_file"]) el.image_file = node["image_file"].as<std::string>();
     if (node["movie_file"]) el.movie_file = node["movie_file"].as<std::string>();
     if (node["fit"]) el.fit = node["fit"].as<std::string>();
@@ -407,6 +408,10 @@ static void EmitElementNode(YAML::Emitter& out, const ElementConfig& el) {
             out << YAML::Key << "fadeout_time" << YAML::Value
                 << el.fadeout_time;
         }
+    }
+    if (el.type == "game_timer" && el.timer_mode != "remaining" &&
+        !el.timer_mode.empty()) {
+        out << YAML::Key << "timer_mode" << YAML::Value << el.timer_mode;
     }
     EmitShakeConfigNode(out, "shake_on_down", el.shake_on_down);
     if (el.dim_while_down > 0.0f) {

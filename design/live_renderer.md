@@ -280,9 +280,18 @@ Parameters:
 
 ### Game timer
 
-The amount of time left in the game, in MM:SS. Note that this must be computed
-and updated by this binary. The reference point is the length of the game, and
-the time at which the beginning of the game was processed and visualized.
+Displays the game clock. Note that this must be computed and updated by this
+binary. The reference point is the length of the game, and the time at which
+the beginning of the game was processed and visualized.
+
+Parameters:
+
+- **Timer Mode**: `"remaining"` (default) or `"elapsed"`.
+  - `"remaining"`: Counts down from the regularly scheduled game time until
+    `00:00` (it may stop earlier if the game ends prior to the scheduled
+    duration). During the last second, the format switches from `MM:SS` to
+    `SS:ss` (where `ss` is 1/100th of a second).
+  - `"elapsed"`: Counts up from `00:00` as the game progresses.
 
 ### User-defined image
 

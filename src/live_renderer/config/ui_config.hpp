@@ -63,6 +63,7 @@ struct ElementConfig {
     std::string color = "#ffffff";                // Hex color string (#RRGGBB or #RRGGBBAA)
     float font_size = 20.0f;                      // Relative font size (20 = 1/40th of 800px)
     std::string alignment = "left";               // "left", "center", "right"
+    std::string timer_mode = "remaining";         // For game_timer: "remaining" or "elapsed"
     std::string image_file;                       // Path to image asset
     std::string movie_file;                       // Path to movie asset
     std::string fit = "stretch";                  // "stretch", "scale", "crop"

@@ -584,7 +584,8 @@ void VisualizationWindow::GenerateGameTimerCommands(
     RenderCommand cmd;
     cmd.type = RenderCommand::Type::Text;
     cmd.pixel_rect = px_rect;
-    cmd.text = GameTimerElement::FormatRemainingTime(state, current_time_ms);
+    const GameTimerMode mode = GameTimerElement::ParseMode(element.timer_mode);
+    cmd.text = GameTimerElement::FormatTime(state, mode, current_time_ms);
     cmd.font = (element.font.empty() || element.font == "default")
         ? ui_config_.default_font
         : element.font;

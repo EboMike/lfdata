@@ -9,20 +9,48 @@
 namespace live_renderer {
 
 /**
- * @brief Logic for computing the MM:SS remaining game timer.
+ * @brief Display modes for the game timer element.
+ */
+enum class GameTimerMode {
+    Remaining,  // Counts down from scheduled duration to 00:00 (SS:ss in last second)
+    Elapsed,    // Counts up from 00:00
+};
+
+/**
+ * @brief Logic for computing the MM:SS (or SS:ss) game timer.
  *
  * According to design/live_renderer.md:
- * "The amount of time left in the game, in MM:SS. Note that this must be computed
- *  and updated by this binary. The reference point is the length of the game, and
- *  the time at which the beginning of the game was processed and visualized."
+ * Supports "remaining" (default) and "elapsed" modes. In remaining mode,
+ * counts down from the scheduled game length until 00:00 (stopping early if
+ * the game ends early) and switches to SS:ss (1/100th of a second) during
+ * the last second.
  */
 class GameTimerElement {
 public:
     /**
-     * @brief Formats the countdown timer as MM:SS based on the current state.
+     * @brief Parses a timer mode configuration string.
+     * @param mode_str Configuration string ("remaining" or "elapsed").
+     * @return Parsed GameTimerMode (defaults to Remaining).
+     */
+    static GameTimerMode ParseMode(const std::string& mode_str);
+
+    /**
+     * @brief Formats the game timer based on the current state and mode.
+     * @param state The current GameStateSnapshot.
+     * @param mode Display mode (Remaining or Elapsed).
+     * @param current_steady_ms Monotonic time in milliseconds (or <= 0 to use system steady clock).
+     * @return Formatted string ("MM:SS" or "SS:ss").
+     */
+    static std::string FormatTime(
+        const GameStateSnapshot& state,
+        GameTimerMode mode = GameTimerMode::Remaining,
+        int64_t current_steady_ms = 0);
+
+    /**
+     * @brief Formats the countdown timer as MM:SS (or SS:ss) based on the current state.
      * @param state The current GameStateSnapshot.
      * @param current_steady_ms Monotonic time in milliseconds (or <= 0 to use system steady clock).
-     * @return Formatted string "MM:SS".
+     * @return Formatted string ("MM:SS" or "SS:ss").
      */
     static std::string FormatRemainingTime(
         const GameStateSnapshot& state,

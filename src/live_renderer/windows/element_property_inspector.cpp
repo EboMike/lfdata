@@ -239,6 +239,14 @@ void ElementPropertyInspector::RenderTextControls(ElementConfig& element) {
             element.color = RgbaToHex(rgba);
         }
 
+        if (element.type == "game_timer") {
+            int mode_idx = (element.timer_mode == "elapsed") ? 1 : 0;
+            const char* modes[] = {"remaining", "elapsed"};
+            if (ImGui::Combo("Timer Mode", &mode_idx, modes, 2)) {
+                element.timer_mode = modes[mode_idx];
+            }
+        }
+
         char color_hex_buf[32]{};
         std::snprintf(
             color_hex_buf, sizeof(color_hex_buf), "%s",

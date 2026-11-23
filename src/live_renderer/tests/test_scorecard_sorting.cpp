@@ -47,6 +47,79 @@ TEST(GameTimerTest, FormatsCountdownWithEventTime) {
     EXPECT_EQ(t, "10:00");
 }
 
+TEST(GameTimerTest, FormatsLastSecondCentisecondsInRemainingMode) {
+    GameStateSnapshot state;
+    state.in_session = true;
+    state.max_game_length_seconds = 900;
+    state.game_start_time_local_ms = 100000;
+
+    // 1.000s remaining -> MM:SS
+    EXPECT_EQ(
+        GameTimerElement::FormatTime(
+            state, GameTimerMode::Remaining, 100000 + 899000),
+        "00:01");
+
+    // < 1.000s remaining -> SS:ss (centiseconds)
+    EXPECT_EQ(
+        GameTimerElement::FormatTime(
+            state, GameTimerMode::Remaining, 100000 + 899001),
+        "00:99");
+    EXPECT_EQ(
+        GameTimerElement::FormatTime(
+            state, GameTimerMode::Remaining, 100000 + 899500),
+        "00:50");
+    EXPECT_EQ(
+        GameTimerElement::FormatTime(
+            state, GameTimerMode::Remaining, 100000 + 899990),
+        "00:01");
+    EXPECT_EQ(
+        GameTimerElement::FormatTime(
+            state, GameTimerMode::Remaining, 100000 + 899999),
+        "00:00");
+    EXPECT_EQ(
+        GameTimerElement::FormatTime(
+            state, GameTimerMode::Remaining, 100000 + 900000),
+        "00:00");
+}
+
+TEST(GameTimerTest, FormatsElapsedModeAndParsesMode) {
+    EXPECT_EQ(GameTimerElement::ParseMode("remaining"), GameTimerMode::Remaining);
+    EXPECT_EQ(GameTimerElement::ParseMode("elapsed"), GameTimerMode::Elapsed);
+    EXPECT_EQ(GameTimerElement::ParseMode(" ELAPSED "), GameTimerMode::Elapsed);
+    EXPECT_EQ(GameTimerElement::ParseMode(""), GameTimerMode::Remaining);
+    EXPECT_EQ(GameTimerElement::ParseMode("other"), GameTimerMode::Remaining);
+
+    GameStateSnapshot pre_session;
+    pre_session.max_game_length_seconds = 900;
+    EXPECT_EQ(
+        GameTimerElement::FormatTime(pre_session, GameTimerMode::Elapsed, 0),
+        "00:00");
+
+    GameStateSnapshot state;
+    state.in_session = true;
+    state.max_game_length_seconds = 900;
+    state.game_start_time_local_ms = 100000;
+
+    EXPECT_EQ(
+        GameTimerElement::FormatTime(
+            state, GameTimerMode::Elapsed, 100000 + 61000),
+        "01:01");
+    EXPECT_EQ(
+        GameTimerElement::FormatTime(
+            state, GameTimerMode::Elapsed, 100000 + 899500),
+        "14:59");
+    EXPECT_EQ(
+        GameTimerElement::FormatTime(
+            state, GameTimerMode::Elapsed, 100000 + 950000),
+        "15:00");
+
+    state.game_over = true;
+    state.latest_event_time_ms = 600000;
+    EXPECT_EQ(
+        GameTimerElement::FormatTime(state, GameTimerMode::Elapsed, 99999999),
+        "10:00");
+}
+
 TEST(ScorecardHelperTest, SortsTeamsAndPlayers) {
     auto state = MockGameState::CreateMockSM5State();
 
