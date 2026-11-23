@@ -12,7 +12,7 @@ Usage example:
 
 import dataclasses
 
-from lfdata.model.constants.time import MS_PER_SECOND
+from lfdata.model.constants.time import MS_PER_SECOND, TimerMode
 from lfdata.video.constants import (
     DEFAULT_BALL_INDICATOR_SPEED,
     DEFAULT_EXTRA_FOOTAGE_MS,
@@ -111,6 +111,7 @@ DEFAULT_CONFIG: dict[str, object] = {
             'x': 0.98,
             'y': 0.22,
             'align': 'right',
+            'mode': TimerMode.REMAINING.value,
             'style': {
                 'size': 40,
                 'font': 'advanced_pixel_lcd-7',
@@ -673,9 +674,7 @@ def resolve_animated_value(
 
             p = (time_ms - t_start_ms) / (t_end_ms - t_start_ms)
             p_anim = apply_animation(p, kf_start.interpolator)
-            return _interpolate_values(
-                kf_start.value, kf_end.value, p_anim
-            )
+            return _interpolate_values(kf_start.value, kf_end.value, p_anim)
 
     return None
 

@@ -276,11 +276,11 @@ def test_visual_element_generator_new_features() -> None:
 
     elements = hud_gen.generate_at(1000)
     texts = [el.text for el in elements if el.text]
-    assert '00:01' in texts
+    assert '00:03' in texts
 
     elements_capped = hud_gen.generate_at(5000)
     texts_capped = [el.text for el in elements_capped if el.text]
-    assert '00:04' in texts_capped
+    assert '00:00' in texts_capped
 
     sb_el = next(
         (el for el in elements if el.element_type == 'scoreboard'), None
@@ -1640,7 +1640,7 @@ def test_jinja_rendering_and_caching() -> None:
     assert hud_gen.current_variables['player_name'] == 'CommanderA'
     assert hud_gen.current_variables['player_role'] == 'Commander'
     assert hud_gen.current_variables['player_score'] == '500'
-    assert hud_gen.current_variables['time'] == '00:01'
+    assert hud_gen.current_variables['time'] == '00:00'
 
     # Check default template rendering: el_game_type should show 'Game Type: SM5'
     el_gt = next(
@@ -1781,16 +1781,11 @@ def test_element_visible_at_video_end_ms() -> None:
 
     elements_past_end = hud_gen.generate_at(26000)
     el_past = next(
-        (
-            e
-            for e in elements_past_end
-            if e.formatted_text == '{{ game_type }}'
-        ),
+        (e for e in elements_past_end if e.formatted_text == '{{ game_type }}'),
         None,
     )
     assert el_past is not None
     assert el_past.alpha == 1.0
-
 
 
 def test_generator_keyframes_integration() -> None:
@@ -4175,11 +4170,7 @@ def test_laserball_ball_indicator_configurable_speed() -> None:
         None,
     )
     b2_2000 = next(
-        (
-            el
-            for el in el_2000
-            if el.formatted_text == '{{ ball_indicator_2 }}'
-        ),
+        (el for el in el_2000 if el.formatted_text == '{{ ball_indicator_2 }}'),
         None,
     )
     assert b_2000 is not None
@@ -4195,11 +4186,7 @@ def test_laserball_ball_indicator_configurable_speed() -> None:
         None,
     )
     b2_2500 = next(
-        (
-            el
-            for el in el_2500
-            if el.formatted_text == '{{ ball_indicator_2 }}'
-        ),
+        (el for el in el_2500 if el.formatted_text == '{{ ball_indicator_2 }}'),
         None,
     )
     assert b_2500 is not None
@@ -4215,11 +4202,7 @@ def test_laserball_ball_indicator_configurable_speed() -> None:
         None,
     )
     b2_3000 = next(
-        (
-            el
-            for el in el_3000
-            if el.formatted_text == '{{ ball_indicator_2 }}'
-        ),
+        (el for el in el_3000 if el.formatted_text == '{{ ball_indicator_2 }}'),
         None,
     )
     assert b_3000 is not None
@@ -4235,11 +4218,7 @@ def test_laserball_ball_indicator_configurable_speed() -> None:
         None,
     )
     b2_3500 = next(
-        (
-            el
-            for el in el_3500
-            if el.formatted_text == '{{ ball_indicator_2 }}'
-        ),
+        (el for el in el_3500 if el.formatted_text == '{{ ball_indicator_2 }}'),
         None,
     )
     assert b_3500 is not None
@@ -4939,8 +4918,7 @@ def test_player_events_reset_bundling() -> None:
     assert len(gen.player_event_log) == 2
     assert gen.player_event_log[1].zap_count == 2
     assert (
-        gen.player_event_log[1].updates[-1].desc
-        == 'Zapped x2 Player2 (Reset)'
+        gen.player_event_log[1].updates[-1].desc == 'Zapped x2 Player2 (Reset)'
     )
 
 
@@ -5688,6 +5666,160 @@ def test_player_events_double_down_simulation() -> None:
     assert hud_gen_p2.player_event_log[2].desc == 'Zapped by Player1 (Reset)'
 
 
+def _find_time_text(elements: list) -> str:
+    el = next((e for e in elements if e.formatted_text == '{{ time }}'), None)
+    assert el is not None
+    return el.text
 
 
+def test_game_timer_remaining_mode_and_last_second() -> None:
+    from datetime import datetime
+    from lfdata.model import GameEntity, GameEvent, GameTeam, LFGame
+    from lfdata.model.gametypes.sm5_events import (
+        SM5_EVENT_MISSION_END,
+        SM5_EVENT_MISSION_START,
+    )
+    from lfdata.video.generator import VisualElementGenerator
 
+    game = LFGame(
+        game_id='test_timer_rem',
+        timestamp=datetime.now(),
+        game_type='SM5',
+        duration=900000,
+    )
+    game.teams = [
+        GameTeam(
+            game_id='test_timer_rem',
+            team_index=0,
+            desc='Fire Team',
+            color_enum=11,
+            color_desc='Fire',
+            color_rgb='#FF5000',
+        )
+    ]
+    game.entities = [
+        GameEntity(
+            game_id='test_timer_rem',
+            entity_id='C1',
+            type='player',
+            desc='Player1',
+            team_index=0,
+            level=1,
+            category=1,
+            battlesuit='Maverick',
+        )
+    ]
+    game.events = [
+        GameEvent(
+            game_id='test_timer_rem',
+            time=0,
+            event_type=SM5_EVENT_MISSION_START,
+            action='start',
+            raw_message='',
+        )
+    ]
+
+    hud_gen = VisualElementGenerator(game, 'Player1')
+
+    assert _find_time_text(hud_gen.generate_at(-500)) == '15:00'
+    assert _find_time_text(hud_gen.generate_at(0)) == '15:00'
+    assert _find_time_text(hud_gen.generate_at(61000)) == '13:59'
+    assert hud_gen.current_variables['time'] == '13:59'
+
+    # 1.000s remaining -> MM:SS
+    assert _find_time_text(hud_gen.generate_at(899000)) == '00:01'
+
+    # Last second (< 1000ms remaining) -> SS:ss (centiseconds)
+    assert _find_time_text(hud_gen.generate_at(899001)) == '00:99'
+    assert hud_gen.current_variables['time'] == '00:99'
+    assert _find_time_text(hud_gen.generate_at(899500)) == '00:50'
+    assert _find_time_text(hud_gen.generate_at(899990)) == '00:01'
+    assert _find_time_text(hud_gen.generate_at(899999)) == '00:00'
+
+    # At and past end -> 00:00
+    assert _find_time_text(hud_gen.generate_at(900000)) == '00:00'
+    assert _find_time_text(hud_gen.generate_at(905000)) == '00:00'
+
+    # Early game end stops countdown at remaining time
+    game.events.append(
+        GameEvent(
+            game_id='test_timer_rem',
+            time=600000,
+            event_type=SM5_EVENT_MISSION_END,
+            action='end',
+            raw_message='',
+        )
+    )
+    hud_early = VisualElementGenerator(game, 'Player1')
+    assert _find_time_text(hud_early.generate_at(605000)) == '05:00'
+
+
+def test_game_timer_elapsed_mode() -> None:
+    from datetime import datetime
+    from lfdata.model import GameEntity, GameEvent, GameTeam, LFGame
+    from lfdata.model.gametypes.sm5_events import (
+        SM5_EVENT_MISSION_END,
+        SM5_EVENT_MISSION_START,
+    )
+    from lfdata.video.generator import VisualElementGenerator
+
+    game = LFGame(
+        game_id='test_timer_el',
+        timestamp=datetime.now(),
+        game_type='SM5',
+        duration=900000,
+    )
+    game.teams = [
+        GameTeam(
+            game_id='test_timer_el',
+            team_index=0,
+            desc='Fire Team',
+            color_enum=11,
+            color_desc='Fire',
+            color_rgb='#FF5000',
+        )
+    ]
+    game.entities = [
+        GameEntity(
+            game_id='test_timer_el',
+            entity_id='C1',
+            type='player',
+            desc='Player1',
+            team_index=0,
+            level=1,
+            category=1,
+            battlesuit='Maverick',
+        )
+    ]
+    game.events = [
+        GameEvent(
+            game_id='test_timer_el',
+            time=0,
+            event_type=SM5_EVENT_MISSION_START,
+            action='start',
+            raw_message='',
+        )
+    ]
+
+    cfg = {'elements': {'time': {'mode': 'elapsed'}}}
+    hud_gen = VisualElementGenerator(game, 'Player1', config=cfg)
+
+    assert _find_time_text(hud_gen.generate_at(-500)) == '00:00'
+    assert _find_time_text(hud_gen.generate_at(0)) == '00:00'
+    assert _find_time_text(hud_gen.generate_at(61000)) == '01:01'
+    assert hud_gen.current_variables['time'] == '01:01'
+    assert _find_time_text(hud_gen.generate_at(899500)) == '14:59'
+    assert _find_time_text(hud_gen.generate_at(905000)) == '15:00'
+
+    # Early game end stops elapsed timer
+    game.events.append(
+        GameEvent(
+            game_id='test_timer_el',
+            time=600000,
+            event_type=SM5_EVENT_MISSION_END,
+            action='end',
+            raw_message='',
+        )
+    )
+    hud_early = VisualElementGenerator(game, 'Player1', config=cfg)
+    assert _find_time_text(hud_early.generate_at(605000)) == '10:00'

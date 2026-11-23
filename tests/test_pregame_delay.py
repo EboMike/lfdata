@@ -176,16 +176,16 @@ def test_game_time_shifting_with_pregame_delay() -> None:
     hud_gen = VisualElementGenerator(game, 'Player1', config=config)
 
     # At video time 6000 ms, the game time should be 1000 ms.
-    # Check timer text: it should display 00:01 (1 second).
+    # With 20000 ms duration and default remaining mode, timer shows 00:19.
     elements = hud_gen.generate_at(6000)
     texts = [el.text for el in elements if el.text]
-    assert '00:01' in texts
+    assert '00:19' in texts
 
     # At video time 4000 ms, the game time should be 0 ms.
-    # Check timer text: it should display 00:00 (0 seconds).
+    # With 20000 ms duration and default remaining mode, timer shows 00:20.
     elements = hud_gen.generate_at(4000)
     texts = [el.text for el in elements if el.text]
-    assert '00:00' in texts
+    assert '00:20' in texts
 
 
 def test_user_defined_text_elements() -> None:

@@ -22,7 +22,12 @@ import jinja2
 
 
 from lfdata.model import GameEvent, LFGame, LFRole
-from lfdata.model.constants.time import MS_PER_SECOND
+from lfdata.model.constants.time import (
+    MS_PER_CENTISECOND,
+    MS_PER_SECOND,
+    SECONDS_PER_MINUTE,
+    TimerMode,
+)
 from lfdata.model.gametypes.laserball_events import (
     LASERBALL_EVENT_BLOCK,
     LASERBALL_EVENT_CLEAR,
@@ -1688,19 +1693,7 @@ class VisualElementGenerator:
         )
 
         # Time variable
-        actual_duration_ms = self.game.duration
-        if self.game_ended_at_ms is not None:
-            actual_duration_ms = self.game_ended_at_ms
-
-        display_ms = game_time_ms
-        if actual_duration_ms is not None and display_ms > actual_duration_ms:
-            display_ms = actual_duration_ms
-
-        total_seconds = display_ms // 1000
-        minutes = total_seconds // 60
-        seconds = total_seconds % 60
-        time_text = f'{minutes:02d}:{seconds:02d}'
-        variables['time'] = time_text
+        variables['time'] = self._format_game_time(game_time_ms=game_time_ms)
 
         # Player-specific variables
         if self.entity_id and self.entity_id in players:
@@ -2197,6 +2190,46 @@ class VisualElementGenerator:
             scoreboard_data=LFScoreboardData(teams=teams_data),
         )
 
+    def _format_game_time(self, game_time_ms: int) -> str:
+        """Formats the game timer string according to the configured mode.
+
+        In ``remaining`` mode (default), counts down from the scheduled game
+        duration to ``00:00`` (stopping early if the game ended prior to the
+        scheduled duration). During the last second, switches from ``MM:SS`` to
+        ``SS:ss`` where ``ss`` is 1/100th of a second. In ``elapsed`` mode,
+        counts up from ``00:00``.
+
+        Args:
+            game_time_ms: Current game time in milliseconds.
+
+        Returns:
+            str: Formatted timer string.
+        """
+        time_cfg = self.config.get('elements', {}).get('time', {})
+        mode = TimerMode.from_str(time_cfg.get('mode'))
+
+        actual_end_ms = self.game.duration
+        if self.game_ended_at_ms is not None:
+            actual_end_ms = self.game_ended_at_ms
+
+        elapsed_ms = max(0, game_time_ms)
+        if actual_end_ms is not None and elapsed_ms > actual_end_ms:
+            elapsed_ms = actual_end_ms
+
+        if mode == TimerMode.REMAINING:
+            scheduled_ms = self.game.duration or 0
+            display_ms = max(0, scheduled_ms - elapsed_ms)
+            if 0 < display_ms < MS_PER_SECOND:
+                centiseconds = display_ms // MS_PER_CENTISECOND
+                return f'00:{centiseconds:02d}'
+        else:
+            display_ms = elapsed_ms
+
+        total_seconds = display_ms // MS_PER_SECOND
+        minutes = total_seconds // SECONDS_PER_MINUTE
+        seconds = total_seconds % SECONDS_PER_MINUTE
+        return f'{minutes:02d}:{seconds:02d}'
+
     def _add_global_hud_elements(
         self,
         elements: list[UIElement],
@@ -2228,18 +2261,7 @@ class VisualElementGenerator:
         if el_norm_game_type:
             elements.append(el_norm_game_type)
 
-        actual_duration_ms = self.game.duration
-        if self.game_ended_at_ms is not None:
-            actual_duration_ms = self.game_ended_at_ms
-
-        display_ms = time_ms
-        if actual_duration_ms is not None and display_ms > actual_duration_ms:
-            display_ms = actual_duration_ms
-
-        total_seconds = display_ms // 1000
-        minutes = total_seconds // 60
-        seconds = total_seconds % 60
-        time_text = f'{minutes:02d}:{seconds:02d}'
+        time_text = self._format_game_time(game_time_ms=time_ms)
 
         el_time = self._create_ui_element(
             'time', text=time_text, element_type='text'

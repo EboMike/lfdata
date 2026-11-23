@@ -187,7 +187,15 @@ width as X, Y using the same units.
 
 Special considerations:
 
-- **Time**: Use the font `advanced_pixel_lcd-7` by default.
+- **Time**:
+  - Use the font `advanced_pixel_lcd-7` by default.
+  - The timer has two modes, "elapsed" and "remaining" (default is remaining).
+    For "elapsed", it will begin to count from 00:00 as the game progresses. For
+    "remaining", it will count down the time starting from the regularly
+    scheduled game time until 00:00 (it may stop earlier if the game ends prior
+    to the scheduled duration). During the last second, the time format will
+    switch from `MM:SS` to `SS:ss` (i.e. the last two digits will be 1/100th of
+    a second).
 - **Missiles** and **hit points**: Visual indicators at every point.
 - **Special points**: Visual indicators at the interval depending on the role:
   - **Commander**: Every 20.
