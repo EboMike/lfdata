@@ -77,8 +77,14 @@ bool ProbeRtspDimensions(
     }
     SetHandleInformation(read_pipe, HANDLE_FLAG_INHERIT, 0);
 
-    std::string cmd =
-        "ffprobe -v error -rtsp_transport tcp -rw_timeout 5000000 "
+    const std::string lower_url = ToLowerAscii(url);
+    const bool is_rtsp =
+        lower_url.rfind("rtsp://", 0) == 0 || lower_url.rfind("rtsps://", 0) == 0;
+    std::string cmd = "ffprobe -v error ";
+    if (is_rtsp) {
+        cmd += "-rtsp_transport tcp ";
+    }
+    cmd += "-rw_timeout 5000000 "
         "-select_streams v:0 -show_entries stream=width,height "
         "-of csv=p=0:s=x " + QuoteArg(url);
 
@@ -198,16 +204,25 @@ RtspFeedReader::~RtspFeedReader() {
     Close();
 }
 
+RtspFeedReader::RtspFeedReader(bool allow_rtmp) : allow_rtmp_(allow_rtmp) {}
+
 bool RtspFeedReader::ValidateRtspUrl(const std::string& url, std::string& out_error) {
+    return ValidateStreamUrl(url, false, out_error);
+}
+
+bool RtspFeedReader::ValidateStreamUrl(
+    const std::string& url,
+    bool allow_rtmp,
+    std::string& out_error) {
     std::string trimmed = TrimAscii(url);
     if (trimmed.empty()) {
-        out_error = "RTSP URL cannot be empty.";
+        out_error = "Stream URL cannot be empty.";
         return false;
     }
 
     for (char ch : trimmed) {
         if (std::isspace(static_cast<unsigned char>(ch))) {
-            out_error = "RTSP URL cannot contain whitespace.";
+            out_error = "Stream URL cannot contain whitespace.";
             return false;
         }
     }
@@ -218,8 +233,14 @@ bool RtspFeedReader::ValidateRtspUrl(const std::string& url, std::string& out_er
         scheme_len = 7;
     } else if (lower.rfind("rtsps://", 0) == 0) {
         scheme_len = 8;
+    } else if (allow_rtmp && lower.rfind("rtmp://", 0) == 0) {
+        scheme_len = 7;
+    } else if (allow_rtmp && lower.rfind("rtmps://", 0) == 0) {
+        scheme_len = 8;
     } else {
-        out_error = "Invalid URL: must start with rtsp:// or rtsps://.";
+        out_error = allow_rtmp
+            ? "Invalid URL: must start with rtsp://, rtsps://, rtmp://, or rtmps://."
+            : "Invalid URL: must start with rtsp:// or rtsps://.";
         return false;
     }
 
@@ -293,7 +314,7 @@ bool RtspFeedReader::Open(const std::string& url) {
 
     std::string trimmed = TrimAscii(url);
     std::string validation_error;
-    if (!ValidateRtspUrl(trimmed, validation_error)) {
+    if (!ValidateStreamUrl(trimmed, allow_rtmp_, validation_error)) {
         std::lock_guard<std::mutex> lock(mutex_);
         url_ = trimmed;
         state_ = FeedConnectionState::kError;
@@ -430,9 +451,15 @@ void RtspFeedReader::WorkerLoop(std::string url) {
     }
     SetHandleInformation(read_pipe, HANDLE_FLAG_INHERIT, 0);
 
+    const std::string lower_url = ToLowerAscii(url);
+    const bool is_rtsp =
+        lower_url.rfind("rtsp://", 0) == 0 || lower_url.rfind("rtsps://", 0) == 0;
     std::ostringstream cmd;
-    cmd << "ffmpeg -loglevel error -rtsp_transport tcp -fflags nobuffer "
-        << "-flags low_delay -i " << QuoteArg(url)
+    cmd << "ffmpeg -loglevel error ";
+    if (is_rtsp) {
+        cmd << "-rtsp_transport tcp ";
+    }
+    cmd << "-fflags nobuffer -flags low_delay -i " << QuoteArg(url)
         << " -an -sn -dn -vf scale=" << w << ":" << h
         << " -f rawvideo -pix_fmt rgba -";
 

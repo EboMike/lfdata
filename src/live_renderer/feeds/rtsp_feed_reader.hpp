@@ -125,7 +125,7 @@ using FeedReaderFactory = std::function<std::unique_ptr<IFeedReader>()>;
  */
 class RtspFeedReader : public IFeedReader {
 public:
-    RtspFeedReader() = default;
+    explicit RtspFeedReader(bool allow_rtmp = false);
     ~RtspFeedReader() override;
 
     RtspFeedReader(const RtspFeedReader&) = delete;
@@ -142,6 +142,22 @@ public:
      * @return True if valid, false otherwise.
      */
     static bool ValidateRtspUrl(const std::string& url, std::string& out_error);
+
+    /**
+     * @brief Validates whether a string is a syntactically valid stream URL.
+     *
+     * Accepts rtsp:// and rtsps://, and optionally rtmp:// and rtmps:// when
+     * allow_rtmp is true.
+     *
+     * @param url URL string to validate.
+     * @param allow_rtmp Whether rtmp:// and rtmps:// schemes are permitted.
+     * @param out_error Receives a human-readable error message on failure.
+     * @return True if valid, false otherwise.
+     */
+    static bool ValidateStreamUrl(
+        const std::string& url,
+        bool allow_rtmp,
+        std::string& out_error);
 
     bool Open(const std::string& url) override;
     void Close() override;
@@ -161,6 +177,7 @@ public:
 private:
     void WorkerLoop(std::string url);
 
+    bool allow_rtmp_ = false;
     mutable std::mutex mutex_;
     std::string url_;
     FeedConnectionState state_ = FeedConnectionState::kDisconnected;

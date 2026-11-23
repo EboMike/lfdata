@@ -281,8 +281,8 @@ Parameters:
 ### Game timer
 
 Displays the game clock. Note that this must be computed and updated by this
-binary. The reference point is the length of the game, and the time at which
-the beginning of the game was processed and visualized.
+binary. The reference point is the length of the game, and the time at which the
+beginning of the game was processed and visualized.
 
 Parameters:
 
@@ -579,6 +579,12 @@ is identical to the "add new feed" dialog.
 
 ## Latency Meter
 
+The latency meter intially shows two buttons, "Automatic (RTMP)" and "Manual".
+
+It will proceed when either button is pressed:
+
+### Manual
+
 The latency meter is a separate window that counts down from 5 to 0, in seconds.
 During this duration, it will show the respective number in the window, filling
 almost the entire screen. On the bottom, there is text: "On 0, press space or
@@ -589,6 +595,30 @@ When the timer hits 0, it will play a 0.2 seconds long beep at 1000Hz.
 At this point, nothing changes on the screen. After the user presses the space
 bar, the screen will show the number of milliseconds that have passed between
 the counter reaching 0 and the user pressing space.
+
+Nothing else will happen after this point and the window can be closed.
+
+### Automatic
+
+The window shows a text field to enter an RTMP IP address (with an example
+`rtmp://127.0.0.1:1935/live/gopro` underneath), and a button that says "Go".
+
+After pressing Go, the screen will the split into two halves:
+
+The top part shows a red background, and a text says "Point camera to the red
+background and keep it there". Underneath that will be countdown timer.
+
+The bottom part will show the feed obtained from the RTMP IP.
+
+Once it is detected that the RTMP feed is seeing the red background (i.e. the
+majority of pixels are of a red shade similar to the one in the top image), the
+countdown will count down from 3 to 0. On 0, the background will change to
+green.
+
+The code will measure the time it took from when the top screen turned green
+until the green was detected in the RTMP feed. This is the latency.
+
+Once detected, the screen will now show the millisecond latency.
 
 Nothing else will happen after this point and the window can be closed.
 
