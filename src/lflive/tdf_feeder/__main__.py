@@ -7,6 +7,8 @@ Usage example:
     python -m lflive.tdf_feeder assets/game.tdf 127.0.0.1:8000
 """
 
+from __future__ import annotations
+
 import asyncio
 import sys
 from collections.abc import Sequence
@@ -48,6 +50,7 @@ def main(args: Sequence[str] | None = None) -> int:
         port=opts.port,
         lines=lines,
         speed=opts.speed,
+        rewrite_timestamps=opts.rewrite_timestamps,
     )
 
     try:

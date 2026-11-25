@@ -15,11 +15,29 @@ Usage example:
     await feeder.feed()
 """
 
+from __future__ import annotations
+
 import asyncio
 import time
 from collections.abc import Callable, Sequence
+from datetime import datetime, timezone
 
 from lflive.tdf_feeder.reader import TdfLine
+
+MISSION_TIMESTAMP_FORMAT = '%Y%m%d%H%M%S'
+TDF_RECORD_MISSION = '1'
+
+
+def _current_local_time() -> datetime:
+    """Returns the current local system time.
+
+    Reads the system clock in UTC and converts it to the local timezone so
+    the returned datetime is timezone-aware.
+
+    Returns:
+        datetime: Current local system time.
+    """
+    return datetime.now(timezone.utc).astimezone()
 
 
 class TdfFeeder:
@@ -31,6 +49,7 @@ class TdfFeeder:
         lines: Sequence of timestamped TdfLine records to transmit.
         speed: Playback speed multiplier (default 1.0 = real-time).
         line_callback: Optional callback invoked after each line is sent.
+        rewrite_timestamps: Whether to rewrite game timestamps to now.
     """
 
     def __init__(
@@ -40,6 +59,7 @@ class TdfFeeder:
         lines: Sequence[TdfLine],
         speed: float = 1.0,
         line_callback: Callable[[int, int, str], None] | None = None,
+        rewrite_timestamps: bool = False,
     ) -> None:
         """Initializes the TDF feeder.
 
@@ -49,6 +69,7 @@ class TdfFeeder:
             lines: Chronological list of TdfLine instances.
             speed: Playback speed multiplier (greater than 0).
             line_callback: Optional callable called with (idx, total, text).
+            rewrite_timestamps: Whether to rewrite game timestamps to now.
 
         Raises:
             ValueError: If speed is less than or equal to 0.
@@ -61,6 +82,7 @@ class TdfFeeder:
         self.lines = list(lines)
         self.speed = speed
         self.line_callback = line_callback
+        self.rewrite_timestamps = rewrite_timestamps
 
     async def feed(self) -> int:
         """Connects via TCP, streams all lines paced by time, and closes socket.
@@ -99,6 +121,11 @@ class TdfFeeder:
         await writer.drain()
 
         start_wall_clock = time.monotonic()
+        start_timestamp = (
+            _current_local_time().strftime(MISSION_TIMESTAMP_FORMAT)
+            if self.rewrite_timestamps
+            else ''
+        )
         total_lines = len(self.lines)
 
         for index, item in enumerate(self.lines):
@@ -107,14 +134,46 @@ class TdfFeeder:
                 start_clock=start_wall_clock,
             )
 
-            line_bytes = (item.text + '\r\n').encode('utf-16-le')
+            line_text = item.text
+            if self.rewrite_timestamps:
+                line_text = self._rewrite_line_timestamp(
+                    text=line_text,
+                    timestamp_str=start_timestamp,
+                )
+
+            line_bytes = (line_text + '\r\n').encode('utf-16-le')
             writer.write(line_bytes)
             await writer.drain()
 
             if self.line_callback:
-                self.line_callback(index + 1, total_lines, item.text)
+                self.line_callback(index + 1, total_lines, line_text)
 
         return total_lines
+
+    def _rewrite_line_timestamp(self, text: str, timestamp_str: str) -> str:
+        """Rewrites the wall-clock start timestamp on a mission TDF line.
+
+        If the line is a type 1 mission record with at least 6 tab-delimited
+        fields, replaces the start timestamp field with ``timestamp_str``.
+
+        Args:
+            text: Raw TDF line text without trailing newlines.
+            timestamp_str: Formatted timestamp string (YYYYMMDDHHMMSS).
+
+        Returns:
+            str: Rewritten line text, or original text if not applicable.
+        """
+        stripped = text.strip()
+        if not stripped or stripped.startswith(';'):
+            return text
+
+        parts = text.split('\t')
+        if parts[0].strip() != TDF_RECORD_MISSION or len(parts) < 6:
+            return text
+
+        start_index = 4 if len(parts) >= 7 else 3
+        parts[start_index] = timestamp_str
+        return '\t'.join(parts)
 
     async def _wait_for_timestamp(
         self, target_time_ms: int, start_clock: float

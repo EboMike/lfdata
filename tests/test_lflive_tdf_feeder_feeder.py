@@ -1,5 +1,9 @@
 import asyncio
+from datetime import datetime, timezone
+from unittest.mock import patch
+
 import pytest
+
 from lflive.tdf_feeder.feeder import TdfFeeder
 from lflive.tdf_feeder.reader import TdfLine
 
@@ -91,5 +95,85 @@ def test_feeder_connection_refused() -> None:
         )
         with pytest.raises(ConnectionRefusedError):
             await feeder.feed()
+
+    asyncio.run(_run())
+
+
+def test_feeder_rewrite_timestamps() -> None:
+    async def _run() -> None:
+        received_raw = bytearray()
+        server_done = asyncio.Event()
+
+        async def _mock_client(
+            reader: asyncio.StreamReader,
+            writer: asyncio.StreamWriter,
+        ) -> None:
+            while True:
+                chunk = await reader.read(4096)
+                if not chunk:
+                    break
+                received_raw.extend(chunk)
+            writer.close()
+            await writer.wait_closed()
+            server_done.set()
+
+        server = await asyncio.start_server(
+            client_connected_cb=_mock_client,
+            host='127.0.0.1',
+            port=0,
+        )
+        port = int(server.sockets[0].getsockname()[1])
+
+        lines = [
+            TdfLine(text=';1/mission\ttype\tdesc\tstart', time_ms=0),
+            TdfLine(
+                text='1\t5\tSpace Marines 5\t20261019201054\t900000\t0',
+                time_ms=0,
+            ),
+            TdfLine(
+                text='1\t5\tSM5\textra\t20261019201054\t900000\t0',
+                time_ms=0,
+            ),
+            TdfLine(text='4\t0000010\t0100\t* Mission Start *', time_ms=10),
+        ]
+        callbacks: list[tuple[int, int, str]] = []
+
+        feeder = TdfFeeder(
+            host='127.0.0.1',
+            port=port,
+            lines=lines,
+            speed=50.0,
+            line_callback=lambda idx, tot, txt: callbacks.append(
+                (idx, tot, txt)
+            ),
+            rewrite_timestamps=True,
+        )
+
+        fixed_now = datetime(2026, 11, 20, 3, 15, 3, tzinfo=timezone.utc)
+        with patch(
+            'lflive.tdf_feeder.feeder._current_local_time',
+            return_value=fixed_now,
+        ):
+            sent_count = await feeder.feed()
+
+        assert sent_count == 4
+        assert callbacks[1] == (
+            2,
+            4,
+            '1\t5\tSpace Marines 5\t20261120031503\t900000\t0',
+        )
+
+        await asyncio.wait_for(server_done.wait(), timeout=2.0)
+        server.close()
+        await server.wait_closed()
+
+        decoded = received_raw[2:].decode('utf-16-le')
+        expected = (
+            ';1/mission\ttype\tdesc\tstart\r\n'
+            '1\t5\tSpace Marines 5\t20261120031503\t900000\t0\r\n'
+            '1\t5\tSM5\textra\t20261120031503\t900000\t0\r\n'
+            '4\t0000010\t0100\t* Mission Start *\r\n'
+        )
+        assert decoded == expected
 
     asyncio.run(_run())

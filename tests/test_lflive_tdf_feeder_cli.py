@@ -1,4 +1,5 @@
 import pytest
+
 from lflive.tdf_feeder.cli import parse_args
 
 
@@ -8,6 +9,7 @@ def test_parse_args_positional() -> None:
     assert args.host == '10.0.0.5'
     assert args.port == 9050
     assert args.speed == 1.0
+    assert args.rewrite_timestamps is False
 
 
 def test_parse_args_flags() -> None:
@@ -21,12 +23,14 @@ def test_parse_args_flags() -> None:
             '7000',
             '--speed',
             '2.5',
+            '--rewrite_timestamps',
         ]
     )
     assert args.file_path == 'game.tdf'
     assert args.host == '192.168.1.1'
     assert args.port == 7000
     assert args.speed == 2.5
+    assert args.rewrite_timestamps is True
 
 
 def test_parse_args_target_host_only() -> None:

@@ -10,6 +10,8 @@ Usage example:
     print(args.file_path, args.host, args.port)
 """
 
+from __future__ import annotations
+
 import argparse
 import dataclasses
 from collections.abc import Sequence
@@ -24,12 +26,14 @@ class TdfFeederArgs:
         host: Target server host address or IP.
         port: Target server TCP port number.
         speed: Playback speed multiplier (default 1.0 = real time).
+        rewrite_timestamps: Whether to rewrite game timestamps to now.
     """
 
     file_path: str
     host: str = '127.0.0.1'
     port: int = 8000
     speed: float = 1.0
+    rewrite_timestamps: bool = False
 
 
 def parse_args(args: Sequence[str] | None = None) -> TdfFeederArgs:
@@ -94,6 +98,13 @@ def parse_args(args: Sequence[str] | None = None) -> TdfFeederArgs:
         default=1.0,
         help='Playback speed multiplier (default: 1.0 = real-time).',
     )
+    parser.add_argument(
+        '--rewrite_timestamps',
+        dest='rewrite_timestamps',
+        action='store_true',
+        default=False,
+        help='Rewrite game start timestamp to current local system time.',
+    )
 
     parsed = parser.parse_args(args=args)
 
@@ -122,4 +133,5 @@ def parse_args(args: Sequence[str] | None = None) -> TdfFeederArgs:
         host=host,
         port=port,
         speed=parsed.speed,
+        rewrite_timestamps=parsed.rewrite_timestamps,
     )
