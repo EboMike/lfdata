@@ -529,7 +529,7 @@ Underneath, it has buttons with the following options:
   cause the server to resend the current game state.
 - **UI Editor**: Begins the UI editor mode, described below.
 - **Feeds**: Opens a window with the feed manager, described below.
-- **Latency Meter**: Opens a window with the latency meter, described below.
+- **Latency**: Opens a window with the latency adjustments, described below.
 - **Quit**: Terminate the program, with a confirmation dialog.
 
 The main window also has a menu:
@@ -577,11 +577,19 @@ show an error text underneath the text field if the URL is invalid.
 Clicking on a feed in the grid in the feed manager brings up an edit dialog that
 is identical to the "add new feed" dialog.
 
-## Latency Meter
+## Latency
 
-The latency meter intially shows two buttons, "Automatic (RTMP)" and "Manual".
+The latency window shows the current latency in milliseconds. It allows for adjusting it through a textfield.
 
-It will proceed when either button is pressed:
+Changes to the latency setting will be immediate.
+
+Underneath are two buttons:
+
+*   Automatic latency (RTMP)
+
+*   Manual latency measurement
+
+If either of the buttons is pressed, a latency measurement system will begin:
 
 ### Manual
 

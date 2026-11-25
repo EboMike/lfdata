@@ -1,8 +1,10 @@
 /**
  * @file latency_meter_window.hpp
- * @brief Separate window implementing the manual and automatic RTMP latency meter.
+ * @brief Separate window for latency settings and manual/automatic RTMP measurement.
  *
- * Initially presents "Automatic (RTMP)" and "Manual" mode selection.
+ * Shows the current latency in milliseconds with immediate text-field
+ * adjustment, plus "Automatic latency (RTMP)" and "Manual latency measurement"
+ * buttons.
  * Manual mode counts down 5..0, plays a 0.2s 1000Hz beep at 0, and measures
  * reaction latency until Space or button press.
  * Automatic mode connects to an RTMP feed, splits the window into a red target
@@ -53,6 +55,10 @@ public:
 
     using BeepCallback = std::function<void(int frequency_hz, int duration_ms)>;
 
+    struct Callbacks {
+        std::function<void(int64_t latency_ms)> on_latency_changed;
+    };
+
     explicit LatencyMeterWindow(
         BeepCallback beep_callback = nullptr,
         FeedReaderFactory feed_reader_factory = nullptr);
@@ -61,8 +67,16 @@ public:
     LatencyMeterWindow(const LatencyMeterWindow&) = delete;
     LatencyMeterWindow& operator=(const LatencyMeterWindow&) = delete;
 
+    void SetCallbacks(Callbacks callbacks);
     void SetBeepCallback(BeepCallback callback);
     void SetFeedReaderFactory(FeedReaderFactory factory);
+
+    void SetLatencyMs(int64_t latency_ms);
+    int64_t GetLatencyMs() const { return latency_ms_; }
+    bool SetLatencyFromText(const std::string& text);
+    static bool TryParseLatencyMs(
+        const std::string& text,
+        int64_t& out_latency_ms);
 
     /**
      * @brief Opens the Latency Meter OS window at the mode selection screen.
@@ -138,8 +152,13 @@ private:
     void RenderAutomaticSplitView();
     void RenderMeasuredResult();
 
+    Callbacks callbacks_;
     BeepCallback beep_callback_;
     FeedReaderFactory feed_reader_factory_;
+
+    int64_t latency_ms_ = 0;
+    char latency_input_buf_[64]{"0"};
+    bool latency_input_valid_ = true;
 
     bool is_open_ = false;
     SDL_Window* sdl_window_ = nullptr;

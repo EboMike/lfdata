@@ -251,4 +251,42 @@ TEST(LatencyMeterWindowTest, AutomaticModeDetectsRedCountsDownAndMeasuresGreen) 
     EXPECT_EQ(meter.GetMeasuredLatencyMs(), 275);
 }
 
+TEST(LatencyMeterWindowTest, LatencySettingUpdatesImmediatelyFromTextField) {
+    LatencyMeterWindow meter;
+    int callback_count = 0;
+    int64_t last_callback_value = -1;
+    meter.SetCallbacks({
+        .on_latency_changed = [&](int64_t new_latency_ms) {
+            ++callback_count;
+            last_callback_value = new_latency_ms;
+        }
+    });
+
+    meter.SetLatencyMs(120);
+    EXPECT_EQ(meter.GetLatencyMs(), 120);
+    EXPECT_EQ(callback_count, 0);
+
+    // Valid text updates immediately and triggers callback
+    EXPECT_TRUE(meter.SetLatencyFromText(" 350 "));
+    EXPECT_EQ(meter.GetLatencyMs(), 350);
+    EXPECT_EQ(callback_count, 1);
+    EXPECT_EQ(last_callback_value, 350);
+
+    // Setting the same value does not re-trigger callback
+    EXPECT_TRUE(meter.SetLatencyFromText("350"));
+    EXPECT_EQ(callback_count, 1);
+
+    // Invalid or empty text does not alter the current latency setting
+    EXPECT_FALSE(meter.SetLatencyFromText(""));
+    EXPECT_FALSE(meter.SetLatencyFromText("12abc"));
+    EXPECT_EQ(meter.GetLatencyMs(), 350);
+    EXPECT_EQ(callback_count, 1);
+
+    // Negative integer is also parsed cleanly
+    EXPECT_TRUE(meter.SetLatencyFromText("-40"));
+    EXPECT_EQ(meter.GetLatencyMs(), -40);
+    EXPECT_EQ(callback_count, 2);
+    EXPECT_EQ(last_callback_value, -40);
+}
+
 }  // namespace

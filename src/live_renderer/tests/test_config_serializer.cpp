@@ -10,6 +10,7 @@ TEST(ConfigSerializerTest, RoundTripGlobalConfig) {
     cfg.port = 8888;
     cfg.ui_config_file = "custom_layout.yaml";
     cfg.default_profile_picture_url = "https://custom.example.com/avatar.png";
+    cfg.latency_ms = 245;
 
     std::string path = "test_global_config.yaml";
     EXPECT_TRUE(ConfigSerializer::SaveGlobalConfig(path, cfg));
@@ -20,6 +21,7 @@ TEST(ConfigSerializerTest, RoundTripGlobalConfig) {
     EXPECT_EQ(loaded.port, 8888);
     EXPECT_EQ(loaded.ui_config_file, "custom_layout.yaml");
     EXPECT_EQ(loaded.default_profile_picture_url, "https://custom.example.com/avatar.png");
+    EXPECT_EQ(loaded.latency_ms, 245);
 
     std::filesystem::remove(path);
 }

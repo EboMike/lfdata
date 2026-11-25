@@ -141,6 +141,7 @@ int main(int argc, char* argv[]) {
     live_renderer::UIEditorWindow editor_window(ui_cfg, global_cfg.ui_config_file);
     live_renderer::FeedManagerWindow feed_manager_window(global_cfg.feeds);
     live_renderer::LatencyMeterWindow latency_meter_window;
+    latency_meter_window.SetLatencyMs(global_cfg.latency_ms);
 
     SDL_SetMainReady();
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) {
@@ -218,6 +219,7 @@ int main(int argc, char* argv[]) {
             editor_window.SetUIConfigFile(global_cfg.ui_config_file);
             window_manager.SyncWithConfig(ui_cfg);
             feed_manager_window.SyncFeedsFromConfig();
+            latency_meter_window.SetLatencyMs(global_cfg.latency_ms);
         },
         .on_save_settings = [&](const live_renderer::GlobalConfig&) {
             editor_window.SetUIConfigFile(global_cfg.ui_config_file);
@@ -232,6 +234,13 @@ int main(int argc, char* argv[]) {
 
     feed_manager_window.SetCallbacks({
         .on_feeds_changed = [&](const std::vector<live_renderer::FeedConfig>&) {
+            live_renderer::ConfigSerializer::SaveGlobalConfig(config_path, global_cfg);
+        }
+    });
+
+    latency_meter_window.SetCallbacks({
+        .on_latency_changed = [&](int64_t new_latency_ms) {
+            global_cfg.latency_ms = new_latency_ms;
             live_renderer::ConfigSerializer::SaveGlobalConfig(config_path, global_cfg);
         }
     });

@@ -27,6 +27,9 @@ bool ConfigSerializer::LoadGlobalConfig(const std::string& path, GlobalConfig& o
             out_config.default_profile_picture_url =
                 doc["default_profile_picture_url"].as<std::string>();
         }
+        if (doc["latency_ms"]) {
+            out_config.latency_ms = doc["latency_ms"].as<int64_t>();
+        }
         out_config.feeds.clear();
         if (doc["feeds"] && doc["feeds"].IsSequence()) {
             for (const auto& feed_node : doc["feeds"]) {
@@ -60,6 +63,7 @@ bool ConfigSerializer::SaveGlobalConfig(const std::string& path, const GlobalCon
         out << YAML::Key << "preferences_file" << YAML::Value << config.preferences_file;
         out << YAML::Key << "default_profile_picture_url" << YAML::Value
             << config.default_profile_picture_url;
+        out << YAML::Key << "latency_ms" << YAML::Value << config.latency_ms;
         if (!config.feeds.empty()) {
             out << YAML::Key << "feeds" << YAML::Value << YAML::BeginSeq;
             for (const auto& feed : config.feeds) {

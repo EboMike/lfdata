@@ -733,7 +733,7 @@ void MainControlWindow::RenderMainButtons() {
     }
     ImGui::Spacing();
 
-    if (ImGui::Button("Latency Meter", button_size)) {
+    if (ImGui::Button("Latency", button_size)) {
         ClickLatencyMeter();
     }
     ImGui::Spacing();

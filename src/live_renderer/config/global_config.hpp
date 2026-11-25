@@ -6,6 +6,7 @@
 #ifndef LIVE_RENDERER_CONFIG_GLOBAL_CONFIG_HPP_
 #define LIVE_RENDERER_CONFIG_GLOBAL_CONFIG_HPP_
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -40,6 +41,7 @@ struct GlobalConfig {
     std::string ui_config_file = "ui_layout.yaml";
     std::string preferences_file = "preferences.yaml";
     std::string default_profile_picture_url = kDefaultProfilePictureUrl;
+    int64_t latency_ms = 0;
     std::vector<FeedConfig> feeds;
 
     bool operator==(const GlobalConfig& other) const = default;

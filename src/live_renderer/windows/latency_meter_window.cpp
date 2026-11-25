@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <charconv>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -81,11 +82,16 @@ LatencyMeterWindow::LatencyMeterWindow(
     FeedReaderFactory feed_reader_factory)
     : beep_callback_(std::move(beep_callback)),
       feed_reader_factory_(std::move(feed_reader_factory)) {
+    SetLatencyMs(0);
     Reset(GetSteadyNowMs());
 }
 
 LatencyMeterWindow::~LatencyMeterWindow() {
     Close();
+}
+
+void LatencyMeterWindow::SetCallbacks(Callbacks callbacks) {
+    callbacks_ = std::move(callbacks);
 }
 
 void LatencyMeterWindow::SetBeepCallback(BeepCallback callback) {
@@ -94,6 +100,57 @@ void LatencyMeterWindow::SetBeepCallback(BeepCallback callback) {
 
 void LatencyMeterWindow::SetFeedReaderFactory(FeedReaderFactory factory) {
     feed_reader_factory_ = std::move(factory);
+}
+
+void LatencyMeterWindow::SetLatencyMs(int64_t latency_ms) {
+    latency_ms_ = latency_ms;
+    std::snprintf(
+        latency_input_buf_,
+        sizeof(latency_input_buf_),
+        "%lld",
+        static_cast<long long>(latency_ms_));
+    latency_input_valid_ = true;
+}
+
+bool LatencyMeterWindow::TryParseLatencyMs(
+    const std::string& text,
+    int64_t& out_latency_ms) {
+    const std::string trimmed = TrimString(text);
+    if (trimmed.empty()) {
+        return false;
+    }
+    int64_t parsed = 0;
+    const char* begin = trimmed.data();
+    const char* end = begin + trimmed.size();
+    const auto result = std::from_chars(begin, end, parsed);
+    if (result.ec != std::errc() || result.ptr != end) {
+        return false;
+    }
+    out_latency_ms = parsed;
+    return true;
+}
+
+bool LatencyMeterWindow::SetLatencyFromText(const std::string& text) {
+    int64_t parsed = 0;
+    if (!TryParseLatencyMs(text, parsed)) {
+        latency_input_valid_ = false;
+        return false;
+    }
+    latency_input_valid_ = true;
+    if (std::string(latency_input_buf_) != text) {
+        std::snprintf(
+            latency_input_buf_,
+            sizeof(latency_input_buf_),
+            "%s",
+            text.c_str());
+    }
+    if (parsed != latency_ms_) {
+        latency_ms_ = parsed;
+        if (callbacks_.on_latency_changed) {
+            callbacks_.on_latency_changed(latency_ms_);
+        }
+    }
+    return true;
 }
 
 int64_t LatencyMeterWindow::GetSteadyNowMs() {
@@ -477,7 +534,7 @@ bool LatencyMeterWindow::Open() {
     SDL_WindowFlags flags = static_cast<SDL_WindowFlags>(
         SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
     sdl_window_ = SDL_CreateWindow(
-        "LF Live Renderer - Latency Meter",
+        "LF Live Renderer - Latency",
         SDL_WINDOWPOS_CENTERED,
         SDL_WINDOWPOS_CENTERED,
         kDefaultWindowWidth,
@@ -510,6 +567,7 @@ bool LatencyMeterWindow::Open() {
     ImGui_ImplOpenGL3_Init("#version 330");
     ImGui::SetCurrentContext(prev_ctx);
 
+    SetLatencyMs(latency_ms_);
     ShowModeSelection();
     is_open_ = true;
     return true;
@@ -631,7 +689,7 @@ void LatencyMeterWindow::Render() {
         ImGuiWindowFlags_NoResize |
         ImGuiWindowFlags_NoSavedSettings;
 
-    if (ImGui::Begin("Latency Meter", nullptr, kWindowFlags)) {
+    if (ImGui::Begin("Latency", nullptr, kWindowFlags)) {
         RenderContents(now_ms);
     }
     ImGui::End();
@@ -661,20 +719,44 @@ void LatencyMeterWindow::RenderContents(int64_t now_ms) {
 
 void LatencyMeterWindow::RenderSelection(int64_t now_ms) {
     const ImVec2 avail = ImGui::GetContentRegionAvail();
-    const float btn_w = std::min(300.0f, avail.x * 0.7f);
+    const float panel_w = std::min(340.0f, avail.x * 0.75f);
     const float btn_h = 48.0f;
     const float spacing = ImGui::GetStyle().ItemSpacing.y * 2.0f;
-    const float total_h = btn_h * 2.0f + spacing;
+    const float total_h = 84.0f + btn_h * 2.0f + spacing * 2.0f;
     const float start_y = std::max(0.0f, (avail.y - total_h) * 0.5f);
-    const float start_x = std::max(0.0f, (avail.x - btn_w) * 0.5f);
+    const float start_x = std::max(0.0f, (avail.x - panel_w) * 0.5f);
 
     ImGui::SetCursorPos(ImVec2(start_x, start_y));
-    if (ImGui::Button("Automatic (RTMP)", ImVec2(btn_w, btn_h))) {
+    ImGui::Text("Current latency: %lld ms", static_cast<long long>(latency_ms_));
+
+    ImGui::SetCursorPosX(start_x);
+    ImGui::TextUnformatted("Latency (ms):");
+
+    ImGui::SetCursorPosX(start_x);
+    ImGui::SetNextItemWidth(panel_w);
+    if (ImGui::InputText(
+            "##latency_ms",
+            latency_input_buf_,
+            sizeof(latency_input_buf_))) {
+        SetLatencyFromText(latency_input_buf_);
+    }
+
+    if (!latency_input_valid_) {
+        ImGui::SetCursorPosX(start_x);
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.35f, 0.35f, 1.0f));
+        ImGui::TextUnformatted("Enter a valid integer in milliseconds.");
+        ImGui::PopStyleColor();
+    }
+
+    ImGui::Dummy(ImVec2(0.0f, spacing));
+    ImGui::SetCursorPosX(start_x);
+    if (ImGui::Button("Automatic latency (RTMP)", ImVec2(panel_w, btn_h))) {
         StartAutomaticSetup();
     }
 
-    ImGui::SetCursorPos(ImVec2(start_x, start_y + btn_h + spacing));
-    if (ImGui::Button("Manual", ImVec2(btn_w, btn_h))) {
+    ImGui::Dummy(ImVec2(0.0f, spacing * 0.5f));
+    ImGui::SetCursorPosX(start_x);
+    if (ImGui::Button("Manual latency measurement", ImVec2(panel_w, btn_h))) {
         Reset(now_ms);
     }
 }
