@@ -289,4 +289,46 @@ TEST(LatencyMeterWindowTest, LatencySettingUpdatesImmediatelyFromTextField) {
     EXPECT_EQ(last_callback_value, -40);
 }
 
+TEST(LatencyMeterWindowTest, ManualAndAutomaticMeasurementsUpdateLatencySetting) {
+    int callback_count = 0;
+    int64_t last_callback_value = -1;
+    MockFeedReader* mock_ptr = nullptr;
+    LatencyMeterWindow meter(
+        [](int, int) {},
+        [&]() {
+            auto ptr = std::make_unique<MockFeedReader>();
+            mock_ptr = ptr.get();
+            return ptr;
+        });
+    meter.SetCallbacks({
+        .on_latency_changed = [&](int64_t new_latency_ms) {
+            ++callback_count;
+            last_callback_value = new_latency_ms;
+        }
+    });
+
+    // Manual measurement updates latency setting and invokes callback
+    meter.Reset(1000);
+    meter.Update(6000);
+    EXPECT_TRUE(meter.TriggerResponse(6185));
+    EXPECT_EQ(meter.GetMeasuredLatencyMs(), 185);
+    EXPECT_EQ(meter.GetLatencyMs(), 185);
+    EXPECT_EQ(callback_count, 1);
+    EXPECT_EQ(last_callback_value, 185);
+
+    // Automatic measurement updates latency setting and invokes callback
+    meter.StartAutomaticSetup();
+    EXPECT_TRUE(meter.StartAutomaticFeed("192.168.1.99", 7000));
+    ASSERT_NE(mock_ptr, nullptr);
+    mock_ptr->PushSolidColor(220, 20, 20);
+    meter.Update(8000);
+    meter.Update(11000);
+    mock_ptr->PushSolidColor(20, 220, 20);
+    meter.Update(11310);
+    EXPECT_EQ(meter.GetMeasuredLatencyMs(), 310);
+    EXPECT_EQ(meter.GetLatencyMs(), 310);
+    EXPECT_EQ(callback_count, 2);
+    EXPECT_EQ(last_callback_value, 310);
+}
+
 }  // namespace

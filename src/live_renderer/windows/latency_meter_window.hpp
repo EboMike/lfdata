@@ -141,6 +141,7 @@ private:
 
     void UpdateManual(int64_t now_ms);
     void UpdateAutomatic(int64_t now_ms);
+    void ApplyMeasuredLatency(int64_t latency_ms);
     void UploadFeedTexture();
     void ReleaseFeedResources();
 

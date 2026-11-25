@@ -600,9 +600,9 @@ click the button".
 
 When the timer hits 0, it will play a 0.2 seconds long beep at 1000Hz.
 
-At this point, nothing changes on the screen. After the user presses the space
-bar, the screen will show the number of milliseconds that have passed between
-the counter reaching 0 and the user pressing space.
+After the user presses the space bar, the screen will show the number of
+milliseconds that have passed between the counter reaching 0 and the user
+pressing space, and the latency setting will be updated to this value.
 
 Nothing else will happen after this point and the window can be closed.
 
@@ -626,7 +626,8 @@ green.
 The code will measure the time it took from when the top screen turned green
 until the green was detected in the RTMP feed. This is the latency.
 
-Once detected, the screen will now show the millisecond latency.
+Once detected, the screen will now show the millisecond latency, and the latency
+setting will be updated to this value.
 
 Nothing else will happen after this point and the window can be closed.
 

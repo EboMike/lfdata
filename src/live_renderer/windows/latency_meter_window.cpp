@@ -428,8 +428,7 @@ void LatencyMeterWindow::UpdateAutomatic(int64_t now_ms) {
         if (has_new_frame &&
             IsMajorityGreen(frame_rgba_, frame_width_, frame_height_)) {
             auto_phase_ = AutoPhase::kMeasured;
-            measured_ = true;
-            measured_latency_ms_ = 0;
+            ApplyMeasuredLatency(0);
         }
         return;
     }
@@ -438,10 +437,19 @@ void LatencyMeterWindow::UpdateAutomatic(int64_t now_ms) {
         if (has_new_frame &&
             IsMajorityGreen(frame_rgba_, frame_width_, frame_height_)) {
             auto_phase_ = AutoPhase::kMeasured;
-            measured_ = true;
-            measured_latency_ms_ =
-                std::max<int64_t>(0, now_ms - green_start_ms_);
+            ApplyMeasuredLatency(
+                std::max<int64_t>(0, now_ms - green_start_ms_));
         }
+    }
+}
+
+void LatencyMeterWindow::ApplyMeasuredLatency(int64_t latency_ms) {
+    measured_ = true;
+    measured_latency_ms_ = latency_ms;
+    const bool changed = (latency_ms_ != latency_ms);
+    SetLatencyMs(latency_ms);
+    if (changed && callbacks_.on_latency_changed) {
+        callbacks_.on_latency_changed(latency_ms_);
     }
 }
 
@@ -449,8 +457,7 @@ bool LatencyMeterWindow::TriggerResponse(int64_t now_ms) {
     if (mode_ != Mode::kManual || !zero_reached_ || measured_) {
         return false;
     }
-    measured_ = true;
-    measured_latency_ms_ = std::max<int64_t>(0, now_ms - zero_time_ms_);
+    ApplyMeasuredLatency(std::max<int64_t>(0, now_ms - zero_time_ms_));
     return true;
 }
 
