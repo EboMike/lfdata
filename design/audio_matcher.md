@@ -72,10 +72,10 @@ between 1,400 Hz and 2,400 Hz.
 Restricting matching to the relevant frequency band filters out low-frequency
 rumble, bass music, and high-frequency noise.
 
-### 4. 2D Normalized Cross-Correlation and Template Cropping
+### 4. 2D Normalized Cross-Correlation and Offset-Mapped Chunking
 
-Once cropped to the target frequency band, magnitude spectrograms are
-compared using OpenCV template matching:
+Once cropped to the target frequency band, log-magnitude spectrograms
+(`log1p(sqrt(power) * 100)`) are compared using OpenCV template matching:
 
 ```python
 correlation_matrix = cv2.matchTemplate(
@@ -84,11 +84,17 @@ correlation_matrix = cv2.matchTemplate(
 ```
 
 This slides the 2D reference template across the target spectrogram over time,
-generating a correlation series where scores range from -1.0 to 1.0.
+generating a correlation series where scores range from -1.0 to 1.0. Log-magnitude
+compression prevents sudden foreground volume spikes from dominating
+correlation.
 
 For multi-blast or reverberant sounds, `template_duration_ms` can crop the
-reference template to match only the initial sharp blast (e.g. 800 ms),
-eliminating decaying echoes and subsequent blasts that may degrade alignment.
+reference template to match individual sharp blasts (e.g. 800 ms). In two-stage
+and chunked matching (`match_two_stage` / `match_chunked`), the reference
+spectrogram is split into overlapping chunks of `template_duration_ms`, and each
+chunk hit at `t_hit` votes for `t_0 = t_hit - chunk_offset_ms`. Even if an early
+blast is masked by foreground shouting, later blasts still predict the true
+onset timestamp.
 
 ### 5. Vocal Rejection and In-Band Energy Gating
 
@@ -101,9 +107,10 @@ Two suppression mechanisms ensure signal purity:
 1. **Vocal Penalty Factor**:
    * Human vocal fundamentals and formant energy concentrate heavily between
      150 Hz and `freq_min_hz`.
-   * The matcher computes the ratio of in-band energy to low-frequency energy
-     for each temporal window. If dominated by low-frequency vocal energy,
-     a penalty factor scales down the correlation score:
+   * The matcher computes the ratio of in-band amplitude (`sqrt(power)`) to
+     low-frequency amplitude for each temporal window. If dominated by
+     low-frequency vocal energy, a penalty factor scales down the correlation
+     score:
 
 $$\text{score} = \max(0, \text{correlation}) \times \text{penalty}$$
 
@@ -172,14 +179,16 @@ near the camera microphone. The sample matcher stays robust to foreground
 noise through:
 * **Log-Magnitude Spectrogram Normalization**: Compresses dynamic range so
   sudden loud vocal bursts or microphone bumps do not dominate correlation.
-* **High-Pass Filtering and Vocal Suppression**: Attenuates low-frequency
-  handling rumble (< 150 Hz) and down-weights frames dominated by close-mic
-  human speech energy relative to the sample's spectral profile.
-* **Chunk Consensus Voting**: Individual chunk predictions
-  $t_{\text{game\_start}, i}$ are clustered within a timing tolerance (e.g.,
-  ±150 ms). A player shouting over one or two chunks only degrades those local
-  slices, while the remaining clean chunks still vote consistently for the
-  true game start time.
+* **High-Pass Filtering and Upper Sub-Band Fallback**: Attenuates low-frequency
+  handling rumble (< 150 Hz) and evaluates an upper sub-band (top 75% of bins
+  when `max_freq_hz > 2500 Hz`) so close-mic shouting in lower frequencies does
+  not ruin clean upper-band matches.
+* **Finer Short-Sample Chunking & Consensus Voting**: Samples shorter than
+  `chunk_duration_ms` are still split into overlapping sub-chunks, and chunk
+  predictions $t_{\text{game\_start}, i}$ are clustered within a timing
+  tolerance (e.g., ±200 ms). A player shouting over one or two chunks only
+  degrades those local slices, while the remaining clean chunks still vote
+  consistently for the true game start time.
 
 ---
 

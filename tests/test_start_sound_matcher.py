@@ -294,3 +294,48 @@ def test_audio_matcher_detect_game_start_delegates(tmp_path: Path) -> None:
             reference_sound_path=ref,
         )
     assert result == expected
+
+
+def test_short_sample_finer_chunking_and_upper_band_resilience(
+    tmp_path: Path,
+) -> None:
+    sample_rate = 22050
+    dur_s = 1.2
+    t = np.linspace(0, dur_s, int(dur_s * sample_rate), endpoint=False)
+    # Wideband sample with energy in both 800 Hz and 3500-5500 Hz
+    sample = (
+        0.4 * np.sin(2 * np.pi * 800.0 * t)
+        + 0.4 * np.sin(2 * np.pi * (3500.0 + 1500.0 * t) * t)
+    ).astype(np.float32)
+
+    start_dir = tmp_path / 'start_sounds'
+    start_dir.mkdir()
+    sample_path = start_dir / 'short_wide.wav'
+    wavfile.write(sample_path, sample_rate, np.int16(sample * 32767))
+
+    matcher = StartSoundMatcher(chunk_duration_ms=1500, chunk_step_ms=750)
+    ms_per_frame = (
+        matcher.audio_matcher.hop_length / matcher.audio_matcher.sample_rate
+    ) * 1000.0
+    spec = matcher._prepare_log_spectrogram(sample)
+    chunks = matcher._build_sample_chunks(spec, ms_per_frame=ms_per_frame)
+    # Short sample (1.2s < 1.5s) should still produce >= 3 overlapping chunks
+    assert len(chunks) >= 3
+
+    # Target recording: sample placed at 1000ms (game start = 2200ms),
+    # with loud low-frequency interference (300-1100 Hz) over the entire
+    # first half of the sample.
+    target = np.zeros(int(4.0 * sample_rate), dtype=np.float32)
+    s_idx = int(1.0 * sample_rate)
+    target[s_idx : s_idx + len(sample)] += sample
+    t_noise = np.linspace(0, 0.7, int(0.7 * sample_rate), endpoint=False)
+    low_shout = 0.8 * np.sin(2 * np.pi * 500.0 * t_noise)
+    target[s_idx : s_idx + len(low_shout)] += low_shout.astype(np.float32)
+
+    results = matcher.match_samples(
+        target_audio=target,
+        sample_paths=[sample_path],
+        threshold=0.25,
+    )
+    assert len(results) == 1
+    assert abs(results[0].timestamp_ms - 2200) <= 150

@@ -327,9 +327,22 @@ class StartSoundMatcher:
         ranges: list[tuple[int, int]] = []
         if total_frames <= chunk_frames:
             ranges.append((0, total_frames))
-            half_frames = total_frames // 2
-            if half_frames * ms_per_frame >= MIN_HALF_CHUNK_MS:
-                ranges.append((half_frames, total_frames))
+            min_sub_frames = max(
+                2, int(round(MIN_HALF_CHUNK_MS / ms_per_frame))
+            )
+            sub_frames = max(min_sub_frames, total_frames // 2)
+            if total_frames > sub_frames >= min_sub_frames:
+                sub_step = max(1, sub_frames // 2)
+                sub_starts = list(
+                    range(0, total_frames - sub_frames + 1, sub_step)
+                )
+                last_sub = total_frames - sub_frames
+                if sub_starts[-1] != last_sub:
+                    sub_starts.append(last_sub)
+                for s in sub_starts:
+                    pair = (s, s + sub_frames)
+                    if pair not in ranges:
+                        ranges.append(pair)
         else:
             starts = list(
                 range(0, total_frames - chunk_frames + 1, step_frames)
@@ -439,6 +452,12 @@ class StartSoundMatcher:
         """
         hits: list[ChunkHit] = []
         target_frames = target_spec.shape[1]
+        use_upper_band = (
+            target_spec.shape[0] >= 16
+            and self.max_freq_hz > 2500.0
+            and self.min_freq_hz < 2000.0
+        )
+        upper_row = target_spec.shape[0] // 4
 
         for chunk in chunks:
             chunk_frames = chunk.spec.shape[1]
@@ -451,6 +470,14 @@ class StartSoundMatcher:
                 cv2.TM_CCOEFF_NORMED,
             )
             corr_series = np.clip(corr_mat[0], 0.0, 1.0)
+            if use_upper_band:
+                upper_corr = cv2.matchTemplate(
+                    target_spec[upper_row:, :],
+                    chunk.spec[upper_row:, :],
+                    cv2.TM_CCOEFF_NORMED,
+                )
+                upper_series = np.clip(upper_corr[0], 0.0, 1.0)
+                corr_series = np.maximum(corr_series, upper_series * 0.95)
             peaks = self.audio_matcher.find_peaks_nms(
                 correlation_series=corr_series,
                 threshold=chunk_threshold,
