@@ -614,6 +614,7 @@ class AudioBenchmarkRunner:
         consensus_tolerance_ms: int | None = None,
         sample_min_freq_hz: float | None = None,
         sample_max_freq_hz: float | None = None,
+        ignore_search_window: bool = False,
     ) -> TestCaseEvaluationResult:
         """Evaluates audio matching on a single test case.
 
@@ -630,6 +631,8 @@ class AudioBenchmarkRunner:
             consensus_tolerance_ms: Optional cluster tolerance override.
             sample_min_freq_hz: Optional high-pass cutoff for samples.
             sample_max_freq_hz: Optional upper freq cutoff for samples.
+            ignore_search_window: If True, ignores test_case search bounds
+                and searches the entire file.
 
         Returns:
             TestCaseEvaluationResult: Detailed outcome of the test case.
@@ -643,9 +646,12 @@ class AudioBenchmarkRunner:
         if not video_path.exists():
             raise FileNotFoundError(f'Video file not found: {video_path}')
 
-        eff_thresh = (
-            threshold if threshold is not None else sound_def.threshold
+        search_start = (
+            None if ignore_search_window else test_case.search_start_ms
         )
+        search_end = None if ignore_search_window else test_case.search_end_ms
+
+        eff_thresh = threshold if threshold is not None else sound_def.threshold
         eff_energy_ratio = (
             min_energy_ratio
             if min_energy_ratio is not None
@@ -720,8 +726,8 @@ class AudioBenchmarkRunner:
                 expected_timestamp_ms=test_case.expected_timestamp_ms,
                 tolerance_ms=test_case.tolerance_ms,
                 threshold=eff_thresh,
-                start_ms=test_case.search_start_ms,
-                end_ms=test_case.search_end_ms,
+                start_ms=search_start,
+                end_ms=search_end,
             )
             return self._evaluate_matches(test_case, matches, diagnostic=diag)
 
@@ -743,8 +749,8 @@ class AudioBenchmarkRunner:
             expected_timestamp_ms=test_case.expected_timestamp_ms,
             tolerance_ms=test_case.tolerance_ms,
             threshold=eff_thresh,
-            start_ms=test_case.search_start_ms,
-            end_ms=test_case.search_end_ms,
+            start_ms=search_start,
+            end_ms=search_end,
             freq_min_hz=eff_min,
             freq_max_hz=eff_max,
             template_duration_ms=eff_duration_ms,
@@ -762,6 +768,7 @@ class AudioBenchmarkRunner:
         threshold: float | None = None,
         template_duration_ms: int | None = None,
         min_energy_ratio: float | None = None,
+        ignore_search_window: bool = False,
     ) -> BenchmarkSummary:
         """Evaluates all test cases in a sound definition.
 
@@ -772,6 +779,7 @@ class AudioBenchmarkRunner:
             threshold: Optional confidence threshold override.
             template_duration_ms: Optional template duration in ms override.
             min_energy_ratio: Optional min energy ratio override.
+            ignore_search_window: If True, ignores test_case search bounds.
 
         Returns:
             BenchmarkSummary: Aggregated benchmark summary and case results.
@@ -786,6 +794,7 @@ class AudioBenchmarkRunner:
                 threshold=threshold,
                 template_duration_ms=template_duration_ms,
                 min_energy_ratio=min_energy_ratio,
+                ignore_search_window=ignore_search_window,
             )
             results.append(res)
 
@@ -818,6 +827,7 @@ class AudioBenchmarkRunner:
         template_duration_ms: int | None = None,
         min_energy_ratio: float | None = None,
         iterate: bool = False,
+        ignore_search_window: bool = False,
     ) -> BenchmarkAnalysis:
         """Analyzes test cases with detailed failure diagnostics.
 
@@ -834,13 +844,12 @@ class AudioBenchmarkRunner:
             template_duration_ms: Optional template duration in ms override.
             min_energy_ratio: Optional min energy ratio override.
             iterate: If True, evaluates each suggested configuration change.
+            ignore_search_window: If True, ignores test_case search bounds.
 
         Returns:
             BenchmarkAnalysis: Comprehensive analysis across all test cases.
         """
-        eff_thresh = (
-            threshold if threshold is not None else sound_def.threshold
-        )
+        eff_thresh = threshold if threshold is not None else sound_def.threshold
         eff_fmin = (
             freq_min_hz if freq_min_hz is not None else sound_def.freq_min_hz
         )
@@ -870,6 +879,7 @@ class AudioBenchmarkRunner:
                 threshold=eff_thresh,
                 template_duration_ms=eff_duration_ms,
                 min_energy_ratio=eff_energy_ratio,
+                ignore_search_window=ignore_search_window,
             )
             diag = res.diagnostic
             root_cause = 'PASS'
@@ -1162,7 +1172,9 @@ class AudioBenchmarkRunner:
                     description=sound_def.description,
                     test_cases=sound_def.test_cases,
                 )
-                summary = self.evaluate(cand_def)
+                summary = self.evaluate(
+                    cand_def, ignore_search_window=ignore_search_window
+                )
                 score = self._compute_tuning_score(summary)
                 cand_res = IterationCandidateResult(
                     suggestion=cand_sug,
@@ -1546,9 +1558,7 @@ class AudioBenchmarkRunner:
             base_fmax,
         )
         best_score = -1e9
-        sample_def = dataclasses.replace(
-            sound_def, test_cases=audio_file_cases
-        )
+        sample_def = dataclasses.replace(sound_def, test_cases=audio_file_cases)
         eval_thresh = thresholds[0] if thresholds else sound_def.threshold
 
         for dur in durations:
@@ -1641,43 +1651,38 @@ class AudioBenchmarkRunner:
         expected = test_case.expected_timestamp_ms
         tol = test_case.tolerance_ms
 
-        in_tolerance: list[AudioMatchResult] = []
-        out_of_tolerance: list[AudioMatchResult] = []
-
-        for m in matches:
-            if abs(m.timestamp_ms - expected) <= tol:
-                in_tolerance.append(m)
-            else:
-                out_of_tolerance.append(m)
-
+        out_of_tolerance = [
+            m for m in matches if abs(m.timestamp_ms - expected) > tol
+        ]
         top_fp_conf = (
             max((m.confidence for m in out_of_tolerance), default=None)
             if out_of_tolerance
             else None
         )
 
-        if not in_tolerance:
-            best_fp = matches[0]
-            err = best_fp.timestamp_ms - expected
+        top_match = matches[0]
+        err = top_match.timestamp_ms - expected
+        if abs(err) > tol:
             return TestCaseEvaluationResult(
                 test_case=test_case,
                 passed=False,
-                detected_timestamp_ms=best_fp.timestamp_ms,
+                detected_timestamp_ms=top_match.timestamp_ms,
                 error_ms=err,
-                confidence=best_fp.confidence,
+                confidence=top_match.confidence,
                 top_false_positive_confidence=top_fp_conf,
-                message=f'Match at {best_fp.timestamp_ms}ms outside tolerance.',
+                message=(
+                    f'Top match at {top_match.timestamp_ms}ms outside '
+                    'tolerance.'
+                ),
                 diagnostic=diagnostic,
             )
 
-        best_hit = in_tolerance[0]
-        err = best_hit.timestamp_ms - expected
         return TestCaseEvaluationResult(
             test_case=test_case,
             passed=True,
-            detected_timestamp_ms=best_hit.timestamp_ms,
+            detected_timestamp_ms=top_match.timestamp_ms,
             error_ms=err,
-            confidence=best_hit.confidence,
+            confidence=top_match.confidence,
             top_false_positive_confidence=top_fp_conf,
             message='Match detected within tolerance.',
             diagnostic=diagnostic,
@@ -1731,21 +1736,20 @@ def main() -> None:
         'evaluate', help='Evaluate test cases in a sound config.'
     )
     eval_parser.add_argument('config', help='Path to sound config YAML file.')
-    eval_parser.add_argument(
-        '--json', action='store_true', help='Output JSON.'
-    )
-    eval_parser.add_argument(
-        '--freq-min', type=float, help='Override freq_min'
-    )
-    eval_parser.add_argument(
-        '--freq-max', type=float, help='Override freq_max'
-    )
+    eval_parser.add_argument('--json', action='store_true', help='Output JSON.')
+    eval_parser.add_argument('--freq-min', type=float, help='Override freq_min')
+    eval_parser.add_argument('--freq-max', type=float, help='Override freq_max')
     eval_parser.add_argument('--threshold', type=float, help='Override thresh')
     eval_parser.add_argument(
         '--template-duration', type=int, help='Override template duration ms'
     )
     eval_parser.add_argument(
         '--min-energy-ratio', type=float, help='Override min energy ratio'
+    )
+    eval_parser.add_argument(
+        '--full-video',
+        action='store_true',
+        help='Ignore search_start_ms/search_end_ms and search full files.',
     )
 
     tune_parser = subparsers.add_parser(
@@ -1755,9 +1759,7 @@ def main() -> None:
     tune_parser.add_argument(
         '--save', action='store_true', help='Save best parameters to config.'
     )
-    tune_parser.add_argument(
-        '--json', action='store_true', help='Output JSON.'
-    )
+    tune_parser.add_argument('--json', action='store_true', help='Output JSON.')
 
     analyze_parser = subparsers.add_parser(
         'analyze', help='Diagnose failures and analyze test cases in a config.'
@@ -1793,6 +1795,11 @@ def main() -> None:
     analyze_parser.add_argument(
         '--min-energy-ratio', type=float, help='Override min energy ratio'
     )
+    analyze_parser.add_argument(
+        '--full-video',
+        action='store_true',
+        help='Ignore search_start_ms/search_end_ms and search full files.',
+    )
 
     args = parser.parse_args()
     runner = AudioBenchmarkRunner()
@@ -1806,6 +1813,7 @@ def main() -> None:
             threshold=args.threshold,
             template_duration_ms=args.template_duration,
             min_energy_ratio=args.min_energy_ratio,
+            ignore_search_window=args.full_video,
         )
         if args.json:
             print(json.dumps(dataclasses.asdict(summary), indent=2))
@@ -1847,6 +1855,7 @@ def main() -> None:
             template_duration_ms=args.template_duration,
             min_energy_ratio=args.min_energy_ratio,
             iterate=args.iterate,
+            ignore_search_window=args.full_video,
         )
         if args.save and analysis.best_iteration is not None:
             best_s = analysis.best_iteration.suggestion

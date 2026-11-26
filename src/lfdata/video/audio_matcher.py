@@ -46,6 +46,10 @@ from lfdata.video.constants import (
     DEFAULT_START_SOUND_METHOD,
 )
 
+CHUNK_CONSENSUS_BASE_WEIGHT: float = 0.2
+CHUNK_CONSENSUS_RATIO_WEIGHT: float = 0.8
+DEFAULT_TWO_STAGE_ALIGNMENT_MS: int = 350
+
 
 @dataclasses.dataclass(frozen=True)
 class AudioMatchConfig:
@@ -65,6 +69,7 @@ class AudioMatchConfig:
         sample_min_freq_hz: Optional high-pass cutoff in Hz for start sounds.
         sample_max_freq_hz: Optional upper freq cutoff in Hz for start sounds.
         agreement_tolerance_ms: Optional max ms diff for method agreement.
+        two_stage: Optional flag to enable or disable two-stage matching.
     """
 
     reference_sound_path: str
@@ -80,6 +85,7 @@ class AudioMatchConfig:
     sample_min_freq_hz: float | None = None
     sample_max_freq_hz: float | None = None
     agreement_tolerance_ms: int | None = None
+    two_stage: bool | None = None
 
 
 def load_sound_config(config_path: str | Path) -> AudioMatchConfig:
@@ -176,33 +182,8 @@ def load_sound_config(config_path: str | Path) -> AudioMatchConfig:
         int(raw_agree_tol) if raw_agree_tol is not None else None
     )
 
-    raw_chunk_dur = raw_data.get('chunk_duration_ms')
-    chunk_duration_ms = (
-        int(raw_chunk_dur) if raw_chunk_dur is not None else None
-    )
-
-    raw_chunk_step = raw_data.get('chunk_step_ms')
-    chunk_step_ms = int(raw_chunk_step) if raw_chunk_step is not None else None
-
-    raw_consensus_tol = raw_data.get('consensus_tolerance_ms')
-    consensus_tolerance_ms = (
-        int(raw_consensus_tol) if raw_consensus_tol is not None else None
-    )
-
-    raw_sample_fmin = raw_data.get('sample_min_freq_hz')
-    sample_min_freq_hz = (
-        float(raw_sample_fmin) if raw_sample_fmin is not None else None
-    )
-
-    raw_sample_fmax = raw_data.get('sample_max_freq_hz')
-    sample_max_freq_hz = (
-        float(raw_sample_fmax) if raw_sample_fmax is not None else None
-    )
-
-    raw_agree_tol = raw_data.get('agreement_tolerance_ms')
-    agreement_tolerance_ms = (
-        int(raw_agree_tol) if raw_agree_tol is not None else None
-    )
+    raw_two_stage = raw_data.get('two_stage')
+    two_stage = bool(raw_two_stage) if raw_two_stage is not None else None
 
     return AudioMatchConfig(
         reference_sound_path=resolved_ref_path,
@@ -218,6 +199,7 @@ def load_sound_config(config_path: str | Path) -> AudioMatchConfig:
         sample_min_freq_hz=sample_min_freq_hz,
         sample_max_freq_hz=sample_max_freq_hz,
         agreement_tolerance_ms=agreement_tolerance_ms,
+        two_stage=two_stage,
     )
 
 
@@ -469,7 +451,7 @@ class AudioMatcher:
         template_duration_ms: int | None = None,
         min_energy_ratio: float | None = None,
         stage1_threshold: float | None = None,
-        alignment_tolerance_ms: int = 1500,
+        alignment_tolerance_ms: int = DEFAULT_TWO_STAGE_ALIGNMENT_MS,
     ) -> list[AudioMatchResult]:
         """Performs two-stage matching using full and offset-mapped chunks.
 
@@ -685,9 +667,7 @@ class AudioMatcher:
                 chunk_starts.append(last_start)
 
         chunk_rms = [
-            float(
-                np.sqrt(np.mean(np.square(mag_ref[:, s : s + chunk_frames])))
-            )
+            float(np.sqrt(np.mean(np.square(mag_ref[:, s : s + chunk_frames]))))
             for s in chunk_starts
         ]
         peak_rms = max(chunk_rms, default=0.0)
@@ -787,9 +767,11 @@ class AudioMatcher:
             )
             cons_ratio = min(1.0, len(best_per_chunk) / num_active)
             mean_sc = total_w / len(best_per_chunk)
-            conf = float(
-                np.clip(mean_sc * (0.65 + 0.35 * cons_ratio), 0.0, 1.0)
+            weight = (
+                CHUNK_CONSENSUS_BASE_WEIGHT
+                + CHUNK_CONSENSUS_RATIO_WEIGHT * cons_ratio
             )
+            conf = float(np.clip(mean_sc * weight, 0.0, 1.0))
             results.append(
                 AudioMatchResult(timestamp_ms=cons_ms, confidence=conf)
             )
@@ -801,7 +783,7 @@ class AudioMatcher:
         self,
         stage1_matches: list[AudioMatchResult],
         stage2_matches: list[AudioMatchResult],
-        alignment_tolerance_ms: int = 1500,
+        alignment_tolerance_ms: int = DEFAULT_TWO_STAGE_ALIGNMENT_MS,
     ) -> list[AudioMatchResult]:
         """Combines uncropped template matches with clustered cropped matches.
 
@@ -913,7 +895,21 @@ class AudioMatcher:
             and template_duration_ms is not None
             and template_duration_ms > 0
         ):
-            candidates = self._compute_chunked_candidates(
+            stage1_matches = self.match(
+                video_or_audio_path=video_or_audio_path,
+                reference_sound_path=reference_sound_path,
+                threshold=threshold,
+                min_interval_ms=min_interval_ms,
+                start_ms=start_ms,
+                end_ms=end_ms,
+                max_matches=None,
+                freq_min_hz=freq_min_hz,
+                freq_max_hz=freq_max_hz,
+                template_duration_ms=None,
+                min_energy_ratio=min_energy_ratio,
+                cluster_sequence=False,
+            )
+            stage2_candidates = self._compute_chunked_candidates(
                 video_or_audio_path=video_or_audio_path,
                 reference_sound_path=reference_sound_path,
                 chunk_duration_ms=template_duration_ms,
@@ -925,9 +921,22 @@ class AudioMatcher:
                 freq_max_hz=freq_max_hz,
                 min_energy_ratio=min_energy_ratio,
             )
-            results = [c for c in candidates if c.confidence >= threshold]
-            if max_matches is not None and max_matches > 0:
-                results = results[:max_matches]
+            stage2_matches = [
+                c for c in stage2_candidates if c.confidence >= threshold
+            ]
+            combined = self._combine_two_stage_matches(
+                stage1_matches=stage1_matches,
+                stage2_matches=stage2_matches,
+            )
+            results = (
+                combined[:max_matches]
+                if max_matches is not None and max_matches > 0
+                else combined
+            )
+            candidates = self._combine_two_stage_matches(
+                stage1_matches=stage1_matches,
+                stage2_matches=stage2_candidates,
+            )
 
             in_tol = [
                 c
@@ -1179,7 +1188,7 @@ class AudioMatcher:
         template_duration_ms: int | None = None,
         min_energy_ratio: float | None = None,
         cluster_sequence: bool = False,
-        two_stage: bool = False,
+        two_stage: bool | None = None,
     ) -> list[AudioMatchResult]:
         """Matches a reference sound using a configuration object or file.
 
@@ -1202,7 +1211,9 @@ class AudioMatcher:
             cluster_sequence: Whether to group detections into sequence
                 clusters.
             two_stage: Whether to use two-stage matching (full template anchor
-                combined with cropped sequence clusters).
+                combined with cropped chunk consensus). If None, uses the
+                config setting or enables automatically when
+                template_duration_ms is positive.
 
         Returns:
             list[AudioMatchResult]: Candidate matches sorted by confidence.
@@ -1236,8 +1247,16 @@ class AudioMatcher:
             if min_energy_ratio is not None
             else match_cfg.min_energy_ratio
         )
+        if two_stage is not None:
+            eff_two_stage = two_stage
+        elif match_cfg.two_stage is not None:
+            eff_two_stage = match_cfg.two_stage
+        else:
+            eff_two_stage = (
+                eff_template_dur is not None and eff_template_dur > 0
+            )
 
-        if two_stage:
+        if eff_two_stage:
             return self.match_two_stage(
                 video_or_audio_path=video_or_audio_path,
                 reference_sound_path=match_cfg.reference_sound_path,
@@ -1705,11 +1724,19 @@ def main() -> None:
     )
     parser.add_argument(
         '--two-stage',
+        dest='two_stage',
         action='store_true',
+        default=None,
         help=(
             'Use two-stage matching (full template anchor + cropped'
             ' clustering).'
         ),
+    )
+    parser.add_argument(
+        '--no-two-stage',
+        dest='two_stage',
+        action='store_false',
+        help='Disable automatic two-stage matching.',
     )
     parser.add_argument(
         '--json',
@@ -1735,6 +1762,7 @@ def main() -> None:
     eff_template_duration: int | None = None
     eff_min_energy_ratio: float | None = None
     eff_start_sounds_dir: str | None = args.start_sounds_dir
+    cfg_two_stage: bool | None = None
 
     if args.config:
         cfg = load_sound_config(args.config)
@@ -1750,12 +1778,11 @@ def main() -> None:
             eff_start_sounds_dir = cfg.start_sounds_dir
         eff_template_duration = cfg.template_duration_ms
         eff_min_energy_ratio = cfg.min_energy_ratio
+        cfg_two_stage = cfg.two_stage
 
     if args.template_duration_ms is not None:
         eff_template_duration = (
-            args.template_duration_ms
-            if args.template_duration_ms > 0
-            else None
+            args.template_duration_ms if args.template_duration_ms > 0 else None
         )
 
     if ref_path and not Path(ref_path).exists():
@@ -1763,6 +1790,15 @@ def main() -> None:
 
     if eff_threshold is None:
         eff_threshold = 0.2
+
+    if args.two_stage is not None:
+        eff_two_stage = args.two_stage
+    elif cfg_two_stage is not None:
+        eff_two_stage = cfg_two_stage
+    else:
+        eff_two_stage = (
+            eff_template_duration is not None and eff_template_duration > 0
+        )
 
     matcher = AudioMatcher()
     if eff_start_sounds_dir:
@@ -1777,11 +1813,11 @@ def main() -> None:
             freq_max_hz=eff_freq_max,
             template_duration_ms=eff_template_duration,
             min_energy_ratio=eff_min_energy_ratio,
-            two_stage=args.two_stage,
+            two_stage=eff_two_stage,
             cluster_sequence=args.cluster_sequence,
         )
         results = [best] if best is not None else []
-    elif args.two_stage:
+    elif eff_two_stage:
         results = matcher.match_two_stage(
             video_or_audio_path=args.video,
             reference_sound_path=str(ref_path),

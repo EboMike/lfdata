@@ -310,6 +310,8 @@ python -m lfdata.video.audio_matcher <video_or_audio> \
 | `--freq-min` | Float | Config/Auto | Lower frequency cutoff in Hz. |
 | `--freq-max` | Float | Config/Auto | Upper frequency cutoff in Hz. |
 | `--max-matches` | Int | `None` | Maximum number of matches to return. |
+| `--two-stage` | Flag | Auto | Force two-stage matching. |
+| `--no-two-stage` | Flag | `False` | Disable automatic two-stage matching. |
 | `--json` | Flag | `False` | Output results as structured JSON. |
 
 ### Usage Examples
@@ -520,8 +522,14 @@ You can test parameter adjustments without modifying the YAML file:
 ```bash
 ./tune-audio.sh evaluate configs/audio/my_sound.yaml \
   --freq-min 1200 --freq-max 2200 --threshold 0.25 \
-  --template-duration 800 --min-energy-ratio 0.1
+  --template-duration 800 --min-energy-ratio 0.1 \
+  --full-video
 ```
+
+Pass `--full-video` to `evaluate` or `analyze` to ignore `search_start_ms`
+and `search_end_ms` and test against the entire recording (matching production
+execution). A test case passes only when the highest-confidence match
+(`matches[0]`) falls within `tolerance_ms` of `expected_timestamp_ms`.
 
 #### Evaluation Output
 The runner displays pass/fail status, timing error, and false positive metrics:

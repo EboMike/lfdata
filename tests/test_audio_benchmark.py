@@ -239,12 +239,8 @@ def test_evaluate_multiple_test_cases_summary() -> None:
         target2 = os.path.join(tmpdir, 'target2.wav')
 
         _create_synthetic_chirp(ref_file)
-        _create_synthetic_target(
-            target1, ref_file, insert_timestamps_ms=[1000]
-        )
-        _create_synthetic_target(
-            target2, ref_file, insert_timestamps_ms=[2500]
-        )
+        _create_synthetic_target(target1, ref_file, insert_timestamps_ms=[1000])
+        _create_synthetic_target(target2, ref_file, insert_timestamps_ms=[2500])
 
         sound_def = SoundDefinition(
             name='chirp',
@@ -342,9 +338,7 @@ def test_cli_evaluate_and_tune(capsys: pytest.CaptureFixture[str]) -> None:
         runner.save_to_yaml(sound_def, config_path)
 
         # Test CLI evaluate
-        with patch(
-            'sys.argv', ['audio_benchmark.py', 'evaluate', config_path]
-        ):
+        with patch('sys.argv', ['audio_benchmark.py', 'evaluate', config_path]):
             main()
 
         out_eval = capsys.readouterr().out
@@ -653,12 +647,8 @@ def test_analyze_iterate_mode() -> None:
         target2 = os.path.join(tmpdir, 'target2.wav')
 
         _create_synthetic_chirp(ref_file)
-        _create_synthetic_target(
-            target1, ref_file, insert_timestamps_ms=[1000]
-        )
-        _create_synthetic_target(
-            target2, ref_file, insert_timestamps_ms=[2000]
-        )
+        _create_synthetic_target(target1, ref_file, insert_timestamps_ms=[1000])
+        _create_synthetic_target(target2, ref_file, insert_timestamps_ms=[2000])
 
         sound_def = SoundDefinition(
             name='iter_sound',
@@ -1187,3 +1177,75 @@ def test_start_sound_tuning_params_yaml_and_detect_config() -> None:
         assert detected is not None
         assert detected.method == 'start_sounds/sample.wav'
         assert abs(detected.timestamp_ms - 2200) <= 150
+
+
+def test_evaluate_matches_fails_when_top_match_out_of_tolerance() -> None:
+    from lfdata.video.audio_matcher import AudioMatchResult
+
+    runner = AudioBenchmarkRunner()
+    tc = AudioTestCase(
+        video_path='dummy.mp4',
+        expected_timestamp_ms=1000,
+        tolerance_ms=200,
+    )
+    matches = [
+        AudioMatchResult(timestamp_ms=5000, confidence=0.8),
+        AudioMatchResult(timestamp_ms=1050, confidence=0.4),
+    ]
+    res = runner._evaluate_matches(test_case=tc, matches=matches)
+    assert res.passed is False
+    assert res.detected_timestamp_ms == 5000
+    assert res.error_ms == 4000
+    assert res.confidence == 0.8
+    assert res.top_false_positive_confidence == 0.8
+
+
+def test_evaluate_full_video_ignores_search_window(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ref_file = os.path.join(tmpdir, 'ref.wav')
+        target_file = os.path.join(tmpdir, 'target.wav')
+        config_path = os.path.join(tmpdir, 'config.yaml')
+
+        _create_synthetic_chirp(ref_file)
+        _create_synthetic_target(
+            target_file,
+            ref_file,
+            insert_timestamps_ms=[2500],
+            total_duration_s=4.0,
+        )
+
+        # Search window omits the true signal at 2500ms.
+        sound_def = SoundDefinition(
+            name='window_test',
+            reference_sound_path=ref_file,
+            freq_min_hz=1000.0,
+            freq_max_hz=2400.0,
+            threshold=0.2,
+            test_cases=[
+                AudioTestCase(
+                    video_path=target_file,
+                    expected_timestamp_ms=2500,
+                    tolerance_ms=150,
+                    search_start_ms=0,
+                    search_end_ms=1500,
+                )
+            ],
+        )
+        runner = AudioBenchmarkRunner()
+        runner.save_to_yaml(sound_def, config_path)
+
+        windowed = runner.evaluate(sound_def, ignore_search_window=False)
+        assert windowed.passed_cases == 0
+
+        full_video = runner.evaluate(sound_def, ignore_search_window=True)
+        assert full_video.passed_cases == 1
+
+        with patch(
+            'sys.argv',
+            ['audio_benchmark.py', 'evaluate', config_path, '--full-video'],
+        ):
+            main()
+        out = capsys.readouterr().out
+        assert 'Passed: 1/1' in out
