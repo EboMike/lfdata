@@ -1081,3 +1081,19 @@ def test_match_chunked_recovers_when_first_blast_masked() -> None:
         )
         assert len(results) == 1
         assert abs(results[0].timestamp_ms - 1500) <= 100
+
+        diag_results, diag = matcher.match_diagnostic(
+            video_or_audio_path=target_wav,
+            reference_sound_path=ref_wav,
+            expected_timestamp_ms=1500,
+            tolerance_ms=150,
+            threshold=0.2,
+            freq_min_hz=1300.0,
+            freq_max_hz=2100.0,
+            template_duration_ms=400,
+            two_stage=True,
+        )
+        assert len(diag_results) >= 1
+        assert abs(diag_results[0].timestamp_ms - 1500) <= 100
+        assert diag.expected_peak_timestamp_ms is not None
+        assert abs(diag.expected_peak_timestamp_ms - 1500) <= 100
