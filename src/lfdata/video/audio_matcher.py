@@ -177,7 +177,9 @@ def load_sound_config(config_path: str | Path) -> AudioMatchConfig:
     )
 
     raw_chunk_dur = raw_data.get('chunk_duration_ms')
-    chunk_duration_ms = int(raw_chunk_dur) if raw_chunk_dur is not None else None
+    chunk_duration_ms = (
+        int(raw_chunk_dur) if raw_chunk_dur is not None else None
+    )
 
     raw_chunk_step = raw_data.get('chunk_step_ms')
     chunk_step_ms = int(raw_chunk_step) if raw_chunk_step is not None else None
@@ -806,8 +808,12 @@ class AudioMatcher:
         )
         band_mask = (freqs >= f_min) & (freqs <= f_max)
 
-        mag_target = np.sqrt(s_target[band_mask, :]).astype(np.float32)
-        mag_ref = np.sqrt(s_ref[band_mask, :]).astype(np.float32)
+        mag_target = np.log1p(
+            np.sqrt(np.maximum(s_target[band_mask, :], 0.0)) * 100.0
+        ).astype(np.float32)
+        mag_ref = np.log1p(
+            np.sqrt(np.maximum(s_ref[band_mask, :], 0.0)) * 100.0
+        ).astype(np.float32)
 
         correlation_matrix = cv2.matchTemplate(
             mag_target, mag_ref, cv2.TM_CCOEFF_NORMED
@@ -1233,20 +1239,22 @@ class AudioMatcher:
         if not np.any(low_mask) or num_frames <= 0:
             return np.ones(max(1, num_frames), dtype=np.float32)
 
+        mag_target_band = np.sqrt(np.maximum(s_target[band_mask, :], 0.0))
+        mag_target_low = np.sqrt(np.maximum(s_target[low_mask, :], 0.0))
         band_p = np.convolve(
-            np.sum(s_target[band_mask, :], axis=0),
+            np.sum(mag_target_band, axis=0),
             np.ones(kernel_len) / kernel_len,
             mode='valid',
         )
         low_p = np.convolve(
-            np.sum(s_target[low_mask, :], axis=0),
+            np.sum(mag_target_low, axis=0),
             np.ones(kernel_len) / kernel_len,
             mode='valid',
         )
         target_ratio = band_p / (band_p + low_p + 1e-8)
 
-        ref_band_p = np.sum(s_ref[band_mask, :])
-        ref_low_p = np.sum(s_ref[low_mask, :])
+        ref_band_p = np.sum(np.sqrt(np.maximum(s_ref[band_mask, :], 0.0)))
+        ref_low_p = np.sum(np.sqrt(np.maximum(s_ref[low_mask, :], 0.0)))
         ref_ratio = ref_band_p / (ref_band_p + ref_low_p + 1e-8)
 
         # Apply penalty when target window has much lower in-band concentration
