@@ -749,6 +749,7 @@ class AudioBenchmarkRunner:
             freq_max_hz=eff_max,
             template_duration_ms=eff_duration_ms,
             min_energy_ratio=eff_energy_ratio,
+            two_stage=(eff_duration_ms is not None and eff_duration_ms > 0),
         )
 
         return self._evaluate_matches(test_case, matches, diagnostic=diag)

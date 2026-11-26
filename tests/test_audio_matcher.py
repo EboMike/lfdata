@@ -300,9 +300,9 @@ def test_cli_main(capsys: pytest.CaptureFixture[str]) -> None:
         wavfile.write(ref_wav, sample_rate, np.int16(chirp * 32767))
 
         target = np.zeros(int(3.0 * sample_rate), dtype=np.float32)
-        target[int(1.0 * sample_rate) : int(1.0 * sample_rate) + len(chirp)] = (
-            chirp
-        )
+        target[
+            int(1.0 * sample_rate) : int(1.0 * sample_rate) + len(chirp)
+        ] = chirp
         wavfile.write(target_wav, sample_rate, np.int16(target * 32767))
 
         from unittest.mock import patch
@@ -401,9 +401,9 @@ def test_match_with_config() -> None:
         wavfile.write(ref_wav, sample_rate, np.int16(chirp * 32767))
 
         target = np.zeros(int(2.5 * sample_rate), dtype=np.float32)
-        target[int(0.8 * sample_rate) : int(0.8 * sample_rate) + len(chirp)] = (
-            chirp
-        )
+        target[
+            int(0.8 * sample_rate) : int(0.8 * sample_rate) + len(chirp)
+        ] = chirp
         wavfile.write(target_wav, sample_rate, np.int16(target * 32767))
 
         with open(config_file, 'w', encoding='utf-8') as f:
@@ -448,9 +448,9 @@ def test_cli_main_with_config(capsys: pytest.CaptureFixture[str]) -> None:
         wavfile.write(ref_wav, sample_rate, np.int16(chirp * 32767))
 
         target = np.zeros(int(3.0 * sample_rate), dtype=np.float32)
-        target[int(1.0 * sample_rate) : int(1.0 * sample_rate) + len(chirp)] = (
-            chirp
-        )
+        target[
+            int(1.0 * sample_rate) : int(1.0 * sample_rate) + len(chirp)
+        ] = chirp
         wavfile.write(target_wav, sample_rate, np.int16(target * 32767))
 
         with open(config_file, 'w', encoding='utf-8') as f:
@@ -1033,3 +1033,51 @@ def test_cli_main_two_stage(capsys: pytest.CaptureFixture[str]) -> None:
         data = json.loads(captured.out)
         assert len(data) == 1
         assert abs(data[0]['timestamp_ms'] - 1000) < 30
+
+
+def test_match_chunked_recovers_when_first_blast_masked() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        target_wav = os.path.join(tmpdir, 'target_masked.wav')
+        ref_wav = os.path.join(tmpdir, 'ref_masked.wav')
+
+        sample_rate = 22050
+        dur_ref = 1.6
+        ref_audio = np.zeros(int(dur_ref * sample_rate), dtype=np.float32)
+        chirp_dur = 0.35
+        t_c = np.linspace(0, chirp_dur, int(chirp_dur * sample_rate))
+        chirp = np.sin(2 * np.pi * 1700.0 * t_c)
+        # Two blasts at 0ms and 1000ms
+        ref_audio[: len(chirp)] = chirp
+        b2_idx = int(1.0 * sample_rate)
+        ref_audio[b2_idx : b2_idx + len(chirp)] = chirp
+        wavfile.write(
+            ref_wav,
+            sample_rate,
+            np.int16(np.clip(ref_audio, -1.0, 1.0) * 32767),
+        )
+
+        # Target has siren starting at 1500ms, but blast 1 is completely
+        # replaced by white noise while blast 2 (at 2500ms) is audible.
+        target_audio = np.random.normal(
+            0.0, 0.02, int(4.0 * sample_rate)
+        ).astype(np.float32)
+        b2_target_idx = int(2.5 * sample_rate)
+        target_audio[b2_target_idx : b2_target_idx + len(chirp)] += chirp
+        wavfile.write(
+            target_wav,
+            sample_rate,
+            np.int16(np.clip(target_audio, -1.0, 1.0) * 32767),
+        )
+
+        matcher = AudioMatcher(sample_rate=22050, hop_length=256)
+        results = matcher.match_chunked(
+            video_or_audio_path=target_wav,
+            reference_sound_path=ref_wav,
+            chunk_duration_ms=400,
+            threshold=0.2,
+            freq_min_hz=1300.0,
+            freq_max_hz=2100.0,
+            max_matches=1,
+        )
+        assert len(results) == 1
+        assert abs(results[0].timestamp_ms - 1500) <= 100

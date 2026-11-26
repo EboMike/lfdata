@@ -471,12 +471,14 @@ class AudioMatcher:
         stage1_threshold: float | None = None,
         alignment_tolerance_ms: int = 1500,
     ) -> list[AudioMatchResult]:
-        """Performs two-stage matching using full and cropped templates.
+        """Performs two-stage matching using full and offset-mapped chunks.
 
         Stage 1 matches against the full uncropped reference template to anchor
-        the exact start without blast ambiguity. Stage 2 matches using the
-        cropped template and clusters consecutive blasts. Results are combined
-        so that aligned detections use Stage 1's exact anchor timestamp.
+        the exact start without blast ambiguity. Stage 2 matches using
+        offset-mapped sub-chunks of duration ``template_duration_ms`` across the
+        reference sound so that even if early blasts are masked by foreground
+        noise, later blasts still vote for the true ``t_0`` start time. Results
+        are combined so aligned detections use Stage 1's exact anchor.
 
         Args:
             video_or_audio_path: Path to target media file.
@@ -488,7 +490,7 @@ class AudioMatcher:
             max_matches: Optional limit on the number of returned matches.
             freq_min_hz: Optional lower frequency bound in Hz.
             freq_max_hz: Optional upper frequency bound in Hz.
-            template_duration_ms: Duration in ms to crop template for Stage 2.
+            template_duration_ms: Duration in ms for Stage 2 sub-chunks.
             min_energy_ratio: Optional minimum in-band energy ratio for gating.
             stage1_threshold: Optional threshold override for Stage 1.
             alignment_tolerance_ms: Max difference in ms to align stages.
@@ -519,20 +521,34 @@ class AudioMatcher:
             cluster_sequence=False,
         )
 
-        stage2_matches = self.match(
-            video_or_audio_path=video_or_audio_path,
-            reference_sound_path=reference_sound_path,
-            threshold=threshold,
-            min_interval_ms=min_interval_ms,
-            start_ms=start_ms,
-            end_ms=end_ms,
-            max_matches=None,
-            freq_min_hz=freq_min_hz,
-            freq_max_hz=freq_max_hz,
-            template_duration_ms=template_duration_ms,
-            min_energy_ratio=min_energy_ratio,
-            cluster_sequence=True,
-        )
+        if template_duration_ms is not None and template_duration_ms > 0:
+            stage2_matches = self.match_chunked(
+                video_or_audio_path=video_or_audio_path,
+                reference_sound_path=reference_sound_path,
+                chunk_duration_ms=template_duration_ms,
+                threshold=threshold,
+                min_interval_ms=min_interval_ms,
+                start_ms=start_ms,
+                end_ms=end_ms,
+                freq_min_hz=freq_min_hz,
+                freq_max_hz=freq_max_hz,
+                min_energy_ratio=min_energy_ratio,
+            )
+        else:
+            stage2_matches = self.match(
+                video_or_audio_path=video_or_audio_path,
+                reference_sound_path=reference_sound_path,
+                threshold=threshold,
+                min_interval_ms=min_interval_ms,
+                start_ms=start_ms,
+                end_ms=end_ms,
+                max_matches=None,
+                freq_min_hz=freq_min_hz,
+                freq_max_hz=freq_max_hz,
+                template_duration_ms=template_duration_ms,
+                min_energy_ratio=min_energy_ratio,
+                cluster_sequence=True,
+            )
 
         combined = self._combine_two_stage_matches(
             stage1_matches=stage1_matches,
@@ -544,6 +560,242 @@ class AudioMatcher:
             combined = combined[:max_matches]
 
         return combined
+
+    def match_chunked(
+        self,
+        video_or_audio_path: str | Path,
+        reference_sound_path: str | Path,
+        chunk_duration_ms: int,
+        threshold: float = DEFAULT_AUDIO_THRESHOLD,
+        min_interval_ms: int | None = None,
+        start_ms: int | None = None,
+        end_ms: int | None = None,
+        max_matches: int | None = None,
+        freq_min_hz: float | None = None,
+        freq_max_hz: float | None = None,
+        min_energy_ratio: float | None = None,
+        consensus_tolerance_ms: int = 350,
+    ) -> list[AudioMatchResult]:
+        """Matches a reference sound using offset-mapped sub-chunks.
+
+        Splits the reference spectrogram into overlapping chunks of
+        ``chunk_duration_ms``. Each chunk hit predicts ``t_0 = hit - offset``,
+        so even if part of a multi-blast siren is masked by foreground noise,
+        remaining blasts vote for the true onset timestamp.
+
+        Args:
+            video_or_audio_path: Path to target media file.
+            reference_sound_path: Path to reference sound effect audio.
+            chunk_duration_ms: Duration of each sub-chunk in milliseconds.
+            threshold: Minimum confidence score threshold (0.0 to 1.0).
+            min_interval_ms: Optional minimum interval between NMS peaks.
+            start_ms: Optional search start offset in milliseconds.
+            end_ms: Optional search end offset in milliseconds.
+            max_matches: Optional limit on returned matches.
+            freq_min_hz: Optional lower frequency bound in Hz.
+            freq_max_hz: Optional upper frequency bound in Hz.
+            min_energy_ratio: Optional minimum in-band energy ratio.
+            consensus_tolerance_ms: Max spread in ms for chunk vote clustering.
+
+        Returns:
+            list[AudioMatchResult]: Consensus matches sorted by confidence
+                descending.
+
+        Raises:
+            FileNotFoundError: If target media or reference sound is missing.
+            ValueError: If target audio is shorter than the reference sound.
+        """
+        candidates = self._compute_chunked_candidates(
+            video_or_audio_path=video_or_audio_path,
+            reference_sound_path=reference_sound_path,
+            chunk_duration_ms=chunk_duration_ms,
+            threshold=threshold,
+            min_interval_ms=min_interval_ms,
+            start_ms=start_ms,
+            end_ms=end_ms,
+            freq_min_hz=freq_min_hz,
+            freq_max_hz=freq_max_hz,
+            min_energy_ratio=min_energy_ratio,
+            consensus_tolerance_ms=consensus_tolerance_ms,
+        )
+        results = [m for m in candidates if m.confidence >= threshold]
+        if max_matches is not None and max_matches > 0:
+            results = results[:max_matches]
+        return results
+
+    def _compute_chunked_candidates(
+        self,
+        video_or_audio_path: str | Path,
+        reference_sound_path: str | Path,
+        chunk_duration_ms: int,
+        threshold: float,
+        min_interval_ms: int | None = None,
+        start_ms: int | None = None,
+        end_ms: int | None = None,
+        freq_min_hz: float | None = None,
+        freq_max_hz: float | None = None,
+        min_energy_ratio: float | None = None,
+        consensus_tolerance_ms: int = 350,
+    ) -> list[AudioMatchResult]:
+        """Computes offset-mapped chunk consensus candidates for a reference."""
+        target_path = Path(video_or_audio_path)
+        ref_path = Path(reference_sound_path)
+        if not target_path.exists():
+            raise FileNotFoundError(f'File not found: {target_path}')
+        if not ref_path.exists():
+            raise FileNotFoundError(f'Reference sound not found: {ref_path}')
+
+        target_audio = self._load_audio(
+            target_path, start_ms=start_ms, end_ms=end_ms
+        )
+        ref_audio = self._load_audio(ref_path)
+        if len(target_audio) < len(ref_audio):
+            raise ValueError(
+                'Target audio is shorter than the reference sound.'
+            )
+
+        freqs, s_target = self._compute_spectrogram(target_audio)
+        _, s_ref = self._compute_spectrogram(ref_audio)
+        f_min, f_max = self._determine_frequency_bounds(
+            freqs, s_ref, freq_min_hz, freq_max_hz
+        )
+        band_mask = (freqs >= f_min) & (freqs <= f_max)
+
+        mag_target = np.log1p(
+            np.sqrt(np.maximum(s_target[band_mask, :], 0.0)) * 100.0
+        ).astype(np.float32)
+        mag_ref = np.log1p(
+            np.sqrt(np.maximum(s_ref[band_mask, :], 0.0)) * 100.0
+        ).astype(np.float32)
+
+        ms_per_frame = (self.hop_length / self.sample_rate) * MS_PER_SECOND
+        offset_ms = start_ms if start_ms is not None and start_ms > 0 else 0
+        total_ref_frames = mag_ref.shape[1]
+        chunk_frames = max(2, int(round(chunk_duration_ms / ms_per_frame)))
+        if chunk_frames >= total_ref_frames:
+            chunk_starts = [0]
+            chunk_frames = total_ref_frames
+        else:
+            step_frames = max(1, chunk_frames // 2)
+            chunk_starts = list(
+                range(0, total_ref_frames - chunk_frames + 1, step_frames)
+            )
+            last_start = total_ref_frames - chunk_frames
+            if chunk_starts[-1] != last_start:
+                chunk_starts.append(last_start)
+
+        chunk_rms = [
+            float(
+                np.sqrt(np.mean(np.square(mag_ref[:, s : s + chunk_frames])))
+            )
+            for s in chunk_starts
+        ]
+        peak_rms = max(chunk_rms, default=0.0)
+        active_starts = [
+            s
+            for s, rms in zip(chunk_starts, chunk_rms)
+            if peak_rms <= 0.0 or rms >= peak_rms * 0.1
+        ]
+        if not active_starts:
+            return []
+
+        eff_interval_ms = (
+            min_interval_ms
+            if min_interval_ms is not None
+            else chunk_duration_ms
+        )
+        min_dist_frames = max(1, int(eff_interval_ms / ms_per_frame))
+        chunk_thresh = max(0.10, min(0.15, threshold * 0.8))
+
+        votes: list[tuple[int, float, int]] = []
+        for c_start in active_starts:
+            c_end = c_start + chunk_frames
+            c_mag = mag_ref[:, c_start:c_end]
+            if mag_target.shape[1] < c_mag.shape[1]:
+                continue
+            corr_mat = cv2.matchTemplate(
+                mag_target, c_mag, cv2.TM_CCOEFF_NORMED
+            )
+            corr_series = corr_mat[0]
+            penalty = self._compute_vocal_penalty(
+                freqs,
+                s_target,
+                s_ref[:, c_start:c_end],
+                band_mask,
+                c_mag.shape[1],
+            )
+            scores = np.maximum(0.0, corr_series) * penalty
+            if min_energy_ratio is not None and min_energy_ratio > 0.0:
+                band_energy = np.sum(s_target[band_mask, :], axis=0)
+                kernel_energy = np.convolve(
+                    band_energy,
+                    np.ones(c_mag.shape[1]) / c_mag.shape[1],
+                    mode='valid',
+                )
+                peak_energy = float(np.max(kernel_energy))
+                if peak_energy > 0.0:
+                    energy_scale = np.clip(
+                        kernel_energy / (peak_energy * min_energy_ratio),
+                        0.0,
+                        1.0,
+                    )
+                    scores = scores * energy_scale
+
+            peaks = self._find_peaks_nms(
+                correlation_series=scores,
+                threshold=chunk_thresh,
+                min_dist_frames=min_dist_frames,
+            )
+            c_offset_ms = c_start * ms_per_frame
+            for f_idx, sc in peaks:
+                pred_ms = int(
+                    round(offset_ms + f_idx * ms_per_frame - c_offset_ms)
+                )
+                votes.append((pred_ms, float(sc), c_start))
+
+        if not votes:
+            return []
+
+        votes.sort(key=lambda v: v[0])
+        clusters: list[list[tuple[int, float, int]]] = []
+        current: list[tuple[int, float, int]] = [votes[0]]
+        for v in votes[1:]:
+            if v[0] - current[0][0] <= consensus_tolerance_ms:
+                current.append(v)
+            else:
+                clusters.append(current)
+                current = [v]
+        clusters.append(current)
+
+        results: list[AudioMatchResult] = []
+        num_active = max(1, len(active_starts))
+        for cluster in clusters:
+            best_per_chunk: dict[int, tuple[int, float]] = {}
+            for pred_ms, sc, c_start in cluster:
+                if (
+                    c_start not in best_per_chunk
+                    or sc > best_per_chunk[c_start][1]
+                ):
+                    best_per_chunk[c_start] = (pred_ms, sc)
+            total_w = sum(sc for _, sc in best_per_chunk.values())
+            if total_w <= 0.0:
+                continue
+            cons_ms = int(
+                round(
+                    sum(p * sc for p, sc in best_per_chunk.values()) / total_w
+                )
+            )
+            cons_ratio = min(1.0, len(best_per_chunk) / num_active)
+            mean_sc = total_w / len(best_per_chunk)
+            conf = float(
+                np.clip(mean_sc * (0.65 + 0.35 * cons_ratio), 0.0, 1.0)
+            )
+            results.append(
+                AudioMatchResult(timestamp_ms=cons_ms, confidence=conf)
+            )
+
+        results.sort(key=lambda m: m.confidence, reverse=True)
+        return results
 
     def _combine_two_stage_matches(
         self,
@@ -624,6 +876,7 @@ class AudioMatcher:
         freq_max_hz: float | None = None,
         template_duration_ms: int | None = None,
         min_energy_ratio: float | None = None,
+        two_stage: bool = False,
     ) -> tuple[list[AudioMatchResult], AudioMatchDiagnostic]:
         """Matches a reference sound and extracts detailed diagnostics.
 
@@ -644,6 +897,8 @@ class AudioMatcher:
             freq_max_hz: Optional upper frequency bound in Hz.
             template_duration_ms: Optional duration in ms to crop template to.
             min_energy_ratio: Optional minimum in-band energy ratio for gating.
+            two_stage: If True and template_duration_ms is set, uses
+                offset-mapped chunk consensus for match detection.
 
         Returns:
             tuple[list[AudioMatchResult], AudioMatchDiagnostic]: Matches and
@@ -653,6 +908,62 @@ class AudioMatcher:
             FileNotFoundError: If media file or reference sound is missing.
             ValueError: If audio duration is shorter than reference sound.
         """
+        if (
+            two_stage
+            and template_duration_ms is not None
+            and template_duration_ms > 0
+        ):
+            candidates = self._compute_chunked_candidates(
+                video_or_audio_path=video_or_audio_path,
+                reference_sound_path=reference_sound_path,
+                chunk_duration_ms=template_duration_ms,
+                threshold=threshold,
+                min_interval_ms=min_interval_ms,
+                start_ms=start_ms,
+                end_ms=end_ms,
+                freq_min_hz=freq_min_hz,
+                freq_max_hz=freq_max_hz,
+                min_energy_ratio=min_energy_ratio,
+            )
+            results = [c for c in candidates if c.confidence >= threshold]
+            if max_matches is not None and max_matches > 0:
+                results = results[:max_matches]
+
+            in_tol = [
+                c
+                for c in candidates
+                if abs(c.timestamp_ms - expected_timestamp_ms) <= tolerance_ms
+            ]
+            out_tol = [
+                c
+                for c in candidates
+                if abs(c.timestamp_ms - expected_timestamp_ms) > tolerance_ms
+            ]
+            exp_peak = in_tol[0] if in_tol else None
+            top_fp = out_tol[0] if out_tol else None
+            margin = (
+                (exp_peak.confidence - top_fp.confidence)
+                if (exp_peak is not None and top_fp is not None)
+                else None
+            )
+            diagnostic = AudioMatchDiagnostic(
+                expected_timestamp_ms=expected_timestamp_ms,
+                tolerance_ms=tolerance_ms,
+                expected_peak_timestamp_ms=(
+                    exp_peak.timestamp_ms if exp_peak is not None else None
+                ),
+                expected_peak_confidence=(
+                    exp_peak.confidence if exp_peak is not None else None
+                ),
+                top_false_positive_timestamp_ms=(
+                    top_fp.timestamp_ms if top_fp is not None else None
+                ),
+                top_false_positive_confidence=(
+                    top_fp.confidence if top_fp is not None else None
+                ),
+                margin=margin,
+            )
+            return results, diagnostic
         scores, raw_corr, penalty, ms_per_frame, offset_ms, ref_dur_ms = (
             self._compute_correlation_scores(
                 video_or_audio_path=video_or_audio_path,
