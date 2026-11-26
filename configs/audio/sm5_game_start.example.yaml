@@ -1,6 +1,7 @@
 name: sm5_game_start
 description: SM5 pre-game countdown klaxon / General Quarters alert
 reference_sound_path: path/to/General Quarters.wav
+start_sounds_dir: ../../assets/sm5/start_sounds
 freq_min_hz: 1400.0
 freq_max_hz: 2400.0
 threshold: 0.2
@@ -10,4 +11,13 @@ test_cases:
     tolerance_ms: 500
     search_start_ms: 0
     search_end_ms: 60000
-    description: Example POV video game 1 start
+    target_type: siren
+    description: Example POV video game 1 start (siren)
+  - video_path: path/to/game_pov_sample.mp4
+    expected_timestamp_ms: 15000
+    tolerance_ms: 500
+    search_start_ms: 0
+    search_end_ms: 60000
+    target_type: audio_file
+    target_audio_path: aliens_day_in_the_corps.wav
+    description: Example POV video game 2 start (specific start-sound file)

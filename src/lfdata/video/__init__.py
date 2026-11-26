@@ -32,6 +32,7 @@ if TYPE_CHECKING:
     )
     from lfdata.video.audio_benchmark import (
         AudioBenchmarkRunner,
+        AudioTargetType,
         AudioTestCase,
         BenchmarkAnalysis,
         BenchmarkSummary,
@@ -60,6 +61,7 @@ __all__ = [
     'StartSoundMatcher',
     'load_sound_config',
     'AudioBenchmarkRunner',
+    'AudioTargetType',
     'AudioTestCase',
     'BenchmarkAnalysis',
     'BenchmarkSummary',
@@ -105,6 +107,7 @@ def __getattr__(name: str) -> object:
         return getattr(ssm, name)
     benchmark_attrs = {
         'AudioBenchmarkRunner',
+        'AudioTargetType',
         'AudioTestCase',
         'BenchmarkAnalysis',
         'BenchmarkSummary',

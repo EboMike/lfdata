@@ -423,6 +423,7 @@ Sound definitions and test cases are stored in YAML files. See
 name: sm5_game_start
 description: SM5 pre-game countdown klaxon / General Quarters alert
 reference_sound_path: path/to/General Quarters.wav
+start_sounds_dir: ../../assets/sm5/start_sounds
 freq_min_hz: 1400.0
 freq_max_hz: 2400.0
 threshold: 0.2
@@ -432,7 +433,16 @@ test_cases:
     tolerance_ms: 500
     search_start_ms: 0
     search_end_ms: 60000
-    description: Example POV video game 1 start
+    target_type: siren
+    description: Example POV video game 1 start (siren)
+  - video_path: path/to/game_pov_sample.mp4
+    expected_timestamp_ms: 15000
+    tolerance_ms: 500
+    search_start_ms: 0
+    search_end_ms: 60000
+    target_type: audio_file
+    target_audio_path: aliens_day_in_the_corps.wav
+    description: Example POV video game 2 start (specific start-sound file)
 ```
 
 #### Configuration Field Reference
@@ -457,6 +467,12 @@ test_cases:
   * `tolerance_ms`: Acceptable error window around expected time (default: 500).
   * `search_start_ms`: Optional search window start offset in ms.
   * `search_end_ms`: Optional search window end offset in ms.
+  * `target_type`: What this training data point is for — either `siren`
+    (the primary `reference_sound_path`, default) or `audio_file` (a specific
+    audio file).
+  * `target_audio_path`: Path to the specific audio file when `target_type` is
+    `audio_file` (resolved relative to the YAML directory or
+    `start_sounds_dir`).
   * `description`: Optional notes regarding camera angle, arena, or noise level.
 
 ### Running Benchmark Evaluations

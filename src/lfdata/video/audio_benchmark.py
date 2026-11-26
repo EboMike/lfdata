@@ -18,6 +18,7 @@ Usage example:
 
 import argparse
 import dataclasses
+import enum
 import json
 from pathlib import Path
 import yaml
@@ -33,6 +34,18 @@ from lfdata.video.constants import (
 )
 
 
+class AudioTargetType(str, enum.Enum):
+    """Target sound type that a training/benchmark data point is for.
+
+    Attributes:
+        SIREN: The primary siren / reference sound in SoundDefinition.
+        AUDIO_FILE: A specific audio file (e.g. a pre-game start sound).
+    """
+
+    SIREN = 'siren'
+    AUDIO_FILE = 'audio_file'
+
+
 @dataclasses.dataclass
 class AudioTestCase:
     """An example video or audio test case with expected sound timestamp.
@@ -44,6 +57,10 @@ class AudioTestCase:
         search_start_ms: Optional start offset in ms to restrict search.
         search_end_ms: Optional end offset in ms to restrict search.
         description: Optional notes about this test example.
+        target_type: Whether this training data point is for the siren or a
+            specific audio file.
+        target_audio_path: Path to the specific audio file when target_type is
+            AudioTargetType.AUDIO_FILE, or None for AudioTargetType.SIREN.
     """
 
     video_path: str
@@ -52,6 +69,34 @@ class AudioTestCase:
     search_start_ms: int | None = None
     search_end_ms: int | None = None
     description: str = ''
+    target_type: AudioTargetType = AudioTargetType.SIREN
+    target_audio_path: str | None = None
+
+    def __post_init__(self) -> None:
+        """Validates target_type and target_audio_path consistency.
+
+        Raises:
+            ValueError: If target_type is invalid or target_audio_path does not
+                match target_type.
+        """
+        if not isinstance(self.target_type, AudioTargetType):
+            self.target_type = AudioTargetType(str(self.target_type))
+        if (
+            self.target_type == AudioTargetType.AUDIO_FILE
+            and not self.target_audio_path
+        ):
+            raise ValueError(
+                'target_audio_path is required when target_type is '
+                f"'{AudioTargetType.AUDIO_FILE.value}'."
+            )
+        if (
+            self.target_type == AudioTargetType.SIREN
+            and self.target_audio_path is not None
+        ):
+            raise ValueError(
+                'target_audio_path cannot be set when target_type is '
+                f"'{AudioTargetType.SIREN.value}'."
+            )
 
 
 @dataclasses.dataclass
@@ -66,6 +111,7 @@ class SoundDefinition:
         threshold: Minimum confidence threshold (default: 0.2).
         template_duration_ms: Optional template duration in ms to crop to.
         min_energy_ratio: Optional minimum in-band energy ratio for gating.
+        start_sounds_dir: Optional directory of pre-game start-sound samples.
         description: Optional description of this sound effect.
         test_cases: List of example video test cases.
     """
@@ -77,6 +123,7 @@ class SoundDefinition:
     threshold: float = DEFAULT_AUDIO_THRESHOLD
     template_duration_ms: int | None = None
     min_energy_ratio: float | None = None
+    start_sounds_dir: str | None = None
     description: str = ''
     test_cases: list[AudioTestCase] = dataclasses.field(default_factory=list)
 
@@ -300,6 +347,13 @@ class AudioBenchmarkRunner:
                 f'Reference sound file not found: {resolved_ref_path}'
             )
 
+        raw_start_dir = raw_data.get('start_sounds_dir')
+        resolved_start_dir = (
+            self._resolve_path(base_dir, str(raw_start_dir))
+            if raw_start_dir
+            else None
+        )
+
         test_cases: list[AudioTestCase] = []
         raw_cases = raw_data.get('test_cases', [])
         for case_data in raw_cases:
@@ -313,6 +367,11 @@ class AudioBenchmarkRunner:
                 raise FileNotFoundError(
                     f'Test case video file not found: {resolved_video_p}'
                 )
+            target_type, resolved_target_audio = self._parse_test_case_target(
+                case_data=case_data,
+                base_dir=base_dir,
+                start_sounds_dir=resolved_start_dir,
+            )
             test_cases.append(
                 AudioTestCase(
                     video_path=resolved_video_p,
@@ -323,6 +382,8 @@ class AudioBenchmarkRunner:
                     search_start_ms=case_data.get('search_start_ms'),
                     search_end_ms=case_data.get('search_end_ms'),
                     description=case_data.get('description', ''),
+                    target_type=target_type,
+                    target_audio_path=resolved_target_audio,
                 )
             )
 
@@ -344,9 +405,84 @@ class AudioBenchmarkRunner:
                 and raw_data['min_energy_ratio'] is not None
                 else None
             ),
+            start_sounds_dir=resolved_start_dir,
             description=raw_data.get('description', ''),
             test_cases=test_cases,
         )
+
+    def _parse_test_case_target(
+        self,
+        case_data: dict[str, object],
+        base_dir: Path,
+        start_sounds_dir: str | None,
+    ) -> tuple[AudioTargetType, str | None]:
+        """Parses and validates target_type and target_audio_path for a case.
+
+        Args:
+            case_data: Raw dictionary for one test case from YAML.
+            base_dir: Directory containing the YAML file.
+            start_sounds_dir: Optional resolved start-sounds directory.
+
+        Returns:
+            tuple[AudioTargetType, str | None]: Parsed target type and
+                resolved target audio file path (or None for siren).
+
+        Raises:
+            ValueError: If target_type is invalid or target_audio_path is
+                missing/conflicting.
+            FileNotFoundError: If target_audio_path does not exist.
+        """
+        raw_target_type = case_data.get('target_type')
+        raw_target_audio = case_data.get('target_audio_path')
+
+        if raw_target_type is None:
+            target_type = (
+                AudioTargetType.AUDIO_FILE
+                if raw_target_audio
+                else AudioTargetType.SIREN
+            )
+        else:
+            try:
+                target_type = AudioTargetType(str(raw_target_type))
+            except ValueError as err:
+                valid = ', '.join(t.value for t in AudioTargetType)
+                raise ValueError(
+                    f"Invalid target_type '{raw_target_type}'. "
+                    f'Must be one of: {valid}.'
+                ) from err
+
+        if target_type == AudioTargetType.SIREN:
+            if raw_target_audio:
+                raise ValueError(
+                    "Test case with target_type 'siren' cannot specify "
+                    "'target_audio_path'."
+                )
+            return target_type, None
+
+        if not raw_target_audio:
+            raise ValueError(
+                "Test case with target_type 'audio_file' must specify "
+                "'target_audio_path'."
+            )
+
+        target_str = str(raw_target_audio)
+        resolved_target = self._resolve_path(base_dir, target_str)
+        if (
+            not Path(resolved_target).exists()
+            and start_sounds_dir is not None
+            and not Path(target_str).is_absolute()
+        ):
+            in_start_dir = self._resolve_path(
+                Path(start_sounds_dir), target_str
+            )
+            if Path(in_start_dir).exists():
+                resolved_target = in_start_dir
+
+        if not Path(resolved_target).exists():
+            raise FileNotFoundError(
+                f'Target audio file not found: {resolved_target}'
+            )
+        return target_type, resolved_target
 
     def save_to_yaml(
         self, sound_def: SoundDefinition, path: str | Path
@@ -372,17 +508,24 @@ class AudioBenchmarkRunner:
             data['template_duration_ms'] = sound_def.template_duration_ms
         if sound_def.min_energy_ratio is not None:
             data['min_energy_ratio'] = sound_def.min_energy_ratio
-        data['test_cases'] = [
-            {
+        if sound_def.start_sounds_dir is not None:
+            data['start_sounds_dir'] = sound_def.start_sounds_dir
+
+        serialized_cases: list[dict[str, object]] = []
+        for tc in sound_def.test_cases:
+            case_dict: dict[str, object] = {
                 'video_path': tc.video_path,
                 'expected_timestamp_ms': tc.expected_timestamp_ms,
                 'tolerance_ms': tc.tolerance_ms,
                 'search_start_ms': tc.search_start_ms,
                 'search_end_ms': tc.search_end_ms,
-                'description': tc.description,
+                'target_type': tc.target_type.value,
             }
-            for tc in sound_def.test_cases
-        ]
+            if tc.target_audio_path is not None:
+                case_dict['target_audio_path'] = tc.target_audio_path
+            case_dict['description'] = tc.description
+            serialized_cases.append(case_dict)
+        data['test_cases'] = serialized_cases
 
         with open(dest_path, 'w', encoding='utf-8') as file_obj:
             yaml.dump(data, file_obj, sort_keys=False, indent=2)
@@ -420,17 +563,8 @@ class AudioBenchmarkRunner:
         if not video_path.exists():
             raise FileNotFoundError(f'Video file not found: {video_path}')
 
-        eff_min = (
-            freq_min_hz if freq_min_hz is not None else sound_def.freq_min_hz
-        )
-        eff_max = (
-            freq_max_hz if freq_max_hz is not None else sound_def.freq_max_hz
-        )
-        eff_thresh = threshold if threshold is not None else sound_def.threshold
-        eff_duration_ms = (
-            template_duration_ms
-            if template_duration_ms is not None
-            else sound_def.template_duration_ms
+        eff_thresh = (
+            threshold if threshold is not None else sound_def.threshold
         )
         eff_energy_ratio = (
             min_energy_ratio
@@ -438,9 +572,40 @@ class AudioBenchmarkRunner:
             else sound_def.min_energy_ratio
         )
 
+        if (
+            test_case.target_type == AudioTargetType.AUDIO_FILE
+            and test_case.target_audio_path is not None
+        ):
+            ref_sound_path = test_case.target_audio_path
+            target_audio_file = Path(ref_sound_path)
+            if not target_audio_file.exists():
+                raise FileNotFoundError(
+                    f'Target audio file not found: {target_audio_file}'
+                )
+            eff_min = freq_min_hz
+            eff_max = freq_max_hz
+            eff_duration_ms = template_duration_ms
+        else:
+            ref_sound_path = sound_def.reference_sound_path
+            eff_min = (
+                freq_min_hz
+                if freq_min_hz is not None
+                else sound_def.freq_min_hz
+            )
+            eff_max = (
+                freq_max_hz
+                if freq_max_hz is not None
+                else sound_def.freq_max_hz
+            )
+            eff_duration_ms = (
+                template_duration_ms
+                if template_duration_ms is not None
+                else sound_def.template_duration_ms
+            )
+
         matches, diag = self._matcher.match_diagnostic(
             video_or_audio_path=test_case.video_path,
-            reference_sound_path=sound_def.reference_sound_path,
+            reference_sound_path=ref_sound_path,
             expected_timestamp_ms=test_case.expected_timestamp_ms,
             tolerance_ms=test_case.tolerance_ms,
             threshold=eff_thresh,
@@ -538,7 +703,9 @@ class AudioBenchmarkRunner:
         Returns:
             BenchmarkAnalysis: Comprehensive analysis across all test cases.
         """
-        eff_thresh = threshold if threshold is not None else sound_def.threshold
+        eff_thresh = (
+            threshold if threshold is not None else sound_def.threshold
+        )
         eff_fmin = (
             freq_min_hz if freq_min_hz is not None else sound_def.freq_min_hz
         )
@@ -856,6 +1023,7 @@ class AudioBenchmarkRunner:
                         if cand_sug.min_energy_ratio is not None
                         else eff_energy_ratio
                     ),
+                    start_sounds_dir=sound_def.start_sounds_dir,
                     description=sound_def.description,
                     test_cases=sound_def.test_cases,
                 )
@@ -941,6 +1109,61 @@ class AudioBenchmarkRunner:
         best_summary: BenchmarkSummary | None = None
         best_score = -1e9
         evaluated_pairs: set[tuple[float, float]] = set()
+        siren_cases = [
+            tc
+            for tc in sound_def.test_cases
+            if tc.target_type == AudioTargetType.SIREN
+        ]
+        audio_file_cases = [
+            tc
+            for tc in sound_def.test_cases
+            if tc.target_type == AudioTargetType.AUDIO_FILE
+        ]
+        audio_file_cache: dict[float, list[TestCaseEvaluationResult]] = {}
+
+        def _get_audio_file_results(
+            thresh: float,
+        ) -> list[TestCaseEvaluationResult]:
+            if thresh not in audio_file_cache:
+                audio_file_cache[thresh] = [
+                    self.evaluate_test_case(
+                        sound_def=sound_def,
+                        test_case=tc,
+                        threshold=thresh,
+                    )
+                    for tc in audio_file_cases
+                ]
+            return audio_file_cache[thresh]
+
+        def _combine_summary(
+            siren_results: list[TestCaseEvaluationResult],
+            audio_results: list[TestCaseEvaluationResult],
+        ) -> BenchmarkSummary:
+            siren_iter = iter(siren_results)
+            audio_iter = iter(audio_results)
+            ordered: list[TestCaseEvaluationResult] = []
+            for tc in sound_def.test_cases:
+                if tc.target_type == AudioTargetType.AUDIO_FILE:
+                    ordered.append(next(audio_iter))
+                else:
+                    ordered.append(next(siren_iter))
+            total = len(ordered)
+            passed = sum(1 for r in ordered if r.passed)
+            accuracy = (passed / total) if total > 0 else 0.0
+            errors = [
+                abs(r.error_ms)
+                for r in ordered
+                if r.passed and r.error_ms is not None
+            ]
+            mean_error = (sum(errors) / len(errors)) if errors else None
+            return BenchmarkSummary(
+                sound_name=sound_def.name,
+                total_cases=total,
+                passed_cases=passed,
+                accuracy=accuracy,
+                mean_error_ms=mean_error,
+                case_results=ordered,
+            )
 
         def _eval_pair(f_min: float, f_max: float) -> None:
             nonlocal best_tuple, best_summary, best_score
@@ -949,8 +1172,9 @@ class AudioBenchmarkRunner:
                 return
             evaluated_pairs.add(pair)
 
+            siren_def = dataclasses.replace(sound_def, test_cases=siren_cases)
             analysis = self.analyze(
-                sound_def=sound_def,
+                sound_def=siren_def,
                 freq_min_hz=f_min,
                 freq_max_hz=f_max,
             )
@@ -960,11 +1184,15 @@ class AudioBenchmarkRunner:
                 tested_thresh.append(analysis.reconciling_threshold)
 
             for thresh in tested_thresh:
-                summary = self.evaluate(
-                    sound_def=sound_def,
+                siren_summary = self.evaluate(
+                    sound_def=siren_def,
                     freq_min_hz=f_min,
                     freq_max_hz=f_max,
                     threshold=thresh,
+                )
+                audio_results = _get_audio_file_results(thresh)
+                summary = _combine_summary(
+                    siren_summary.case_results, audio_results
                 )
                 score = self._compute_tuning_score(summary)
                 if score > best_score or best_summary is None:
@@ -972,10 +1200,25 @@ class AudioBenchmarkRunner:
                     best_tuple = (f_min, f_max, thresh)
                     best_summary = summary
 
-        # 1. Initial grid sweep
-        for f_min in min_freqs:
-            for f_max in max_freqs:
-                _eval_pair(f_min, f_max)
+        if not siren_cases and audio_file_cases:
+            analysis = self.analyze(sound_def=sound_def)
+            tested_thresh = list(thresholds)
+            if analysis.reconciling_threshold is not None:
+                tested_thresh.append(analysis.reconciling_threshold)
+            base_fmin = sound_def.freq_min_hz or 0.0
+            base_fmax = sound_def.freq_max_hz or 0.0
+            for thresh in tested_thresh:
+                summary = _combine_summary([], _get_audio_file_results(thresh))
+                score = self._compute_tuning_score(summary)
+                if score > best_score or best_summary is None:
+                    best_score = score
+                    best_tuple = (base_fmin, base_fmax, thresh)
+                    best_summary = summary
+        else:
+            # 1. Initial grid sweep
+            for f_min in min_freqs:
+                for f_max in max_freqs:
+                    _eval_pair(f_min, f_max)
 
         # 2. Adaptive sweep if any test case is failing
         if (
@@ -1159,9 +1402,15 @@ def main() -> None:
         'evaluate', help='Evaluate test cases in a sound config.'
     )
     eval_parser.add_argument('config', help='Path to sound config YAML file.')
-    eval_parser.add_argument('--json', action='store_true', help='Output JSON.')
-    eval_parser.add_argument('--freq-min', type=float, help='Override freq_min')
-    eval_parser.add_argument('--freq-max', type=float, help='Override freq_max')
+    eval_parser.add_argument(
+        '--json', action='store_true', help='Output JSON.'
+    )
+    eval_parser.add_argument(
+        '--freq-min', type=float, help='Override freq_min'
+    )
+    eval_parser.add_argument(
+        '--freq-max', type=float, help='Override freq_max'
+    )
     eval_parser.add_argument('--threshold', type=float, help='Override thresh')
     eval_parser.add_argument(
         '--template-duration', type=int, help='Override template duration ms'
@@ -1177,7 +1426,9 @@ def main() -> None:
     tune_parser.add_argument(
         '--save', action='store_true', help='Save best parameters to config.'
     )
-    tune_parser.add_argument('--json', action='store_true', help='Output JSON.')
+    tune_parser.add_argument(
+        '--json', action='store_true', help='Output JSON.'
+    )
 
     analyze_parser = subparsers.add_parser(
         'analyze', help='Diagnose failures and analyze test cases in a config.'
@@ -1277,6 +1528,23 @@ def main() -> None:
             _print_analysis(analysis)
 
 
+def _format_test_case_target(test_case: AudioTestCase) -> str:
+    """Formats a human-readable target label for a test case.
+
+    Args:
+        test_case: The test case to describe.
+
+    Returns:
+        str: 'siren' or the audio file basename.
+    """
+    if (
+        test_case.target_type == AudioTargetType.AUDIO_FILE
+        and test_case.target_audio_path is not None
+    ):
+        return f'file:{Path(test_case.target_audio_path).name}'
+    return test_case.target_type.value
+
+
 def _print_summary(summary: BenchmarkSummary) -> None:
     """Prints a formatted evaluation report to stdout.
 
@@ -1293,12 +1561,13 @@ def _print_summary(summary: BenchmarkSummary) -> None:
     print('\nCase Details:')
     for i, r in enumerate(summary.case_results, 1):
         status = 'PASS' if r.passed else 'FAIL'
+        target_label = _format_test_case_target(r.test_case)
         err_str = f'{r.error_ms:+d}ms' if r.error_ms is not None else 'N/A'
         conf_str = f'{r.confidence:.4f}' if r.confidence is not None else 'N/A'
         exp_ms = r.test_case.expected_timestamp_ms
         det_ms = r.detected_timestamp_ms
         print(
-            f'  {i}. [{status}] expected: {exp_ms}ms, '
+            f'  {i}. [{status}] ({target_label}) expected: {exp_ms}ms, '
             f'detected: {det_ms}ms (err: {err_str}, conf: {conf_str}) - '
             f'{r.message}'
         )
@@ -1351,10 +1620,14 @@ def _print_analysis(analysis: BenchmarkAnalysis) -> None:
     print('\nCase Analyses:')
     for i, a in enumerate(analysis.case_analyses, 1):
         status = 'PASS' if a.evaluation.passed else 'FAIL'
+        target_label = _format_test_case_target(a.test_case)
         exp_ms = a.test_case.expected_timestamp_ms
         det_ms = a.evaluation.detected_timestamp_ms
         det_str = f'{det_ms}ms' if det_ms is not None else 'None'
-        print(f'  {i}. [{status}] expected: {exp_ms}ms, detected: {det_str}')
+        print(
+            f'  {i}. [{status}] ({target_label}) expected: {exp_ms}ms, '
+            f'detected: {det_str}'
+        )
         if not a.evaluation.passed:
             print(f'     Root Cause: {a.root_cause}')
             if (

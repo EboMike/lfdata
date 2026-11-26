@@ -9,6 +9,7 @@ from scipy.io import wavfile
 
 from lfdata.video.audio_benchmark import (
     AudioBenchmarkRunner,
+    AudioTargetType,
     AudioTestCase,
     ConfigurationSuggestion,
     SoundDefinition,
@@ -237,8 +238,12 @@ def test_evaluate_multiple_test_cases_summary() -> None:
         target2 = os.path.join(tmpdir, 'target2.wav')
 
         _create_synthetic_chirp(ref_file)
-        _create_synthetic_target(target1, ref_file, insert_timestamps_ms=[1000])
-        _create_synthetic_target(target2, ref_file, insert_timestamps_ms=[2500])
+        _create_synthetic_target(
+            target1, ref_file, insert_timestamps_ms=[1000]
+        )
+        _create_synthetic_target(
+            target2, ref_file, insert_timestamps_ms=[2500]
+        )
 
         sound_def = SoundDefinition(
             name='chirp',
@@ -336,7 +341,9 @@ def test_cli_evaluate_and_tune(capsys: pytest.CaptureFixture[str]) -> None:
         runner.save_to_yaml(sound_def, config_path)
 
         # Test CLI evaluate
-        with patch('sys.argv', ['audio_benchmark.py', 'evaluate', config_path]):
+        with patch(
+            'sys.argv', ['audio_benchmark.py', 'evaluate', config_path]
+        ):
             main()
 
         out_eval = capsys.readouterr().out
@@ -645,8 +652,12 @@ def test_analyze_iterate_mode() -> None:
         target2 = os.path.join(tmpdir, 'target2.wav')
 
         _create_synthetic_chirp(ref_file)
-        _create_synthetic_target(target1, ref_file, insert_timestamps_ms=[1000])
-        _create_synthetic_target(target2, ref_file, insert_timestamps_ms=[2000])
+        _create_synthetic_target(
+            target1, ref_file, insert_timestamps_ms=[1000]
+        )
+        _create_synthetic_target(
+            target2, ref_file, insert_timestamps_ms=[2000]
+        )
 
         sound_def = SoundDefinition(
             name='iter_sound',
@@ -860,3 +871,239 @@ def test_cli_evaluate_and_analyze_with_duration_flags(
 
         out = capsys.readouterr().out
         assert 'Passed: 1/1' in out
+        assert '(siren)' in out
+
+
+def test_audio_test_case_target_validation() -> None:
+    tc_siren = AudioTestCase(
+        video_path='video.mp4',
+        expected_timestamp_ms=1000,
+    )
+    assert tc_siren.target_type == AudioTargetType.SIREN
+    assert tc_siren.target_audio_path is None
+
+    tc_file = AudioTestCase(
+        video_path='video.mp4',
+        expected_timestamp_ms=2000,
+        target_type=AudioTargetType.AUDIO_FILE,
+        target_audio_path='sample.wav',
+    )
+    assert tc_file.target_type == AudioTargetType.AUDIO_FILE
+    assert tc_file.target_audio_path == 'sample.wav'
+
+    with pytest.raises(ValueError, match='target_audio_path is required'):
+        AudioTestCase(
+            video_path='video.mp4',
+            expected_timestamp_ms=1000,
+            target_type=AudioTargetType.AUDIO_FILE,
+        )
+
+    with pytest.raises(ValueError, match='target_audio_path cannot be set'):
+        AudioTestCase(
+            video_path='video.mp4',
+            expected_timestamp_ms=1000,
+            target_type=AudioTargetType.SIREN,
+            target_audio_path='sample.wav',
+        )
+
+
+def test_yaml_target_type_roundtrip_and_start_sounds_resolution() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        base = Path(tmpdir)
+        ref_path = base / 'siren.wav'
+        ref_path.touch()
+        start_dir = base / 'start_sounds'
+        start_dir.mkdir()
+        sample_path = start_dir / 'intro.wav'
+        sample_path.touch()
+        v1 = base / 'v1.mp4'
+        v1.touch()
+        v2 = base / 'v2.mp4'
+        v2.touch()
+
+        cfg_path = base / 'config.yaml'
+        cfg_path.write_text(
+            'name: sm5_game_start\n'
+            'reference_sound_path: siren.wav\n'
+            'start_sounds_dir: start_sounds\n'
+            'test_cases:\n'
+            '  - video_path: v1.mp4\n'
+            '    expected_timestamp_ms: 1000\n'
+            '    target_type: siren\n'
+            '  - video_path: v2.mp4\n'
+            '    expected_timestamp_ms: 2500\n'
+            '    target_type: audio_file\n'
+            '    target_audio_path: intro.wav\n',
+            encoding='utf-8',
+        )
+
+        runner = AudioBenchmarkRunner()
+        loaded = runner.load_from_yaml(cfg_path)
+        assert loaded.start_sounds_dir == str(start_dir.resolve())
+        assert len(loaded.test_cases) == 2
+        assert loaded.test_cases[0].target_type == AudioTargetType.SIREN
+        assert loaded.test_cases[0].target_audio_path is None
+        assert loaded.test_cases[1].target_type == AudioTargetType.AUDIO_FILE
+        assert loaded.test_cases[1].target_audio_path == str(
+            sample_path.resolve()
+        )
+
+        saved_path = base / 'saved.yaml'
+        runner.save_to_yaml(loaded, saved_path)
+        reloaded = runner.load_from_yaml(saved_path)
+        assert reloaded.test_cases[0].target_type == AudioTargetType.SIREN
+        assert reloaded.test_cases[1].target_type == AudioTargetType.AUDIO_FILE
+        assert reloaded.test_cases[1].target_audio_path == str(
+            sample_path.resolve()
+        )
+
+
+def test_yaml_invalid_or_missing_target_audio_raises() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        base = Path(tmpdir)
+        ref_path = base / 'siren.wav'
+        ref_path.touch()
+        v1 = base / 'v1.mp4'
+        v1.touch()
+
+        invalid_type_cfg = base / 'bad_type.yaml'
+        invalid_type_cfg.write_text(
+            'name: test\n'
+            'reference_sound_path: siren.wav\n'
+            'test_cases:\n'
+            '  - video_path: v1.mp4\n'
+            '    expected_timestamp_ms: 1000\n'
+            '    target_type: unknown_target\n',
+            encoding='utf-8',
+        )
+        runner = AudioBenchmarkRunner()
+        with pytest.raises(ValueError, match='Invalid target_type'):
+            runner.load_from_yaml(invalid_type_cfg)
+
+        missing_audio_cfg = base / 'missing_audio.yaml'
+        missing_audio_cfg.write_text(
+            'name: test\n'
+            'reference_sound_path: siren.wav\n'
+            'test_cases:\n'
+            '  - video_path: v1.mp4\n'
+            '    expected_timestamp_ms: 1000\n'
+            '    target_type: audio_file\n'
+            '    target_audio_path: does_not_exist.wav\n',
+            encoding='utf-8',
+        )
+        with pytest.raises(
+            FileNotFoundError, match='Target audio file not found'
+        ):
+            runner.load_from_yaml(missing_audio_cfg)
+
+
+def test_evaluate_and_tune_mixed_siren_and_audio_file(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        siren_ref = os.path.join(tmpdir, 'siren.wav')
+        sample_ref = os.path.join(tmpdir, 'sample.wav')
+        siren_target = os.path.join(tmpdir, 'siren_target.wav')
+        sample_target = os.path.join(tmpdir, 'sample_target.wav')
+        config_path = os.path.join(tmpdir, 'config.yaml')
+
+        # Siren in 1400-2200 Hz, specific audio file in 400-900 Hz
+        _create_synthetic_chirp(
+            siren_ref, start_freq_hz=1400.0, end_freq_hz=2200.0
+        )
+        _create_synthetic_chirp(
+            sample_ref,
+            duration_s=0.4,
+            start_freq_hz=400.0,
+            end_freq_hz=900.0,
+        )
+        _create_synthetic_target(
+            siren_target, siren_ref, insert_timestamps_ms=[1200]
+        )
+        _create_synthetic_target(
+            sample_target, sample_ref, insert_timestamps_ms=[1800]
+        )
+
+        sound_def = SoundDefinition(
+            name='mixed_sound',
+            reference_sound_path=siren_ref,
+            freq_min_hz=1300.0,
+            freq_max_hz=2400.0,
+            threshold=0.3,
+            test_cases=[
+                AudioTestCase(
+                    video_path=siren_target,
+                    expected_timestamp_ms=1200,
+                    tolerance_ms=100,
+                    target_type=AudioTargetType.SIREN,
+                    description='Siren case',
+                ),
+                AudioTestCase(
+                    video_path=sample_target,
+                    expected_timestamp_ms=1800,
+                    tolerance_ms=100,
+                    target_type=AudioTargetType.AUDIO_FILE,
+                    target_audio_path=sample_ref,
+                    description='Specific audio file case',
+                ),
+            ],
+        )
+
+        runner = AudioBenchmarkRunner()
+        summary = runner.evaluate(sound_def)
+        assert summary.passed_cases == 2
+        assert summary.total_cases == 2
+        assert summary.accuracy == 1.0
+
+        tuning = runner.tune(
+            sound_def,
+            min_freq_candidates=[1300.0, 1400.0],
+            max_freq_candidates=[2300.0, 2400.0],
+            threshold_candidates=[0.25, 0.3],
+        )
+        assert tuning.best_accuracy == 1.0
+        assert tuning.summary.total_cases == 2
+
+        runner.save_to_yaml(sound_def, config_path)
+        with patch(
+            'sys.argv',
+            ['audio_benchmark.py', 'evaluate', config_path],
+        ):
+            main()
+        out = capsys.readouterr().out
+        assert '(siren)' in out
+        assert '(file:sample.wav)' in out
+
+
+def test_tune_audio_file_only_cases() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        siren_ref = os.path.join(tmpdir, 'siren.wav')
+        sample_ref = os.path.join(tmpdir, 'sample.wav')
+        sample_target = os.path.join(tmpdir, 'sample_target.wav')
+
+        _create_synthetic_chirp(siren_ref)
+        _create_synthetic_chirp(
+            sample_ref, start_freq_hz=500.0, end_freq_hz=1000.0
+        )
+        _create_synthetic_target(
+            sample_target, sample_ref, insert_timestamps_ms=[1500]
+        )
+
+        sound_def = SoundDefinition(
+            name='audio_file_only',
+            reference_sound_path=siren_ref,
+            threshold=0.2,
+            test_cases=[
+                AudioTestCase(
+                    video_path=sample_target,
+                    expected_timestamp_ms=1500,
+                    tolerance_ms=100,
+                    target_type=AudioTargetType.AUDIO_FILE,
+                    target_audio_path=sample_ref,
+                )
+            ],
+        )
+        runner = AudioBenchmarkRunner()
+        tuning = runner.tune(sound_def, threshold_candidates=[0.2, 0.3])
+        assert tuning.best_accuracy == 1.0
+        assert tuning.summary.passed_cases == 1
