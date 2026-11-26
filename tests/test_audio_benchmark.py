@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 from scipy.io import wavfile
 
+from lfdata.video.audio_matcher import AudioMatcher, load_sound_config
 from lfdata.video.audio_benchmark import (
     AudioBenchmarkRunner,
     AudioTargetType,
@@ -1040,7 +1041,7 @@ def test_evaluate_and_tune_mixed_siren_and_audio_file(
                 ),
                 AudioTestCase(
                     video_path=sample_target,
-                    expected_timestamp_ms=1800,
+                    expected_timestamp_ms=2200,
                     tolerance_ms=100,
                     target_type=AudioTargetType.AUDIO_FILE,
                     target_audio_path=sample_ref,
@@ -1060,9 +1061,19 @@ def test_evaluate_and_tune_mixed_siren_and_audio_file(
             min_freq_candidates=[1300.0, 1400.0],
             max_freq_candidates=[2300.0, 2400.0],
             threshold_candidates=[0.25, 0.3],
+            chunk_duration_candidates=[400, 800],
+            chunk_step_candidates=[200],
+            consensus_tolerance_candidates=[150, 200],
+            sample_min_freq_candidates=[150.0],
+            sample_max_freq_candidates=[8000.0],
         )
         assert tuning.best_accuracy == 1.0
         assert tuning.summary.total_cases == 2
+        assert tuning.best_chunk_duration_ms in (400, 800)
+        assert tuning.best_chunk_step_ms == 200
+        assert tuning.best_consensus_tolerance_ms in (150, 200)
+        assert tuning.best_sample_min_freq_hz == 150.0
+        assert tuning.best_sample_max_freq_hz == 8000.0
 
         runner.save_to_yaml(sound_def, config_path)
         with patch(
@@ -1096,7 +1107,7 @@ def test_tune_audio_file_only_cases() -> None:
             test_cases=[
                 AudioTestCase(
                     video_path=sample_target,
-                    expected_timestamp_ms=1500,
+                    expected_timestamp_ms=1800,
                     tolerance_ms=100,
                     target_type=AudioTargetType.AUDIO_FILE,
                     target_audio_path=sample_ref,
@@ -1104,6 +1115,75 @@ def test_tune_audio_file_only_cases() -> None:
             ],
         )
         runner = AudioBenchmarkRunner()
-        tuning = runner.tune(sound_def, threshold_candidates=[0.2, 0.3])
+        tuning = runner.tune(
+            sound_def,
+            threshold_candidates=[0.2, 0.3],
+            chunk_duration_candidates=[300, 500],
+            consensus_tolerance_candidates=[200],
+            sample_min_freq_candidates=[150.0],
+        )
         assert tuning.best_accuracy == 1.0
         assert tuning.summary.passed_cases == 1
+        assert tuning.best_chunk_duration_ms in (300, 500)
+
+
+def test_start_sound_tuning_params_yaml_and_detect_config() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        base = Path(tmpdir)
+        siren_ref = base / 'siren.wav'
+        start_dir = base / 'start_sounds'
+        start_dir.mkdir()
+        sample_ref = start_dir / 'sample.wav'
+        target_wav = base / 'target.wav'
+        cfg_path = base / 'config.yaml'
+
+        _create_synthetic_chirp(str(siren_ref))
+        _create_synthetic_chirp(
+            str(sample_ref),
+            duration_s=1.2,
+            start_freq_hz=400.0,
+            end_freq_hz=1200.0,
+        )
+        _create_synthetic_target(
+            str(target_wav), str(sample_ref), insert_timestamps_ms=[1000]
+        )
+
+        sound_def = SoundDefinition(
+            name='sample_params_test',
+            reference_sound_path=str(siren_ref),
+            start_sounds_dir=str(start_dir),
+            threshold=0.2,
+            chunk_duration_ms=800,
+            chunk_step_ms=400,
+            consensus_tolerance_ms=250,
+            sample_min_freq_hz=200.0,
+            sample_max_freq_hz=6000.0,
+            agreement_tolerance_ms=450,
+        )
+        runner = AudioBenchmarkRunner()
+        runner.save_to_yaml(sound_def, cfg_path)
+
+        loaded_def = runner.load_from_yaml(cfg_path)
+        assert loaded_def.chunk_duration_ms == 800
+        assert loaded_def.chunk_step_ms == 400
+        assert loaded_def.consensus_tolerance_ms == 250
+        assert loaded_def.sample_min_freq_hz == 200.0
+        assert loaded_def.sample_max_freq_hz == 6000.0
+        assert loaded_def.agreement_tolerance_ms == 450
+
+        loaded_cfg = load_sound_config(cfg_path)
+        assert loaded_cfg.chunk_duration_ms == 800
+        assert loaded_cfg.chunk_step_ms == 400
+        assert loaded_cfg.consensus_tolerance_ms == 250
+        assert loaded_cfg.sample_min_freq_hz == 200.0
+        assert loaded_cfg.sample_max_freq_hz == 6000.0
+        assert loaded_cfg.agreement_tolerance_ms == 450
+
+        matcher = AudioMatcher()
+        detected = matcher.detect_game_start(
+            video_or_audio_path=str(target_wav),
+            config=loaded_cfg,
+        )
+        assert detected is not None
+        assert detected.method == 'start_sounds/sample.wav'
+        assert abs(detected.timestamp_ms - 2200) <= 150

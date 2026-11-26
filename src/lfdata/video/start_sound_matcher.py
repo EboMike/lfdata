@@ -29,6 +29,7 @@ import numpy as np
 from lfdata.model.constants.time import MS_PER_SECOND
 from lfdata.video.audio_matcher import (
     AudioMatchConfig,
+    AudioMatchDiagnostic,
     AudioMatcher,
     AudioMatchResult,
     load_sound_config,
@@ -318,7 +319,9 @@ class StartSoundMatcher:
         if total_frames < 2:
             return []
 
-        chunk_frames = max(2, int(round(self.chunk_duration_ms / ms_per_frame)))
+        chunk_frames = max(
+            2, int(round(self.chunk_duration_ms / ms_per_frame))
+        )
         step_frames = max(1, int(round(self.chunk_step_ms / ms_per_frame)))
 
         ranges: list[tuple[int, int]] = []
@@ -461,11 +464,143 @@ class StartSoundMatcher:
                     ChunkHit(
                         predicted_game_start_ms=predicted_ms,
                         score=float(score),
-                        chunk_start_offset_ms=int(round(chunk.start_offset_ms)),
+                        chunk_start_offset_ms=int(
+                            round(chunk.start_offset_ms)
+                        ),
                     )
                 )
 
         return hits
+
+    def match_sample_diagnostic(
+        self,
+        video_or_audio_path: str | Path,
+        sample_path: str | Path,
+        expected_timestamp_ms: int,
+        tolerance_ms: int = 500,
+        threshold: float = DEFAULT_AUDIO_THRESHOLD,
+        start_ms: int | None = None,
+        end_ms: int | None = None,
+    ) -> tuple[list[AudioMatchResult], AudioMatchDiagnostic]:
+        """Matches a single start-sound sample and returns diagnostics.
+
+        Evaluates end-anchored chunk consensus for ``sample_path`` against the
+        target recording and builds an ``AudioMatchDiagnostic`` around
+        ``expected_timestamp_ms``.
+
+        Args:
+            video_or_audio_path: Path to the target video or audio file.
+            sample_path: Path to the start-sound sample WAV/audio file.
+            expected_timestamp_ms: Expected game-start timestamp in ms.
+            tolerance_ms: Acceptable error window in ms around expected time.
+            threshold: Minimum confidence score threshold (0.0 to 1.0).
+            start_ms: Optional search start offset in milliseconds.
+            end_ms: Optional search end offset in milliseconds.
+
+        Returns:
+            tuple[list[AudioMatchResult], AudioMatchDiagnostic]: Matches above
+                threshold (sorted descending) and diagnostic breakdown.
+
+        Raises:
+            FileNotFoundError: If target media or sample file does not exist.
+        """
+        media_path = Path(video_or_audio_path)
+        sample_file = Path(sample_path)
+        if not media_path.exists():
+            raise FileNotFoundError(
+                f'Target media file not found: {video_or_audio_path}'
+            )
+        if not sample_file.exists():
+            raise FileNotFoundError(
+                f'Start-sound sample file not found: {sample_path}'
+            )
+
+        target_audio = self.audio_matcher.load_audio(
+            file_path=media_path,
+            start_ms=start_ms,
+            end_ms=end_ms,
+        )
+        ref_audio = self.audio_matcher.load_audio(file_path=sample_file)
+        offset_ms = start_ms if start_ms is not None and start_ms > 0 else 0
+        ms_per_frame = (
+            self.audio_matcher.hop_length / self.audio_matcher.sample_rate
+        ) * MS_PER_SECOND
+
+        candidates: list[SampleCandidate] = []
+        if len(target_audio) > 0 and len(ref_audio) > 0:
+            target_spec = self._prepare_log_spectrogram(audio=target_audio)
+            ref_spec = self._prepare_log_spectrogram(audio=ref_audio)
+            total_sample_ms = ref_spec.shape[1] * ms_per_frame
+            chunks = self._build_sample_chunks(
+                ref_spec=ref_spec,
+                ms_per_frame=ms_per_frame,
+            )
+            if chunks:
+                diag_chunk_thresh = max(0.10, min(0.15, threshold * 0.8))
+                hits = self._collect_chunk_hits(
+                    target_spec=target_spec,
+                    chunks=chunks,
+                    total_sample_ms=total_sample_ms,
+                    offset_ms=offset_ms,
+                    ms_per_frame=ms_per_frame,
+                    chunk_threshold=diag_chunk_thresh,
+                )
+                if hits:
+                    candidates = self._score_clusters(
+                        hits=hits,
+                        chunks=chunks,
+                        total_sample_ms=total_sample_ms,
+                        offset_ms=offset_ms,
+                        method_name=f'start_sounds/{sample_file.name}',
+                    )
+
+        results = [
+            AudioMatchResult(
+                timestamp_ms=c.timestamp_ms,
+                confidence=c.confidence,
+                method=c.method,
+            )
+            for c in candidates
+            if c.confidence >= threshold
+        ]
+
+        in_tol = [
+            c
+            for c in candidates
+            if abs(c.timestamp_ms - expected_timestamp_ms) <= tolerance_ms
+        ]
+        out_tol = [
+            c
+            for c in candidates
+            if abs(c.timestamp_ms - expected_timestamp_ms) > tolerance_ms
+        ]
+
+        exp_peak = in_tol[0] if in_tol else None
+        top_fp = out_tol[0] if out_tol else None
+        margin = (
+            (exp_peak.confidence - top_fp.confidence)
+            if (exp_peak is not None and top_fp is not None)
+            else None
+        )
+
+        diagnostic = AudioMatchDiagnostic(
+            expected_timestamp_ms=expected_timestamp_ms,
+            tolerance_ms=tolerance_ms,
+            expected_peak_timestamp_ms=(
+                exp_peak.timestamp_ms if exp_peak is not None else None
+            ),
+            expected_peak_confidence=(
+                exp_peak.confidence if exp_peak is not None else None
+            ),
+            top_false_positive_timestamp_ms=(
+                top_fp.timestamp_ms if top_fp is not None else None
+            ),
+            top_false_positive_confidence=(
+                top_fp.confidence if top_fp is not None else None
+            ),
+            margin=margin,
+        )
+        return results, diagnostic
 
     def _select_best_cluster(
         self,
@@ -487,6 +622,35 @@ class StartSoundMatcher:
         Returns:
             SampleCandidate | None: Highest-scoring consensus candidate.
         """
+        candidates = self._score_clusters(
+            hits=hits,
+            chunks=chunks,
+            total_sample_ms=total_sample_ms,
+            offset_ms=offset_ms,
+            method_name=method_name,
+        )
+        return candidates[0] if candidates else None
+
+    def _score_clusters(
+        self,
+        hits: list[ChunkHit],
+        chunks: list[SampleChunk],
+        total_sample_ms: float,
+        offset_ms: int,
+        method_name: str,
+    ) -> list[SampleCandidate]:
+        """Clusters chunk hits by predicted timestamp and returns all scored.
+
+        Args:
+            hits: All chunk hits collected for the sample.
+            chunks: All chunks belonging to the sample.
+            total_sample_ms: Total duration of the sample in milliseconds.
+            offset_ms: Target audio start offset in milliseconds.
+            method_name: Method label for the sample.
+
+        Returns:
+            list[SampleCandidate]: Candidates sorted by confidence descending.
+        """
         sorted_hits = sorted(hits, key=lambda h: h.predicted_game_start_ms)
         clusters: list[list[ChunkHit]] = []
         current: list[ChunkHit] = [sorted_hits[0]]
@@ -502,7 +666,7 @@ class StartSoundMatcher:
                 current = [hit]
         clusters.append(current)
 
-        best_candidate: SampleCandidate | None = None
+        candidates: list[SampleCandidate] = []
         for cluster in clusters:
             total_weight = sum(h.score for h in cluster)
             if total_weight <= 0.0:
@@ -534,19 +698,17 @@ class StartSoundMatcher:
                 )
             )
 
-            candidate = SampleCandidate(
-                method=method_name,
-                timestamp_ms=consensus_ms,
-                confidence=confidence,
-                consensus_ratio=consensus_ratio,
+            candidates.append(
+                SampleCandidate(
+                    method=method_name,
+                    timestamp_ms=consensus_ms,
+                    confidence=confidence,
+                    consensus_ratio=consensus_ratio,
+                )
             )
-            if (
-                best_candidate is None
-                or candidate.confidence > best_candidate.confidence
-            ):
-                best_candidate = candidate
 
-        return best_candidate
+        candidates.sort(key=lambda c: c.confidence, reverse=True)
+        return candidates
 
 
 class GameStartDetector:
@@ -644,7 +806,8 @@ class GameStartDetector:
 
         sample_matches: list[AudioMatchResult] = []
         if eff_start_dir is not None:
-            sample_matches = self.start_sound_matcher.match_directory(
+            sample_matcher = self._resolve_start_sound_matcher(match_cfg)
+            sample_matches = sample_matcher.match_directory(
                 video_or_audio_path=video_or_audio_path,
                 start_sounds_dir=eff_start_dir,
                 threshold=eff_threshold,
@@ -669,9 +832,73 @@ class GameStartDetector:
                 cluster_sequence=cluster_sequence,
             )
 
+        eff_agree_tol = (
+            match_cfg.agreement_tolerance_ms
+            if match_cfg is not None
+            and match_cfg.agreement_tolerance_ms is not None
+            else self.agreement_tolerance_ms
+        )
         return self.resolve_best_match(
             sample_matches=sample_matches,
             siren_matches=siren_matches,
+            agreement_tolerance_ms=eff_agree_tol,
+        )
+
+    def _resolve_start_sound_matcher(
+        self, match_cfg: AudioMatchConfig | None
+    ) -> StartSoundMatcher:
+        """Returns a StartSoundMatcher configured with any config overrides.
+
+        Args:
+            match_cfg: Optional loaded AudioMatchConfig.
+
+        Returns:
+            StartSoundMatcher: Configured matcher instance.
+        """
+        if match_cfg is None:
+            return self.start_sound_matcher
+
+        has_override = any(
+            v is not None
+            for v in (
+                match_cfg.chunk_duration_ms,
+                match_cfg.chunk_step_ms,
+                match_cfg.consensus_tolerance_ms,
+                match_cfg.sample_min_freq_hz,
+                match_cfg.sample_max_freq_hz,
+            )
+        )
+        if not has_override:
+            return self.start_sound_matcher
+
+        base = self.start_sound_matcher
+        return StartSoundMatcher(
+            audio_matcher=self.audio_matcher,
+            chunk_duration_ms=(
+                match_cfg.chunk_duration_ms
+                if match_cfg.chunk_duration_ms is not None
+                else base.chunk_duration_ms
+            ),
+            chunk_step_ms=(
+                match_cfg.chunk_step_ms
+                if match_cfg.chunk_step_ms is not None
+                else base.chunk_step_ms
+            ),
+            consensus_tolerance_ms=(
+                match_cfg.consensus_tolerance_ms
+                if match_cfg.consensus_tolerance_ms is not None
+                else base.consensus_tolerance_ms
+            ),
+            min_freq_hz=(
+                match_cfg.sample_min_freq_hz
+                if match_cfg.sample_min_freq_hz is not None
+                else base.min_freq_hz
+            ),
+            max_freq_hz=(
+                match_cfg.sample_max_freq_hz
+                if match_cfg.sample_max_freq_hz is not None
+                else base.max_freq_hz
+            ),
         )
 
     def _run_siren_matcher(
@@ -765,12 +992,14 @@ class GameStartDetector:
         self,
         sample_matches: list[AudioMatchResult],
         siren_matches: list[AudioMatchResult],
+        agreement_tolerance_ms: int | None = None,
     ) -> AudioMatchResult | None:
         """Selects the most reliable game-start match from both methods.
 
         Args:
             sample_matches: Matches from StartSoundMatcher, sorted descending.
             siren_matches: Matches from siren AudioMatcher, sorted descending.
+            agreement_tolerance_ms: Optional override for agreement tolerance.
 
         Returns:
             AudioMatchResult | None: Selected game-start result with combined
@@ -792,8 +1021,13 @@ class GameStartDetector:
 
         assert best_sample is not None and best_siren is not None
         diff_ms = abs(best_sample.timestamp_ms - best_siren.timestamp_ms)
+        eff_tol = (
+            agreement_tolerance_ms
+            if agreement_tolerance_ms is not None
+            else self.agreement_tolerance_ms
+        )
 
-        if diff_ms <= self.agreement_tolerance_ms:
+        if diff_ms <= eff_tol:
             combined_conf = 1.0 - (
                 (1.0 - best_sample.confidence) * (1.0 - best_siren.confidence)
             )

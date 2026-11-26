@@ -2,6 +2,12 @@ name: sm5_game_start
 description: SM5 pre-game countdown klaxon / General Quarters alert
 reference_sound_path: path/to/General Quarters.wav
 start_sounds_dir: ../../assets/sm5/start_sounds
+chunk_duration_ms: 1500
+chunk_step_ms: 750
+consensus_tolerance_ms: 200
+sample_min_freq_hz: 150.0
+sample_max_freq_hz: 8000.0
+agreement_tolerance_ms: 500
 freq_min_hz: 1400.0
 freq_max_hz: 2400.0
 threshold: 0.2

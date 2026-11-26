@@ -59,6 +59,12 @@ class AudioMatchConfig:
         template_duration_ms: Optional template duration in ms to crop to.
         min_energy_ratio: Optional minimum in-band energy ratio for gating.
         start_sounds_dir: Optional directory of pre-game start-sound samples.
+        chunk_duration_ms: Optional chunk duration in ms for start sounds.
+        chunk_step_ms: Optional chunk step size in ms for start sounds.
+        consensus_tolerance_ms: Optional cluster tolerance in ms for samples.
+        sample_min_freq_hz: Optional high-pass cutoff in Hz for start sounds.
+        sample_max_freq_hz: Optional upper freq cutoff in Hz for start sounds.
+        agreement_tolerance_ms: Optional max ms diff for method agreement.
     """
 
     reference_sound_path: str
@@ -68,6 +74,12 @@ class AudioMatchConfig:
     template_duration_ms: int | None = None
     min_energy_ratio: float | None = None
     start_sounds_dir: str | None = None
+    chunk_duration_ms: int | None = None
+    chunk_step_ms: int | None = None
+    consensus_tolerance_ms: int | None = None
+    sample_min_freq_hz: float | None = None
+    sample_max_freq_hz: float | None = None
+    agreement_tolerance_ms: int | None = None
 
 
 def load_sound_config(config_path: str | Path) -> AudioMatchConfig:
@@ -136,6 +148,60 @@ def load_sound_config(config_path: str | Path) -> AudioMatchConfig:
         else:
             start_sounds_dir = str(start_dir_obj)
 
+    raw_chunk_dur = raw_data.get('chunk_duration_ms')
+    chunk_duration_ms = (
+        int(raw_chunk_dur) if raw_chunk_dur is not None else None
+    )
+
+    raw_chunk_step = raw_data.get('chunk_step_ms')
+    chunk_step_ms = int(raw_chunk_step) if raw_chunk_step is not None else None
+
+    raw_consensus_tol = raw_data.get('consensus_tolerance_ms')
+    consensus_tolerance_ms = (
+        int(raw_consensus_tol) if raw_consensus_tol is not None else None
+    )
+
+    raw_sample_fmin = raw_data.get('sample_min_freq_hz')
+    sample_min_freq_hz = (
+        float(raw_sample_fmin) if raw_sample_fmin is not None else None
+    )
+
+    raw_sample_fmax = raw_data.get('sample_max_freq_hz')
+    sample_max_freq_hz = (
+        float(raw_sample_fmax) if raw_sample_fmax is not None else None
+    )
+
+    raw_agree_tol = raw_data.get('agreement_tolerance_ms')
+    agreement_tolerance_ms = (
+        int(raw_agree_tol) if raw_agree_tol is not None else None
+    )
+
+    raw_chunk_dur = raw_data.get('chunk_duration_ms')
+    chunk_duration_ms = int(raw_chunk_dur) if raw_chunk_dur is not None else None
+
+    raw_chunk_step = raw_data.get('chunk_step_ms')
+    chunk_step_ms = int(raw_chunk_step) if raw_chunk_step is not None else None
+
+    raw_consensus_tol = raw_data.get('consensus_tolerance_ms')
+    consensus_tolerance_ms = (
+        int(raw_consensus_tol) if raw_consensus_tol is not None else None
+    )
+
+    raw_sample_fmin = raw_data.get('sample_min_freq_hz')
+    sample_min_freq_hz = (
+        float(raw_sample_fmin) if raw_sample_fmin is not None else None
+    )
+
+    raw_sample_fmax = raw_data.get('sample_max_freq_hz')
+    sample_max_freq_hz = (
+        float(raw_sample_fmax) if raw_sample_fmax is not None else None
+    )
+
+    raw_agree_tol = raw_data.get('agreement_tolerance_ms')
+    agreement_tolerance_ms = (
+        int(raw_agree_tol) if raw_agree_tol is not None else None
+    )
+
     return AudioMatchConfig(
         reference_sound_path=resolved_ref_path,
         freq_min_hz=freq_min,
@@ -144,6 +210,12 @@ def load_sound_config(config_path: str | Path) -> AudioMatchConfig:
         template_duration_ms=template_duration_ms,
         min_energy_ratio=min_energy_ratio,
         start_sounds_dir=start_sounds_dir,
+        chunk_duration_ms=chunk_duration_ms,
+        chunk_step_ms=chunk_step_ms,
+        consensus_tolerance_ms=consensus_tolerance_ms,
+        sample_min_freq_hz=sample_min_freq_hz,
+        sample_max_freq_hz=sample_max_freq_hz,
+        agreement_tolerance_ms=agreement_tolerance_ms,
     )
 
 
@@ -1362,7 +1434,9 @@ def main() -> None:
 
     if args.template_duration_ms is not None:
         eff_template_duration = (
-            args.template_duration_ms if args.template_duration_ms > 0 else None
+            args.template_duration_ms
+            if args.template_duration_ms > 0
+            else None
         )
 
     if ref_path and not Path(ref_path).exists():

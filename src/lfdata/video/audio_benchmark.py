@@ -31,7 +31,13 @@ from lfdata.video.audio_matcher import (
 from lfdata.video.constants import (
     DEFAULT_AUDIO_THRESHOLD,
     DEFAULT_AUDIO_TOLERANCE_MS,
+    DEFAULT_CHUNK_DURATION_MS,
+    DEFAULT_CHUNK_STEP_MS,
+    DEFAULT_CONSENSUS_TOLERANCE_MS,
+    DEFAULT_SAMPLE_HIGH_PASS_HZ,
+    DEFAULT_SAMPLE_MAX_FREQ_HZ,
 )
+from lfdata.video.start_sound_matcher import StartSoundMatcher
 
 
 class AudioTargetType(str, enum.Enum):
@@ -112,6 +118,12 @@ class SoundDefinition:
         template_duration_ms: Optional template duration in ms to crop to.
         min_energy_ratio: Optional minimum in-band energy ratio for gating.
         start_sounds_dir: Optional directory of pre-game start-sound samples.
+        chunk_duration_ms: Optional chunk duration in ms for start sounds.
+        chunk_step_ms: Optional chunk step size in ms for start sounds.
+        consensus_tolerance_ms: Optional cluster tolerance in ms for samples.
+        sample_min_freq_hz: Optional high-pass cutoff in Hz for start sounds.
+        sample_max_freq_hz: Optional upper freq cutoff in Hz for start sounds.
+        agreement_tolerance_ms: Optional max ms diff for method agreement.
         description: Optional description of this sound effect.
         test_cases: List of example video test cases.
     """
@@ -124,6 +136,12 @@ class SoundDefinition:
     template_duration_ms: int | None = None
     min_energy_ratio: float | None = None
     start_sounds_dir: str | None = None
+    chunk_duration_ms: int | None = None
+    chunk_step_ms: int | None = None
+    consensus_tolerance_ms: int | None = None
+    sample_min_freq_hz: float | None = None
+    sample_max_freq_hz: float | None = None
+    agreement_tolerance_ms: int | None = None
     description: str = ''
     test_cases: list[AudioTestCase] = dataclasses.field(default_factory=list)
 
@@ -279,6 +297,11 @@ class TuningResult:
         best_accuracy: Pass rate achieved with best parameters.
         best_mean_error_ms: Mean absolute error in ms for passed cases.
         summary: Full benchmark summary of the best configuration.
+        best_chunk_duration_ms: Optimal chunk duration in ms for start sounds.
+        best_chunk_step_ms: Optimal chunk step in ms for start sounds.
+        best_consensus_tolerance_ms: Optimal cluster tolerance in ms.
+        best_sample_min_freq_hz: Optimal high-pass cutoff in Hz for samples.
+        best_sample_max_freq_hz: Optimal upper freq cutoff in Hz for samples.
     """
 
     best_freq_min_hz: float | None
@@ -287,6 +310,11 @@ class TuningResult:
     best_accuracy: float
     best_mean_error_ms: float | None
     summary: BenchmarkSummary
+    best_chunk_duration_ms: int | None = None
+    best_chunk_step_ms: int | None = None
+    best_consensus_tolerance_ms: int | None = None
+    best_sample_min_freq_hz: float | None = None
+    best_sample_max_freq_hz: float | None = None
 
 
 class AudioBenchmarkRunner:
@@ -406,6 +434,36 @@ class AudioBenchmarkRunner:
                 else None
             ),
             start_sounds_dir=resolved_start_dir,
+            chunk_duration_ms=(
+                int(raw_data['chunk_duration_ms'])
+                if raw_data.get('chunk_duration_ms') is not None
+                else None
+            ),
+            chunk_step_ms=(
+                int(raw_data['chunk_step_ms'])
+                if raw_data.get('chunk_step_ms') is not None
+                else None
+            ),
+            consensus_tolerance_ms=(
+                int(raw_data['consensus_tolerance_ms'])
+                if raw_data.get('consensus_tolerance_ms') is not None
+                else None
+            ),
+            sample_min_freq_hz=(
+                float(raw_data['sample_min_freq_hz'])
+                if raw_data.get('sample_min_freq_hz') is not None
+                else None
+            ),
+            sample_max_freq_hz=(
+                float(raw_data['sample_max_freq_hz'])
+                if raw_data.get('sample_max_freq_hz') is not None
+                else None
+            ),
+            agreement_tolerance_ms=(
+                int(raw_data['agreement_tolerance_ms'])
+                if raw_data.get('agreement_tolerance_ms') is not None
+                else None
+            ),
             description=raw_data.get('description', ''),
             test_cases=test_cases,
         )
@@ -510,6 +568,18 @@ class AudioBenchmarkRunner:
             data['min_energy_ratio'] = sound_def.min_energy_ratio
         if sound_def.start_sounds_dir is not None:
             data['start_sounds_dir'] = sound_def.start_sounds_dir
+        if sound_def.chunk_duration_ms is not None:
+            data['chunk_duration_ms'] = sound_def.chunk_duration_ms
+        if sound_def.chunk_step_ms is not None:
+            data['chunk_step_ms'] = sound_def.chunk_step_ms
+        if sound_def.consensus_tolerance_ms is not None:
+            data['consensus_tolerance_ms'] = sound_def.consensus_tolerance_ms
+        if sound_def.sample_min_freq_hz is not None:
+            data['sample_min_freq_hz'] = sound_def.sample_min_freq_hz
+        if sound_def.sample_max_freq_hz is not None:
+            data['sample_max_freq_hz'] = sound_def.sample_max_freq_hz
+        if sound_def.agreement_tolerance_ms is not None:
+            data['agreement_tolerance_ms'] = sound_def.agreement_tolerance_ms
 
         serialized_cases: list[dict[str, object]] = []
         for tc in sound_def.test_cases:
@@ -539,6 +609,11 @@ class AudioBenchmarkRunner:
         threshold: float | None = None,
         template_duration_ms: int | None = None,
         min_energy_ratio: float | None = None,
+        chunk_duration_ms: int | None = None,
+        chunk_step_ms: int | None = None,
+        consensus_tolerance_ms: int | None = None,
+        sample_min_freq_hz: float | None = None,
+        sample_max_freq_hz: float | None = None,
     ) -> TestCaseEvaluationResult:
         """Evaluates audio matching on a single test case.
 
@@ -550,6 +625,11 @@ class AudioBenchmarkRunner:
             threshold: Optional confidence threshold override.
             template_duration_ms: Optional template duration in ms override.
             min_energy_ratio: Optional min energy ratio override.
+            chunk_duration_ms: Optional chunk duration override for samples.
+            chunk_step_ms: Optional chunk step override for samples.
+            consensus_tolerance_ms: Optional cluster tolerance override.
+            sample_min_freq_hz: Optional high-pass cutoff for samples.
+            sample_max_freq_hz: Optional upper freq cutoff for samples.
 
         Returns:
             TestCaseEvaluationResult: Detailed outcome of the test case.
@@ -576,36 +656,90 @@ class AudioBenchmarkRunner:
             test_case.target_type == AudioTargetType.AUDIO_FILE
             and test_case.target_audio_path is not None
         ):
-            ref_sound_path = test_case.target_audio_path
-            target_audio_file = Path(ref_sound_path)
+            target_audio_file = Path(test_case.target_audio_path)
             if not target_audio_file.exists():
                 raise FileNotFoundError(
                     f'Target audio file not found: {target_audio_file}'
                 )
-            eff_min = freq_min_hz
-            eff_max = freq_max_hz
-            eff_duration_ms = template_duration_ms
-        else:
-            ref_sound_path = sound_def.reference_sound_path
-            eff_min = (
-                freq_min_hz
-                if freq_min_hz is not None
-                else sound_def.freq_min_hz
+            eff_chunk_dur = (
+                chunk_duration_ms
+                if chunk_duration_ms is not None
+                else (
+                    sound_def.chunk_duration_ms
+                    if sound_def.chunk_duration_ms is not None
+                    else DEFAULT_CHUNK_DURATION_MS
+                )
             )
-            eff_max = (
-                freq_max_hz
-                if freq_max_hz is not None
-                else sound_def.freq_max_hz
+            eff_chunk_step = (
+                chunk_step_ms
+                if chunk_step_ms is not None
+                else (
+                    sound_def.chunk_step_ms
+                    if sound_def.chunk_step_ms is not None
+                    else DEFAULT_CHUNK_STEP_MS
+                )
             )
-            eff_duration_ms = (
-                template_duration_ms
-                if template_duration_ms is not None
-                else sound_def.template_duration_ms
+            eff_consensus_tol = (
+                consensus_tolerance_ms
+                if consensus_tolerance_ms is not None
+                else (
+                    sound_def.consensus_tolerance_ms
+                    if sound_def.consensus_tolerance_ms is not None
+                    else DEFAULT_CONSENSUS_TOLERANCE_MS
+                )
             )
+            eff_sample_fmin = (
+                sample_min_freq_hz
+                if sample_min_freq_hz is not None
+                else (
+                    sound_def.sample_min_freq_hz
+                    if sound_def.sample_min_freq_hz is not None
+                    else DEFAULT_SAMPLE_HIGH_PASS_HZ
+                )
+            )
+            eff_sample_fmax = (
+                sample_max_freq_hz
+                if sample_max_freq_hz is not None
+                else (
+                    sound_def.sample_max_freq_hz
+                    if sound_def.sample_max_freq_hz is not None
+                    else DEFAULT_SAMPLE_MAX_FREQ_HZ
+                )
+            )
+            sample_matcher = StartSoundMatcher(
+                audio_matcher=self._matcher,
+                chunk_duration_ms=eff_chunk_dur,
+                chunk_step_ms=eff_chunk_step,
+                consensus_tolerance_ms=eff_consensus_tol,
+                min_freq_hz=eff_sample_fmin,
+                max_freq_hz=eff_sample_fmax,
+            )
+            matches, diag = sample_matcher.match_sample_diagnostic(
+                video_or_audio_path=test_case.video_path,
+                sample_path=target_audio_file,
+                expected_timestamp_ms=test_case.expected_timestamp_ms,
+                tolerance_ms=test_case.tolerance_ms,
+                threshold=eff_thresh,
+                start_ms=test_case.search_start_ms,
+                end_ms=test_case.search_end_ms,
+            )
+            return self._evaluate_matches(test_case, matches, diagnostic=diag)
+
+        eff_min = (
+            freq_min_hz if freq_min_hz is not None else sound_def.freq_min_hz
+        )
+        eff_max = (
+            freq_max_hz if freq_max_hz is not None else sound_def.freq_max_hz
+        )
+        eff_duration_ms = (
+            template_duration_ms
+            if template_duration_ms is not None
+            else sound_def.template_duration_ms
+        )
 
         matches, diag = self._matcher.match_diagnostic(
             video_or_audio_path=test_case.video_path,
-            reference_sound_path=ref_sound_path,
+            reference_sound_path=sound_def.reference_sound_path,
             expected_timestamp_ms=test_case.expected_timestamp_ms,
             tolerance_ms=test_case.tolerance_ms,
             threshold=eff_thresh,
@@ -1059,18 +1193,30 @@ class AudioBenchmarkRunner:
         min_freq_candidates: list[float] | None = None,
         max_freq_candidates: list[float] | None = None,
         threshold_candidates: list[float] | None = None,
+        chunk_duration_candidates: list[int] | None = None,
+        chunk_step_candidates: list[int] | None = None,
+        consensus_tolerance_candidates: list[int] | None = None,
+        sample_min_freq_candidates: list[float] | None = None,
+        sample_max_freq_candidates: list[float] | None = None,
     ) -> TuningResult:
-        """Finds optimal frequency bounds and thresholds across test cases.
+        """Finds optimal parameters for siren and start-sound samples.
 
-        Evaluates parameter combinations, performs failure analysis to
-        discover reconciling thresholds that maintain passes across all cases,
-        and adaptively expands search boundaries when test cases fail.
+        Evaluates parameter combinations for both siren matching (frequency
+        bounds) and pre-game start-sound sample matching (chunk duration/step,
+        consensus tolerance, sample frequency band), performs failure analysis
+        to discover reconciling thresholds, and adaptively expands search
+        boundaries when siren test cases fail.
 
         Args:
             sound_def: Sound definition with test cases.
-            min_freq_candidates: Optional lower frequency cutoffs to evaluate.
-            max_freq_candidates: Optional upper frequency cutoffs to evaluate.
+            min_freq_candidates: Optional lower frequency cutoffs for siren.
+            max_freq_candidates: Optional upper frequency cutoffs for siren.
             threshold_candidates: Optional thresholds to evaluate.
+            chunk_duration_candidates: Optional chunk durations in ms.
+            chunk_step_candidates: Optional chunk step sizes in ms.
+            consensus_tolerance_candidates: Optional cluster tolerances in ms.
+            sample_min_freq_candidates: Optional high-pass cutoffs for samples.
+            sample_max_freq_candidates: Optional upper freq cutoffs for samples.
 
         Returns:
             TuningResult: Optimal parameter values and benchmark summary.
@@ -1105,10 +1251,6 @@ class AudioBenchmarkRunner:
             ]
         )
 
-        best_tuple: tuple[float, float, float] | None = None
-        best_summary: BenchmarkSummary | None = None
-        best_score = -1e9
-        evaluated_pairs: set[tuple[float, float]] = set()
         siren_cases = [
             tc
             for tc in sound_def.test_cases
@@ -1119,17 +1261,45 @@ class AudioBenchmarkRunner:
             for tc in sound_def.test_cases
             if tc.target_type == AudioTargetType.AUDIO_FILE
         ]
+
+        best_sample_params: tuple[int, int, int, float, float] | None = None
+        if audio_file_cases:
+            best_sample_params = self._tune_sample_parameters(
+                sound_def=sound_def,
+                audio_file_cases=audio_file_cases,
+                thresholds=thresholds,
+                chunk_duration_candidates=chunk_duration_candidates,
+                chunk_step_candidates=chunk_step_candidates,
+                consensus_tolerance_candidates=consensus_tolerance_candidates,
+                sample_min_freq_candidates=sample_min_freq_candidates,
+                sample_max_freq_candidates=sample_max_freq_candidates,
+            )
+
+        best_tuple: tuple[float, float, float] | None = None
+        best_summary: BenchmarkSummary | None = None
+        best_score = -1e9
+        evaluated_pairs: set[tuple[float, float]] = set()
         audio_file_cache: dict[float, list[TestCaseEvaluationResult]] = {}
 
         def _get_audio_file_results(
             thresh: float,
         ) -> list[TestCaseEvaluationResult]:
             if thresh not in audio_file_cache:
+                s_dur = best_sample_params[0] if best_sample_params else None
+                s_step = best_sample_params[1] if best_sample_params else None
+                s_tol = best_sample_params[2] if best_sample_params else None
+                s_fmin = best_sample_params[3] if best_sample_params else None
+                s_fmax = best_sample_params[4] if best_sample_params else None
                 audio_file_cache[thresh] = [
                     self.evaluate_test_case(
                         sound_def=sound_def,
                         test_case=tc,
                         threshold=thresh,
+                        chunk_duration_ms=s_dur,
+                        chunk_step_ms=s_step,
+                        consensus_tolerance_ms=s_tol,
+                        sample_min_freq_hz=s_fmin,
+                        sample_max_freq_hz=s_fmax,
                     )
                     for tc in audio_file_cases
                 ]
@@ -1279,7 +1449,165 @@ class AudioBenchmarkRunner:
             best_accuracy=best_summary.accuracy,
             best_mean_error_ms=best_summary.mean_error_ms,
             summary=best_summary,
+            best_chunk_duration_ms=(
+                best_sample_params[0] if best_sample_params else None
+            ),
+            best_chunk_step_ms=(
+                best_sample_params[1] if best_sample_params else None
+            ),
+            best_consensus_tolerance_ms=(
+                best_sample_params[2] if best_sample_params else None
+            ),
+            best_sample_min_freq_hz=(
+                best_sample_params[3] if best_sample_params else None
+            ),
+            best_sample_max_freq_hz=(
+                best_sample_params[4] if best_sample_params else None
+            ),
         )
+
+    def _tune_sample_parameters(
+        self,
+        sound_def: SoundDefinition,
+        audio_file_cases: list[AudioTestCase],
+        thresholds: list[float],
+        chunk_duration_candidates: list[int] | None = None,
+        chunk_step_candidates: list[int] | None = None,
+        consensus_tolerance_candidates: list[int] | None = None,
+        sample_min_freq_candidates: list[float] | None = None,
+        sample_max_freq_candidates: list[float] | None = None,
+    ) -> tuple[int, int, int, float, float]:
+        """Tunes StartSoundMatcher parameters across audio_file test cases.
+
+        Args:
+            sound_def: Parent SoundDefinition.
+            audio_file_cases: Subset of test cases targeting specific files.
+            thresholds: Threshold candidates to evaluate.
+            chunk_duration_candidates: Optional chunk duration candidates.
+            chunk_step_candidates: Optional chunk step candidates.
+            consensus_tolerance_candidates: Optional cluster tolerances.
+            sample_min_freq_candidates: Optional sample high-pass cutoffs.
+            sample_max_freq_candidates: Optional sample upper freq cutoffs.
+
+        Returns:
+            tuple[int, int, int, float, float]: Winning (chunk_duration_ms,
+                chunk_step_ms, consensus_tolerance_ms, sample_min_freq_hz,
+                sample_max_freq_hz).
+        """
+        base_dur = sound_def.chunk_duration_ms or DEFAULT_CHUNK_DURATION_MS
+        durations = list(
+            dict.fromkeys(
+                chunk_duration_candidates
+                if chunk_duration_candidates
+                else [base_dur, 1000, 1500, 2000]
+            )
+        )
+        base_tol = (
+            sound_def.consensus_tolerance_ms or DEFAULT_CONSENSUS_TOLERANCE_MS
+        )
+        tolerances = list(
+            dict.fromkeys(
+                consensus_tolerance_candidates
+                if consensus_tolerance_candidates
+                else [base_tol, 200, 350]
+            )
+        )
+        base_fmin = (
+            sound_def.sample_min_freq_hz
+            if sound_def.sample_min_freq_hz is not None
+            else DEFAULT_SAMPLE_HIGH_PASS_HZ
+        )
+        min_freqs = list(
+            dict.fromkeys(
+                sample_min_freq_candidates
+                if sample_min_freq_candidates
+                else [base_fmin, 150.0, 300.0]
+            )
+        )
+        base_fmax = (
+            sound_def.sample_max_freq_hz
+            if sound_def.sample_max_freq_hz is not None
+            else DEFAULT_SAMPLE_MAX_FREQ_HZ
+        )
+        max_freqs = list(
+            dict.fromkeys(
+                sample_max_freq_candidates
+                if sample_max_freq_candidates
+                else [base_fmax]
+            )
+        )
+
+        best_params: tuple[int, int, int, float, float] = (
+            base_dur,
+            sound_def.chunk_step_ms or max(1, base_dur // 2),
+            base_tol,
+            base_fmin,
+            base_fmax,
+        )
+        best_score = -1e9
+        sample_def = dataclasses.replace(
+            sound_def, test_cases=audio_file_cases
+        )
+        eval_thresh = thresholds[0] if thresholds else sound_def.threshold
+
+        for dur in durations:
+            steps = (
+                list(dict.fromkeys(chunk_step_candidates))
+                if chunk_step_candidates
+                else [
+                    (
+                        sound_def.chunk_step_ms
+                        if sound_def.chunk_step_ms is not None
+                        else max(1, dur // 2)
+                    )
+                ]
+            )
+            for step in steps:
+                if step > dur:
+                    continue
+                for tol in tolerances:
+                    for fmin in min_freqs:
+                        for fmax in max_freqs:
+                            if fmin >= fmax:
+                                continue
+                            results = [
+                                self.evaluate_test_case(
+                                    sound_def=sample_def,
+                                    test_case=tc,
+                                    threshold=eval_thresh,
+                                    chunk_duration_ms=dur,
+                                    chunk_step_ms=step,
+                                    consensus_tolerance_ms=tol,
+                                    sample_min_freq_hz=fmin,
+                                    sample_max_freq_hz=fmax,
+                                )
+                                for tc in audio_file_cases
+                            ]
+                            total = len(results)
+                            passed = sum(1 for r in results if r.passed)
+                            errors = [
+                                abs(r.error_ms)
+                                for r in results
+                                if r.passed and r.error_ms is not None
+                            ]
+                            summary = BenchmarkSummary(
+                                sound_name=sound_def.name,
+                                total_cases=total,
+                                passed_cases=passed,
+                                accuracy=(passed / total) if total else 0.0,
+                                mean_error_ms=(
+                                    (sum(errors) / len(errors))
+                                    if errors
+                                    else None
+                                ),
+                                case_results=results,
+                            )
+                            score = self._compute_tuning_score(summary)
+                            if score > best_score:
+                                best_score = score
+                                best_params = (dur, step, tol, fmin, fmax)
+
+        return best_params
 
     def _evaluate_matches(
         self,
@@ -1489,6 +1817,18 @@ def main() -> None:
             sound_def.freq_min_hz = tuning.best_freq_min_hz
             sound_def.freq_max_hz = tuning.best_freq_max_hz
             sound_def.threshold = tuning.best_threshold
+            if tuning.best_chunk_duration_ms is not None:
+                sound_def.chunk_duration_ms = tuning.best_chunk_duration_ms
+            if tuning.best_chunk_step_ms is not None:
+                sound_def.chunk_step_ms = tuning.best_chunk_step_ms
+            if tuning.best_consensus_tolerance_ms is not None:
+                sound_def.consensus_tolerance_ms = (
+                    tuning.best_consensus_tolerance_ms
+                )
+            if tuning.best_sample_min_freq_hz is not None:
+                sound_def.sample_min_freq_hz = tuning.best_sample_min_freq_hz
+            if tuning.best_sample_max_freq_hz is not None:
+                sound_def.sample_max_freq_hz = tuning.best_sample_max_freq_hz
             runner.save_to_yaml(sound_def, args.config)
             print(f'Updated config saved to {args.config}')
 
@@ -1582,6 +1922,19 @@ def _print_tuning(tuning: TuningResult) -> None:
     print(f'Best freq_min: {tuning.best_freq_min_hz} Hz')
     print(f'Best freq_max: {tuning.best_freq_max_hz} Hz')
     print(f'Best threshold: {tuning.best_threshold}')
+    if tuning.best_chunk_duration_ms is not None:
+        print(f'Best chunk_duration_ms: {tuning.best_chunk_duration_ms} ms')
+    if tuning.best_chunk_step_ms is not None:
+        print(f'Best chunk_step_ms: {tuning.best_chunk_step_ms} ms')
+    if tuning.best_consensus_tolerance_ms is not None:
+        print(
+            'Best consensus_tolerance_ms: '
+            f'{tuning.best_consensus_tolerance_ms} ms'
+        )
+    if tuning.best_sample_min_freq_hz is not None:
+        print(f'Best sample_min_freq_hz: {tuning.best_sample_min_freq_hz} Hz')
+    if tuning.best_sample_max_freq_hz is not None:
+        print(f'Best sample_max_freq_hz: {tuning.best_sample_max_freq_hz} Hz')
     print(f'Accuracy: {tuning.best_accuracy * 100:.1f}%')
     if tuning.best_mean_error_ms is not None:
         print(f'Mean Error: {tuning.best_mean_error_ms:.1f} ms')

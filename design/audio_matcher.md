@@ -454,6 +454,18 @@ test_cases:
 * `start_sounds_dir`: Optional path to a directory of pre-game start-sound
   samples (e.g., `assets/sm5/start_sounds`). Relative paths resolve from the
   YAML directory.
+* `chunk_duration_ms`: Optional sub-window chunk duration in ms for start-sound
+  sample matching (default: `1500`).
+* `chunk_step_ms`: Optional step size in ms between consecutive start-sound
+  chunks (default: `750`).
+* `consensus_tolerance_ms`: Optional max timing spread in ms for start-sound
+  chunk votes to cluster together (default: `200`).
+* `sample_min_freq_hz`: Optional high-pass frequency cutoff in Hz for
+  start-sound sample matching (default: `150.0`).
+* `sample_max_freq_hz`: Optional upper frequency cutoff in Hz for start-sound
+  sample matching (default: `8000.0`).
+* `agreement_tolerance_ms`: Optional max timing difference in ms for siren and
+  start-sound detections to corroborate each other (default: `500`).
 * `freq_min_hz`: Lower frequency cutoff in Hz (e.g. `1400.0`).
 * `freq_max_hz`: Upper frequency cutoff in Hz (e.g. `2400.0`).
 * `threshold`: Detection confidence threshold (0.0 to 1.0, e.g. `0.2`).
